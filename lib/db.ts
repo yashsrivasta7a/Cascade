@@ -1,0 +1,20 @@
+import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
+// Standard Prisma 6 client initialization for Next.js
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const db =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = db;
+}
+
+export type { PrismaClient };

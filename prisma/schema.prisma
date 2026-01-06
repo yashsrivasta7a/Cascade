@@ -1,0 +1,194 @@
+// Flowsmith - AI Workflow Orchestration Platform
+// Prisma Schema for PostgreSQL (Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USER & AUTH (Clerk integration)
+// =============================================================================
+
+model User {
+  id        String   @id // Clerk user ID
+  email     String   @unique
+  credits   Int      @default(1000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workflows  Workflow[]
+  executions WorkflowExecution[]
+
+  @@map("users")
+}
+
+// =============================================================================
+// WORKFLOWS
+// =============================================================================
+
+model Workflow {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  
+  // Serialized React Flow state
+  nodesJson   Json     // Node[] from React Flow
+  edgesJson   Json     // Edge[] from React Flow
+  viewportJson Json?   // Viewport state
+  
+  // Versioning
+  version     Int      @default(1)
+  isPublished Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions WorkflowExecution[]
+
+  @@index([userId])
+  @@map("workflows")
+}
+
+// =============================================================================
+// WORKFLOW EXECUTIONS
+// =============================================================================
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  PAUSED     // Waiting for webhook
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model WorkflowExecution {
+  id           String          @id @default(cuid())
+  workflowId   String
+  userId       String
+  
+  // Trigger.dev run ID for durability
+  triggerRunId String?         @unique
+  
+  status       ExecutionStatus @default(PENDING)
+  
+  // Snapshot of workflow at execution time
+  workflowSnapshot Json
+  
+  // Cost tracking
+  estimatedCost Int            @default(0)
+  actualCost    Int            @default(0)
+  
+  // Timing
+  startedAt    DateTime?
+  completedAt  DateTime?
+  
+  // Error info
+  error        String?
+  
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  workflow     Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeExecutions NodeExecution[]
+
+  @@index([workflowId])
+  @@index([userId])
+  @@index([triggerRunId])
+  @@map("workflow_executions")
+}
+
+// =============================================================================
+// NODE EXECUTIONS
+// =============================================================================
+
+enum NodeExecutionStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  WAITING    // Waiting for webhook callback
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+model NodeExecution {
+  id                  String              @id @default(cuid())
+  workflowExecutionId String
+  
+  // Node identification
+  nodeId              String              // React Flow node ID
+  nodeType            String              // AINodeType
+  nodeLabel           String?
+  
+  // Trigger.dev task tracking
+  triggerTaskId       String?
+  waitToken           String?             // Token for wait.forToken()
+  
+  // Provider info
+  providerUsed        String?             // Which provider executed this node
+  providerJobId       String?             // External job ID (e.g., fal.ai request ID)
+  
+  status              NodeExecutionStatus @default(PENDING)
+  
+  // Input/Output (validated JSON)
+  inputJson           Json?
+  outputJson          Json?
+  
+  // Cost tracking
+  estimatedCost       Int                 @default(0)
+  actualCost          Int                 @default(0)
+  
+  // Timing
+  startedAt           DateTime?
+  completedAt         DateTime?
+  
+  // Logs and errors
+  logs                Json?               // Array of log entries
+  error               String?
+  
+  // Retry tracking
+  attemptNumber       Int                 @default(1)
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  workflowExecution   WorkflowExecution   @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+
+  @@index([workflowExecutionId])
+  @@index([nodeId])
+  @@index([waitToken])
+  @@index([providerJobId])
+  @@map("node_executions")
+}
+
+// =============================================================================
+// PROVIDER WEBHOOKS (for tracking incoming callbacks)
+// =============================================================================
+
+model ProviderWebhook {
+  id              String   @id @default(cuid())
+  
+  provider        String   // "fal", "elevenlabs", etc.
+  providerJobId   String   // External job ID
+  
+  // Raw webhook payload
+  payloadJson     Json
+  
+  // Processing status
+  processed       Boolean  @default(false)
+  processedAt     DateTime?
+  
+  createdAt       DateTime @default(now())
+
+  @@index([provider, providerJobId])
+  @@map("provider_webhooks")
+}

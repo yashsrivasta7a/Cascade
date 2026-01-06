@@ -1,0 +1,49 @@
+{
+  "dependencies": {
+    "@clerk/nextjs": "^6.36.5",
+    "@fal-ai/client": "^1.8.1",
+    "@prisma/client": "^6.19.1",
+    "@tanstack/react-query": "^5.90.16",
+    "@trigger.dev/sdk": "4.3.1",
+    "@trpc/react-query": "^11.8.1",
+    "@trpc/server": "^11.8.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "framer-motion": "^12.23.27",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.1",
+    "pg": "^8.16.3",
+    "prisma": "^6.19.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "reactflow": "^11.11.4",
+    "tailwind-merge": "^3.4.0",
+    "transloadit": "^4.1.2",
+    "zod": "^4.3.5",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@trigger.dev/build": "4.3.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "name": "flowsmith",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "eslint",
+    "start": "next start",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "trigger:dev": "npx trigger.dev@4.3.1 dev"
+  },
+  "version": "0.1.0"
+}
