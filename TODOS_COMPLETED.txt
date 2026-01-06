@@ -1,0 +1,148 @@
+================================================================================
+FLOWSMITH - WORK COMPLETED (January 6, 2026)
+================================================================================
+
+## SESSION SUMMARY
+Building an AI Workflow Orchestration Platform with Next.js 15, React Flow,
+Prisma, Trigger.dev, fal.ai, and OpenRouter integrations.
+
+================================================================================
+EXECUTION HISTORY & LOGGING
+================================================================================
+
+[x] Fixed execution history not showing OpenRouter LLM runs
+    - Added QuickExecution model to Prisma schema
+    - Logs single node runs (not full workflows)
+
+[x] Added execution logging to /api/nodes/llm/stream
+    - Creates record when streaming starts (RUNNING)
+    - Updates to COMPLETED when stream finishes
+    - Updates to FAILED on error
+
+[x] Added execution logging to /api/nodes/image/generate (Seedream)
+    - Tracks image generation jobs
+    - Records duration, cost, and output
+
+[x] Added execution logging to /api/nodes/execute (generic endpoint)
+    - All other node types now logged
+
+[x] Fixed "stuck RUNNING" executions
+    - Issue: DB updates weren't awaited in streaming response
+    - Solution: Added proper await for all DB updates
+
+[x] Fixed status case mismatch in execution-history-panel.tsx
+    - API returns lowercase ("running", "completed")
+    - Config expected uppercase ("RUNNING", "COMPLETED")
+    - Added .toUpperCase() normalization
+
+[x] Created /api/executions/cancel-stuck endpoint
+    - Cancels executions stuck in RUNNING for >2 minutes
+    - Marks them as FAILED with timeout message
+
+[x] Added "Cancel Stuck" button to Execution History panel
+    - Only appears when stuck executions detected
+    - Cleans up old Trigger.dev workflow executions
+
+================================================================================
+UI/UX IMPROVEMENTS (Previous Session)
+================================================================================
+
+[x] Execution History Panel
+    - Slide-out modal on right side
+    - Shows workflow and quick executions
+    - Real-time refresh every 5 seconds
+    - Expandable execution details
+
+[x] Node Context Menu
+    - Small floating menu near selected nodes
+    - Configure, Duplicate, Disconnect, Delete options
+    - Replaced large left-side inspector
+
+[x] Connection Management
+    - Delete button on edge hover to break connections
+    - Color-coded connections (blue=normal, red=negative prompt)
+
+[x] Input Nodes
+    - Text Input Node (drag & drop text)
+    - Image Input Node (drag & drop images)
+    - Video Input Node (drag & drop videos)  
+    - Audio Input Node (drag & drop audio)
+
+[x] Negative Prompt Handling
+    - Toggle button to add negative prompt field
+    - Hidden from UI, works in backend
+    - Critical constraint block for LLM
+
+[x] Vertical Layout for Media Nodes
+    - Input above, result below
+    - Applied to SeedVR, Seedance, Lipsync nodes
+
+================================================================================
+AUTHENTICATION (Previous Session)
+================================================================================
+
+[x] Clerk Integration
+    - Added ClerkProvider to layout
+    - Created middleware.ts for route protection
+    - GitHub, Google, and Email authentication
+
+[x] Custom Auth Pages
+    - /sign-in with React Flow background
+    - /sign-up with animated features showcase
+    - Glassmorphic card design
+    - Premium dark theme aesthetic
+
+[x] Route Protection
+    - Public routes: /sign-in, /sign-up, /api/webhooks
+    - Protected routes: /dashboard, /workflows, /settings
+
+================================================================================
+API ENDPOINTS
+================================================================================
+
+/api/nodes/llm/stream        - Streaming LLM with execution logging
+/api/nodes/image/generate    - Seedream image gen with execution logging
+/api/nodes/execute           - Generic node executor with execution logging
+/api/executions              - Fetch execution history (both types)
+/api/executions/cancel-stuck - Cancel stuck executions
+/api/dashboard/stats         - Real-time dashboard statistics
+/api/webhooks/fal            - fal.ai webhook handler (for async jobs)
+
+================================================================================
+DATABASE SCHEMA UPDATES
+================================================================================
+
+[x] QuickExecution model added
+    - Tracks single node executions
+    - Fields: nodeType, nodeLabel, status, inputJson, outputJson
+    - Provider, model, cost tracking
+    - Duration in milliseconds
+
+================================================================================
+KNOWN ISSUES / FUTURE WORK
+================================================================================
+
+[ ] Webhook-based async execution (needs ngrok or public URL)
+    - Currently using sync approach (fal.subscribe)
+    - Works for local dev, but webhooks better for production
+
+[ ] Trigger.dev workflow executions stuck if webhook unreachable
+    - Workaround: Use "Cancel Stuck" button
+    - Fix: Deploy to production with real webhook URL
+
+[ ] Real-time execution updates
+    - Currently polling every 5 seconds
+    - Could use WebSockets or Server-Sent Events
+
+================================================================================
+FILES MODIFIED TODAY
+================================================================================
+
+app/api/nodes/llm/stream/route.ts
+app/api/nodes/image/generate/route.ts
+app/api/nodes/execute/route.ts
+app/api/executions/cancel-stuck/route.ts (NEW)
+components/flow/execution-history-panel.tsx
+
+================================================================================
+

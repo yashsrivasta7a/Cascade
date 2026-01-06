@@ -9,7 +9,7 @@ import { registerAllNodeExecutors, getNodeExecutor, DEFAULT_NODE_CONFIG } from "
 registerAllNodeExecutors();
 
 // =============================================================================
-// WORKFLOW EXECUTOR TASK - DAG Orchestration
+// WORKFLOW EXECUTOR TASK - DAG Orchestration with Parallel Execution
 // =============================================================================
 
 export interface WorkflowExecutorPayload {
@@ -20,8 +20,9 @@ export interface WorkflowExecutorPayload {
   edges: Edge[];
 }
 
-// Topological sort for DAG execution order
-function topoSort(nodes: Node[], edges: Edge[]): Node[] {
+// Get nodes grouped by execution level (for parallel execution)
+// Level 0: no dependencies, Level 1: depends only on level 0, etc.
+function getExecutionLevels(nodes: Node[], edges: Edge[]): Node[][] {
   const inDeg = new Map<string, number>();
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const adj = new Map<string, string[]>();
@@ -33,24 +34,42 @@ function topoSort(nodes: Node[], edges: Edge[]): Node[] {
     inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
   }
 
-  const queue: string[] = [];
-  for (const [id, deg] of inDeg.entries()) {
-    if (deg === 0) queue.push(id);
-  }
+  const levels: Node[][] = [];
+  const remaining = new Set(nodes.map((n) => n.id));
 
-  const result: Node[] = [];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    const node = byId.get(id);
-    if (node) result.push(node);
+  while (remaining.size > 0) {
+    // Find all nodes with in-degree 0 (ready to execute)
+    const currentLevel: Node[] = [];
+    for (const id of remaining) {
+      if ((inDeg.get(id) ?? 0) === 0) {
+        const node = byId.get(id);
+        if (node) currentLevel.push(node);
+      }
+    }
 
-    for (const nextId of adj.get(id) ?? []) {
-      inDeg.set(nextId, (inDeg.get(nextId) ?? 0) - 1);
-      if (inDeg.get(nextId) === 0) queue.push(nextId);
+    if (currentLevel.length === 0) {
+      // Cycle detected or error - just add remaining
+      for (const id of remaining) {
+        const node = byId.get(id);
+        if (node) currentLevel.push(node);
+      }
+      remaining.clear();
+    } else {
+      // Remove current level nodes and update in-degrees
+      for (const node of currentLevel) {
+        remaining.delete(node.id);
+        for (const nextId of adj.get(node.id) ?? []) {
+          inDeg.set(nextId, (inDeg.get(nextId) ?? 0) - 1);
+        }
+      }
+    }
+
+    if (currentLevel.length > 0) {
+      levels.push(currentLevel);
     }
   }
 
-  return result;
+  return levels;
 }
 
 // Build input for a node by collecting outputs from upstream nodes
@@ -118,101 +137,119 @@ export const executeWorkflow = task({
       },
     });
 
-    // Topologically sort nodes for execution order
-    const sortedNodes = topoSort(nodes, edges);
+    // Get execution levels for parallel processing
+    const levels = getExecutionLevels(nodes, edges);
 
     // Track outputs by node ID
     const outputs = new Map<string, Record<string, unknown>>();
 
-    // Execute nodes in order
-    for (const node of sortedNodes) {
-      const nodeType = node.type as AINodeType;
-      const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
+    // Execute nodes level by level (parallel within each level)
+    for (const level of levels) {
+      // Create node execution records for all nodes in this level
+      const nodeExecutions = await Promise.all(
+        level.map(async (node) => {
+          const nodeType = node.type as AINodeType;
+          const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
 
-      // Create node execution record
-      const nodeExecution = await db.nodeExecution.create({
-        data: {
-          workflowExecutionId,
-          nodeId: node.id,
-          nodeType,
-          nodeLabel: nodeLabel ?? node.type,
-          status: "QUEUED",
-        },
-      });
+          const nodeExecution = await db.nodeExecution.create({
+            data: {
+              workflowExecutionId,
+              nodeId: node.id,
+              nodeType,
+              nodeLabel: nodeLabel ?? node.type,
+              status: "QUEUED",
+            },
+          });
 
-      // Build input from node data and upstream outputs
-      const input = buildNodeInput(node, edges, outputs);
+          // Build input from node data and upstream outputs
+          const input = buildNodeInput(node, edges, outputs);
 
-      // Store input
-      await db.nodeExecution.update({
-        where: { id: nodeExecution.id },
-        data: { inputJson: input as object },
-      });
+          // Store input
+          await db.nodeExecution.update({
+            where: { id: nodeExecution.id },
+            data: { inputJson: input as object },
+          });
 
-      // Get node config for timeout
-      const executor = getNodeExecutor(nodeType);
-      const nodeConfig = executor?.config ?? DEFAULT_NODE_CONFIG;
+          return { node, nodeExecution, input };
+        })
+      );
 
-      // Execute the node as a child task
-      const nodePayload: NodeExecutorPayload = {
-        nodeExecutionId: nodeExecution.id,
-        workflowExecutionId,
-        nodeId: node.id,
-        nodeType,
-        input,
-      };
+      // Execute all nodes in this level in parallel
+      const results = await Promise.allSettled(
+        nodeExecutions.map(async ({ node, nodeExecution, input }) => {
+          const nodeType = node.type as AINodeType;
 
-      try {
-        // triggerAndWait: Parent task PAUSES (no billing) while waiting
-        // This is cost-efficient for long-running AI jobs
-        const result = await executeNode.triggerAndWait(nodePayload, {
-          // Use the node's configured timeout
-          timeout: nodeConfig.timeout,
-        });
+          // Get node config for timeout
+          const executor = getNodeExecutor(nodeType);
+          const nodeConfig = executor?.config ?? DEFAULT_NODE_CONFIG;
 
-        if (result.ok && result.output) {
-          // Store output for downstream nodes
-          const output = result.output as { output?: Record<string, unknown> };
-          if (output.output) {
-            outputs.set(node.id, output.output);
+          const nodePayload: NodeExecutorPayload = {
+            nodeExecutionId: nodeExecution.id,
+            workflowExecutionId,
+            nodeId: node.id,
+            nodeType,
+            input,
+          };
+
+          // triggerAndWait: Parent task PAUSES (no billing) while waiting
+          const result = await executeNode.triggerAndWait(nodePayload, {
+            timeout: nodeConfig.timeout,
+          });
+
+          return { node, result };
+        })
+      );
+
+      // Process results
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const { node, result: execResult } = result.value;
+
+          if (execResult.ok && execResult.output) {
+            const output = execResult.output as { output?: Record<string, unknown> };
+            if (output.output) {
+              outputs.set(node.id, output.output);
+            }
+          } else {
+            // Node failed - mark workflow as failed but continue to collect partial results
+            const errorMsg = !execResult.ok
+              ? `Node ${node.id} timeout or error`
+              : `Node ${node.id} failed`;
+
+            await db.workflowExecution.update({
+              where: { id: workflowExecutionId },
+              data: {
+                status: "FAILED",
+                completedAt: new Date(),
+                error: errorMsg,
+              },
+            });
+
+            return {
+              success: false,
+              workflowExecutionId,
+              failedNodeId: node.id,
+              partialOutputs: Object.fromEntries(outputs),
+            };
           }
         } else {
-          // Node failed - mark workflow as failed
-          const errorMsg = !result.ok 
-            ? `Node timeout or error` 
-            : `Node ${node.id} (${nodeType}) failed`;
-            
+          // Promise rejected - execution error
           await db.workflowExecution.update({
             where: { id: workflowExecutionId },
             data: {
               status: "FAILED",
               completedAt: new Date(),
-              error: errorMsg,
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
             },
           });
 
           return {
             success: false,
             workflowExecutionId,
-            failedNodeId: node.id,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            partialOutputs: Object.fromEntries(outputs),
           };
         }
-      } catch (error) {
-        // Execution error
-        await db.workflowExecution.update({
-          where: { id: workflowExecutionId },
-          data: {
-            status: "FAILED",
-            completedAt: new Date(),
-            error: error instanceof Error ? error.message : String(error),
-          },
-        });
-
-        return {
-          success: false,
-          workflowExecutionId,
-          error: error instanceof Error ? error.message : String(error),
-        };
       }
     }
 
@@ -232,4 +269,3 @@ export const executeWorkflow = task({
     };
   },
 });
-

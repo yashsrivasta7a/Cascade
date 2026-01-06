@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useState, useCallback, useRef, useEffect, KeyboardEvent } from "react";
+import { memo, useState, useCallback, useRef, useEffect, KeyboardEvent, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { Brain, Play, Loader2, Square, Plus, X } from "lucide-react";
+import { Brain, Play, Loader2, Square, Plus, X, ExternalLink } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -19,6 +19,38 @@ export interface OpenRouterNodeData extends BaseNodeData {
 }
 
 const nodeDef = NODE_DEFINITIONS.openrouter;
+
+// Component to render text with clickable links
+function RenderWithLinks({ text }: { text: string }) {
+  const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
+  
+  const parts = text.split(urlRegex);
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (urlRegex.test(part)) {
+          // Reset regex lastIndex
+          urlRegex.lastIndex = 0;
+          return (
+            <a
+              key={i}
+              href={part}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="nodrag text-cyan-400 hover:text-cyan-300 underline underline-offset-2 inline-flex items-center gap-0.5"
+            >
+              {part.length > 40 ? part.slice(0, 40) + "..." : part}
+              <ExternalLink className="w-2.5 h-2.5 inline-block" />
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
 
 const modelLabels: Record<string, string> = {
   "openai/gpt-4o": "GPT-4o",
@@ -64,10 +96,19 @@ function OpenRouterNodeComponent(props: NodeProps<OpenRouterNodeData>) {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Build the prompt - if there's a negative prompt, instruct the LLM to avoid it
+      // Build the prompt - negative prompt gets HIGHEST PRIORITY
       let finalPrompt = data.prompt;
       if (data.negativePrompt?.trim()) {
-        finalPrompt = `${data.prompt}\n\n[IMPORTANT: You must NOT include or reference any of the following in your response: ${data.negativePrompt}]`;
+        // Negative prompt is prepended with strong emphasis for maximum effect
+        finalPrompt = `<CRITICAL_CONSTRAINT>
+ABSOLUTE RESTRICTIONS - DO NOT INCLUDE ANY OF THE FOLLOWING UNDER ANY CIRCUMSTANCES:
+${data.negativePrompt}
+
+These restrictions are NON-NEGOTIABLE. If you find yourself about to include any restricted content, STOP and rephrase.
+</CRITICAL_CONSTRAINT>
+
+USER REQUEST:
+${data.prompt}`;
       }
 
       const response = await fetch("/api/nodes/llm/stream", {
@@ -269,11 +310,17 @@ function OpenRouterNodeComponent(props: NodeProps<OpenRouterNodeData>) {
             ) : data.result ? (
               "Response"
             ) : (
-              "No output yet"
+              "Awaiting prompt"
             )}
           </div>
           <div className="text-xs text-zinc-200 bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 whitespace-pre-wrap break-words min-h-[96px] max-h-[200px] overflow-y-auto">
-            {data.result || "—"}
+            {data.result ? (
+              <RenderWithLinks text={data.result} />
+            ) : (
+              <span className="text-zinc-500 italic">
+                Write a prompt and press Run or Ctrl+Enter to generate a response...
+              </span>
+            )}
             {isStreaming && (
               <span className="inline-block w-1.5 h-4 bg-emerald-400 ml-0.5 animate-pulse" />
             )}

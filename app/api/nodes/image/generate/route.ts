@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import dotenv from "dotenv";
 import { fal } from "@fal-ai/client";
+import { db } from "@/lib/db";
 
 dotenv.config({ path: ".env.local" });
 
@@ -49,10 +50,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`[Seedream] Generating image: "${prompt.slice(0, 50)}..."`);
-
     // Determine if this is generation or editing
     const isEditing = Boolean(image);
+    const startTime = Date.now();
+    
+    // Create execution record
+    let executionId: string | null = null;
+    try {
+      const execution = await db.quickExecution.create({
+        data: {
+          nodeType: "seedream",
+          nodeLabel: isEditing ? "Seedream Edit" : "Seedream Generate",
+          status: "RUNNING",
+          provider: "fal",
+          inputJson: { prompt, negativePrompt, aspectRatio, hasImage: !!image, seed },
+          estimatedCost: 5, // 5 credits per image
+        },
+      });
+      executionId = execution.id;
+    } catch (dbError) {
+      console.warn("Failed to create execution record:", dbError);
+    }
+
+    console.log(`[Seedream] Generating image: "${prompt.slice(0, 50)}..."`);
+    
     
     // Build input for fal.ai
     const input: Record<string, unknown> = {
@@ -83,12 +104,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[Seedream] Generation complete`);
+    const duration = Date.now() - startTime;
+    console.log(`[Seedream] Generation complete in ${duration}ms`);
 
     // Extract the image URL from result
     const images = (result.data as { images?: Array<{ url: string; width: number; height: number }> })?.images;
     
     if (!images || images.length === 0) {
+      // Update execution as failed
+      if (executionId) {
+        await db.quickExecution.update({
+          where: { id: executionId },
+          data: { status: "FAILED", completedAt: new Date(), durationMs: duration, error: "No image generated" },
+        }).catch(console.warn);
+      }
       return NextResponse.json(
         { error: "No image generated" },
         { status: 500 }
@@ -96,6 +125,20 @@ export async function POST(request: NextRequest) {
     }
 
     const generatedImage = images[0];
+
+    // Update execution as completed
+    if (executionId) {
+      await db.quickExecution.update({
+        where: { id: executionId },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          durationMs: duration,
+          actualCost: 5,
+          outputJson: { type: "image", url: generatedImage.url, width: generatedImage.width, height: generatedImage.height },
+        },
+      }).catch(console.warn);
+    }
 
     return NextResponse.json({
       status: "success",
@@ -109,9 +152,19 @@ export async function POST(request: NextRequest) {
         },
       },
       requestId: (result as { requestId?: string }).requestId,
+      executionId,
     });
   } catch (error) {
     console.error("[Seedream] Error:", error);
+    
+    // Update execution as failed if we have one
+    if (executionId) {
+      await db.quickExecution.update({
+        where: { id: executionId },
+        data: { status: "FAILED", completedAt: new Date(), error: error instanceof Error ? error.message : String(error) },
+      }).catch(console.warn);
+    }
+    
     return NextResponse.json(
       { 
         status: "error",

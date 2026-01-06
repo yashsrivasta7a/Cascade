@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -12,29 +12,28 @@ import {
   Filter,
   Calendar,
   ChevronDown,
-  ChevronRight,
   Download,
   Eye,
-  MoreHorizontal,
   Zap,
   Coins,
   Timer,
   Activity,
   RefreshCw,
   Search,
+  Loader2,
 } from "lucide-react";
 import { Button, Card, Badge, Input } from "@/components/ui";
 import { Header } from "@/components/layout";
 import { cn } from "@/lib/utils";
 
-type ExecutionStatus = "running" | "completed" | "failed" | "cancelled";
+type ExecutionStatus = "running" | "completed" | "failed" | "cancelled" | "queued" | "waiting";
 
 interface NodeExecution {
   id: string;
   nodeType: string;
   label: string;
   status: ExecutionStatus;
-  startedAt: string;
+  startedAt?: string;
   completedAt?: string;
   duration?: string;
   provider?: string;
@@ -60,168 +59,21 @@ interface Execution {
   nodes: NodeExecution[];
 }
 
-const mockExecutions: Execution[] = [
-  {
-    id: "exec-001",
-    workflowId: "wf-001",
-    workflowName: "AI Video Generator",
-    status: "completed",
-    startedAt: "2026-01-05T10:30:00Z",
-    completedAt: "2026-01-05T10:32:45Z",
-    duration: "2m 45s",
-    totalCost: 48,
-    nodeCount: 4,
-    nodes: [
-      {
-        id: "n1",
-        nodeType: "openrouter",
-        label: "Generate Script",
-        status: "completed",
-        startedAt: "10:30:00",
-        completedAt: "10:30:12",
-        duration: "12s",
-        provider: "OpenRouter",
-        cost: 2,
-        output: { type: "text", preview: "In a world where technology..." },
-      },
-      {
-        id: "n2",
-        nodeType: "seedream",
-        label: "Create Thumbnail",
-        status: "completed",
-        startedAt: "10:30:12",
-        completedAt: "10:30:28",
-        duration: "16s",
-        provider: "ByteDance",
-        cost: 5,
-        output: { type: "image", url: "/demo/thumb.jpg" },
-      },
-      {
-        id: "n3",
-        nodeType: "elevenlabs",
-        label: "Voice Narration",
-        status: "completed",
-        startedAt: "10:30:12",
-        completedAt: "10:30:45",
-        duration: "33s",
-        provider: "ElevenLabs",
-        cost: 8,
-        output: { type: "audio", url: "/demo/voice.mp3" },
-      },
-      {
-        id: "n4",
-        nodeType: "seedance",
-        label: "Generate Video",
-        status: "completed",
-        startedAt: "10:30:45",
-        completedAt: "10:32:45",
-        duration: "2m",
-        provider: "ByteDance",
-        cost: 25,
-        output: { type: "video", url: "/demo/video.mp4" },
-      },
-    ],
-  },
-  {
-    id: "exec-002",
-    workflowId: "wf-002",
-    workflowName: "Content Upscaler",
-    status: "running",
-    startedAt: "2026-01-05T10:35:00Z",
-    totalCost: 8,
-    nodeCount: 3,
-    nodes: [
-      {
-        id: "n1",
-        nodeType: "seedream",
-        label: "Generate Base",
-        status: "completed",
-        startedAt: "10:35:00",
-        completedAt: "10:35:18",
-        duration: "18s",
-        provider: "ByteDance",
-        cost: 5,
-        output: { type: "image" },
-      },
-      {
-        id: "n2",
-        nodeType: "seedvr",
-        label: "Upscale 4x",
-        status: "running",
-        startedAt: "10:35:18",
-        provider: "ByteDance",
-        cost: 3,
-      },
-      {
-        id: "n3",
-        nodeType: "crop-image",
-        label: "Crop Output",
-        status: "completed",
-        startedAt: "10:35:00",
-        completedAt: "10:35:00",
-        duration: "0s",
-        provider: "Internal",
-        cost: 0,
-      },
-    ],
-  },
-  {
-    id: "exec-003",
-    workflowId: "wf-001",
-    workflowName: "AI Video Generator",
-    status: "failed",
-    startedAt: "2026-01-05T09:15:00Z",
-    completedAt: "2026-01-05T09:15:42Z",
-    duration: "42s",
-    totalCost: 10,
-    nodeCount: 4,
-    nodes: [
-      {
-        id: "n1",
-        nodeType: "openrouter",
-        label: "Generate Script",
-        status: "completed",
-        startedAt: "09:15:00",
-        completedAt: "09:15:10",
-        duration: "10s",
-        provider: "OpenRouter",
-        cost: 2,
-      },
-      {
-        id: "n2",
-        nodeType: "seedream",
-        label: "Create Thumbnail",
-        status: "completed",
-        startedAt: "09:15:10",
-        completedAt: "09:15:25",
-        duration: "15s",
-        provider: "ByteDance",
-        cost: 5,
-      },
-      {
-        id: "n3",
-        nodeType: "elevenlabs",
-        label: "Voice Narration",
-        status: "failed",
-        startedAt: "09:15:10",
-        completedAt: "09:15:42",
-        duration: "32s",
-        provider: "ElevenLabs",
-        cost: 3,
-        error: "Voice quota exceeded. Tried fallback providers: ElevenLabs (quota), Resemble (timeout)",
-      },
-      {
-        id: "n4",
-        nodeType: "seedance",
-        label: "Generate Video",
-        status: "cancelled",
-        startedAt: "09:15:42",
-        provider: "ByteDance",
-        cost: 0,
-      },
-    ],
-  },
-];
+interface ExecutionsResponse {
+  executions: Execution[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+  stats: {
+    totalRuns: number;
+    successRate: string;
+    avgDuration: string;
+    creditsUsed: number;
+  };
+}
 
 const statusConfig = {
   running: {
@@ -230,6 +82,20 @@ const statusConfig = {
     bg: "bg-cyan-500/10",
     border: "border-cyan-500/30",
     label: "Running",
+  },
+  queued: {
+    icon: <Clock className="w-4 h-4" />,
+    color: "text-zinc-400",
+    bg: "bg-zinc-500/10",
+    border: "border-zinc-500/30",
+    label: "Queued",
+  },
+  waiting: {
+    icon: <Clock className="w-4 h-4" />,
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/30",
+    label: "Waiting",
   },
   completed: {
     icon: <CheckCircle2 className="w-4 h-4" />,
@@ -261,7 +127,7 @@ function ExecutionTimeline({ nodes }: { nodes: NodeExecution[] }) {
       <div className="absolute left-2 top-2 bottom-2 w-px bg-gradient-to-b from-cyan-500/50 via-violet-500/50 to-zinc-500/50" />
 
       {nodes.map((node, index) => {
-        const status = statusConfig[node.status];
+        const status = statusConfig[node.status] ?? statusConfig.queued;
         return (
           <motion.div
             key={node.id}
@@ -339,10 +205,12 @@ function ExecutionTimeline({ nodes }: { nodes: NodeExecution[] }) {
                     </p>
                   )}
                   {node.output.url && (
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                      <Download className="w-3 h-3 mr-1" />
-                      Download
-                    </Button>
+                    <a href={node.output.url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                        <Download className="w-3 h-3 mr-1" />
+                        Download
+                      </Button>
+                    </a>
                   )}
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
                     <Eye className="w-3 h-3 mr-1" />
@@ -360,16 +228,54 @@ function ExecutionTimeline({ nodes }: { nodes: NodeExecution[] }) {
 
 export default function ExecutionsPage() {
   const [filter, setFilter] = useState<ExecutionStatus | "all">("all");
-  const [expandedExecution, setExpandedExecution] = useState<string | null>("exec-001");
+  const [expandedExecution, setExpandedExecution] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [data, setData] = useState<ExecutionsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredExecutions = mockExecutions.filter((exec) => {
-    if (filter !== "all" && exec.status !== filter) return false;
-    if (searchQuery && !exec.workflowName.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams();
+      if (filter !== "all") params.set("status", filter);
+      if (searchQuery) params.set("search", searchQuery);
+
+      const res = await fetch(`/api/executions?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch executions");
+      const json = await res.json();
+      setData(json);
+
+      // Auto-expand first running execution
+      const runningExec = json.executions?.find((e: Execution) => e.status === "running");
+      if (runningExec && !expandedExecution) {
+        setExpandedExecution(runningExec.id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
-    return true;
-  });
+  }, [filter, searchQuery, expandedExecution]);
+
+  useEffect(() => {
+    fetchData();
+    // Refresh every 10 seconds for running executions
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Debounce search
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchData();
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, filter, fetchData]);
+
+  const executions = data?.executions ?? [];
+  const stats = data?.stats ?? { totalRuns: 0, successRate: "—", avgDuration: "—", creditsUsed: 0 };
 
   return (
     <div className="h-full flex flex-col">
@@ -377,7 +283,12 @@ export default function ExecutionsPage() {
         title="Execution History"
         description="View and debug your workflow runs"
         actions={
-          <Button variant="ghost" leftIcon={<RefreshCw className="w-4 h-4" />}>
+          <Button
+            variant="ghost"
+            leftIcon={<RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />}
+            onClick={fetchData}
+            disabled={loading}
+          >
             Refresh
           </Button>
         }
@@ -388,10 +299,10 @@ export default function ExecutionsPage() {
           {/* Stats Row */}
           <div className="grid grid-cols-4 gap-4 mb-8">
             {[
-              { label: "Total Runs", value: "1,247", icon: Activity, color: "cyan" },
-              { label: "Success Rate", value: "98.2%", icon: CheckCircle2, color: "emerald" },
-              { label: "Avg Duration", value: "1m 23s", icon: Timer, color: "violet" },
-              { label: "Credits Used", value: "4,582", icon: Coins, color: "amber" },
+              { label: "Total Runs", value: stats.totalRuns.toLocaleString(), icon: Activity, color: "cyan" },
+              { label: "Success Rate", value: stats.successRate, icon: CheckCircle2, color: "emerald" },
+              { label: "Avg Duration", value: stats.avgDuration, icon: Timer, color: "violet" },
+              { label: "Credits Used", value: stats.creditsUsed.toLocaleString(), icon: Coins, color: "amber" },
             ].map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -444,7 +355,7 @@ export default function ExecutionsPage() {
                     )}
                     onClick={() => setFilter(status)}
                   >
-                    {status === "all" ? "All" : statusConfig[status].label}
+                    {status === "all" ? "All" : statusConfig[status]?.label ?? status}
                   </Button>
                 ))}
               </div>
@@ -459,10 +370,37 @@ export default function ExecutionsPage() {
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && executions.length === 0 && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && executions.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <p className="text-zinc-400">{error}</p>
+              <Button variant="outline" onClick={fetchData}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && !error && executions.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Activity className="w-12 h-12 text-zinc-600" />
+              <p className="text-zinc-400">No executions found</p>
+              <p className="text-zinc-500 text-sm">Run a workflow to see execution history here.</p>
+            </div>
+          )}
+
           {/* Executions List */}
           <div className="space-y-4">
-            {filteredExecutions.map((execution, i) => {
-              const status = statusConfig[execution.status];
+            {executions.map((execution, i) => {
+              const status = statusConfig[execution.status] ?? statusConfig.queued;
               const isExpanded = expandedExecution === execution.id;
 
               return (
@@ -487,7 +425,15 @@ export default function ExecutionsPage() {
                             <h3 className="font-semibold text-zinc-100">
                               {execution.workflowName}
                             </h3>
-                            <Badge variant={execution.status === "completed" ? "success" : execution.status === "failed" ? "error" : "accent"}>
+                            <Badge
+                              variant={
+                                execution.status === "completed"
+                                  ? "success"
+                                  : execution.status === "failed"
+                                  ? "error"
+                                  : "accent"
+                              }
+                            >
                               {status.label}
                             </Badge>
                           </div>
@@ -511,11 +457,13 @@ export default function ExecutionsPage() {
                       </div>
 
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1 text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg">
-                          <Coins className="w-4 h-4" />
-                          <span className="font-medium">{execution.totalCost}</span>
-                          <span className="text-xs text-amber-400/60">credits</span>
-                        </div>
+                        {execution.totalCost > 0 && (
+                          <div className="flex items-center gap-1 text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg">
+                            <Coins className="w-4 h-4" />
+                            <span className="font-medium">{execution.totalCost}</span>
+                            <span className="text-xs text-amber-400/60">credits</span>
+                          </div>
+                        )}
                         <ChevronDown
                           className={cn(
                             "w-5 h-5 text-zinc-500 transition-transform duration-200",
@@ -553,7 +501,11 @@ export default function ExecutionsPage() {
                                 </Button>
                               </div>
                             </div>
-                            <ExecutionTimeline nodes={execution.nodes} />
+                            {execution.nodes.length > 0 ? (
+                              <ExecutionTimeline nodes={execution.nodes} />
+                            ) : (
+                              <p className="text-sm text-zinc-500 py-4">No node executions recorded.</p>
+                            )}
                           </div>
                         </motion.div>
                       )}
@@ -568,4 +520,3 @@ export default function ExecutionsPage() {
     </div>
   );
 }
-

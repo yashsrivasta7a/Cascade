@@ -38,7 +38,7 @@ interface FlowCanvasProps {
 let nodeIdCounter = 1;
 const getNewNodeId = () => `node-${Date.now()}-${nodeIdCounter++}`;
 
-// Custom edge component that changes color based on connection type
+// Custom edge component that changes color based on connection type with delete button
 function CustomEdge({
   id,
   sourceX,
@@ -51,8 +51,10 @@ function CustomEdge({
   markerEnd,
 }: EdgeProps) {
   const isNegative = data?.isNegative === true;
+  const [isHovered, setIsHovered] = useState(false);
+  const { setEdges } = useFlowStore.getState();
   
-  const [edgePath] = getSmoothStepPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -61,8 +63,26 @@ function CustomEdge({
     targetPosition,
   });
 
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const edges = useFlowStore.getState().edges;
+    useFlowStore.getState().setEdges(edges.filter((edge) => edge.id !== id));
+  }, [id]);
+
   return (
-    <g>
+    <g
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Invisible wider path for easier interaction */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        style={{ cursor: "pointer" }}
+      />
       {/* Glow effect */}
       <path
         id={`${id}-glow`}
@@ -94,6 +114,26 @@ function CustomEdge({
           animation: "dash 1s linear infinite",
         }}
       />
+      {/* Delete button on hover */}
+      {isHovered && (
+        <foreignObject
+          x={labelX - 10}
+          y={labelY - 10}
+          width={20}
+          height={20}
+          style={{ overflow: "visible" }}
+        >
+          <button
+            onClick={handleDelete}
+            className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white shadow-lg transition-all"
+            style={{ cursor: "pointer" }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </foreignObject>
+      )}
     </g>
   );
 }
@@ -125,6 +165,8 @@ function getNodeOutputPreview(node: Node): string | undefined {
 const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
   "text-input": { inputs: {}, outputs: { text: "text" } },
   "image-input": { inputs: {}, outputs: { image: "image" } },
+  "video-input": { inputs: {}, outputs: { video: "video" } },
+  "audio-input": { inputs: {}, outputs: { audio: "audio" } },
   seedream: { inputs: { prompt: "text", image: "image" }, outputs: { image: "image" } },
   seedvr: { inputs: { image: "image" }, outputs: { upscaled: "image" } },
   seedance: { inputs: { prompt: "text", frame: "image" }, outputs: { video: "video" } },
@@ -612,6 +654,18 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
       return {
         ...baseData,
         image: "",
+      };
+    case "video-input":
+      return {
+        ...baseData,
+        video: "",
+        videoName: "",
+      };
+    case "audio-input":
+      return {
+        ...baseData,
+        audio: "",
+        audioName: "",
       };
     case "seedream":
       return {

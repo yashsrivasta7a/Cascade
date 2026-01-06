@@ -192,3 +192,46 @@ model ProviderWebhook {
   @@index([provider, providerJobId])
   @@map("provider_webhooks")
 }
+
+// =============================================================================
+// QUICK EXECUTIONS (for single node runs without a saved workflow)
+// =============================================================================
+
+model QuickExecution {
+  id            String   @id @default(cuid())
+  userId        String?  // Optional - may not have auth in dev
+  
+  nodeType      String   // AINodeType
+  nodeLabel     String?  // Custom label if any
+  
+  status        String   @default("RUNNING") // RUNNING, COMPLETED, FAILED
+  
+  // Input/Output
+  inputJson     Json?
+  outputJson    Json?
+  
+  // Provider info
+  provider      String?  // e.g., "openrouter", "fal"
+  model         String?  // e.g., "openai/gpt-4o-mini"
+  
+  // Cost tracking
+  estimatedCost Int      @default(0)
+  actualCost    Int      @default(0)
+  
+  // Timing
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  
+  // Duration in ms
+  durationMs    Int?
+  
+  // Error info
+  error         String?
+  
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([nodeType])
+  @@index([startedAt])
+  @@map("quick_executions")
+}

@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
-import { NodeInspector } from "@/components/flow/node-inspector";
+import { NodeContextMenu } from "@/components/flow/node-context-menu";
 import { NodeTypeModal } from "@/components/flow/node-type-modal";
 import { NodePalette, ExecutionHistoryPanel } from "@/components/flow";
 import { useFlowStore } from "@/store";
@@ -177,8 +177,8 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
 
-        {/* Floating inspector (only when a node is selected) */}
-        <NodeInspector />
+        {/* Floating context menu near selected node */}
+        <NodeContextMenu />
 
         {/* Execution History Panel (right side) */}
         <ExecutionHistoryPanel workflowId={workflowId} />

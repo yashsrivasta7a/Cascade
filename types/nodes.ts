@@ -10,6 +10,8 @@ export type AINodeType =
   // Input Nodes
   | "text-input"
   | "image-input"
+  | "video-input"
+  | "audio-input"
   // Image
   | "seedream"
   | "seedvr"
@@ -86,6 +88,30 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 0,
     isUtility: true,
     color: "emerald",
+  },
+  "video-input": {
+    type: "video-input",
+    category: "input",
+    label: "Video Input",
+    description: "Upload a video file",
+    provider: "Input",
+    inputs: [],
+    outputs: [{ type: "video", label: "Video" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "violet",
+  },
+  "audio-input": {
+    type: "audio-input",
+    category: "input",
+    label: "Audio Input",
+    description: "Upload an audio file",
+    provider: "Input",
+    inputs: [],
+    outputs: [{ type: "audio", label: "Audio" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "amber",
   },
 
   // ─────────────────────────────────────────────────────────────────────────

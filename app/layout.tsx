@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -26,12 +28,49 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} antialiased bg-zinc-950 text-zinc-100`}
-      >
-        {children}
-      </body>
-    </html>
+    <ClerkProvider
+      appearance={{
+        baseTheme: dark,
+        variables: {
+          colorPrimary: "#06b6d4", // cyan-500
+          colorBackground: "#09090b", // zinc-950
+          colorInputBackground: "#18181b", // zinc-900
+          colorInputText: "#fafafa", // zinc-50
+          colorText: "#fafafa",
+          colorTextSecondary: "#a1a1aa", // zinc-400
+          borderRadius: "0.75rem",
+          fontFamily: "var(--font-geist-sans)",
+        },
+        elements: {
+          formButtonPrimary:
+            "bg-gradient-to-r from-cyan-500 to-violet-500 hover:from-cyan-400 hover:to-violet-400 border-0 shadow-lg shadow-cyan-500/25",
+          card: "bg-zinc-900/80 backdrop-blur-xl border border-white/10 shadow-2xl",
+          headerTitle: "text-2xl font-bold text-white",
+          headerSubtitle: "text-zinc-400",
+          socialButtonsBlockButton:
+            "bg-zinc-800/50 border border-white/10 hover:bg-zinc-800 hover:border-white/20 text-white",
+          socialButtonsBlockButtonText: "text-zinc-300 font-medium",
+          dividerLine: "bg-white/10",
+          dividerText: "text-zinc-500",
+          formFieldLabel: "text-zinc-300 font-medium",
+          formFieldInput:
+            "bg-zinc-800/50 border-white/10 text-white placeholder:text-zinc-500 focus:border-cyan-500/50 focus:ring-cyan-500/20",
+          footerActionLink: "text-cyan-400 hover:text-cyan-300",
+          identityPreviewText: "text-white",
+          identityPreviewEditButton: "text-cyan-400 hover:text-cyan-300",
+          formResendCodeLink: "text-cyan-400 hover:text-cyan-300",
+          otpCodeFieldInput: "bg-zinc-800/50 border-white/10 text-white",
+          alternativeMethodsBlockButton: "text-cyan-400 hover:text-cyan-300",
+        },
+      }}
+    >
+      <html lang="en" className="dark">
+        <body
+          className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} antialiased bg-zinc-950 text-zinc-100`}
+        >
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

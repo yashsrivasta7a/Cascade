@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import dotenv from "dotenv";
+import { db } from "@/lib/db";
 
 dotenv.config({ path: ".env.local" });
 
@@ -19,6 +20,9 @@ const LLMRequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  let executionId: string | null = null;
+
   try {
     const body = await request.json();
     const parsed = LLMRequestSchema.safeParse(body);
@@ -32,9 +36,33 @@ export async function POST(request: NextRequest) {
 
     const { prompt, systemPrompt, model, temperature, maxTokens, context, imageUrl } = parsed.data;
 
+    // Create execution record
+    try {
+      const execution = await db.quickExecution.create({
+        data: {
+          nodeType: "openrouter",
+          nodeLabel: "OpenRouter LLM",
+          status: "RUNNING",
+          provider: "openrouter",
+          model,
+          inputJson: { prompt, systemPrompt, model, temperature, maxTokens, context: context?.slice(0, 200) },
+          estimatedCost: 2,
+        },
+      });
+      executionId = execution.id;
+    } catch (dbError) {
+      console.warn("Failed to create execution record:", dbError);
+    }
+
     const apiKey = process.env.OPENROUTER_API_KEY;
-    console.log("apiKey", apiKey);
     if (!apiKey) {
+      // Mark as failed if we have an execution record
+      if (executionId) {
+        await db.quickExecution.update({
+          where: { id: executionId },
+          data: { status: "FAILED", error: "API key not configured", completedAt: new Date(), durationMs: Date.now() - startTime },
+        }).catch(() => {});
+      }
       return new Response(
         JSON.stringify({ error: "OpenRouter API key not configured" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -91,6 +119,13 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Mark as failed
+      if (executionId) {
+        await db.quickExecution.update({
+          where: { id: executionId },
+          data: { status: "FAILED", error: `API error: ${response.status}`, completedAt: new Date(), durationMs: Date.now() - startTime },
+        }).catch(() => {});
+      }
       return new Response(
         JSON.stringify({ error: `OpenRouter API error: ${response.status}`, details: errorText }),
         { status: response.status, headers: { "Content-Type": "application/json" } }
@@ -100,6 +135,9 @@ export async function POST(request: NextRequest) {
     // Stream the response
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
+    let fullResponse = "";
+    const execId = executionId; // Capture for closure
+    const execStartTime = startTime;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -129,6 +167,7 @@ export async function POST(request: NextRequest) {
                   const parsed = JSON.parse(data);
                   const content = parsed.choices?.[0]?.delta?.content;
                   if (content) {
+                    fullResponse += content;
                     // Send just the content as a simple SSE event
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
                   }
@@ -138,7 +177,43 @@ export async function POST(request: NextRequest) {
               }
             }
           }
+
+          // Mark as completed - use await to ensure it completes
+          if (execId) {
+            try {
+              await db.quickExecution.update({
+                where: { id: execId },
+                data: {
+                  status: "COMPLETED",
+                  completedAt: new Date(),
+                  durationMs: Date.now() - execStartTime,
+                  outputJson: { type: "text", text: fullResponse.slice(0, 1000) }, // Store preview
+                  actualCost: 2, // Estimated
+                },
+              });
+              console.log(`[LLM Stream] Execution ${execId} marked as COMPLETED`);
+            } catch (dbErr) {
+              console.warn("Failed to update execution as completed:", dbErr);
+            }
+          }
         } catch (error) {
+          // Mark as failed - use await to ensure it completes
+          if (execId) {
+            try {
+              await db.quickExecution.update({
+                where: { id: execId },
+                data: {
+                  status: "FAILED",
+                  completedAt: new Date(),
+                  durationMs: Date.now() - execStartTime,
+                  error: error instanceof Error ? error.message : "Stream error",
+                },
+              });
+              console.log(`[LLM Stream] Execution ${execId} marked as FAILED`);
+            } catch (dbErr) {
+              console.warn("Failed to update execution as failed:", dbErr);
+            }
+          }
           controller.error(error);
         } finally {
           controller.close();
@@ -154,6 +229,19 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    // Update execution as failed if we have one
+    if (executionId) {
+      await db.quickExecution.update({
+        where: { id: executionId },
+        data: { 
+          status: "FAILED", 
+          completedAt: new Date(), 
+          durationMs: Date.now() - startTime,
+          error: error instanceof Error ? error.message : "Unknown error" 
+        },
+      }).catch(console.warn);
+    }
+    
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }

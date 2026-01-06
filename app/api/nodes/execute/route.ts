@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dotenv from "dotenv";
 import type { NodeExecutionContext } from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
+import { db } from "@/lib/db";
 
 // Import executors directly to avoid module loading issues
 import { openrouterExecutor } from "@/lib/engine/nodes/openrouter";
@@ -80,9 +81,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Build execution context
+    // Step 3: Create execution record
+    let executionId: string | null = null;
+    const startTime = Date.now();
+    
+    try {
+      const execution = await db.quickExecution.create({
+        data: {
+          nodeType: nodeType,
+          nodeLabel: executor.nodeType || nodeType,
+          status: "RUNNING",
+          provider: executor.providers?.[0] || "unknown",
+          inputJson: input as object,
+          estimatedCost: executor.config?.estimatedCost ?? 0,
+        },
+      });
+      executionId = execution.id;
+    } catch (dbError) {
+      console.warn("Failed to create execution record:", dbError);
+    }
+
+    // Step 4: Build execution context
     const context: NodeExecutionContext = {
-      nodeExecutionId: `direct-${Date.now()}`,
+      nodeExecutionId: executionId ?? `direct-${Date.now()}`,
       workflowExecutionId: `direct-workflow-${Date.now()}`,
       nodeId: "direct-node",
       nodeType: nodeType as AINodeType,
@@ -90,16 +111,34 @@ export async function POST(request: NextRequest) {
       attempt: 1,
     };
 
-    // Step 4: Execute the node
+    // Step 5: Execute the node
     console.log(`[Node Executor] Running ${nodeType} with input:`, input);
-    const startTime = Date.now();
     
     const result = await executor.execute(inputValidation.data, context);
     
     const duration = Date.now() - startTime;
     console.log(`[Node Executor] ${nodeType} completed in ${duration}ms:`, result.success ? "SUCCESS" : "FAILED");
 
-    // Step 5: Return result
+    // Step 6: Update execution record
+    if (executionId) {
+      try {
+        await db.quickExecution.update({
+          where: { id: executionId },
+          data: {
+            status: result.success ? "COMPLETED" : "FAILED",
+            completedAt: new Date(),
+            durationMs: duration,
+            outputJson: result.output as object ?? null,
+            actualCost: result.actualCost ?? 0,
+            error: result.error ?? null,
+          },
+        });
+      } catch (dbError) {
+        console.warn("Failed to update execution record:", dbError);
+      }
+    }
+
+    // Step 7: Return result
     if (result.success) {
       return NextResponse.json({
         status: "success",
@@ -108,6 +147,7 @@ export async function POST(request: NextRequest) {
         providerUsed: result.providerUsed,
         actualCost: result.actualCost,
         durationMs: duration,
+        executionId,
       });
     } else {
       return NextResponse.json(
@@ -116,6 +156,7 @@ export async function POST(request: NextRequest) {
           nodeType,
           error: result.error,
           providerUsed: result.providerUsed,
+          executionId,
         },
         { status: 500 }
       );
