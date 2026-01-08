@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://neondb_owner:npg_WFO29IUfqEXB@ep-odd-bread-admxn4nd-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
 }
 
 // =============================================================================
@@ -17,12 +17,13 @@ datasource db {
 model User {
   id        String   @id // Clerk user ID
   email     String   @unique
-  credits   Int      @default(1000)
+  credits   Int      @default(100000) // Default 100k credits for new users
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workflows  Workflow[]
-  executions WorkflowExecution[]
+  workflows          Workflow[]
+  executions         WorkflowExecution[]
+  creditTransactions CreditTransaction[]
 
   @@map("users")
 }
@@ -267,4 +268,45 @@ model QuickExecution {
   @@index([nodeType])
   @@index([startedAt])
   @@map("quick_executions")
+}
+
+// =============================================================================
+// CREDIT TRANSACTIONS (Ledger for all credit changes)
+// =============================================================================
+
+enum CreditTransactionType {
+  PURCHASE    // User bought credits
+  EXECUTION   // Credits deducted for node execution
+  REFUND      // Credits refunded (failed execution, etc.)
+  BONUS       // Free credits (signup, promo, etc.)
+  ADJUSTMENT  // Manual admin adjustment
+}
+
+model CreditTransaction {
+  id              String                @id @default(cuid())
+  userId          String
+  
+  // Transaction details
+  amount          Int                   // Positive = credit, Negative = debit
+  balanceAfter    Int                   // User's balance after this transaction
+  
+  // Transaction type
+  type            CreditTransactionType
+  
+  // Reference to what caused this (optional)
+  workflowExecutionId String?
+  nodeExecutionId     String?
+  
+  // Metadata
+  description     String?               // Human-readable description
+  metadata        Json?                 // Additional data (provider, model, nodeType, etc.)
+  
+  createdAt       DateTime              @default(now())
+  
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workflowExecutionId])
+  @@index([createdAt])
+  @@map("credit_transactions")
 }

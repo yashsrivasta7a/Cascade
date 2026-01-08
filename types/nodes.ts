@@ -56,6 +56,13 @@ export interface NodeDefinition {
   estimatedCost: number; // in credits
   isUtility: boolean;
   color: string;
+  // Extended metadata for hover cards
+  estimatedTime?: string; // e.g. "~8s", "~30s"
+  aspectRatios?: string[]; // e.g. ["1:1", "16:9", "9:16"]
+  resolutions?: string[]; // e.g. ["1K", "2K", "4K"]
+  features?: string[]; // e.g. ["Styles", "Negative Prompt"]
+  models?: string[]; // Available models/variants
+  providerIcon?: string; // Provider icon identifier
 }
 
 export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
@@ -66,7 +73,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "seedream",
     category: "image",
     label: "Seedream 4.5",
-    description: "Text-to-image & image editing",
+    description: "High-quality text-to-image generation with advanced prompt understanding and image editing capabilities",
     provider: "ByteDance",
     inputs: [
       { type: "text", label: "Prompt" },
@@ -76,18 +83,24 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 5,
     isUtility: false,
     color: "emerald",
+    estimatedTime: "~10s",
+    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+    resolutions: ["1K", "2K"],
+    features: ["Negative Prompt", "Prompt Enhancer", "Image Editing"],
   },
   seedvr: {
     type: "seedvr",
     category: "image",
     label: "SeedVR 2",
-    description: "Image upscaling & enhancement",
+    description: "AI-powered image upscaling with face enhancement and detail preservation",
     provider: "ByteDance",
     inputs: [{ type: "image", label: "Input Image" }],
     outputs: [{ type: "image", label: "Upscaled Image" }],
     estimatedCost: 3,
     isUtility: false,
     color: "emerald",
+    estimatedTime: "~5s",
+    features: ["2x/4x Upscale", "Face Enhancement"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -97,7 +110,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "seedance",
     category: "video",
     label: "Seedance 1.5",
-    description: "Text-to-video & image-to-video",
+    description: "Generate cinematic videos from text prompts or animate still images with AI motion",
     provider: "ByteDance",
     inputs: [
       { type: "text", label: "Prompt" },
@@ -107,6 +120,9 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 25,
     isUtility: false,
     color: "violet",
+    estimatedTime: "~45s",
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    features: ["4s/8s/16s Duration", "Image-to-Video", "Motion Control"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -116,13 +132,15 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "elevenlabs",
     category: "audio",
     label: "ElevenLabs V3",
-    description: "Text-to-speech generation",
+    description: "Ultra-realistic text-to-speech with emotion control and voice cloning capabilities",
     provider: "ElevenLabs",
     inputs: [{ type: "text", label: "Script" }],
     outputs: [{ type: "audio", label: "Voice Audio" }],
     estimatedCost: 8,
     isUtility: false,
     color: "amber",
+    estimatedTime: "~3s",
+    features: ["50+ Voices", "Stability Control", "Clarity Control"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -132,7 +150,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "openrouter",
     category: "llm",
     label: "OpenRouter LLM",
-    description: "Text & multimodal (GPT, Claude, Gemini)",
+    description: "Access GPT-4, Claude, Gemini and more through a unified API with vision capabilities",
     provider: "OpenRouter",
     inputs: [
       { type: "text", label: "Prompt" },
@@ -142,6 +160,9 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 2,
     isUtility: false,
     color: "blue",
+    estimatedTime: "~2s",
+    models: ["GPT-4o", "Claude 3.5", "Gemini 1.5"],
+    features: ["Vision Input", "Streaming", "System Prompts"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -151,7 +172,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "lipsync",
     category: "video",
     label: "Sync Lipsync",
-    description: "Lip-sync audio with video",
+    description: "AI-powered lip synchronization that matches any audio to video with realistic mouth movements",
     provider: "Sync Labs",
     inputs: [
       { type: "video", label: "Source Video" },
@@ -161,6 +182,9 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 15,
     isUtility: false,
     color: "violet",
+    estimatedTime: "~30s",
+    models: ["Sync 1.5", "Sync 1.6 Beta"],
+    features: ["HD Output", "Multi-language"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -170,19 +194,21 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     type: "crop-image",
     category: "utility",
     label: "Crop Image",
-    description: "Percentage-based image cropping",
+    description: "Precisely crop images using percentage-based coordinates for consistent results",
     provider: "Internal",
     inputs: [{ type: "image", label: "Input Image" }],
     outputs: [{ type: "image", label: "Cropped Image" }],
     estimatedCost: 0,
     isUtility: true,
     color: "zinc",
+    estimatedTime: "<1s",
+    features: ["Percentage Crop", "Preserve Quality"],
   },
   "merge-audio-video": {
     type: "merge-audio-video",
     category: "utility",
     label: "Merge Audio + Video",
-    description: "Combine audio track with video",
+    description: "Combine or replace audio tracks in video files with perfect synchronization",
     provider: "Internal",
     inputs: [
       { type: "video", label: "Video" },
@@ -192,12 +218,14 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 0,
     isUtility: true,
     color: "zinc",
+    estimatedTime: "~5s",
+    features: ["Replace Audio", "Mix Audio"],
   },
   "merge-videos": {
     type: "merge-videos",
     category: "utility",
     label: "Merge Videos",
-    description: "Concatenate multiple videos",
+    description: "Seamlessly concatenate multiple videos with optional transitions",
     provider: "Internal",
     inputs: [
       { type: "video", label: "Video 1" },
@@ -207,18 +235,22 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 0,
     isUtility: true,
     color: "zinc",
+    estimatedTime: "~5s",
+    features: ["Fade Transition", "Dissolve"],
   },
   "extract-audio": {
     type: "extract-audio",
     category: "utility",
     label: "Extract Audio",
-    description: "Extract audio track from video",
+    description: "Extract and convert audio tracks from video with format options",
     provider: "Internal",
     inputs: [{ type: "video", label: "Video" }],
     outputs: [{ type: "audio", label: "Audio Track" }],
     estimatedCost: 0,
     isUtility: true,
     color: "zinc",
+    estimatedTime: "~3s",
+    features: ["MP3/WAV/AAC", "Bitrate Control", "Normalize"],
   },
 };
 

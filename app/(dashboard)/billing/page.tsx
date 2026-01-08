@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Coins,
   CreditCard,
-  TrendingUp,
   TrendingDown,
-  Calendar,
   Download,
   ArrowUpRight,
   ArrowDownRight,
@@ -19,120 +17,122 @@ import {
   BarChart3,
   Clock,
   ChevronRight,
+  Loader2,
+  Gift,
+  RefreshCcw,
+  Settings,
 } from "lucide-react";
 import { Button, Card, Badge } from "@/components/ui";
 import { Header } from "@/components/layout";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/react";
+import { formatCredits, creditsToDollars } from "@/lib/credits";
 
-interface Transaction {
-  id: string;
-  type: "debit" | "credit";
-  amount: number;
-  description: string;
-  workflowName?: string;
-  timestamp: string;
-  provider?: string;
-}
-
-interface UsageByCategory {
-  category: string;
-  credits: number;
-  percentage: number;
-  color: string;
-}
-
-const mockTransactions: Transaction[] = [
-  {
-    id: "t1",
-    type: "debit",
-    amount: 48,
-    description: "AI Video Generator execution",
-    workflowName: "AI Video Generator",
-    timestamp: "2026-01-05T10:32:45Z",
-    provider: "ByteDance, ElevenLabs",
+// Transaction type icons and colors
+const transactionTypeConfig = {
+  PURCHASE: {
+    icon: Plus,
+    color: "emerald",
+    label: "Purchase",
+    bgColor: "bg-emerald-500/10",
+    iconColor: "text-emerald-400",
+    amountColor: "text-emerald-400",
   },
-  {
-    id: "t2",
-    type: "credit",
-    amount: 5000,
-    description: "Pro Plan - Monthly credits",
-    timestamp: "2026-01-01T00:00:00Z",
+  EXECUTION: {
+    icon: Zap,
+    color: "amber",
+    label: "Execution",
+    bgColor: "bg-amber-500/10",
+    iconColor: "text-amber-400",
+    amountColor: "text-zinc-300",
   },
-  {
-    id: "t3",
-    type: "debit",
-    amount: 25,
-    description: "Content Upscaler execution",
-    workflowName: "Content Upscaler",
-    timestamp: "2026-01-04T15:20:00Z",
-    provider: "ByteDance",
+  REFUND: {
+    icon: RefreshCcw,
+    color: "blue",
+    label: "Refund",
+    bgColor: "bg-blue-500/10",
+    iconColor: "text-blue-400",
+    amountColor: "text-blue-400",
   },
-  {
-    id: "t4",
-    type: "debit",
-    amount: 12,
-    description: "Voice Generator execution",
-    workflowName: "Voice Generator",
-    timestamp: "2026-01-04T12:15:00Z",
-    provider: "ElevenLabs",
+  BONUS: {
+    icon: Gift,
+    color: "violet",
+    label: "Bonus",
+    bgColor: "bg-violet-500/10",
+    iconColor: "text-violet-400",
+    amountColor: "text-violet-400",
   },
-  {
-    id: "t5",
-    type: "debit",
-    amount: 35,
-    description: "Multi-scene Video execution",
-    workflowName: "Multi-scene Video",
-    timestamp: "2026-01-03T18:45:00Z",
-    provider: "ByteDance, OpenRouter",
+  ADJUSTMENT: {
+    icon: Settings,
+    color: "zinc",
+    label: "Adjustment",
+    bgColor: "bg-zinc-500/10",
+    iconColor: "text-zinc-400",
+    amountColor: "text-zinc-400",
   },
-];
-
-const usageByCategory: UsageByCategory[] = [
-  { category: "Video Generation", credits: 1250, percentage: 45, color: "violet" },
-  { category: "Image Generation", credits: 680, percentage: 25, color: "emerald" },
-  { category: "Text-to-Speech", credits: 420, percentage: 15, color: "amber" },
-  { category: "LLM / Vision", credits: 280, percentage: 10, color: "blue" },
-  { category: "Utility", credits: 120, percentage: 5, color: "zinc" },
-];
+};
 
 const plans = [
   {
     name: "Free",
     price: 0,
-    credits: 1000,
-    features: ["1,000 credits/month", "5 workflows", "Basic support", "Community access"],
+    credits: 100000,
+    features: ["100K credits/month", "5 workflows", "Basic support", "Community access"],
     current: false,
   },
   {
     name: "Pro",
     price: 29,
-    credits: 5000,
-    features: ["5,000 credits/month", "Unlimited workflows", "Priority support", "Advanced analytics", "Team collaboration"],
+    credits: 500000,
+    features: ["500K credits/month", "Unlimited workflows", "Priority support", "Advanced analytics", "Team collaboration"],
     current: true,
     popular: true,
   },
   {
     name: "Enterprise",
     price: 99,
-    credits: 25000,
-    features: ["25,000 credits/month", "Custom integrations", "Dedicated support", "SLA guarantee", "Custom branding", "SSO"],
+    credits: 2500000,
+    features: ["2.5M credits/month", "Custom integrations", "Dedicated support", "SLA guarantee", "Custom branding", "SSO"],
     current: false,
   },
 ];
 
 export default function BillingPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState<"7d" | "30d" | "90d">("30d");
+  // Fetch credit stats
+  const { data: stats, isLoading: isLoadingStats } = trpc.credits.getStats.useQuery();
   
-  const currentCredits = 2450;
-  const maxCredits = 5000;
-  const usagePercentage = (currentCredits / maxCredits) * 100;
-  const daysRemaining = 15;
+  // Fetch transactions
+  const { data: transactionsData, isLoading: isLoadingTransactions } = trpc.credits.getTransactions.useQuery({
+    limit: 10,
+  });
+
+  // Calculate usage stats
+  const usageStats = useMemo(() => {
+    if (!stats) return null;
+    
+    // Assuming Pro plan for now (this would come from user subscription data)
+    const maxCredits = 500000;
+    const usagePercentage = Math.min(100, (stats.currentBalance / maxCredits) * 100);
+    
+    return {
+      currentBalance: stats.currentBalance,
+      formattedBalance: stats.formattedBalance,
+      dollarValue: stats.dollarValue,
+      maxCredits,
+      usagePercentage,
+      totalSpent: stats.totalSpent,
+      transactionCount: stats.transactionCount,
+    };
+  }, [stats]);
+
+  const transactions = transactionsData?.transactions ?? [];
 
   return (
     <div className="h-full flex flex-col">
       <Header
         title="Billing & Credits"
         description="Manage your subscription and usage"
+        showCredits
         actions={
           <Button leftIcon={<CreditCard className="w-4 h-4" />}>
             Manage Subscription
@@ -152,17 +152,19 @@ export default function BillingPage() {
             >
               <Card variant="gradient" className="p-6 relative overflow-hidden">
                 {/* Background decoration */}
-                <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-gradient-to-br from-cyan-500/20 to-violet-500/20 blur-3xl" />
+                <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 blur-3xl" />
                 
                 <div className="relative">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center">
-                        <Coins className="w-6 h-6 text-white" />
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg">
+                        <Coins className="w-6 h-6 text-amber-950" />
                       </div>
                       <div>
                         <h2 className="text-xl font-bold text-zinc-100">Credit Balance</h2>
-                        <p className="text-sm text-zinc-500">Pro Plan • Renews in {daysRemaining} days</p>
+                        <p className="text-sm text-zinc-500">
+                          {usageStats?.dollarValue ?? "$0.00"} equivalent value
+                        </p>
                       </div>
                     </div>
                     <Badge variant="accent" className="flex items-center gap-1">
@@ -172,35 +174,46 @@ export default function BillingPage() {
                   </div>
 
                   <div className="mb-6">
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-5xl font-bold text-gradient-static">
-                        {currentCredits.toLocaleString()}
-                      </span>
-                      <span className="text-xl text-zinc-500">/ {maxCredits.toLocaleString()}</span>
-                    </div>
-                    <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${usagePercentage}%` }}
-                        transition={{ duration: 1, delay: 0.2 }}
-                        className="h-full bg-gradient-to-r from-cyan-500 to-violet-500 rounded-full"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-2 text-sm">
-                      <span className="text-zinc-500">{usagePercentage.toFixed(0)}% remaining</span>
-                      <span className="text-zinc-500">
-                        <Clock className="w-3 h-3 inline mr-1" />
-                        Resets Jan 20, 2026
-                      </span>
-                    </div>
+                    {isLoadingStats ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+                        <span className="text-zinc-400">Loading balance...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className="text-5xl font-bold text-gradient-static">
+                            {usageStats?.formattedBalance ?? "0"}
+                          </span>
+                          <span className="text-xl text-zinc-500">credits</span>
+                        </div>
+                        <div className="h-3 rounded-full bg-zinc-800 overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${usageStats?.usagePercentage ?? 0}%` }}
+                            transition={{ duration: 1, delay: 0.2 }}
+                            className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between mt-2 text-sm">
+                          <span className="text-zinc-500">
+                            {usageStats?.usagePercentage?.toFixed(0) ?? 0}% of plan remaining
+                          </span>
+                          <span className="text-zinc-500">
+                            <Clock className="w-3 h-3 inline mr-1" />
+                            Monthly reset
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
                     <Button leftIcon={<Plus className="w-4 h-4" />}>
                       Buy More Credits
                     </Button>
-                    <Button variant="outline" leftIcon={<TrendingUp className="w-4 h-4" />}>
-                      View Usage Report
+                    <Button variant="outline" leftIcon={<Download className="w-4 h-4" />}>
+                      Export Report
                     </Button>
                   </div>
                 </div>
@@ -220,12 +233,18 @@ export default function BillingPage() {
                     <TrendingDown className="w-5 h-5 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-zinc-500">This Month</p>
-                    <p className="text-2xl font-bold text-zinc-100">2,550</p>
+                    <p className="text-xs text-zinc-500">Total Spent</p>
+                    <p className="text-2xl font-bold text-zinc-100 tabular-nums">
+                      {isLoadingStats ? (
+                        <span className="text-zinc-400 animate-pulse">...</span>
+                      ) : (
+                        formatCredits(usageStats?.totalSpent ?? 0)
+                      )}
+                    </p>
                   </div>
                 </div>
-                <p className="text-xs text-zinc-500 flex items-center gap-1">
-                  <span className="text-emerald-400">-12%</span> vs last month
+                <p className="text-xs text-zinc-500">
+                  {creditsToDollars(usageStats?.totalSpent ?? 0)} in provider costs
                 </p>
               </Card>
 
@@ -235,12 +254,18 @@ export default function BillingPage() {
                     <Zap className="w-5 h-5 text-violet-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-zinc-500">Avg per Workflow</p>
-                    <p className="text-2xl font-bold text-zinc-100">32</p>
+                    <p className="text-xs text-zinc-500">Transactions</p>
+                    <p className="text-2xl font-bold text-zinc-100 tabular-nums">
+                      {isLoadingStats ? (
+                        <span className="text-zinc-400 animate-pulse">...</span>
+                      ) : (
+                        usageStats?.transactionCount ?? 0
+                      )}
+                    </p>
                   </div>
                 </div>
-                <p className="text-xs text-zinc-500 flex items-center gap-1">
-                  credits per execution
+                <p className="text-xs text-zinc-500">
+                  Total credit transactions
                 </p>
               </Card>
             </motion.div>
@@ -257,46 +282,52 @@ export default function BillingPage() {
               <Card variant="elevated" className="p-5 h-full">
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-semibold text-zinc-100 flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-cyan-400" />
-                    Usage by Category
+                    <BarChart3 className="w-4 h-4 text-amber-400" />
+                    Credit Costs
                   </h3>
-                  <select className="text-xs bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-zinc-300">
-                    <option value="30d">Last 30 days</option>
-                    <option value="7d">Last 7 days</option>
-                    <option value="90d">Last 90 days</option>
-                  </select>
                 </div>
 
                 <div className="space-y-4">
-                  {usageByCategory.map((category, i) => (
+                  {[
+                    { label: "Video (Seedance)", cost: "25K", percentage: 60, color: "violet" },
+                    { label: "Lipsync", cost: "15K", percentage: 45, color: "blue" },
+                    { label: "Audio (ElevenLabs)", cost: "8K", percentage: 30, color: "emerald" },
+                    { label: "Image (Seedream)", cost: "5K", percentage: 20, color: "amber" },
+                    { label: "LLM (OpenRouter)", cost: "2K", percentage: 10, color: "cyan" },
+                  ].map((item, i) => (
                     <motion.div
-                      key={category.category}
+                      key={item.label}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.3 + i * 0.05 }}
                     >
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm text-zinc-300">{category.category}</span>
-                        <span className="text-sm text-zinc-400">{category.credits}</span>
+                        <span className="text-sm text-zinc-300">{item.label}</span>
+                        <span className="text-sm text-zinc-400 tabular-nums">{item.cost}</span>
                       </div>
                       <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
-                          animate={{ width: `${category.percentage}%` }}
+                          animate={{ width: `${item.percentage}%` }}
                           transition={{ duration: 0.5, delay: 0.4 + i * 0.05 }}
                           className={cn(
                             "h-full rounded-full",
-                            category.color === "violet" && "bg-violet-500",
-                            category.color === "emerald" && "bg-emerald-500",
-                            category.color === "amber" && "bg-amber-500",
-                            category.color === "blue" && "bg-blue-500",
-                            category.color === "zinc" && "bg-zinc-500"
+                            item.color === "violet" && "bg-violet-500",
+                            item.color === "emerald" && "bg-emerald-500",
+                            item.color === "amber" && "bg-amber-500",
+                            item.color === "blue" && "bg-blue-500",
+                            item.color === "cyan" && "bg-cyan-500",
+                            item.color === "zinc" && "bg-zinc-500"
                           )}
                         />
                       </div>
                     </motion.div>
                   ))}
                 </div>
+
+                <p className="mt-4 text-xs text-zinc-500">
+                  Estimated credits per node execution
+                </p>
               </Card>
             </motion.div>
 
@@ -325,56 +356,68 @@ export default function BillingPage() {
                 </div>
 
                 <div className="flex-1 divide-y divide-zinc-800/50">
-                  {mockTransactions.map((tx, i) => (
-                    <motion.div
-                      key={tx.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + i * 0.05 }}
-                      className="px-5 py-4 flex items-center justify-between hover:bg-zinc-900/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center",
-                            tx.type === "credit"
-                              ? "bg-emerald-500/10"
-                              : "bg-amber-500/10"
-                          )}
+                  {isLoadingTransactions ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+                    </div>
+                  ) : transactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
+                      <Coins className="w-8 h-8 mb-2 opacity-50" />
+                      <p className="text-sm">No transactions yet</p>
+                      <p className="text-xs mt-1">Run a workflow to see your credit usage</p>
+                    </div>
+                  ) : (
+                    transactions.map((tx, i) => {
+                      const config = transactionTypeConfig[tx.type as keyof typeof transactionTypeConfig] ?? transactionTypeConfig.EXECUTION;
+                      const Icon = config.icon;
+                      const isPositive = tx.amount > 0;
+                      const metadata = tx.metadata as { nodeType?: string } | null;
+                      
+                      return (
+                        <motion.div
+                          key={tx.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.4 + i * 0.05 }}
+                          className="px-5 py-4 flex items-center justify-between hover:bg-zinc-900/50 transition-colors"
                         >
-                          {tx.type === "credit" ? (
-                            <ArrowDownRight className="w-5 h-5 text-emerald-400" />
-                          ) : (
-                            <ArrowUpRight className="w-5 h-5 text-amber-400" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-zinc-100">
-                            {tx.description}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-zinc-500">
-                              {new Date(tx.timestamp).toLocaleDateString()}
-                            </span>
-                            {tx.provider && (
-                              <>
-                                <span className="text-zinc-700">•</span>
-                                <span className="text-xs text-zinc-500">{tx.provider}</span>
-                              </>
-                            )}
+                          <div className="flex items-center gap-4">
+                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", config.bgColor)}>
+                              {isPositive ? (
+                                <ArrowDownRight className={cn("w-5 h-5", config.iconColor)} />
+                              ) : (
+                                <ArrowUpRight className={cn("w-5 h-5", config.iconColor)} />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-zinc-100">
+                                {tx.description || config.label}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-zinc-500">
+                                  {new Date(tx.createdAt).toLocaleDateString()}
+                                </span>
+                                {metadata?.nodeType && (
+                                  <>
+                                    <span className="text-zinc-700">•</span>
+                                    <span className="text-xs text-zinc-500">{metadata.nodeType}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-sm font-semibold",
-                          tx.type === "credit" ? "text-emerald-400" : "text-zinc-300"
-                        )}
-                      >
-                        {tx.type === "credit" ? "+" : "-"}{tx.amount}
-                      </span>
-                    </motion.div>
-                  ))}
+                          <div className="text-right">
+                            <span className={cn("text-sm font-semibold tabular-nums", isPositive ? config.amountColor : "text-zinc-300")}>
+                              {isPositive ? "+" : ""}{tx.amount.toLocaleString()}
+                            </span>
+                            <p className="text-xs text-zinc-600 tabular-nums">
+                              bal: {tx.balanceAfter.toLocaleString()}
+                            </p>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  )}
                 </div>
               </Card>
             </motion.div>
@@ -405,7 +448,7 @@ export default function BillingPage() {
                     variant={plan.current ? "gradient" : "elevated"}
                     className={cn(
                       "p-6 relative overflow-hidden h-full flex flex-col",
-                      plan.current && "ring-2 ring-cyan-500/30"
+                      plan.current && "ring-2 ring-amber-500/30"
                     )}
                   >
                     {plan.popular && (
@@ -418,7 +461,7 @@ export default function BillingPage() {
                     )}
 
                     {plan.current && (
-                      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-violet-500/5 pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-orange-500/5 pointer-events-none" />
                     )}
 
                     <div className="relative flex-1">
@@ -429,8 +472,8 @@ export default function BillingPage() {
                         </span>
                         <span className="text-zinc-500">/month</span>
                       </div>
-                      <p className="text-sm text-cyan-400 mb-6">
-                        {plan.credits.toLocaleString()} credits/month
+                      <p className="text-sm text-amber-400 mb-6">
+                        {formatCredits(plan.credits)} credits/month
                       </p>
 
                       <ul className="space-y-3 mb-6">
@@ -460,4 +503,3 @@ export default function BillingPage() {
     </div>
   );
 }
-

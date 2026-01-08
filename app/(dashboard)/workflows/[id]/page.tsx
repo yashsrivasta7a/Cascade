@@ -99,8 +99,13 @@ export default function WorkflowEditorPage() {
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [workflowSidebarOpen, setWorkflowSidebarOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
-  const [creditBalance] = useState(10_000);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  
+  // Fetch real credit balance from API
+  const { data: creditsData, refetch: refetchCredits } = trpc.credits.getBalance.useQuery(undefined, {
+    staleTime: 30_000, // Cache for 30 seconds
+  });
+  const creditBalance = creditsData?.credits ?? 0;
   const [workflowName, setWorkflowName] = useState("My Workflow");
   const [dbWorkflowId, setDbWorkflowId] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
@@ -597,6 +602,29 @@ export default function WorkflowEditorPage() {
   }, [nodes]);
 
   const handleRunWorkflow = useCallback(async () => {
+    // Calculate estimated cost
+    const estimatedCost = nodes.reduce((sum, n) => {
+      const def = NODE_DEFINITIONS[n.type as AINodeType];
+      return sum + (def?.estimatedCost ?? 0);
+    }, 0);
+    
+    // Check if user has enough credits
+    if (creditBalance < estimatedCost) {
+      const newError: WorkflowError = {
+        id: `credits-${Date.now()}`,
+        nodeId: "workflow",
+        nodeName: "Insufficient Credits",
+        nodeType: "credits",
+        severity: "critical",
+        message: `You need ${estimatedCost.toLocaleString()} credits but only have ${creditBalance.toLocaleString()}. Please add more credits to run this workflow.`,
+        timestamp: new Date(),
+        canRetry: false,
+      };
+      setWorkflowErrors(prev => [newError, ...prev]);
+      setErrorsOpen(true);
+      return;
+    }
+    
     setWorkflowRunning(true);
     
     // Save workflow first if not saved
@@ -709,8 +737,10 @@ export default function WorkflowEditorPage() {
       }
     } finally {
       setWorkflowRunning(false);
+      // Refetch credit balance after execution
+      void refetchCredits();
     }
-  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, createExecutionMutation, updateExecutionMutation]);
+  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, createExecutionMutation, updateExecutionMutation, creditBalance, refetchCredits]);
 
   // Calculate dynamic button color based on selected node
   const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;
@@ -784,8 +814,25 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
 
-        {/* Top Right: Versions Button */}
-        <div className="fixed top-3 right-3 z-50">
+        {/* Top Right: Credits + Versions */}
+        <div className="fixed top-3 right-3 z-50 flex items-center gap-2">
+          {/* Credit Balance Display */}
+          <a
+            href="/billing"
+            className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-3 py-1.5 hover:border-zinc-700 hover:bg-zinc-900/90 transition-colors group"
+          >
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-inner">
+              <span className="text-[10px] text-amber-950 font-bold">$</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-zinc-100 tabular-nums leading-none">
+                {creditsData?.formatted ?? "..."}
+              </span>
+              <span className="text-[10px] text-zinc-500 leading-none">credits</span>
+            </div>
+          </a>
+
+          {/* Versions Button */}
           <div className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-2 py-1.5">
             <button
               onClick={() => setVersionsOpen((v) => !v)}

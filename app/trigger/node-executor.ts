@@ -15,6 +15,7 @@ import {
   parseLipsyncResult,
 } from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
+import { getNodeCost } from "@/lib/credits";
 
 // Register all node executors at module load
 registerAllNodeExecutors();
@@ -160,6 +161,9 @@ export const executeNode = task({
         },
       });
 
+      // Deduct credits after successful execution
+      await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType);
+
       return {
         success: true,
         nodeExecutionId,
@@ -192,6 +196,9 @@ export const executeNode = task({
       },
     });
 
+    // Deduct credits after successful execution
+    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, result.actualCost);
+
     return {
       success: true,
       nodeExecutionId,
@@ -203,6 +210,83 @@ export const executeNode = task({
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/**
+ * Deduct credits from user's balance after successful node execution
+ */
+async function deductCreditsForNode(
+  nodeExecutionId: string,
+  workflowExecutionId: string,
+  nodeType: AINodeType,
+  actualCost?: number
+): Promise<void> {
+  try {
+    // Get the workflow execution to find the user
+    const workflowExec = await db.workflowExecution.findUnique({
+      where: { id: workflowExecutionId },
+      select: { userId: true },
+    });
+
+    if (!workflowExec?.userId) {
+      console.log(`[NodeExecutor] No user found for workflow ${workflowExecutionId}, skipping credit deduction`);
+      return;
+    }
+
+    // Determine cost: use actual cost if provided, otherwise use estimated cost
+    const cost = actualCost ?? getNodeCost(nodeType);
+    
+    // Skip if no cost (free utility nodes)
+    if (cost <= 0) {
+      console.log(`[NodeExecutor] Node ${nodeType} is free, no credit deduction`);
+      return;
+    }
+
+    // Deduct credits in a transaction
+    await db.$transaction(async (tx) => {
+      // Get current user balance
+      const user = await tx.user.findUnique({
+        where: { id: workflowExec.userId },
+        select: { credits: true },
+      });
+
+      if (!user) {
+        console.log(`[NodeExecutor] User ${workflowExec.userId} not found, skipping credit deduction`);
+        return;
+      }
+
+      const newBalance = Math.max(0, user.credits - cost);
+
+      // Update user balance
+      await tx.user.update({
+        where: { id: workflowExec.userId },
+        data: { credits: newBalance },
+      });
+
+      // Create ledger entry
+      await tx.creditTransaction.create({
+        data: {
+          userId: workflowExec.userId,
+          amount: -cost,
+          balanceAfter: newBalance,
+          type: "EXECUTION",
+          workflowExecutionId,
+          nodeExecutionId,
+          description: `${nodeType} node execution`,
+          metadata: {
+            nodeType,
+            estimatedCost: getNodeCost(nodeType),
+            actualCost: cost,
+          },
+        },
+      });
+
+      console.log(`[NodeExecutor] Deducted ${cost} credits from user ${workflowExec.userId}, new balance: ${newBalance}`);
+    });
+  } catch (error) {
+    // Log but don't fail the node execution if credit deduction fails
+    console.error(`[NodeExecutor] Failed to deduct credits:`, error);
+  }
+}
 
 async function markNodeFailed(nodeExecutionId: string, error: string): Promise<void> {
   console.log(`[NodeExecutor] Marking node ${nodeExecutionId} as FAILED: ${error}`);
