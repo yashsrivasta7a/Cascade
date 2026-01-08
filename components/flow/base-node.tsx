@@ -1,22 +1,22 @@
 "use client";
 
-import { memo, ReactNode, type CSSProperties } from "react";
+import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Coins,
-  ExternalLink,
   Copy,
   Trash2,
   Play,
-  Clock,
   Loader2,
+  AlertCircle,
+  Link2,
   CheckCircle2,
-  XCircle,
+  Circle,
+  Clock,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
-import { type DataType, dataTypeColors, type NodeStatus } from "@/types/nodes";
+import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings } from "@/types/nodes";
 
 export interface BaseNodeData {
   label: string;
@@ -27,6 +27,8 @@ export interface BaseNodeData {
   estimatedCost?: number;
   actualCost?: number;
   progress?: number;
+  /** Settings inherited from another node */
+  _inheritedFrom?: InheritedSettings;
   [key: string]: unknown;
 }
 
@@ -36,109 +38,139 @@ interface HandleConfig {
   label: string;
   position?: "top" | "center" | "bottom";
   required?: boolean;
-  hidden?: boolean; // hide port+label unless advanced section is open
+  hidden?: boolean;
 }
 
 interface BaseNodeProps extends NodeProps<BaseNodeData> {
   color: "cyan" | "violet" | "emerald" | "amber" | "rose" | "blue" | "zinc";
   left?: ReactNode;
   right?: ReactNode;
-  children?: ReactNode; // backward-compat: treated as left content
+  children?: ReactNode;
   inputs?: HandleConfig[];
   outputs?: HandleConfig[];
   isUtility?: boolean;
-  layout?: "horizontal" | "vertical"; // horizontal = side-by-side, vertical = stacked
+  layout?: "horizontal" | "vertical";
 }
 
-const colorMap = {
-  cyan: {
-    accent: "bg-white/20",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
+// Color mapping for accent bars
+const accentColors: Record<string, string> = {
+  cyan: "#06b6d4",
+  violet: "#8b5cf6",
+  emerald: "#10b981",
+  amber: "#f59e0b",
+  rose: "#f43f5e",
+  blue: "#3b82f6",
+  zinc: "#71717a",
+};
+
+// Status configuration with icons and colors
+const statusConfig: Record<NodeStatus, { 
+  icon: typeof Circle; 
+  color: string; 
+  bgColor: string;
+  label: string;
+  animate?: boolean 
+}> = {
+  idle: { 
+    icon: Circle, 
+    color: "text-zinc-500", 
+    bgColor: "bg-zinc-500/10",
+    label: "Ready" 
   },
-  violet: {
-    accent: "bg-white/20",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
+  queued: { 
+    icon: Clock, 
+    color: "text-zinc-400", 
+    bgColor: "bg-zinc-400/10",
+    label: "Queued" 
   },
-  emerald: {
-    accent: "bg-white/20",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
+  running: { 
+    icon: Loader2, 
+    color: "text-white", 
+    bgColor: "bg-white/10",
+    label: "Running",
+    animate: true 
   },
-  amber: {
-    accent: "bg-white/20",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
+  completed: { 
+    icon: CheckCircle2, 
+    color: "text-emerald-400", 
+    bgColor: "bg-emerald-500/10",
+    label: "Done" 
   },
-  rose: {
-    accent: "bg-white/25",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
-  },
-  blue: {
-    accent: "bg-white/20",
-    icon: "bg-white/[0.04] text-zinc-100 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/20",
-  },
-  zinc: {
-    accent: "bg-white/15",
-    icon: "bg-white/[0.03] text-zinc-200 border-white/10",
-    softRing: "ring-white/10",
-    selectedBorder: "border-white/15",
+  failed: { 
+    icon: AlertCircle, 
+    color: "text-red-400", 
+    bgColor: "bg-red-500/10",
+    label: "Failed" 
   },
 };
 
-function StatusPill({ status }: { status: NodeStatus }) {
-  const cfg: Record<
-    NodeStatus,
-    { label: string; icon: ReactNode; className: string }
-  > = {
-    idle: {
-      label: "Idle",
-      icon: <Clock className="w-3.5 h-3.5" />,
-      className: "text-zinc-300 bg-white/[0.03] border-white/10",
-    },
-    queued: {
-      label: "Queued",
-      icon: <Clock className="w-3.5 h-3.5" />,
-      className: "text-zinc-200 bg-white/[0.04] border-white/10",
-    },
-    running: {
-      label: "Running",
-      icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />,
-      className: "text-zinc-100 bg-white/[0.06] border-white/15",
-    },
-    completed: {
-      label: "Done",
-      icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-      className: "text-zinc-100 bg-white/[0.06] border-white/15",
-    },
-    failed: {
-      label: "Failed",
-      icon: <XCircle className="w-3.5 h-3.5" />,
-      className: "text-zinc-100 bg-white/[0.06] border-white/15",
-    },
-  };
-
-  const c = cfg[status];
-  return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-xl px-2 py-1 text-[10px] font-semibold border backdrop-blur-md",
-        c.className
-      )}
-    >
-      {c.icon}
-      <span>{c.label}</span>
-    </div>
-  );
+// Generate SVG path for node shape with semicircular notches
+function generateNodePath(
+  width: number,
+  height: number,
+  radius: number,
+  leftNotches: number[], // Y positions as percentages (0-100)
+  rightNotches: number[], // Y positions as percentages (0-100)
+  notchRadius: number = 10
+): string {
+  const r = radius;
+  const nr = notchRadius;
+  
+  // Convert percentage positions to actual Y values
+  const leftYs = leftNotches.map(p => (p / 100) * height).sort((a, b) => a - b);
+  const rightYs = rightNotches.map(p => (p / 100) * height).sort((a, b) => a - b);
+  
+  let path = "";
+  
+  // Start at top-left corner (after radius)
+  path += `M ${r} 0`;
+  
+  // Top edge
+  path += ` L ${width - r} 0`;
+  
+  // Top-right corner
+  path += ` Q ${width} 0 ${width} ${r}`;
+  
+  // Right edge with notches
+  let lastY = r;
+  for (const y of rightYs) {
+    if (y - nr > lastY) {
+      path += ` L ${width} ${y - nr}`;
+    }
+    // Semicircular notch (curves inward)
+    path += ` A ${nr} ${nr} 0 0 0 ${width} ${y + nr}`;
+    lastY = y + nr;
+  }
+  path += ` L ${width} ${height - r}`;
+  
+  // Bottom-right corner
+  path += ` Q ${width} ${height} ${width - r} ${height}`;
+  
+  // Bottom edge
+  path += ` L ${r} ${height}`;
+  
+  // Bottom-left corner
+  path += ` Q 0 ${height} 0 ${height - r}`;
+  
+  // Left edge with notches (going up, so reverse order)
+  lastY = height - r;
+  const leftYsReversed = [...leftYs].reverse();
+  for (const y of leftYsReversed) {
+    if (y + nr < lastY) {
+      path += ` L 0 ${y + nr}`;
+    }
+    // Semicircular notch (curves inward)
+    path += ` A ${nr} ${nr} 0 0 0 0 ${y - nr}`;
+    lastY = y - nr;
+  }
+  path += ` L 0 ${r}`;
+  
+  // Top-left corner
+  path += ` Q 0 0 ${r} 0`;
+  
+  path += " Z";
+  
+  return path;
 }
 
 function BaseNodeComponent({
@@ -154,62 +186,174 @@ function BaseNodeComponent({
   layout = "horizontal",
   id,
 }: BaseNodeProps) {
-  const colors = colorMap[color];
   const status = data.status || "idle";
-  const providerUsed = typeof (data as any).providerUsed === "string" ? ((data as any).providerUsed as string) : undefined;
-  const providerConfigured = data.provider;
-  const isFallbackProvider = Boolean(providerUsed && providerConfigured && providerUsed !== providerConfigured);
   const selectedNodeId = useFlowStore((s) => s.selectedNode?.id ?? null);
   const isSelected = Boolean(selected || (selectedNodeId && selectedNodeId === id));
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
   const runNode = useFlowStore((s) => s.runNode);
   const canRun = status !== "running";
+  
+  const connectingFrom = useFlowStore((s) => s.connectingFrom);
+  const draggedType = connectingFrom?.handleType;
+  const isDragging = Boolean(connectingFrom && connectingFrom.nodeId !== id);
+  
+  const inheritedFrom = data._inheritedFrom;
+  const hasInheritedSettings = Boolean(inheritedFrom?.fullInheritance);
+  const inheritedSettingsKeys = inheritedFrom?.settings ? Object.keys(inheritedFrom.settings) : [];
 
-  // Calculate handle positions
-  const getHandleStyle = (index: number, total: number): CSSProperties => {
-    // Fal-like: keep ports higher and closer together (clustered),
-    // instead of spreading across full height.
-    if (total === 1) return { top: "40%" };
+  const accentColor = accentColors[color] || accentColors.zinc;
+  const statusCfg = statusConfig[status];
+  const StatusIcon = statusCfg.icon;
 
-    const bandStart = 20; // %
-    const bandEnd = 58; // %
-    const span = bandEnd - bandStart;
+  // Node dimensions for SVG border
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 320, height: 200 });
+
+  useEffect(() => {
+    if (nodeRef.current) {
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setDimensions({
+            width: entry.contentRect.width,
+            height: entry.contentRect.height,
+          });
+        }
+      });
+      resizeObserver.observe(nodeRef.current);
+      return () => resizeObserver.disconnect();
+    }
+  }, []);
+
+  // Calculate handle positions as percentages
+  const getHandlePercent = (index: number, total: number): number => {
+    if (total === 1) return 50;
+    const padding = 20;
+    const span = 100 - (padding * 2);
     const spacing = span / (total - 1);
-    return { top: `${bandStart + spacing * index}%` };
+    return padding + spacing * index;
   };
+
+  // Get visible handles only
+  const visibleInputs = inputs.filter(i => !i.hidden);
+  const visibleOutputs = outputs.filter(o => !o.hidden);
+
+  const leftNotches = visibleInputs.map((_, i) => getHandlePercent(i, visibleInputs.length));
+  const rightNotches = visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
+
+  const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
+
+  const borderColor = isSelected ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)";
 
   return (
     <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
+      ref={nodeRef}
+      initial={{ scale: 0.95, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      transition={{ type: "spring", stiffness: 500, damping: 35 }}
       className={cn(
-        "group/node relative min-w-[360px] max-w-[480px]",
-        "node-card",
-        "border border-white/10",
+        "group/node relative min-w-[300px] max-w-[380px]",
+        "overflow-visible",
+        "shadow-2xl shadow-black/50",
         "will-change-transform",
-        isSelected && "selected border-gradient",
-        isSelected && cn("ring-1", colors.softRing),
-        "hover:translate-y-[-1px]",
-        "overflow-visible"
+        "transition-all duration-200"
       )}
     >
-      {/* Noise + highlight */}
-      <div className="absolute inset-0 rounded-[20px] bg-noise pointer-events-none" />
-      <div className="absolute inset-0 rounded-[20px] pointer-events-none bg-gradient-to-b from-white/[0.06] via-transparent to-transparent opacity-60" />
+      {/* SVG Border with notches */}
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ overflow: "visible" }}
+      >
+        <defs>
+          <clipPath id={`node-clip-${id}`}>
+            <path d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)} />
+          </clipPath>
+        </defs>
+        {/* Background fill */}
+        <path
+          d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)}
+          fill="#0d0d0d"
+        />
+        {/* Border stroke */}
+        <path
+          d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)}
+          fill="none"
+          stroke={borderColor}
+          strokeWidth={1.5}
+        />
+        {/* Accent bar at top */}
+        <rect
+          x={0}
+          y={0}
+          width={dimensions.width}
+          height={4}
+          rx={12}
+          ry={12}
+          fill={accentColor}
+          clipPath={`url(#node-clip-${id})`}
+        />
+      </svg>
 
-      {/* Status Indicators */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-        <StatusPill status={status} />
+      {/* Content Container */}
+      <div className="relative z-10">
+        {/* Progress Overlay (when running) */}
+        {status === "running" && data.progress !== undefined && (
+          <div className="absolute top-1 left-0 right-0 h-0.5 bg-white/5 mx-3 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${data.progress}%` }}
+              className="h-full bg-white"
+              style={{ boxShadow: `0 0 8px ${accentColor}` }}
+            />
+          </div>
+        )}
 
-        <div
-          className={cn(
-            "flex items-center gap-1 opacity-0 pointer-events-none transition-opacity",
-            (isSelected || status !== "idle") && "opacity-100 pointer-events-auto",
-            "group-hover/node:opacity-100 group-hover/node:pointer-events-auto"
+        {/* Header */}
+        <div className="px-4 py-3 pt-5 flex items-center gap-3">
+          {/* Icon Container */}
+          {data.icon && (
+            <div 
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              style={{ 
+                backgroundColor: `${accentColor}15`,
+                border: `1px solid ${accentColor}30`,
+              }}
+            >
+              <div style={{ color: accentColor }}>
+                {data.icon}
+              </div>
+            </div>
           )}
-        >
+
+          {/* Title & Meta */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-white text-sm truncate">
+                {data.label}
+              </h3>
+              {hasInheritedSettings && (
+                <div 
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/25"
+                  title={`Settings inherited (${inheritedSettingsKeys.length})`}
+                >
+                  <Link2 className="w-2.5 h-2.5 text-violet-400" />
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              {data.provider && (
+                <span className="text-[10px] text-zinc-500">{data.provider}</span>
+              )}
+              {data.provider && data.estimatedCost !== undefined && data.estimatedCost > 0 && (
+                <span className="text-zinc-700">•</span>
+              )}
+              {data.estimatedCost !== undefined && data.estimatedCost > 0 && (
+                <span className="text-[10px] text-zinc-500">{data.estimatedCost} credits</span>
+              )}
+            </div>
+          </div>
+
+          {/* Run Button - Always Visible */}
           <button
             type="button"
             disabled={!canRun}
@@ -219,193 +363,131 @@ function BaseNodeComponent({
               void runNode(id);
             }}
             className={cn(
-              "nodrag nowheel h-7 w-7 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors inline-flex items-center justify-center",
-              !canRun && "opacity-50 cursor-not-allowed"
+              "nodrag nowheel h-8 w-8 rounded-lg flex items-center justify-center transition-all",
+              status === "running"
+                ? "bg-white text-black"
+                : canRun
+                ? "bg-white/10 text-white hover:bg-white hover:text-black"
+                : "bg-white/5 text-zinc-600 cursor-not-allowed"
             )}
-            title="Run node"
-            aria-label="Run node"
+            title={status === "running" ? "Running..." : "Run Node"}
           >
-            <Play className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              duplicateNode(id);
-            }}
-            className="nodrag nowheel h-7 w-7 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors inline-flex items-center justify-center"
-            title="Duplicate"
-            aria-label="Duplicate node"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              deleteNode(id);
-            }}
-            className="nodrag nowheel h-7 w-7 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors inline-flex items-center justify-center"
-            title="Delete"
-            aria-label="Delete node"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Progress Bar (during execution) */}
-      {status === "running" && data.progress !== undefined && (
-        <div className="absolute top-0 left-0 right-0 h-1 rounded-t-[20px] overflow-hidden bg-white/5">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${data.progress}%` }}
-            className={cn("h-full", colors.accent)}
-          />
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-white/5">
-          <div className="flex items-start gap-3 pr-24">
-            {data.icon && (
-              <div
-                className={cn(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center border backdrop-blur-sm shrink-0",
-                  colors.icon
-                )}
-              >
-                {data.icon}
-              </div>
+            {status === "running" ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
             )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-semibold text-white truncate text-[13px] tracking-tight">
-                  {data.label}
-                </h3>
-                {isUtility && (
-                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-zinc-400 bg-white/[0.03] border border-white/10 px-2 py-0.5 rounded-xl">
-                    Utility
-                  </span>
-                )}
-              </div>
-              {data.description && (
-                <p className="text-[11px] text-zinc-500 truncate mt-0.5">
-                  {data.description}
-                </p>
-              )}
-
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                {(providerConfigured || providerUsed) && (
-                  <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-zinc-300 bg-white/[0.03] border border-white/10 rounded-xl px-2 py-1">
-                    <ExternalLink className="w-3 h-3" />
-                    <span>
-                      {providerUsed ?? providerConfigured}
-                      {isFallbackProvider ? (
-                        <span className="text-zinc-500">{" "}• fallback</span>
-                      ) : null}
-                    </span>
-                  </div>
-                )}
-                <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-zinc-300 bg-white/[0.03] border border-white/10 rounded-xl px-2 py-1">
-                  <Coins className="w-3 h-3" />
-                  <span>
-                    {data.estimatedCost !== undefined && data.estimatedCost > 0
-                      ? data.actualCost !== undefined
-                        ? `${data.actualCost} / ${data.estimatedCost}`
-                        : data.estimatedCost
-                      : "Free"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          </button>
         </div>
 
-        {/* Body */}
-        <div className="px-4 py-3">
+        {/* Content Area */}
+        <div className="px-4 pb-3">
           {right ? (
             layout === "vertical" ? (
-              /* Vertical layout: input on top, result below */
               <div className="space-y-3">
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                      Input
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-2.5 min-w-0">
-                    {left ?? children ?? (
-                      <div className="text-[11px] text-zinc-500">Configure in inspector</div>
-                    )}
-                  </div>
+                <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                  {left ?? children ?? (
+                    <div className="text-[11px] text-zinc-600 italic">No input configured</div>
+                  )}
                 </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                      Result
-                    </div>
+                <div className="relative">
+                  <div className="absolute -top-1.5 left-3 px-1.5 bg-[#0d0d0d] text-[9px] text-zinc-500 uppercase tracking-wider">
+                    Output
                   </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-2.5 min-w-0">
+                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] pt-4">
                     {right}
                   </div>
                 </div>
               </div>
             ) : (
-              /* Horizontal layout: side-by-side */
               <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                      Input
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-2.5 min-w-0">
-                    {left ?? children ?? (
-                      <div className="text-[11px] text-zinc-500">Configure in inspector</div>
-                    )}
-                  </div>
+                <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                  {left ?? children ?? (
+                    <div className="text-[11px] text-zinc-600 italic">No input</div>
+                  )}
                 </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                      Result
-                    </div>
+                <div className="relative">
+                  <div className="absolute -top-1.5 left-3 px-1.5 bg-[#0d0d0d] text-[9px] text-zinc-500 uppercase tracking-wider">
+                    Output
                   </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-2.5 min-w-0">
+                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] pt-4">
                     {right}
                   </div>
                 </div>
               </div>
             )
           ) : (
-            /* Single-column layout for input-only nodes */
-            <div className="rounded-xl bg-black/20 border border-white/5 p-2.5 min-w-0">
+            <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
               {left ?? children ?? (
-                <div className="text-[11px] text-zinc-500">Configure in inspector</div>
+                <div className="text-[11px] text-zinc-600 italic">Configure node settings</div>
               )}
             </div>
           )}
         </div>
 
-        {/* Footer - error / hint */}
-        <div className="px-4 py-2 border-t border-white/5 bg-black/20 rounded-b-[20px]">
-          {typeof (data as any).error === "string" && (data as any).error?.trim()?.length ? (
-            <div className="text-[10px] text-zinc-200">
-              <span className="text-zinc-500">Error:</span>{" "}
-              <span className="text-zinc-200">{(data as any).error}</span>
+        {/* Error Display */}
+        {hasError && (
+          <div className="px-4 pb-3">
+            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span className="break-words leading-relaxed">{(data as any).error}</span>
             </div>
-          ) : (
-            <div className="text-[10px] text-zinc-500">
-              Tip: double-click canvas to add a node. Drag from a port to create a connection.
-            </div>
+          </div>
+        )}
+
+        {/* Status Footer */}
+        <div 
+          className={cn(
+            "px-4 py-2 flex items-center justify-between",
+            "border-t border-white/[0.04]",
+            statusCfg.bgColor
           )}
+        >
+          <div className="flex items-center gap-2">
+            <StatusIcon 
+              className={cn(
+                "w-3.5 h-3.5",
+                statusCfg.color,
+                statusCfg.animate && "animate-spin"
+              )} 
+            />
+            <span className={cn("text-[11px] font-medium", statusCfg.color)}>
+              {statusCfg.label}
+            </span>
+          </div>
+
+          {/* Secondary Actions */}
+          <div
+            className={cn(
+              "flex items-center gap-1 transition-opacity duration-150",
+              isSelected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"
+            )}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                duplicateNode(id);
+              }}
+              className="nodrag nowheel h-6 w-6 rounded-md bg-white/[0.04] text-zinc-500 hover:text-white hover:bg-white/[0.08] transition-colors inline-flex items-center justify-center"
+              title="Duplicate"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                deleteNode(id);
+              }}
+              className="nodrag nowheel h-6 w-6 rounded-md bg-white/[0.04] text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors inline-flex items-center justify-center"
+              title="Delete"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -413,47 +495,78 @@ function BaseNodeComponent({
       {inputs.map((input, index) => {
         const isHidden = Boolean(input.hidden);
         const handleColor = dataTypeColors[input.type];
-        const showLabel = true; // always show (Fal-style)
-        const top = getHandleStyle(index, inputs.length).top as string | undefined;
+        const percent = getHandlePercent(index, inputs.length);
+        
+        const mediaTypes = ["image", "video", "audio"];
+        const isMediaInput = mediaTypes.includes(input.type);
+        const isDraggedMedia = draggedType && mediaTypes.includes(draggedType);
+        const isCompatible = isDragging && !isHidden && draggedType && (
+          (isMediaInput && isDraggedMedia && input.type === draggedType)
+        );
+        
         return (
           <div
             key={`input-${input.id}`}
-            className="absolute left-0 h-0 z-20"
-            style={{ top }}
+            className={cn(
+              "absolute left-0 z-30",
+              isHidden && "opacity-0 pointer-events-none"
+            )}
+            style={{ top: `${percent}%`, transform: "translate(-50%, -50%)" }}
+            data-handletype={input.type}
           >
-            <div className={cn("group/port relative", isHidden && "opacity-0 pointer-events-none")}>
+            <div 
+              className="handle-wrapper relative" 
+              data-handletype={input.type}
+            >
+              {isCompatible && (
+                <div 
+                  className="absolute inset-0 rounded-full animate-ping"
+                  style={{ 
+                    backgroundColor: handleColor.solid,
+                    opacity: 0.4,
+                    transform: "scale(2)",
+                  }}
+                />
+              )}
               <Handle
                 id={input.id}
                 type="target"
                 position={Position.Left}
-                style={{ top: 0 }}
+                data-handletype={input.type}
+                style={{ 
+                  position: "relative",
+                  left: 0,
+                  top: 0,
+                  transform: "none",
+                  borderColor: handleColor.solid,
+                  boxShadow: isCompatible ? `0 0 12px ${handleColor.solid}, 0 0 24px ${handleColor.solid}` : undefined,
+                  backgroundColor: isCompatible ? handleColor.solid : undefined,
+                }}
                 className={cn(
-                  // Bigger hitbox + half outside the card edge (Fal-like)
-                  "!w-4 !h-4 !-left-2 !border-2 !top-0 !-translate-y-1/2",
-                  // Subtle until user hovers the label/row
-                  "opacity-40 scale-90 group-hover/port:opacity-100 group-hover/port:scale-110",
-                  "transition-all duration-200",
-                  `!${handleColor.bg}`,
-                  `!${handleColor.border}`
+                  "!relative !left-0 !top-0 !transform-none",
+                  isCompatible && "!scale-125"
                 )}
               />
-
-              {showLabel && (
-                <span
-                  className={cn(
-                    "absolute right-full mr-2 top-0 -translate-y-1/2",
-                    "text-[10px] font-semibold whitespace-nowrap",
-                    "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
-                    "text-zinc-300 hover:text-white cursor-crosshair",
-                    handleColor.text
-                  )}
-                  title="Hover to reveal connector, then drag from the dot"
-                >
-                  {input.label}
-                  {input.required ? <span className="text-zinc-200 ml-0.5">*</span> : null}
-                </span>
-              )}
             </div>
+            
+            <span
+              className={cn(
+                "absolute right-full mr-2 top-1/2 -translate-y-1/2",
+                "text-[10px] font-medium whitespace-nowrap",
+                "px-2 py-1 rounded-md",
+                "bg-[#0d0d0d] border border-white/10",
+                "transition-all duration-200",
+                handleColor.text,
+                isCompatible && "border-current"
+              )}
+              style={isCompatible ? { 
+                boxShadow: `0 0 8px ${handleColor.solid}`,
+                borderColor: handleColor.solid,
+              } : undefined}
+            >
+              {input.label}
+              {input.required && <span className="text-red-400 ml-0.5">*</span>}
+            </span>
           </div>
         );
       })}
@@ -462,45 +575,46 @@ function BaseNodeComponent({
       {outputs.map((output, index) => {
         const isHidden = Boolean(output.hidden);
         const handleColor = dataTypeColors[output.type];
-        const showLabel = true; // always show (Fal-style)
-        const top = getHandleStyle(index, outputs.length).top as string | undefined;
+        const percent = getHandlePercent(index, outputs.length);
+        
         return (
           <div
             key={`output-${output.id}`}
-            className="absolute right-0 h-0 z-20"
-            style={{ top }}
+            className={cn(
+              "absolute right-0 z-30",
+              isHidden && "opacity-0 pointer-events-none"
+            )}
+            style={{ top: `${percent}%`, transform: "translate(50%, -50%)" }}
+            data-handletype={output.type}
           >
-            <div className={cn("group/port relative", isHidden && "opacity-0 pointer-events-none")}>
+            <div className="handle-wrapper" data-handletype={output.type}>
               <Handle
                 id={output.id}
                 type="source"
                 position={Position.Right}
-                style={{ top: 0 }}
-                className={cn(
-                  "!w-4 !h-4 !-right-2 !border-2 !top-0 !-translate-y-1/2",
-                  "opacity-40 scale-90 group-hover/port:opacity-100 group-hover/port:scale-110",
-                  "transition-all duration-200",
-                  `!${handleColor.bg}`,
-                  `!${handleColor.border}`
-                )}
+                data-handletype={output.type}
+                style={{ 
+                  position: "relative",
+                  right: 0,
+                  top: 0,
+                  transform: "none",
+                  borderColor: handleColor.solid,
+                }}
+                className="!relative !right-0 !top-0 !transform-none"
               />
-
-              {showLabel && (
-                <span
-                  className={cn(
-                    "absolute left-full ml-2 top-0 -translate-y-1/2",
-                    "text-[10px] font-semibold whitespace-nowrap",
-                    "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
-                    "text-zinc-300 hover:text-white cursor-crosshair",
-                    handleColor.text
-                  )}
-                  title="Hover to reveal connector, then drag from the dot"
-                >
-                  {output.label}
-                  {output.required ? <span className="text-zinc-200 ml-0.5">*</span> : null}
-                </span>
-              )}
             </div>
+            
+            <span
+              className={cn(
+                "absolute left-full ml-2 top-1/2 -translate-y-1/2",
+                "text-[10px] font-medium whitespace-nowrap",
+                "px-2 py-1 rounded-md",
+                "bg-[#0d0d0d] border border-white/10",
+                handleColor.text
+              )}
+            >
+              {output.label}
+            </span>
           </div>
         );
       })}
@@ -509,3 +623,27 @@ function BaseNodeComponent({
 }
 
 export const BaseNode = memo(BaseNodeComponent);
+
+/**
+ * Helper to check if a setting is inherited from another node.
+ */
+export function isSettingInherited(
+  data: BaseNodeData,
+  settingKey: string
+): boolean {
+  const inherited = data._inheritedFrom;
+  if (!inherited) return false;
+  return settingKey in (inherited.settings || {});
+}
+
+/**
+ * Get the inherited value for a setting if it exists.
+ */
+export function getInheritedValue<T>(
+  data: BaseNodeData,
+  settingKey: string
+): T | undefined {
+  const inherited = data._inheritedFrom;
+  if (!inherited) return undefined;
+  return inherited.settings?.[settingKey] as T | undefined;
+}

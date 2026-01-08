@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef, useEffect, KeyboardEvent } from "react";
 import { NodeProps } from "reactflow";
-import { Brain, Play, Loader2, Square, Plus, X, ExternalLink, Settings, Upload, Image as ImageIcon } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { Brain, Play, Loader2, Square, Plus, X, ExternalLink, Settings, Upload, Image as ImageIcon, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";

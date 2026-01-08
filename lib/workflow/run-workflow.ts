@@ -569,6 +569,9 @@ export async function runWorkflow(
   console.log("[RunWorkflow] Workflow execution completed");
 }
 
+// Nodes that require server-side execution via Trigger.dev (async/webhook-based)
+const ASYNC_NODE_TYPES: AINodeType[] = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
+
 export async function runSingleNode(
   nodeId: string,
   nodes: Node[],
@@ -606,8 +609,47 @@ export async function runSingleNode(
     return;
   }
 
-  // Provider fallback chain (same rules as runWorkflow)
-  const data = (node.data ?? {}) as any;
+  // For async nodes (fal.ai), use the API which tracks via Trigger.dev
+  if (ASYNC_NODE_TYPES.includes(type)) {
+    try {
+      const response = await fetch("/api/nodes/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeType: type,
+          input: { ...parsed.data, nodeId }, // Include nodeId so polling can match
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // The node is now running via Trigger.dev - polling will update status
+      callbacks.onNodeStatus?.(node.id, "running", {
+        progress: 25,
+        providerUsed: "fal",
+        triggerRunId: data.triggerRunId,
+        nodeExecutionId: data.nodeExecutionId,
+      });
+
+      // Don't wait here - the polling in page.tsx will handle status updates
+      console.log(`[runSingleNode] ${type} submitted to Trigger.dev: ${data.triggerRunId}`);
+      return;
+    } catch (error) {
+      callbacks.onNodeStatus?.(node.id, "failed", {
+        error: error instanceof Error ? error.message : String(error),
+        progress: 0,
+      });
+      return;
+    }
+  }
+
+  // For synchronous nodes (openrouter, merge-videos, etc.), run locally
+  const data = (node.data ?? {}) as Record<string, unknown>;
   const nodeProvidersRaw = Array.isArray(data.providers) ? data.providers : undefined;
   const providers = (nodeProvidersRaw?.filter((p: unknown) => typeof p === "string" && p.trim()) as string[] | undefined)
     ?? (NodeProviders[type] as unknown as string[] | undefined)

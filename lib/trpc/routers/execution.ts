@@ -290,6 +290,104 @@ export const executionRouter = router({
       return { execution };
     }),
 
+  // Get latest execution status for a workflow (for polling)
+  getLatestStatus: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Get the most recent execution for this workflow
+      const execution = await ctx.db.workflowExecution.findFirst({
+        where: {
+          workflowId: input.workflowId,
+          workflow: { userId: ctx.userId },
+        },
+        orderBy: { startedAt: "desc" },
+        include: {
+          nodeExecutions: {
+            select: {
+              id: true,
+              nodeId: true,
+              nodeType: true,
+              nodeLabel: true,
+              status: true,
+              error: true,
+              providerUsed: true,
+              startedAt: true,
+              completedAt: true,
+            },
+          },
+        },
+      });
+
+      if (!execution) {
+        return { execution: null, nodeStatuses: [] };
+      }
+
+      const nodeStatuses = execution.nodeExecutions.map((ne) => ({
+        nodeId: ne.nodeId,
+        nodeType: ne.nodeType,
+        nodeLabel: ne.nodeLabel,
+        status: ne.status.toLowerCase() as "pending" | "queued" | "running" | "waiting" | "completed" | "failed",
+        error: ne.error,
+        providerUsed: ne.providerUsed,
+      }));
+
+      return {
+        execution: {
+          id: execution.id,
+          status: execution.status.toLowerCase(),
+          startedAt: execution.startedAt?.toISOString(),
+          completedAt: execution.completedAt?.toISOString(),
+        },
+        nodeStatuses,
+      };
+    }),
+
+  // Get recent errors for a workflow
+  getErrors: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Fetch node executions with errors for this workflow
+      const nodeExecutions = await ctx.db.nodeExecution.findMany({
+        where: {
+          workflowExecution: {
+            workflowId: input.workflowId,
+            workflow: { userId: ctx.userId },
+          },
+          status: "FAILED",
+          error: { not: null },
+        },
+        orderBy: { completedAt: "desc" },
+        take: input.limit,
+        include: {
+          workflowExecution: {
+            select: {
+              id: true,
+              startedAt: true,
+            },
+          },
+        },
+      });
+
+      const errors = nodeExecutions.map((ne) => ({
+        id: ne.id,
+        nodeId: ne.nodeId,
+        nodeName: ne.nodeLabel ?? ne.nodeType,
+        nodeType: ne.nodeType,
+        message: ne.error ?? "Unknown error",
+        timestamp: ne.completedAt?.toISOString() ?? ne.startedAt?.toISOString() ?? new Date().toISOString(),
+        executionId: ne.workflowExecution.id,
+        providerUsed: ne.providerUsed,
+        inputs: ne.inputJson as Record<string, unknown> | null,
+      }));
+
+      return { errors };
+    }),
+
   // Update execution status
   updateStatus: protectedProcedure
     .input(z.object({

@@ -30,7 +30,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = `
       relative inline-flex items-center justify-center gap-2
       font-medium transition-all duration-200
-      focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#050506]
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]
       disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none
     `;
 

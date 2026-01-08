@@ -21,7 +21,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { useFlowStore } from "@/store";
 import { nodeTypes } from "@/components/flow";
-import { NODE_DEFINITIONS, type AINodeType, type DataType } from "@/types/nodes";
+import { NODE_DEFINITIONS, type AINodeType, type DataType, NODE_CONTRACTS, isSettingsHandle, isMediaHandle } from "@/types/nodes";
 import { NodeTypeModal } from "./node-type-modal";
 
 interface PendingConnection {
@@ -38,6 +38,18 @@ interface FlowCanvasProps {
 let nodeIdCounter = 1;
 const getNewNodeId = () => `node-${Date.now()}-${nodeIdCounter++}`;
 
+// Data type colors for edges - bright neon colors
+const edgeColors: Record<string, { stroke: string; glow: string; dash: string }> = {
+  text: { stroke: "#3b82f6", glow: "#3b82f6", dash: "#60a5fa" },      // Bright Blue
+  image: { stroke: "#10b981", glow: "#10b981", dash: "#34d399" },     // Bright Green
+  video: { stroke: "#8b5cf6", glow: "#8b5cf6", dash: "#a78bfa" },     // Bright Purple
+  audio: { stroke: "#f59e0b", glow: "#f59e0b", dash: "#fbbf24" },     // Bright Orange
+  any: { stroke: "#6b7280", glow: "#6b7280", dash: "#9ca3af" },       // Gray
+  negative: { stroke: "#ef4444", glow: "#ef4444", dash: "#f87171" },  // Bright Red
+  number: { stroke: "#ec4899", glow: "#ec4899", dash: "#f472b6" },    // Bright Pink
+  boolean: { stroke: "#06b6d4", glow: "#06b6d4", dash: "#22d3ee" },   // Bright Cyan
+};
+
 // Custom edge component that changes color based on connection type with delete button
 function CustomEdge({
   id,
@@ -50,10 +62,14 @@ function CustomEdge({
   data,
   markerEnd,
 }: EdgeProps) {
-  const isNegative = data?.isNegative === true;
+  const dataType = (data?.dataType as string) || "any";
+  const isNegative = data?.isNegative === true || dataType === "negative";
   const [isHovered, setIsHovered] = useState(false);
   const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
   const [colorPhase, setColorPhase] = useState(0);
+  
+  // Get colors based on data type
+  const typeColors = edgeColors[dataType] || edgeColors.any;
   
   // Animate color phase when workflow is running
   useEffect(() => {
@@ -122,91 +138,122 @@ function CustomEdge({
     useFlowStore.getState().setEdges(edges.filter((edge) => edge.id !== id));
   }, [id]);
 
-  // Calculate animated colors when workflow is running
-  const getAnimatedColor = () => {
-    if (!isWorkflowRunning) {
-      return isNegative ? "#ef4444" : "#3b82f6";
+  // Calculate colors - use data type color, animate when running
+  const getEdgeColor = () => {
+    if (isWorkflowRunning) {
+      return `hsl(${colorPhase}, 80%, 55%)`;
     }
-    // Cycle through rainbow colors
-    return `hsl(${colorPhase}, 80%, 55%)`;
+    return typeColors.stroke;
   };
   
-  const getAnimatedGlow = () => {
-    if (!isWorkflowRunning) {
-      return isNegative ? "rgba(239, 68, 68, 0.3)" : "rgba(59, 130, 246, 0.3)";
+  const getGlowColor = () => {
+    if (isWorkflowRunning) {
+      return `hsla(${colorPhase}, 80%, 55%, 0.4)`;
     }
-    return `hsla(${colorPhase}, 80%, 55%, 0.4)`;
+    return typeColors.glow;
   };
   
-  const getAnimatedDash = () => {
-    if (!isWorkflowRunning) {
-      return isNegative ? "#fca5a5" : "#93c5fd";
+  const getDashColor = () => {
+    if (isWorkflowRunning) {
+      return `hsl(${(colorPhase + 60) % 360}, 80%, 70%)`;
     }
-    return `hsl(${(colorPhase + 60) % 360}, 80%, 70%)`;
+    return typeColors.dash;
   };
 
   return (
     <g
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      style={{ overflow: "visible" }}
     >
       {/* Invisible wider path for easier interaction */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={20}
+        strokeWidth={24}
         style={{ cursor: "pointer" }}
       />
-      {/* Glow effect */}
+      {/* Glow layer 1 - outermost, most transparent */}
       <path
-        id={`${id}-glow`}
         d={edgePath}
         fill="none"
-        stroke={getAnimatedGlow()}
-        strokeWidth={isWorkflowRunning ? 12 : 8}
-        filter="blur(4px)"
+        stroke={getGlowColor()}
+        strokeWidth={12}
+        strokeLinecap="round"
+        opacity={0.15}
       />
-      {/* Main edge */}
+      {/* Glow layer 2 */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={getGlowColor()}
+        strokeWidth={8}
+        strokeLinecap="round"
+        opacity={0.25}
+      />
+      {/* Glow layer 3 - inner glow */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={getGlowColor()}
+        strokeWidth={5}
+        strokeLinecap="round"
+        opacity={0.4}
+      />
+      {/* Main edge - thick solid bright line */}
       <path
         id={id}
         d={edgePath}
         fill="none"
-        stroke={getAnimatedColor()}
-        strokeWidth={isWorkflowRunning ? 3 : 2}
+        stroke={getEdgeColor()}
+        strokeWidth={2.5}
+        strokeLinecap="round"
         markerEnd={markerEnd}
-        className="transition-all duration-200"
       />
-      {/* Animated dash for active connections */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke={getAnimatedDash()}
-        strokeWidth={isWorkflowRunning ? 3 : 2}
-        strokeDasharray={isWorkflowRunning ? "8 4" : "5 5"}
-        style={{
-          animation: isWorkflowRunning ? "dash 0.3s linear infinite" : "dash 1s linear infinite",
-        }}
-      />
-      {/* Delete button on hover */}
+      {/* Animated dash overlay */}
+      {isWorkflowRunning && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={getDashColor()}
+          strokeWidth={3}
+          strokeDasharray="8 4"
+          style={{
+            animation: "dash 0.3s linear infinite",
+          }}
+        />
+      )}
+      {/* Edge Handle / Delete Button */}
       {isHovered && !isWorkflowRunning && (
-        <foreignObject
-          x={labelX - 10}
-          y={labelY - 10}
-          width={20}
-          height={20}
-          style={{ overflow: "visible" }}
+        <g
+          transform={`translate(${labelX}, ${labelY})`}
+          onClick={handleDelete}
+          style={{ cursor: "pointer", overflow: "visible" }}
         >
-          <button
-            onClick={handleDelete}
-            className="w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white shadow-lg transition-all"
-            style={{ cursor: "pointer" }}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </foreignObject>
+          {/* Outer glow ring */}
+          <circle
+            cx={0}
+            cy={0}
+            r={12}
+            fill={typeColors.stroke}
+            fillOpacity={0.2}
+          />
+          {/* Inner solid circle */}
+          <circle
+            cx={0}
+            cy={0}
+            r={6}
+            fill={typeColors.stroke}
+          />
+          {/* X Icon */}
+          <path
+            d="M-2.5 -2.5 L2.5 2.5 M2.5 -2.5 L-2.5 2.5"
+            stroke="white"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        </g>
       )}
     </g>
   );
@@ -294,7 +341,17 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
 
 function getNodeSettingKeys(node: Node | undefined): string[] {
   if (!node?.type) return [];
-  const def = HANDLE_TYPES[node.type as AINodeType];
+  const nodeType = node.type as AINodeType;
+  
+  // Use NODE_CONTRACTS for accurate settings mapping
+  const contract = NODE_CONTRACTS[nodeType];
+  if (contract) {
+    // Return all setting keys
+    return contract.settings.map((s: { id: string }) => s.id);
+  }
+  
+  // Fallback to HANDLE_TYPES
+  const def = HANDLE_TYPES[nodeType];
   if (!def) return [];
   return Object.keys(def.inputs ?? {});
 }
@@ -341,10 +398,12 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
 
 function isTypeCompatible(from: DataType | undefined, to: DataType | undefined): boolean {
   if (!from || !to) return false;
-  if (from === "any" || to === "any") return true;
-  // "negative" handles can accept "text" connections
-  if (to === "negative" && from === "text") return true;
-  return from === to;
+  if (from === to) return true;
+  if (to === "any") return true;
+  if (from === "any") return true;
+  // Text can connect to negative prompt
+  if (from === "text" && to === "negative") return true;
+  return false;
 }
 
 function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
@@ -467,20 +526,31 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
       const sourceNode = nodes.find((n) => n.id === conn.source);
       const targetNode = nodes.find((n) => n.id === conn.target);
+      const sourceNodeType = sourceNode?.type as AINodeType | undefined;
+      const targetNodeType = targetNode?.type as AINodeType | undefined;
 
       const fromType = getHandleDataType(sourceNode, "outputs", conn.sourceHandle);
       const toType = getHandleDataType(targetNode, "inputs", conn.targetHandle);
+      const targetHandle = conn.targetHandle ?? "";
 
+      // Check if target is a settings input - settings can receive from any output
+      const isTargetSettings = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
+      
+      // If connecting to a settings input, allow if source node has that setting
+      if (isTargetSettings && sourceNodeType) {
+        // Check if source node has this setting
+        const sourceContract = NODE_CONTRACTS[sourceNodeType];
+        const hasSourceSetting = sourceContract?.settings.some((s: { id: string }) => s.id === targetHandle);
+        if (hasSourceSetting) {
+          // Settings connection is valid if source has the setting
+          if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
+          return true;
+        }
+      }
+
+      // For non-settings connections, check type compatibility
       if (!isTypeCompatible(fromType, toType)) return false;
       if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
-
-      // If source is a "bundle" output (`out`), only allow connecting to settings that the source node actually supports.
-      // (Prevents connecting bundle from nodes that don't have that setting.)
-      if (conn.sourceHandle === "out") {
-        const targetHandle = conn.targetHandle ?? "";
-        const allowed = new Set(getNodeSettingKeys(sourceNode));
-        if (targetHandle && !allowed.has(targetHandle)) return false;
-      }
 
       return true;
     },
@@ -523,11 +593,22 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
       const sourceNode = params.source ? nodes.find((n) => n.id === params.source) : undefined;
       const targetNode = params.target ? nodes.find((n) => n.id === params.target) : undefined;
+      const sourceNodeType = sourceNode?.type as AINodeType | undefined;
+      const targetNodeType = targetNode?.type as AINodeType | undefined;
       const edgeDataType = getHandleDataType(sourceNode, "outputs", params.sourceHandle) ?? "any";
       const targetHandleType = getHandleDataType(targetNode, "inputs", params.targetHandle);
-      
+
       // Check if connecting to a negative prompt handle
       const isNegative = targetHandleType === "negative" || params.targetHandle === "negativePrompt" || params.targetHandle === "negative";
+      
+      // Use NODE_CONTRACTS to determine if target is a settings input or media input
+      const targetHandle = params.targetHandle ?? "";
+      const isTargetSettingsInput = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
+      const isTargetMediaInput = targetNodeType ? isMediaHandle(targetNodeType, targetHandle) : false;
+      
+      // Settings connection: when connecting to a SETTINGS input
+      // This should copy the setting value AND lock it on the target node
+      const isSettingsConnection = isTargetSettingsInput;
 
       const nextEdges = addEdge(
         {
@@ -539,11 +620,16 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
             isNegative,
             targetHandle: params.targetHandle ?? null,
             targetNodeId: params.target ?? null,
+            sourceNodeType,
+            sourceHandle: params.sourceHandle,
+            isSettingsConnection,
+            isMediaConnection: isTargetMediaInput,
           },
         },
         edges
       );
       setEdges(nextEdges);
+      
       // Mark as successful connect so onConnectEnd doesn't open the modal.
       connectionCompletedRef.current = true;
 
@@ -571,45 +657,94 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
             ? (nextValue as any)[targetHandle]
             : nextValue;
 
-        if (derivedValue !== undefined) {
-          setNodes(
-            nodes.map((n) =>
-              n.id === params.target
-                ? {
-                    ...n,
-                    data: {
-                      ...(n.data as any),
-                      [targetHandle]: derivedValue,
-                      incomingFrom: {
-                        ...(n.data as any)?.incomingFrom,
-                        [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
-                      },
-                    },
-                  }
-                : n
-            )
-          );
+        // Build settings inheritance data if connecting to a settings input
+        let settingsInheritanceUpdate: Record<string, unknown> = {};
+        if (isSettingsConnection && sourceNode && sourceNodeType) {
+          const sourceData = sourceNode.data as Record<string, unknown>;
+          const settingKey = params.targetHandle;
+          
+          if (settingKey && sourceData[settingKey] !== undefined) {
+            // Get existing inherited settings or create new
+            const existingInherited = (targetNode?.data as Record<string, unknown>)?._inheritedFrom as Record<string, unknown> | undefined;
+            const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
+            
+            // Add this setting to the inherited settings
+            const newInheritedSettings = {
+              ...existingSettings,
+              [settingKey]: sourceData[settingKey],
+            };
+            
+            settingsInheritanceUpdate = {
+              // Copy the setting value
+              [settingKey]: sourceData[settingKey],
+              // Update inheritance metadata
+              _inheritedFrom: {
+                sourceNodeId: sourceNode.id,
+                sourceNodeType,
+                settings: newInheritedSettings,
+                fullInheritance: false,
+              },
+            };
+          }
         }
+
+        // Combine all updates into one setNodes call
+        setNodes(
+          nodes.map((n) =>
+            n.id === params.target
+              ? {
+                  ...n,
+                  data: {
+                    ...(n.data as any),
+                    // Apply derived value if available (for media inputs)
+                    ...(derivedValue !== undefined && !isSettingsConnection ? { [targetHandle]: derivedValue } : {}),
+                    // Apply settings inheritance if connecting to a settings input
+                    ...settingsInheritanceUpdate,
+                    incomingFrom: {
+                      ...(n.data as any)?.incomingFrom,
+                      [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
+                    },
+                  },
+                }
+              : n
+          )
+        );
       }
     },
     [edges, isValidConnection, nodes, setEdges, setNodes]
   );
 
   // Track the source node/handle reliably (React Flow's onConnectEnd state can be inconsistent).
-  const onConnectStart: OnConnectStart = useCallback((_event, params) => {
-    connectingFromRef.current = {
-      nodeId: params.nodeId,
-      handleId: params.handleId ?? null,
-    };
-  }, []);
+  const setConnectingFrom = useFlowStore((s) => s.setConnectingFrom);
+  
+  const onConnectStart: OnConnectStart = useCallback((event, params) => {
+    const nodeId = params.nodeId ?? "";
+    const handleId = params.handleId ?? null;
+    
+    connectingFromRef.current = { nodeId, handleId };
+    
+    // Get the handle type from the data-handletype attribute on the handle wrapper or parent
+    const target = event.target as HTMLElement | null;
+    // Look for data-handletype on the handle itself, its wrapper, or any parent
+    let handleType: string | null = null;
+    let el: HTMLElement | null = target;
+    while (el && !handleType) {
+      handleType = el.getAttribute("data-handletype");
+      el = el.parentElement;
+    }
+    
+    // Set store state for node highlighting
+    setConnectingFrom({ nodeId, handleId, handleType });
+  }, [setConnectingFrom]);
 
   // Handle when a connection is dropped on empty canvas - opens modal to add new node
-  const onConnectEnd: OnConnectEnd = useCallback(
-    (event, _connectionState) => {
+  const onConnectEnd = useCallback<OnConnectEnd>(
+    (event) => {
       // If a valid connection just happened, never open the modal.
       if (connectionCompletedRef.current) {
         connectionCompletedRef.current = false;
         connectingFromRef.current = null;
+        setConnectingFrom(null);
         return;
       }
 
@@ -642,8 +777,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
       // Always clear at end of gesture
       connectingFromRef.current = null;
+      setConnectingFrom(null);
     },
-    [screenToFlowPosition]
+    [screenToFlowPosition, setConnectingFrom]
   );
 
   // Handle node type selection from modal - creates node and edge
@@ -790,13 +926,16 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           animated: false,
         }}
         proOptions={{ hideAttribution: true }}
-        className="bg-zinc-950"
+        deleteKeyCode={null}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
+        className="bg-[#101010]"
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="#3f3f46"
+          gap={32}
+          size={2}
+          color="rgba(0, 0, 255, 0.1)"
         />
         <Controls
           showInteractive={false}

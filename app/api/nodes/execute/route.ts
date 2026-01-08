@@ -67,11 +67,18 @@ export async function POST(request: NextRequest) {
     const nodeDef = NODE_DEFINITIONS[nodeType as AINodeType];
     const nodeLabel = nodeDef?.label || nodeType;
 
+    // Use the actual nodeId from input if provided (for flow-based execution)
+    const actualNodeId = typeof input.nodeId === "string" && input.nodeId 
+      ? input.nodeId 
+      : `${nodeType}-${Date.now()}`;
+
+    console.log(`[Node Execute] Using nodeId: ${actualNodeId} (from input: ${input.nodeId})`);
+
     // Create node execution record
     const nodeExecution = await db.nodeExecution.create({
       data: {
         workflowExecutionId: workflowExecution.id,
-        nodeId: `${nodeType}-${Date.now()}`,
+        nodeId: actualNodeId,
         nodeType: nodeType,
         nodeLabel: nodeLabel,
         status: "QUEUED",

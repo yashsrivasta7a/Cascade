@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeProps } from "reactflow";
-import { ImageIcon, Play, Loader2, Square, ChevronDown, Upload, X, Settings } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { ImageIcon, Play, Loader2, Square, ChevronDown, Upload, X, Settings, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,6 +31,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -89,6 +90,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
 
     setIsGenerating(true);
     updateNode(id, { result: "", status: "running" });
+    setWorkflowRunning(true); // Enable polling for status updates
 
     abortControllerRef.current = new AbortController();
 
@@ -102,6 +104,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           aspectRatio: data.aspectRatio || "1:1",
           image: data.inputImage,
           seed: data.seed,
+          nodeId: id, // Pass the flow node ID for polling to match
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -119,8 +122,60 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
 
       // Handle async trigger.dev response - poll for result
       if (result.status === "triggered") {
-        updateNode(id, { status: "running", error: "Processing via Trigger.dev..." });
-        // For now, show that it's processing - real implementation would poll
+        updateNode(id, { status: "running" });
+        
+        // Poll for status updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(id)}`);
+            if (!statusRes.ok) return;
+            
+            const statusData = await statusRes.json();
+            console.log(`[Seedream] Poll status for ${id}:`, statusData.status);
+            
+            if (statusData.status === "completed") {
+              clearInterval(pollInterval);
+              setIsGenerating(false);
+              const imageUrl = statusData.output?.image?.url;
+              updateNode(id, {
+                result: imageUrl || "",
+                status: "completed",
+                out: imageUrl ? {
+                  prompt: data.prompt ?? "",
+                  negativePrompt: data.negativePrompt ?? "",
+                  aspectRatio: data.aspectRatio ?? "1:1",
+                  seed: data.seed,
+                  image: imageUrl,
+                } : undefined,
+              });
+              setWorkflowRunning(false);
+            } else if (statusData.status === "failed") {
+              clearInterval(pollInterval);
+              setIsGenerating(false);
+              updateNode(id, {
+                result: "",
+                status: "failed",
+                error: statusData.error || "Generation failed",
+                // Store rich error details for the error inspector
+                errorDetails: {
+                  provider: statusData.providerUsed || "fal",
+                  executionId: statusData.executionId,
+                  triggerRunId: statusData.triggerRunId,
+                  duration: statusData.duration,
+                  inputs: statusData.inputs,
+                },
+              });
+              setWorkflowRunning(false);
+            }
+            // If still running/waiting/queued, keep polling
+          } catch (err) {
+            console.error("[Seedream] Poll error:", err);
+          }
+        }, 2000);
+        
+        // Store interval for cleanup
+        abortControllerRef.current = { abort: () => clearInterval(pollInterval) } as AbortController;
+        return;
       } else {
         const imageUrl = result.output?.image?.url;
         if (imageUrl) {
@@ -209,14 +264,25 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           />
 
           {/* Prompt Input */}
-          <div>
-            <label className="text-[10px] font-medium text-zinc-400 mb-1 block">Prompt</label>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] font-medium text-zinc-400">Prompt</label>
+              {isSettingInherited(data, "prompt") && (
+                <div className="flex items-center gap-1 text-[9px] text-violet-400">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Inherited</span>
+                </div>
+              )}
+            </div>
             <textarea
               value={data.prompt || ""}
-              onChange={(e) => updateNode(id, { prompt: e.target.value })}
+              onChange={(e) => !isSettingInherited(data, "prompt") && updateNode(id, { prompt: e.target.value })}
               placeholder={data.context ? "Override prompt..." : "Describe the image..."}
               rows={3}
-              className="nodrag nowheel w-full px-3 py-2 rounded-xl bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
+              disabled={isSettingInherited(data, "prompt")}
+              className={`nodrag nowheel w-full px-3 py-2 rounded-xl bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none ${
+                isSettingInherited(data, "prompt") ? "opacity-60 cursor-not-allowed border-violet-500/30 bg-violet-500/5" : ""
+              }`}
             />
           </div>
 
@@ -363,15 +429,26 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
 
                   {/* Seed */}
                   <div>
-                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
-                      Seed (optional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                        Seed (optional)
+                      </label>
+                      {isSettingInherited(data, "seed") && (
+                        <div className="flex items-center gap-1 text-[8px] text-violet-400">
+                          <Lock className="w-2 h-2" />
+                          <span>Inherited</span>
+                        </div>
+                      )}
+                    </div>
                     <input
                       type="number"
                       value={data.seed || ""}
-                      onChange={(e) => updateNode(id, { seed: e.target.value ? parseInt(e.target.value) : undefined })}
+                      onChange={(e) => !isSettingInherited(data, "seed") && updateNode(id, { seed: e.target.value ? parseInt(e.target.value) : undefined })}
                       placeholder="Random"
-                      className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20"
+                      disabled={isSettingInherited(data, "seed")}
+                      className={`nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 ${
+                        isSettingInherited(data, "seed") ? "opacity-60 cursor-not-allowed border-violet-500/30 bg-violet-500/5" : ""
+                      }`}
                     />
                   </div>
 

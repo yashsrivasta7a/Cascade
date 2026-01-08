@@ -13,7 +13,7 @@ const AuthFlowBackground = dynamic(
 
 export default function SignInPage() {
   return (
-    <div className="min-h-screen bg-[#050507] relative">
+    <div className="min-h-screen bg-[#101010] relative">
       {/* Cinematic Background */}
       <AuthFlowBackground />
 

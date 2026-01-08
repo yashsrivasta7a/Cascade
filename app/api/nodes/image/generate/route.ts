@@ -19,9 +19,10 @@ export async function POST(request: NextRequest) {
       aspectRatio?: string;
       image?: string;
       seed?: number;
+      nodeId?: string; // Flow node ID for polling
     };
 
-    const { prompt, negativePrompt, aspectRatio, image, seed } = body;
+    const { prompt, negativePrompt, aspectRatio, image, seed, nodeId } = body;
 
     if (!prompt?.trim()) {
       return NextResponse.json(
@@ -57,10 +58,14 @@ export async function POST(request: NextRequest) {
 
     // Create node execution record
     const isEditing = Boolean(image);
+    // Use the flow nodeId if provided, otherwise generate one
+    const actualNodeId = nodeId || `seedream-${Date.now()}`;
+    console.log(`[Seedream] Using nodeId: ${actualNodeId} (from input: ${nodeId || "none"})`);
+    
     const nodeExecution = await db.nodeExecution.create({
       data: {
         workflowExecutionId: workflowExecution.id,
-        nodeId: `seedream-${Date.now()}`,
+        nodeId: actualNodeId,
         nodeType: "seedream",
         nodeLabel: isEditing ? "Seedream Edit" : "Seedream Generate",
         status: "QUEUED",
@@ -83,6 +88,12 @@ export async function POST(request: NextRequest) {
         image,
         seed,
       },
+    });
+
+    // Save the trigger run ID for tracking in Activity panel
+    await db.workflowExecution.update({
+      where: { id: workflowExecution.id },
+      data: { triggerRunId: handle.id },
     });
 
     console.log(`[Seedream] Triggered with handle ${handle.id}`);

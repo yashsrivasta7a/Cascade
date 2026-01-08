@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef } from "react";
 import { NodeProps } from "reactflow";
-import { Maximize2, Play, Loader2, Square, Settings, Upload, X } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { Maximize2, Play, Loader2, Square, Settings, Upload, X, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,6 +20,7 @@ const nodeDef = NODE_DEFINITIONS.seedvr;
 function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -62,6 +63,7 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
     if (!data.inputImage) return;
     setIsProcessing(true);
     updateNode(id, { status: "running" });
+    setWorkflowRunning(true); // Enable polling for status updates
 
     try {
       const response = await fetch("/api/nodes/execute", {
@@ -73,6 +75,7 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
             image: { url: data.inputImage },
             scale: data.scale || "2x",
             enhanceFaces: data.enhanceFaces || false,
+            nodeId: id, // Pass flow node ID for polling
           },
         }),
       });
@@ -80,13 +83,54 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
       const result = await response.json();
       if (result.status === "triggered") {
         updateNode(id, { status: "running" });
+        
+        // Poll for status updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(id)}`);
+            if (!statusRes.ok) return;
+            
+            const statusData = await statusRes.json();
+            console.log(`[SeedVR] Poll status for ${id}:`, statusData.status);
+            
+            if (statusData.status === "completed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              const imageUrl = statusData.output?.image?.url;
+              updateNode(id, {
+                result: imageUrl || "",
+                status: "completed",
+              });
+              setWorkflowRunning(false);
+            } else if (statusData.status === "failed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              updateNode(id, {
+                result: "",
+                status: "failed",
+                error: statusData.error || "Upscale failed",
+                errorDetails: {
+                  provider: statusData.providerUsed || "fal",
+                  executionId: statusData.executionId,
+                  triggerRunId: statusData.triggerRunId,
+                  duration: statusData.duration,
+                  inputs: statusData.inputs,
+                },
+              });
+              setWorkflowRunning(false);
+            }
+          } catch (err) {
+            console.error("[SeedVR] Poll error:", err);
+          }
+        }, 2000);
       }
     } catch (error) {
       updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      setWorkflowRunning(false);
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputImage, data.scale, data.enhanceFaces, id, updateNode]);
+  }, [data.inputImage, data.scale, data.enhanceFaces, id, updateNode, setWorkflowRunning]);
 
   return (
     <BaseNode

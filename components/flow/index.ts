@@ -59,6 +59,8 @@ export { NodeContextMenu } from "./node-context-menu";
 export { ExecutionPanel } from "./execution-panel";
 export { ExecutionHistoryPanel } from "./execution-history-panel";
 export { VersionHistoryPanel } from "./version-history-panel";
+export { ErrorInspectorPanel } from "./error-inspector-panel";
+export type { WorkflowError, ErrorSeverity } from "./error-inspector-panel";
 export { WorkflowSidebar } from "./workflow-sidebar";
 export { EditorSidebar } from "./editor-sidebar";
 export { RunModal, demoNodes } from "./run-modal";

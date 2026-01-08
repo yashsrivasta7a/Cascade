@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback } from "react";
 import { NodeProps } from "reactflow";
-import { Volume2, Play, Loader2, Settings } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { Volume2, Play, Loader2, Settings, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,6 +35,7 @@ const VOICES = [
 function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -45,6 +46,7 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
     
     setIsProcessing(true);
     updateNode(id, { status: "running" });
+    setWorkflowRunning(true); // Enable polling for status updates
 
     try {
       const response = await fetch("/api/nodes/execute", {
@@ -57,6 +59,7 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
             voiceId: data.voiceId,
             stability: data.stability || 0.5,
             clarity: data.clarity || 0.75,
+            nodeId: id, // Pass flow node ID for polling
           },
         }),
       });
@@ -64,13 +67,54 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
       const result = await response.json();
       if (result.status === "triggered") {
         updateNode(id, { status: "running" });
+        
+        // Poll for status updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(id)}`);
+            if (!statusRes.ok) return;
+            
+            const statusData = await statusRes.json();
+            console.log(`[ElevenLabs] Poll status for ${id}:`, statusData.status);
+            
+            if (statusData.status === "completed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              const audioUrl = statusData.output?.audio?.url;
+              updateNode(id, {
+                result: audioUrl || "",
+                status: "completed",
+              });
+              setWorkflowRunning(false);
+            } else if (statusData.status === "failed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              updateNode(id, {
+                result: "",
+                status: "failed",
+                error: statusData.error || "TTS failed",
+                errorDetails: {
+                  provider: statusData.providerUsed || "fal",
+                  executionId: statusData.executionId,
+                  triggerRunId: statusData.triggerRunId,
+                  duration: statusData.duration,
+                  inputs: statusData.inputs,
+                },
+              });
+              setWorkflowRunning(false);
+            }
+          } catch (err) {
+            console.error("[ElevenLabs] Poll error:", err);
+          }
+        }, 2000);
       }
     } catch (error) {
       updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      setWorkflowRunning(false);
     } finally {
       setIsProcessing(false);
     }
-  }, [data.text, data.context, data.voiceId, data.stability, data.clarity, id, updateNode]);
+  }, [data.text, data.context, data.voiceId, data.stability, data.clarity, id, updateNode, setWorkflowRunning]);
 
   const hasInput = Boolean((data.text?.trim() || data.context?.trim()) && data.voiceId);
 

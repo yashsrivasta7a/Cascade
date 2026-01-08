@@ -30,15 +30,15 @@ export type AINodeType =
 
 export type DataType = "text" | "image" | "video" | "audio" | "any" | "negative" | "number" | "boolean";
 
-export const dataTypeColors: Record<DataType, { bg: string; border: string; text: string }> = {
-  text: { bg: "bg-blue-500/20", border: "border-blue-500/50", text: "text-blue-300" },
-  image: { bg: "bg-emerald-500/20", border: "border-emerald-500/50", text: "text-emerald-300" },
-  video: { bg: "bg-violet-500/20", border: "border-violet-500/50", text: "text-violet-300" },
-  audio: { bg: "bg-amber-500/20", border: "border-amber-500/50", text: "text-amber-300" },
-  any: { bg: "bg-zinc-500/20", border: "border-zinc-500/50", text: "text-zinc-300" },
-  negative: { bg: "bg-red-500/20", border: "border-red-500/50", text: "text-red-300" },
-  number: { bg: "bg-purple-500/20", border: "border-purple-500/50", text: "text-purple-300" },
-  boolean: { bg: "bg-cyan-500/20", border: "border-cyan-500/50", text: "text-cyan-300" },
+export const dataTypeColors: Record<DataType, { bg: string; border: string; text: string; solid: string; glow: string }> = {
+  text: { bg: "bg-blue-500", border: "border-blue-400", text: "text-blue-400", solid: "#3b82f6", glow: "0 0 12px rgba(59, 130, 246, 0.6)" },
+  image: { bg: "bg-emerald-500", border: "border-emerald-400", text: "text-emerald-400", solid: "#10b981", glow: "0 0 12px rgba(16, 185, 129, 0.6)" },
+  video: { bg: "bg-violet-500", border: "border-violet-400", text: "text-violet-400", solid: "#8b5cf6", glow: "0 0 12px rgba(139, 92, 246, 0.6)" },
+  audio: { bg: "bg-amber-500", border: "border-amber-400", text: "text-amber-400", solid: "#f59e0b", glow: "0 0 12px rgba(245, 158, 11, 0.6)" },
+  any: { bg: "bg-zinc-400", border: "border-zinc-400", text: "text-zinc-400", solid: "#a1a1aa", glow: "0 0 12px rgba(161, 161, 170, 0.5)" },
+  negative: { bg: "bg-red-500", border: "border-red-400", text: "text-red-400", solid: "#ef4444", glow: "0 0 12px rgba(239, 68, 68, 0.6)" },
+  number: { bg: "bg-pink-500", border: "border-pink-400", text: "text-pink-400", solid: "#ec4899", glow: "0 0 12px rgba(236, 72, 153, 0.6)" },
+  boolean: { bg: "bg-cyan-500", border: "border-cyan-400", text: "text-cyan-400", solid: "#06b6d4", glow: "0 0 12px rgba(6, 182, 212, 0.6)" },
 };
 
 // ============================================================================
@@ -321,4 +321,265 @@ export interface NodeExecutionState {
   output?: unknown;
   providerUsed?: string;
   actualCost?: number;
+}
+
+// ============================================================================
+// INHERITED SETTINGS (When one node passes all settings to another)
+// ============================================================================
+
+/**
+ * Tracks which settings are inherited from another node.
+ * When a node has inherited settings, those settings are locked and
+ * come from the source node instead of being editable.
+ */
+export interface InheritedSettings {
+  /** The node ID that provides the settings */
+  sourceNodeId: string;
+  /** The node type of the source */
+  sourceNodeType: AINodeType;
+  /** Which settings are inherited (key -> value) */
+  settings: Record<string, unknown>;
+  /** Whether ALL settings are inherited (full inheritance) */
+  fullInheritance: boolean;
+}
+
+// ============================================================================
+// NODE CONTRACTS - Complete Input/Output Definitions
+// ============================================================================
+
+/**
+ * Handle definition for inputs and outputs
+ */
+export interface HandleDefinition {
+  id: string;
+  type: DataType;
+  label: string;
+  isMedia?: boolean;     // True for media inputs (image, video, audio, text content)
+  isSettings?: boolean;  // True for settings that can be inherited
+  required?: boolean;
+}
+
+/**
+ * Complete contract for a node's inputs and outputs
+ */
+export interface NodeContract {
+  /** Primary output type (image, video, audio, text) */
+  primaryOutputType: DataType;
+  /** Primary output handle ID */
+  primaryOutputId: string;
+  /** All settings this node has that can be passed to other nodes */
+  settings: HandleDefinition[];
+  /** Media inputs this node accepts */
+  mediaInputs: HandleDefinition[];
+}
+
+/**
+ * Complete contracts for all node types.
+ * Defines what settings each node can export and what media it accepts.
+ */
+export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
+  seedream: {
+    primaryOutputType: "image",
+    primaryOutputId: "out",
+    mediaInputs: [
+      { id: "image", type: "image", label: "Image", isMedia: true },
+    ],
+    settings: [
+      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
+      { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
+      { id: "aspectRatio", type: "text", label: "Aspect", isSettings: true },
+      { id: "seed", type: "number", label: "Seed", isSettings: true },
+      { id: "numInferenceSteps", type: "number", label: "Steps", isSettings: true },
+      { id: "guidanceScale", type: "number", label: "Guidance", isSettings: true },
+      { id: "truncatePrompt", type: "boolean", label: "Truncate", isSettings: true },
+      { id: "promptEnhancer", type: "boolean", label: "Enhancer", isSettings: true },
+      { id: "syncMode", type: "boolean", label: "Sync", isSettings: true },
+    ],
+  },
+  seedvr: {
+    primaryOutputType: "image",
+    primaryOutputId: "upscaled",
+    mediaInputs: [
+      { id: "inputImage", type: "image", label: "Image", isMedia: true, required: true },
+    ],
+    settings: [
+      { id: "scale", type: "text", label: "Scale", isSettings: true },
+      { id: "enhanceFaces", type: "boolean", label: "Faces", isSettings: true },
+    ],
+  },
+  seedance: {
+    primaryOutputType: "video",
+    primaryOutputId: "video",
+    mediaInputs: [
+      { id: "inputFrame", type: "image", label: "Start Frame", isMedia: true },
+    ],
+    settings: [
+      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
+      { id: "duration", type: "text", label: "Duration", isSettings: true },
+      { id: "aspectRatio", type: "text", label: "Aspect", isSettings: true },
+      { id: "seed", type: "number", label: "Seed", isSettings: true },
+    ],
+  },
+  elevenlabs: {
+    primaryOutputType: "audio",
+    primaryOutputId: "audio",
+    mediaInputs: [],
+    settings: [
+      { id: "text", type: "text", label: "Script", isSettings: true, required: true },
+      { id: "voiceId", type: "text", label: "Voice", isSettings: true },
+      { id: "stability", type: "number", label: "Stability", isSettings: true },
+      { id: "clarity", type: "number", label: "Clarity", isSettings: true },
+    ],
+  },
+  openrouter: {
+    primaryOutputType: "text",
+    primaryOutputId: "response",
+    mediaInputs: [
+      { id: "inputImage", type: "image", label: "Image", isMedia: true },
+      { id: "context", type: "text", label: "Context", isMedia: true },
+    ],
+    settings: [
+      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
+      { id: "systemPrompt", type: "text", label: "System", isSettings: true },
+      { id: "model", type: "text", label: "Model", isSettings: true },
+      { id: "temperature", type: "number", label: "Temp", isSettings: true },
+      { id: "maxTokens", type: "number", label: "MaxTok", isSettings: true },
+      { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
+    ],
+  },
+  lipsync: {
+    primaryOutputType: "video",
+    primaryOutputId: "synced",
+    mediaInputs: [
+      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
+      { id: "inputAudio", type: "audio", label: "Audio", isMedia: true, required: true },
+    ],
+    settings: [
+      { id: "model", type: "text", label: "Model", isSettings: true },
+    ],
+  },
+  "crop-image": {
+    primaryOutputType: "image",
+    primaryOutputId: "cropped",
+    mediaInputs: [
+      { id: "inputImage", type: "image", label: "Image", isMedia: true, required: true },
+    ],
+    settings: [
+      { id: "xPercent", type: "number", label: "X %", isSettings: true },
+      { id: "yPercent", type: "number", label: "Y %", isSettings: true },
+      { id: "widthPercent", type: "number", label: "Width %", isSettings: true },
+      { id: "heightPercent", type: "number", label: "Height %", isSettings: true },
+    ],
+  },
+  "merge-audio-video": {
+    primaryOutputType: "video",
+    primaryOutputId: "combined",
+    mediaInputs: [
+      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
+      { id: "inputAudio", type: "audio", label: "Audio", isMedia: true, required: true },
+    ],
+    settings: [
+      { id: "replaceAudio", type: "boolean", label: "Replace Audio", isSettings: true },
+    ],
+  },
+  "merge-videos": {
+    primaryOutputType: "video",
+    primaryOutputId: "merged",
+    mediaInputs: [
+      { id: "inputVideo1", type: "video", label: "Video 1", isMedia: true, required: true },
+      { id: "inputVideo2", type: "video", label: "Video 2", isMedia: true, required: true },
+    ],
+    settings: [
+      { id: "transition", type: "text", label: "Transition", isSettings: true },
+      { id: "transitionDuration", type: "number", label: "Duration", isSettings: true },
+    ],
+  },
+  "extract-audio": {
+    primaryOutputType: "audio",
+    primaryOutputId: "audio",
+    mediaInputs: [
+      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
+    ],
+    settings: [],
+  },
+};
+
+/**
+ * Check if a handle ID is a settings input for a given node type
+ */
+export function isSettingsHandle(nodeType: AINodeType, handleId: string): boolean {
+  const contract = NODE_CONTRACTS[nodeType];
+  if (!contract) return false;
+  return contract.settings.some(s => s.id === handleId);
+}
+
+/**
+ * Check if a handle ID is a media input for a given node type
+ */
+export function isMediaHandle(nodeType: AINodeType, handleId: string): boolean {
+  const contract = NODE_CONTRACTS[nodeType];
+  if (!contract) return false;
+  return contract.mediaInputs.some(m => m.id === handleId);
+}
+
+/**
+ * Get the setting value from source node that matches the target handle
+ */
+export function getSettingForHandle(
+  sourceNodeType: AINodeType,
+  sourceData: Record<string, unknown>,
+  targetHandle: string
+): unknown | undefined {
+  const contract = NODE_CONTRACTS[sourceNodeType];
+  if (!contract) return undefined;
+  
+  // Check if source has this setting
+  const setting = contract.settings.find(s => s.id === targetHandle);
+  if (setting) {
+    return sourceData[targetHandle];
+  }
+  return undefined;
+}
+
+/**
+ * Check if a source output can connect to a target input.
+ * Returns detailed validation result.
+ */
+export function validateConnection(
+  sourceType: DataType | undefined,
+  targetType: DataType | undefined
+): { valid: boolean; reason?: string } {
+  if (!sourceType || !targetType) {
+    return { valid: false, reason: "Missing type information" };
+  }
+  
+  // "any" type accepts or provides anything
+  if (sourceType === "any" || targetType === "any") {
+    return { valid: true };
+  }
+  
+  // Exact match
+  if (sourceType === targetType) {
+    return { valid: true };
+  }
+  
+  // Negative prompts can only connect to negative inputs
+  if (sourceType === "negative" && targetType !== "negative") {
+    return { valid: false, reason: "Negative prompts can only connect to negative inputs" };
+  }
+  
+  return { valid: false, reason: `Cannot connect ${sourceType} to ${targetType}` };
+}
+
+/**
+ * Get the settings that a source node can export to a specific target handle.
+ */
+export function getExportableSettings(
+  sourceNodeType: AINodeType,
+  targetHandle: string
+): { id: string; type: DataType; label: string } | undefined {
+  const contract = NODE_CONTRACTS[sourceNodeType];
+  if (!contract) return undefined;
+  
+  return contract.settings.find((s: HandleDefinition) => s.id === targetHandle);
 }

@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { LayoutList, Settings, Play, Loader2, X, Film, Download, ArrowDown, ArrowRightLeft, ChevronRight } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { LayoutList, Settings, Play, Loader2, X, Film, Download, ArrowDown, ArrowRightLeft, ChevronRight, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -329,18 +329,26 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                 className="overflow-hidden"
               >
                 <div className="space-y-3 pt-3 border-t border-white/5">
-                  <div>
-                    <label className="text-[9px] text-zinc-500 mb-1.5 block">Transition Style</label>
+                  <div className={isSettingInherited(data, "transition") ? "opacity-60" : ""}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[9px] text-zinc-500">Transition Style</label>
+                      {isSettingInherited(data, "transition") && (
+                        <div className="flex items-center gap-1 text-[8px] text-violet-400">
+                          <Lock className="w-2 h-2" />
+                          <span>Inherited</span>
+                        </div>
+                      )}
+                    </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       {Object.entries(TRANSITION_INFO).map(([key, { name }]) => (
                         <button
                           key={key}
-                          onClick={() => updateNode(id, { transition: key as "none" | "fade" | "dissolve" })}
-                          disabled={isProcessing}
+                          onClick={() => !isSettingInherited(data, "transition") && updateNode(id, { transition: key as "none" | "fade" | "dissolve" })}
+                          disabled={isProcessing || isSettingInherited(data, "transition")}
                           className={`nodrag nowheel h-7 px-2 rounded-lg text-[10px] font-medium transition-all ${
                             (data.transition || "none") === key
                               ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
-                              : isProcessing
+                              : isProcessing || isSettingInherited(data, "transition")
                               ? "bg-white/[0.02] border border-white/5 text-zinc-600 cursor-not-allowed"
                               : "bg-white/[0.03] border border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
                           }`}
@@ -352,9 +360,14 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                   </div>
                   
                   {data.transition && data.transition !== "none" && (
-                    <div className={isProcessing ? "opacity-50" : ""}>
+                    <div className={isProcessing || isSettingInherited(data, "transitionDuration") ? "opacity-50" : ""}>
                       <div className="flex justify-between text-[9px] text-zinc-500 mb-1.5">
-                        <span>Transition Duration</span>
+                        <div className="flex items-center gap-1">
+                          <span>Transition Duration</span>
+                          {isSettingInherited(data, "transitionDuration") && (
+                            <Lock className="w-2 h-2 text-violet-400" />
+                          )}
+                        </div>
                         <span className="text-zinc-300 font-mono">{data.transitionDuration || 0.5}s</span>
                       </div>
                       <input
@@ -363,10 +376,10 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                         max="2"
                         step="0.1"
                         value={data.transitionDuration || 0.5}
-                        onChange={(e) => updateNode(id, { transitionDuration: parseFloat(e.target.value) })}
-                        disabled={isProcessing}
+                        onChange={(e) => !isSettingInherited(data, "transitionDuration") && updateNode(id, { transitionDuration: parseFloat(e.target.value) })}
+                        disabled={isProcessing || isSettingInherited(data, "transitionDuration")}
                         className={`nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none accent-violet-500 ${
-                          isProcessing ? "cursor-not-allowed" : "cursor-pointer"
+                          isProcessing || isSettingInherited(data, "transitionDuration") ? "cursor-not-allowed" : "cursor-pointer"
                         }`}
                       />
                     </div>

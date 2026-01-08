@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { Combine, Settings, Play, Loader2, Upload, X, Film, Volume2 } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { Combine, Settings, Play, Loader2, Upload, X, Film, Volume2, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";

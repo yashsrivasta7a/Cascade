@@ -8,7 +8,10 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  --color-background: #050506;
+  /* Override zinc-950 to use our custom background */
+  --color-zinc-950: #101010;
+
+  --color-background: #101010;
   --color-foreground: #fafafa;
   --color-surface: #0a0a0b;
   --color-surface-elevated: #111113;
@@ -62,11 +65,11 @@
 }
 
 html {
-  background: #050506;
+  background: #101010;
 }
 
 body {
-  background: #050506;
+  background: #101010;
   color: #fafafa;
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -168,11 +171,11 @@ body {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .react-flow {
-  background: transparent !important;
+  background: #101010 !important;
 }
 
 .react-flow__background {
-  background: transparent !important;
+  background: #101010 !important;
 }
 
 /* Default edge styles - now using custom edge component */
@@ -194,29 +197,48 @@ body {
   to { stroke-dashoffset: -10; }
 }
 
+/* Connection handles - prominent and always visible */
 .react-flow__handle {
-  width: 10px !important;
-  height: 10px !important;
-  background: rgba(20, 20, 22, 0.9) !important;
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 50% !important;
   border: 2px solid rgba(255, 255, 255, 0.2) !important;
-  backdrop-filter: blur(8px);
-  transition: all 0.2s ease !important;
+  background: currentColor !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  z-index: 50 !important;
 }
 
 .react-flow__handle:hover {
-  background: rgba(255, 255, 255, 0.18) !important;
-  border-color: rgba(255, 255, 255, 0.28) !important;
-  transform: scale(1.3);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset, 0 18px 45px -25px rgba(0, 0, 0, 0.7);
+  transform: scale(1.25) !important;
+  background: currentColor !important;
 }
 
 .react-flow__handle-left {
-  left: -2px !important;
+  left: -7px !important;
 }
 
 .react-flow__handle-right {
-  right: -2px !important;
+  right: -7px !important;
 }
+
+/* Handle type colors */
+.react-flow__handle[data-handletype="text"] { color: #3b82f6 !important; }
+.react-flow__handle[data-handletype="image"] { color: #10b981 !important; }
+.react-flow__handle[data-handletype="video"] { color: #8b5cf6 !important; }
+.react-flow__handle[data-handletype="audio"] { color: #f59e0b !important; }
+.react-flow__handle[data-handletype="any"] { color: #a1a1aa !important; }
+.react-flow__handle[data-handletype="negative"] { color: #ef4444 !important; }
+.react-flow__handle[data-handletype="number"] { color: #ec4899 !important; }
+.react-flow__handle[data-handletype="boolean"] { color: #06b6d4 !important; }
+
+.react-flow__handle[data-handletype="text"]:hover { box-shadow: 0 0 16px rgba(59, 130, 246, 0.7) !important; }
+.react-flow__handle[data-handletype="image"]:hover { box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important; }
+.react-flow__handle[data-handletype="video"]:hover { box-shadow: 0 0 16px rgba(139, 92, 246, 0.7) !important; }
+.react-flow__handle[data-handletype="audio"]:hover { box-shadow: 0 0 16px rgba(245, 158, 11, 0.7) !important; }
+.react-flow__handle[data-handletype="any"]:hover { box-shadow: 0 0 16px rgba(161, 161, 170, 0.6) !important; }
+.react-flow__handle[data-handletype="negative"]:hover { box-shadow: 0 0 16px rgba(239, 68, 68, 0.7) !important; }
+.react-flow__handle[data-handletype="number"]:hover { box-shadow: 0 0 16px rgba(236, 72, 153, 0.7) !important; }
+.react-flow__handle[data-handletype="boolean"]:hover { box-shadow: 0 0 16px rgba(6, 182, 212, 0.7) !important; }
 
 .react-flow__controls {
   background: rgba(10, 10, 11, 0.8) !important;
@@ -331,11 +353,11 @@ body {
 }
 
 .react-flow__connection-line {
-  stroke: #00d4ff !important;
+  stroke: #ffffff !important;
   stroke-width: 2px !important;
   stroke-dasharray: 6 4;
   animation: dash 0.4s linear infinite;
-  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
 }
 
 @keyframes dash {
@@ -344,7 +366,7 @@ body {
 
 /* Connection indicator when dragging */
 .react-flow__handle.connecting {
-  background: #00d4ff !important;
+  background: currentColor !important;
   border-color: #00d4ff !important;
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
 }
@@ -356,7 +378,7 @@ body {
 
 /* Enhanced dot grid visibility */
 .react-flow__background pattern circle {
-  fill: #52525b;
+  fill: rgba(82, 82, 91, 0.7);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -401,36 +423,23 @@ body {
    NODE CARD STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Node cards - clean minimal design */
 .node-card {
-  background: linear-gradient(
-    145deg,
-    rgba(20, 20, 22, 0.9) 0%,
-    rgba(10, 10, 11, 0.95) 100%
-  );
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #161616;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
-    0 20px 40px -15px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.5);
 }
 
 .node-card:hover {
   border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 30px 60px -15px rgba(0, 0, 0, 0.5);
-  transform: translateY(-2px);
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
 }
 
 .node-card.selected {
-  border-color: rgba(0, 212, 255, 0.4);
-  box-shadow: 
-    0 0 0 1px rgba(0, 212, 255, 0.1) inset,
-    0 0 40px rgba(0, 212, 255, 0.15),
-    0 30px 60px -15px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.7);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -458,4 +467,33 @@ body {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EDGE GLOW EFFECTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ensure edge elements aren't clipped */
+.react-flow__edge,
+.react-flow__edge g,
+.react-flow__edges {
+  overflow: visible !important;
+}
+
+/* Smooth transitions for edges */
+.react-flow__edge path {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+/* Brighten glow on hover */
+.react-flow__edge:hover path[id$="-glow"] {
+  opacity: 0.8 !important;
+}
+
+.react-flow__edge:hover path[id$="-glow-mid"] {
+  opacity: 0.6 !important;
+}
+
+.react-flow__edge:hover path[id$="-glow-outer"] {
+  opacity: 0.25 !important;
 }

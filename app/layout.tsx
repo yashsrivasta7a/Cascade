@@ -34,7 +34,7 @@ export default function RootLayout({
         baseTheme: dark,
         variables: {
           colorPrimary: "#06b6d4", // cyan-500
-          colorBackground: "#09090b", // zinc-950
+          colorBackground: "#101010", // custom dark
           colorInputBackground: "#18181b", // zinc-900
           colorInputText: "#fafafa", // zinc-50
           colorText: "#fafafa",

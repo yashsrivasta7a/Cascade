@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const status = searchParams.get("status"); // COMPLETED, FAILED, EXECUTING, etc.
+    const workflowId = searchParams.get("workflowId"); // Filter by specific workflow
 
     // Try to get user ID for filtering quick executions
     let userId: string | null = null;
@@ -23,7 +24,76 @@ export async function GET(request: NextRequest) {
       // User auth is optional
     }
 
-    // Fetch runs from Trigger.dev API
+    // If workflowId is specified, fetch directly from database instead of Trigger.dev
+    // This is more efficient and accurate for per-workflow filtering
+    if (workflowId && workflowId !== "new") {
+      const dbExecutions = await db.workflowExecution.findMany({
+        where: {
+          workflowId,
+          ...(userId ? { userId } : {}),
+        },
+        orderBy: { startedAt: "desc" },
+        take: limit,
+        include: {
+          workflow: { select: { name: true, id: true } },
+          nodeExecutions: {
+            orderBy: { startedAt: "asc" },
+            select: {
+              id: true,
+              nodeId: true,
+              nodeType: true,
+              nodeLabel: true,
+              status: true,
+              providerUsed: true,
+              error: true,
+              startedAt: true,
+              completedAt: true,
+              actualCost: true,
+            },
+          },
+        },
+      });
+
+      const executions = dbExecutions.map((exec) => {
+        return {
+          id: exec.id,
+          triggerRunId: exec.triggerRunId,
+          status: exec.status,
+          createdAt: exec.createdAt.toISOString(),
+          startedAt: exec.startedAt?.toISOString(),
+          completedAt: exec.completedAt?.toISOString(),
+          taskIdentifier: "workflow-execution",
+          workflowName: exec.workflow?.name,
+          workflowId: exec.workflowId,
+          durationMs: exec.startedAt && exec.completedAt 
+            ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
+            : undefined,
+          nodeExecutions: exec.nodeExecutions.map((ne) => ({
+            id: ne.id,
+            nodeId: ne.nodeId,
+            nodeLabel: ne.nodeLabel || ne.nodeType,
+            nodeType: ne.nodeType,
+            status: ne.status,
+            providerUsed: ne.providerUsed,
+            error: ne.error,
+            startedAt: ne.startedAt?.toISOString(),
+            completedAt: ne.completedAt?.toISOString(),
+            actualCost: ne.actualCost || 0,
+          })),
+          error: exec.error,
+        };
+      });
+
+      return NextResponse.json({
+        executions,
+        pagination: {
+          hasMore: dbExecutions.length === limit,
+        },
+        source: "db-workflow-filtered",
+      });
+    }
+
+    // Fetch runs from Trigger.dev API (for global view)
     let runsList: { data: any[] } = { data: [] };
     try {
       runsList = await runs.list({
@@ -45,7 +115,7 @@ export async function GET(request: NextRequest) {
         triggerRunId: { in: triggerRunIds },
       },
       include: {
-        workflow: { select: { name: true } },
+        workflow: { select: { name: true, id: true } },
         nodeExecutions: {
           orderBy: { startedAt: "asc" },
           select: {
@@ -95,6 +165,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log(`[trigger-runs] Trigger runs: ${runsList.data.length}, DB execs: ${dbExecutions.length}`);
+    if (dbExecutions.length > 0) {
+      console.log(`[trigger-runs] DB exec triggerRunIds: ${dbExecutions.map(e => e.triggerRunId).join(', ')}`);
+    }
+    
     // Transform to match our history panel format
     const executions = runsList.data.map((run) => {
       // Map Trigger.dev status to our status
@@ -108,6 +183,10 @@ export async function GET(request: NextRequest) {
       // Get node executions from database
       const dbExec = dbExecByTriggerId.get(run.id);
       const dbNodeExecutions = dbExec?.nodeExecutions || nodeExecsByTriggerId.get(run.id) || [];
+      
+      if (dbNodeExecutions.length > 0) {
+        console.log(`[trigger-runs] Run ${run.id}: found ${dbNodeExecutions.length} node execs, nodeIds: ${dbNodeExecutions.map((ne: any) => `${ne.nodeId}:${ne.status}`).join(', ')}`);
+      }
       
       // Map database node executions to our format
       const nodeExecutions = dbNodeExecutions.map((ne: any) => ({
@@ -150,6 +229,7 @@ export async function GET(request: NextRequest) {
         completedAt: run.finishedAt,
         taskIdentifier: run.taskIdentifier,
         workflowName: dbExec?.workflow?.name,
+        workflowId: dbExec?.workflowId,
         // Duration in ms
         durationMs: run.startedAt && run.finishedAt 
           ? new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()

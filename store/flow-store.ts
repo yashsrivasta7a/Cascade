@@ -21,11 +21,19 @@ export interface FlowState {
   isWorkflowRunning: boolean;
   focusNodeId: string | null;
   
+  // Connection dragging state for highlighting compatible nodes
+  connectingFrom: {
+    nodeId: string;
+    handleId: string | null;
+    handleType: string | null; // data type: "text", "image", "video", etc.
+  } | null;
+  
   // Actions
   setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void;
   setEdges: (edges: Edge[]) => void;
   setViewport: (viewport: { x: number; y: number; zoom: number } | undefined) => void;
   setWorkflowRunning: (running: boolean) => void;
+  setConnectingFrom: (info: FlowState["connectingFrom"]) => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
@@ -58,8 +66,10 @@ export const useFlowStore = create<FlowState>()(
       viewport: undefined,
       isWorkflowRunning: false,
       focusNodeId: null,
+      connectingFrom: null,
 
       setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
+      setConnectingFrom: (info) => set({ connectingFrom: info }),
 
       setNodes: (nodes) =>
         set((state) => ({
@@ -75,9 +85,74 @@ export const useFlowStore = create<FlowState>()(
       },
 
       onEdgesChange: (changes) => {
-        set({
-          edges: applyEdgeChanges(changes, get().edges),
-        });
+        const state = get();
+        const newEdges = applyEdgeChanges(changes, state.edges);
+        
+        // Check for removed edges that were inheritance connections
+        const removedChanges = changes.filter((c) => c.type === "remove");
+        if (removedChanges.length > 0) {
+          const removedEdgeIds = new Set(removedChanges.map((c) => c.id));
+          const removedEdges = state.edges.filter((e) => removedEdgeIds.has(e.id));
+          
+          // Find edges that were settings or full inheritance connections
+          const inheritanceEdges = removedEdges.filter((e) => {
+            const edgeData = e.data as Record<string, unknown> | undefined;
+            return edgeData?.isFullInheritance === true || edgeData?.isSettingsConnection === true;
+          });
+          
+          // Clear inheritance from affected target nodes
+          if (inheritanceEdges.length > 0) {
+            const updatedNodes = state.nodes.map((n) => {
+              const edgesForNode = inheritanceEdges.filter((e) => e.target === n.id);
+              if (edgesForNode.length === 0) return n;
+              
+              const nodeData = { ...(n.data as Record<string, unknown>) };
+              const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
+              
+              // For full inheritance, remove all
+              const hasFullInheritance = edgesForNode.some((e) => {
+                const edgeData = e.data as Record<string, unknown> | undefined;
+                return edgeData?.isFullInheritance === true;
+              });
+              
+              if (hasFullInheritance) {
+                delete nodeData._inheritedFrom;
+              } else {
+                // For settings connections, remove only the specific settings
+                const settingsToRemove = edgesForNode
+                  .filter((e) => {
+                    const edgeData = e.data as Record<string, unknown> | undefined;
+                    return edgeData?.isSettingsConnection === true;
+                  })
+                  .map((e) => e.targetHandle)
+                  .filter(Boolean) as string[];
+                
+                if (existingInherited && settingsToRemove.length > 0) {
+                  const existingSettings = (existingInherited.settings as Record<string, unknown>) || {};
+                  const newSettings = { ...existingSettings };
+                  for (const key of settingsToRemove) {
+                    delete newSettings[key];
+                  }
+                  
+                  if (Object.keys(newSettings).length === 0) {
+                    delete nodeData._inheritedFrom;
+                  } else {
+                    nodeData._inheritedFrom = {
+                      ...existingInherited,
+                      settings: newSettings,
+                    };
+                  }
+                }
+              }
+              
+              return { ...n, data: nodeData };
+            });
+            set({ edges: newEdges, nodes: updatedNodes });
+            return;
+          }
+        }
+        
+        set({ edges: newEdges });
       },
 
       onConnect: (connection: Connection) => {
@@ -210,10 +285,13 @@ export const useFlowStore = create<FlowState>()(
       propagateOutput: (sourceNodeId, output) => {
         const state = get();
         
-        // Find the source node to get its prompt
+        // Find the source node to get its data
         const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
-        const sourceData = (sourceNode?.data ?? {}) as { prompt?: string };
-        const sourcePrompt = sourceData.prompt;
+        if (!sourceNode) return;
+        
+        const sourceData = sourceNode.data as Record<string, unknown>;
+        const sourceNodeType = sourceNode.type;
+        const sourcePrompt = sourceData.prompt as string | undefined;
         
         // Find all edges that start from this source node
         const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
@@ -225,45 +303,132 @@ export const useFlowStore = create<FlowState>()(
           ? `[Previous: "${sourcePrompt}"]\n[Response: "${output}"]`
           : output;
 
-        const sourceBundle =
-          sourceNode && typeof (sourceNode.data as any)?.out === "object" && (sourceNode.data as any)?.out
-            ? ((sourceNode.data as any).out as Record<string, unknown>)
-            : undefined;
+        // Build complete settings bundle from source node data
+        const sourceBundle: Record<string, unknown> = {
+          // Include the primary output
+          result: output,
+          // Include all settings from the source node
+          prompt: sourceData.prompt,
+          negativePrompt: sourceData.negativePrompt,
+          aspectRatio: sourceData.aspectRatio,
+          seed: sourceData.seed,
+          numInferenceSteps: sourceData.numInferenceSteps,
+          guidanceScale: sourceData.guidanceScale,
+          temperature: sourceData.temperature,
+          model: sourceData.model,
+          voiceId: sourceData.voiceId,
+          duration: sourceData.duration,
+          systemPrompt: sourceData.systemPrompt,
+          maxTokens: sourceData.maxTokens,
+          stability: sourceData.stability,
+          clarity: sourceData.clarity,
+          // Merge videos settings
+          transition: sourceData.transition,
+          transitionDuration: sourceData.transitionDuration,
+          // Media outputs
+          image: sourceData.result ?? output,
+          video: sourceData.result ?? output,
+          audio: sourceData.result ?? output,
+        };
         
-        // Update all target nodes based on which handle they're connected to
+        // Update all target nodes based on edge configuration
         const updatedNodes = state.nodes.map((node) => {
           const edge = outgoingEdges.find((e) => e.target === node.id);
           if (!edge) return node;
           
           const targetHandle = edge.targetHandle;
           const sourceHandle = edge.sourceHandle;
+          const edgeData = edge.data as Record<string, unknown> | undefined;
+          const isSettingsConnection = edgeData?.isSettingsConnection === true;
+          const isFullInheritance = edgeData?.isFullInheritance === true;
+          const settingKey = edgeData?.settingKey as string | undefined;
           const nodeData = { ...(node.data as Record<string, unknown>) };
           
+          // Handle FULL inheritance: pass ALL settings to target node
+          if (isFullInheritance) {
+            // Copy all matching settings from source to target
+            const settingsToInherit = [
+              "prompt", "negativePrompt", "aspectRatio", "seed",
+              "numInferenceSteps", "guidanceScale", "temperature",
+              "model", "voiceId", "duration", "systemPrompt", "maxTokens",
+              "stability", "clarity", "transition", "transitionDuration"
+            ];
+            
+            const inheritedSettings: Record<string, unknown> = {};
+            for (const key of settingsToInherit) {
+              if (sourceBundle[key] !== undefined) {
+                nodeData[key] = sourceBundle[key];
+                inheritedSettings[key] = sourceBundle[key];
+              }
+            }
+            
+            // Update the inheritance metadata
+            nodeData._inheritedFrom = {
+              sourceNodeId,
+              sourceNodeType,
+              settings: inheritedSettings,
+              fullInheritance: true,
+            };
+            
+            // Also set the appropriate media input
+            if (targetHandle === "image" || targetHandle === "inputImage") {
+              nodeData.inputImage = output;
+            } else if (targetHandle === "video" || targetHandle === "inputVideo") {
+              nodeData.inputVideo = output;
+            } else if (targetHandle === "audio" || targetHandle === "inputAudio") {
+              nodeData.inputAudio = output;
+            } else if (targetHandle === "prompt" || targetHandle === "context") {
+              nodeData.context = contextWithHistory;
+            }
+            
+            return { ...node, data: nodeData };
+          }
+          
+          // Handle specific settings connections: out -> specific setting
+          if (isSettingsConnection && sourceBundle[targetHandle ?? ""] !== undefined) {
+            const key = targetHandle ?? "";
+            nodeData[key] = sourceBundle[key];
+            
+            // Update inheritance metadata for this specific setting
+            const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
+            const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
+            nodeData._inheritedFrom = {
+              sourceNodeId,
+              sourceNodeType,
+              settings: {
+                ...existingSettings,
+                [key]: sourceBundle[key],
+              },
+              fullInheritance: false,
+            };
+            
+            return { ...node, data: nodeData };
+          }
+          
           // Determine the type of output based on source handle
-          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped";
+          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped" || sourceHandle === "out";
           const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged";
           const isAudioOutput = sourceHandle === "audio";
           
           // Map to appropriate field based on target handle and output type
-          if (targetHandle === "image" || targetHandle === "frame") {
-            // If source is a bundle output, prefer bundle.image
-            const bundleImage = sourceBundle?.image;
-            nodeData.inputImage = typeof bundleImage === "string" ? bundleImage : output;
-          } else if (targetHandle === "video" || targetHandle === "video1" || targetHandle === "video2") {
+          if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
+            nodeData.inputImage = output;
+          } else if (targetHandle === "video" || targetHandle === "inputVideo" || targetHandle === "inputVideo1") {
             nodeData.inputVideo = output;
-          } else if (targetHandle === "audio") {
+          } else if (targetHandle === "inputVideo2") {
+            nodeData.inputVideo2 = output;
+          } else if (targetHandle === "audio" || targetHandle === "inputAudio") {
             nodeData.inputAudio = output;
           } else if (targetHandle === "prompt" && !isImageOutput && !isVideoOutput && !isAudioOutput) {
-            // Text going to prompt - use context with history
             nodeData.context = contextWithHistory;
           } else if (targetHandle === "context" || !targetHandle) {
             nodeData.context = contextWithHistory;
           } else if (targetHandle === "text") {
             nodeData.text = output;
-          } else if (sourceHandle === "out" && targetHandle && sourceBundle && targetHandle in sourceBundle) {
-            // Settings override via bundle output: out -> <setting>
+          } else if (sourceHandle === "out" && targetHandle && sourceBundle[targetHandle] !== undefined) {
+            // Settings override via bundle output
             nodeData[targetHandle] = sourceBundle[targetHandle];
-          } else {
+          } else if (targetHandle) {
             // For other handles, use the handle ID as the field name
             nodeData[targetHandle] = output;
           }
@@ -278,6 +443,10 @@ export const useFlowStore = create<FlowState>()(
         const state = get();
         const node = state.nodes.find((n) => n.id === nodeId);
         if (!node) return;
+
+        // Async nodes that need polling (fal.ai based)
+        const asyncNodeTypes = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
+        const isAsyncNode = asyncNodeTypes.includes(node.type ?? "");
 
         // Reset status for this node only
         set({
@@ -294,6 +463,8 @@ export const useFlowStore = create<FlowState>()(
                 }
               : n
           ),
+          // Enable polling for async nodes
+          isWorkflowRunning: isAsyncNode ? true : state.isWorkflowRunning,
         });
 
         const applyStatus = (status: string, patch?: Record<string, unknown>) => {
@@ -316,6 +487,10 @@ export const useFlowStore = create<FlowState>()(
           onNodeStatus: (id, status, patch) => {
             if (id !== nodeId) return;
             applyStatus(status, patch);
+            // If async node finished (completed/failed), stop polling
+            if (isAsyncNode && (status === "completed" || status === "failed")) {
+              set({ isWorkflowRunning: false });
+            }
           },
           onNodeResult: (id, resultText) => {
             if (id !== nodeId) return;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -11,15 +11,18 @@ import {
   Save,
   ChevronLeft,
   Layers,
-  History,
+  Activity,
   Target,
   GitBranch,
+  Bug,
+  LayoutGrid,
 } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
 import { NodeContextMenu } from "@/components/flow/node-context-menu";
 import { NodeTypeModal } from "@/components/flow/node-type-modal";
-import { NodePalette, ExecutionHistoryPanel, VersionHistoryPanel } from "@/components/flow";
+import { NodePalette, ExecutionHistoryPanel, VersionHistoryPanel, ErrorInspectorPanel } from "@/components/flow";
+import type { WorkflowError } from "@/components/flow";
 import { WorkflowSidebar } from "@/components/flow/workflow-sidebar";
 import { useFlowStore } from "@/store";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -85,9 +88,11 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export default function WorkflowEditorPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const workflowId = params?.id ?? "unknown";
   const focusParam = searchParams?.get("focus");
-  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, focusNode, focusNodeId } = useFlowStore();
+  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, focusNode, focusNodeId, selectedNode } = useFlowStore();
+  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -99,6 +104,18 @@ export default function WorkflowEditorPage() {
   const [workflowName, setWorkflowName] = useState("My Workflow");
   const [dbWorkflowId, setDbWorkflowId] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
+  const [errorsOpen, setErrorsOpen] = useState(false);
+  const [workflowErrors, setWorkflowErrors] = useState<WorkflowError[]>([]);
+  
+  // Keep refs to current state for polling (avoids stale closures)
+  const nodesRef = useRef(nodes);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  
+  const workflowErrorsRef = useRef(workflowErrors);
+  useEffect(() => { workflowErrorsRef.current = workflowErrors; }, [workflowErrors]);
+  
+  const dbWorkflowIdRef = useRef(dbWorkflowId);
+  useEffect(() => { dbWorkflowIdRef.current = dbWorkflowId; }, [dbWorkflowId]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -137,20 +154,36 @@ export default function WorkflowEditorPage() {
           e.stopPropagation();
           setWorkflowSidebarOpen(prev => !prev);
           break;
+        case "t":
+          e.preventDefault();
+          e.stopPropagation();
+          setWorkflowSidebarOpen(prev => !prev);
+          break;
+        case "e":
+          e.preventDefault();
+          e.stopPropagation();
+          setErrorsOpen(prev => !prev);
+          break;
         case "escape":
           setPaletteOpen(false);
           setHistoryOpen(false);
           setVersionsOpen(false);
           setWorkflowSidebarOpen(false);
+          setErrorsOpen(false);
           setIsAddModalOpen(false);
           setIsRunModalOpen(false);
           break;
       }
     };
 
+    // Use both window and document to ensure we catch the event
+    window.addEventListener("keydown", handleKeyDown, true);
     document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [isWorkflowRunning]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isWorkflowRunning, router]);
 
   // tRPC queries and mutations
   const utils = trpc.useUtils();
@@ -223,6 +256,277 @@ export default function WorkflowEditorPage() {
       return () => clearTimeout(timer);
     }
   }, [focusParam, nodes.length, focusNode]);
+
+  // Watch for node errors in the flow store
+  useEffect(() => {
+    const errorNodes = nodes.filter((n) => {
+      const data = n.data as Record<string, unknown>;
+      return data?.status === "failed" && data?.error;
+    });
+
+    errorNodes.forEach((node) => {
+      const data = node.data as Record<string, unknown>;
+      const errorMessage = data.error as string;
+      const errorDetails = data.errorDetails as {
+        provider?: string;
+        executionId?: string;
+        triggerRunId?: string;
+        duration?: number;
+        inputs?: Record<string, unknown>;
+      } | undefined;
+      
+      const errorId = `${node.id}-${errorMessage}`;
+      
+      // Check if this error already exists
+      const exists = workflowErrors.some((e) => e.id === errorId || 
+        (e.nodeId === node.id && e.message === errorMessage));
+      
+      if (!exists) {
+        const nodeDef = NODE_DEFINITIONS[node.type as AINodeType];
+        const newError: WorkflowError = {
+          id: errorId,
+          nodeId: node.id,
+          nodeName: (data.label as string) ?? nodeDef?.label ?? node.type ?? "Unknown Node",
+          nodeType: node.type ?? "unknown",
+          severity: "critical",
+          message: errorMessage,
+          timestamp: new Date(),
+          canRetry: true,
+          // Enhanced error details
+          provider: errorDetails?.provider ?? (data.providerTrying as string) ?? undefined,
+          executionId: errorDetails?.executionId,
+          triggerRunId: errorDetails?.triggerRunId,
+          duration: errorDetails?.duration,
+          inputs: errorDetails?.inputs ?? (data.prompt ? { prompt: data.prompt } : undefined),
+          details: nodeDef?.provider ? `Model: ${nodeDef.provider}` : undefined,
+        };
+        
+        setWorkflowErrors((prev) => {
+          // Double-check to avoid duplicates in concurrent updates
+          if (prev.some((e) => e.id === errorId)) return prev;
+          return [newError, ...prev];
+        });
+        setErrorsOpen(true);
+      }
+    });
+  }, [nodes, workflowErrors]);
+
+  // Poll for latest execution status using the same API as execution history
+  useEffect(() => {
+    if (!isWorkflowRunning) return;
+
+    const pollStatus = async () => {
+      try {
+        // Use ref to get current nodes (avoids stale closures)
+        const currentNodes = nodesRef.current;
+        const currentNodeIds = new Set(currentNodes.map((n) => n.id));
+        
+        console.log("[Polling] Current flow nodeIds:", Array.from(currentNodeIds));
+        
+        // Also track node types for matching by type if ID doesn't match
+        const nodesByType = new Map<string, string[]>();
+        currentNodes.forEach((n) => {
+          const type = n.type ?? "";
+          if (!nodesByType.has(type)) nodesByType.set(type, []);
+          nodesByType.get(type)!.push(n.id);
+        });
+        
+        // Filter by workflowId to only show executions for this workflow
+        const pollParams = new URLSearchParams();
+        pollParams.set("limit", "10");
+        if (dbWorkflowIdRef.current) {
+          pollParams.set("workflowId", dbWorkflowIdRef.current);
+        }
+        const response = await fetch(`/api/trigger-runs?${pollParams.toString()}`);
+        if (!response.ok) {
+          console.log("[Polling] API response not ok:", response.status);
+          return;
+        }
+
+        const data = await response.json();
+        const executions = data.executions || [];
+        
+        console.log("[Polling] Got", executions.length, "executions");
+        executions.slice(0, 3).forEach((exec: { nodeExecutions?: Array<{ nodeId: string; status: string }> }) => {
+          const nes = exec.nodeExecutions || [];
+          console.log("[Polling] Execution nodeIds:", nes.map(ne => `${ne.nodeId}:${ne.status}`));
+        });
+
+        // Find recent executions (within last 5 minutes) and try to match
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+        
+        for (const exec of executions) {
+          const execTime = new Date(exec.startedAt || exec.createdAt).getTime();
+          if (execTime < fiveMinutesAgo) continue; // Skip old executions
+          
+          const nodeExecutions = exec.nodeExecutions || [];
+          if (nodeExecutions.length === 0) continue;
+          
+          // Try to match by nodeId first, then by nodeType
+          const matchedUpdates: Array<{ flowNodeId: string; dbStatus: { status: string; error?: string; providerUsed?: string } }> = [];
+          
+          for (const ne of nodeExecutions as Array<{ nodeId: string; nodeType: string; status: string; error?: string; providerUsed?: string }>) {
+            // Direct match by nodeId
+            if (currentNodeIds.has(ne.nodeId)) {
+              matchedUpdates.push({ flowNodeId: ne.nodeId, dbStatus: ne });
+            } 
+            // Match by nodeType if no direct match (for older executions)
+            else if (nodesByType.has(ne.nodeType)) {
+              const possibleNodes = nodesByType.get(ne.nodeType)!;
+              // Use the first node of this type that's still "running"
+              for (const flowNodeId of possibleNodes) {
+                const flowNode = currentNodes.find((n) => n.id === flowNodeId);
+                const flowStatus = (flowNode?.data as Record<string, unknown>)?.status;
+                if (flowStatus === "running" || flowStatus === "queued") {
+                  matchedUpdates.push({ flowNodeId, dbStatus: ne });
+                  break;
+                }
+              }
+            }
+          }
+
+          if (matchedUpdates.length > 0) {
+            console.log("[Polling] Found matching executions:", matchedUpdates.map(m => `${m.flowNodeId}: ${m.dbStatus.status}`));
+            
+            setNodes((prev) =>
+              prev.map((n) => {
+                const match = matchedUpdates.find((m) => m.flowNodeId === n.id);
+                if (!match) return n;
+                
+                const dbStatus = match.dbStatus;
+                const currentData = n.data as Record<string, unknown>;
+                const currentStatus = currentData.status as string | undefined;
+
+                // Map database status to local status format
+                const rawStatus = dbStatus.status?.toUpperCase?.() ?? "PENDING";
+                let newStatus: string;
+                switch (rawStatus) {
+                  case "COMPLETED":
+                    newStatus = "completed";
+                    break;
+                  case "FAILED":
+                    newStatus = "failed";
+                    break;
+                  case "RUNNING":
+                  case "WAITING":
+                    newStatus = "running";
+                    break;
+                  case "QUEUED":
+                  case "PENDING":
+                    newStatus = "queued";
+                    break;
+                  default:
+                    newStatus = currentStatus ?? "queued";
+                }
+
+                // Only update if status or error changed
+                if (currentStatus === newStatus && currentData.error === dbStatus.error) return n;
+
+                console.log(`[Polling] Updating node ${n.id}: ${currentStatus} → ${newStatus}`);
+                
+                return {
+                  ...n,
+                  data: {
+                    ...currentData,
+                    status: newStatus,
+                    error: dbStatus.error ?? currentData.error,
+                    providerUsed: dbStatus.providerUsed ?? currentData.providerUsed,
+                  },
+                };
+              })
+            );
+
+            // Check if all matched nodes are complete
+            const allDone = matchedUpdates.every(
+              (m) => {
+                const s = m.dbStatus.status?.toUpperCase?.();
+                return s === "COMPLETED" || s === "FAILED";
+              }
+            );
+            if (allDone) {
+              console.log("[Polling] All matched nodes done, stopping polling");
+              setWorkflowRunning(false);
+            }
+
+            // Collect errors
+            matchedUpdates
+              .filter((m) => m.dbStatus.status?.toUpperCase?.() === "FAILED" && m.dbStatus.error)
+              .forEach((m) => {
+                const ne = m.dbStatus as { status: string; error: string; providerUsed?: string };
+                const flowNode = currentNodes.find((n) => n.id === m.flowNodeId);
+                const exists = workflowErrorsRef.current.some(
+                  (e) => e.nodeId === m.flowNodeId && e.message === ne.error
+                );
+                if (!exists) {
+                  const newError: WorkflowError = {
+                    id: `api-${m.flowNodeId}-${Date.now()}`,
+                    nodeId: m.flowNodeId,
+                    nodeName: (flowNode?.data as Record<string, unknown>)?.label as string ?? flowNode?.type ?? "Node",
+                    nodeType: flowNode?.type ?? "unknown",
+                    severity: "critical",
+                    message: ne.error,
+                    details: ne.providerUsed ? `Provider: ${ne.providerUsed}` : undefined,
+                    timestamp: new Date(),
+                    canRetry: true,
+                  };
+                  setWorkflowErrors((prev) => [newError, ...prev]);
+                  setErrorsOpen(true);
+                }
+              });
+
+            break; // Found matching execution, stop looking
+          }
+        }
+      } catch (error) {
+        console.error("Failed to poll execution status:", error);
+      }
+    };
+
+    // Poll immediately and then every 2 seconds
+    pollStatus();
+    const interval = setInterval(pollStatus, 2000);
+
+    return () => clearInterval(interval);
+    // Only re-create interval when isWorkflowRunning changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWorkflowRunning]);
+
+  // Fetch errors from database for this workflow
+  const { data: dbErrorsData } = trpc.execution.getErrors.useQuery(
+    { workflowId: dbWorkflowId ?? "", limit: 50 },
+    {
+      enabled: Boolean(dbWorkflowId) && errorsOpen,
+      refetchInterval: errorsOpen ? 5000 : false, // Poll every 5s when panel is open
+    }
+  );
+
+  // Merge database errors with local errors
+  useEffect(() => {
+    if (dbErrorsData?.errors) {
+      const dbErrors: WorkflowError[] = dbErrorsData.errors.map((e) => ({
+        id: `db-${e.id}`,
+        nodeId: e.nodeId,
+        nodeName: e.nodeName,
+        nodeType: e.nodeType,
+        severity: "critical" as const,
+        message: e.message,
+        details: e.providerUsed ? `Provider: ${e.providerUsed}` : undefined,
+        timestamp: new Date(e.timestamp),
+        inputs: e.inputs ?? undefined,
+        canRetry: true,
+      }));
+
+      // Add database errors that don't already exist
+      setWorkflowErrors((prev) => {
+        const existingIds = new Set(prev.map((e) => e.id));
+        const newErrors = dbErrors.filter((e) => !existingIds.has(e.id));
+        if (newErrors.length === 0) return prev;
+        return [...newErrors, ...prev].sort((a, b) => 
+          b.timestamp.getTime() - a.timestamp.getTime()
+        );
+      });
+    }
+  }, [dbErrorsData]);
 
   // Save workflow to database (manual only)
   const handleSave = useCallback(async () => {
@@ -337,6 +641,28 @@ export default function WorkflowEditorPage() {
                 : n
             )
           );
+          
+          // Collect errors when a node fails
+          if (status === "failed" && patch?.error) {
+            const node = nodes.find(n => n.id === nodeId);
+            const nodeDef = NODE_DEFINITIONS[node?.type as AINodeType];
+            const nodeData = node?.data as Record<string, unknown>;
+            
+            const newError: WorkflowError = {
+              id: `${nodeId}-${Date.now()}`,
+              nodeId,
+              nodeName: (nodeData?.label as string) ?? nodeDef?.label ?? node?.type ?? "Unknown Node",
+              nodeType: node?.type ?? "unknown",
+              severity: "critical",
+              message: patch.error as string,
+              timestamp: new Date(),
+              inputs: nodeData,
+              canRetry: true,
+            };
+            
+            setWorkflowErrors(prev => [newError, ...prev]);
+            setErrorsOpen(true); // Auto-open error panel when error occurs
+          }
         },
         onNodeResult: (nodeId, resultText) => {
           setNodes((prev) =>
@@ -357,12 +683,28 @@ export default function WorkflowEditorPage() {
         });
       }
     } catch (error) {
+      // Add workflow-level error
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const newError: WorkflowError = {
+        id: `workflow-${Date.now()}`,
+        nodeId: "workflow",
+        nodeName: "Workflow Execution",
+        nodeType: "workflow",
+        severity: "critical",
+        message: errorMessage,
+        details: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date(),
+        canRetry: true,
+      };
+      setWorkflowErrors(prev => [newError, ...prev]);
+      setErrorsOpen(true);
+      
       // Mark execution as failed
       if (executionId) {
         updateExecutionMutation.mutate({
           id: executionId,
           status: "FAILED",
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: errorMessage,
         });
       }
     } finally {
@@ -370,8 +712,20 @@ export default function WorkflowEditorPage() {
     }
   }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, createExecutionMutation, updateExecutionMutation]);
 
+  // Calculate dynamic button color based on selected node
+  const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;
+  const activeColor = selectedNodeDef?.color ?? "blue";
+  
+  const buttonGradient = {
+    blue: "from-blue-600 via-blue-500 to-blue-600",
+    emerald: "from-emerald-600 via-emerald-500 to-emerald-600",
+    violet: "from-violet-600 via-violet-500 to-violet-600",
+    amber: "from-amber-600 via-amber-500 to-amber-600",
+    zinc: "from-zinc-600 via-zinc-500 to-zinc-600",
+  }[activeColor] ?? "from-blue-600 via-blue-500 to-blue-600";
+
   return (
-    <div className="h-full bg-zinc-950">
+    <div className="h-full bg-[#101010]">
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
         <FlowCanvas className="h-full w-full" storageKey={`workflow:${workflowId}`} />
@@ -405,24 +759,45 @@ export default function WorkflowEditorPage() {
           </div>
         )}
 
-        {/* Top Left: Workflows Button + Name */}
-        <div className="fixed top-3 left-3 z-50">
-          <div className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-2 py-1.5">
-            <button
-              onClick={() => setWorkflowSidebarOpen(true)}
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
-              title="All Workflows"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="w-px h-5 bg-zinc-800" />
+        {/* Top Left: Studio Menu + Workflow Name */}
+        <div className="fixed top-3 left-3 z-50 flex items-center gap-3">
+          {/* Studio Menu Button */}
+          <button
+            onClick={() => setWorkflowSidebarOpen(true)}
+            className="group flex items-center gap-2 px-3 py-1.5 bg-zinc-950/90 hover:bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 hover:border-zinc-700 rounded-xl transition-all shadow-lg shadow-black/20"
+          >
+            <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+              <LayoutGrid className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">Your Space</span>
+          </button>
+
+          {/* Workflow Name Input */}
+          <div className="flex items-center bg-zinc-950/90 backdrop-blur-xl border border-zinc-800 rounded-xl px-3 py-1.5 shadow-lg shadow-black/20 group focus-within:border-zinc-700 transition-colors">
             <input
               type="text"
               value={workflowName}
               onChange={(e) => setWorkflowName(e.target.value)}
-              className="w-40 text-sm font-medium text-zinc-200 px-2 py-1 bg-transparent border-none focus:outline-none rounded hover:bg-zinc-800/30 transition-colors"
+              className="w-48 text-sm font-medium text-zinc-200 bg-transparent border-none focus:outline-none placeholder-zinc-600"
               placeholder="Workflow Name"
             />
+          </div>
+        </div>
+
+        {/* Top Right: Versions Button */}
+        <div className="fixed top-3 right-3 z-50">
+          <div className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-2 py-1.5">
+            <button
+              onClick={() => setVersionsOpen((v) => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                versionsOpen 
+                  ? "text-blue-400 bg-blue-500/10" 
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+              }`}
+              title="Version History (V)"
+            >
+              <GitBranch className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -495,7 +870,7 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-              {/* Add node */}
+                  {/* Add node */}
               <div className="relative">
                 <motion.button
                   onClick={() => setIsAddModalOpen(true)}
@@ -522,7 +897,7 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-              {/* History toggle */}
+              {/* Activity toggle */}
               <div className="relative">
                 <motion.button
                   onClick={() => setHistoryOpen((v) => !v)}
@@ -535,7 +910,7 @@ export default function WorkflowEditorPage() {
                       : "text-zinc-400 hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <History className="w-4 h-4 relative z-10" />
+                  <Activity className="w-4 h-4 relative z-10" />
                   {historyOpen && (
                     <>
                       {/* Blue glow behind */}
@@ -558,7 +933,7 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">History</span>
+                        <span className="text-xs text-zinc-300">Activity</span>
                         <Kbd>H</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
@@ -567,27 +942,34 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-              {/* Versions toggle */}
+              {/* Errors toggle */}
               <div className="relative">
                 <motion.button
-                  onClick={() => setVersionsOpen((v) => !v)}
-                  onMouseEnter={() => setHoveredAction("versions")}
+                  onClick={() => setErrorsOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("errors")}
                   onMouseLeave={() => setHoveredAction(null)}
                   whileTap={{ scale: 0.95 }}
                   className={`relative p-2.5 rounded-xl transition-all duration-200 ${
-                    versionsOpen 
-                      ? "text-blue-400" 
-                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    errorsOpen 
+                      ? "text-red-400" 
+                      : workflowErrors.length > 0
+                        ? "text-red-400 hover:bg-white/5"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <GitBranch className="w-4 h-4 relative z-10" />
-                  {versionsOpen && (
+                  <Bug className="w-4 h-4 relative z-10" />
+                  {workflowErrors.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
+                      {workflowErrors.length > 9 ? "9+" : workflowErrors.length}
+                    </span>
+                  )}
+                  {errorsOpen && (
                     <>
-                      {/* Blue glow behind */}
-                      <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                      {/* Red glow behind */}
+                      <div className="absolute inset-0 bg-red-500/20 rounded-xl blur-md" />
                       <motion.div
-                        layoutId="activeIndicator3"
-                        className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                        layoutId="activeIndicator4"
+                        className="absolute inset-0 bg-gradient-to-br from-red-500/30 to-red-600/20 rounded-xl border border-red-500/30"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                       />
                     </>
@@ -595,7 +977,7 @@ export default function WorkflowEditorPage() {
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "versions" && (
+                  {hoveredAction === "errors" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -603,8 +985,8 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">Versions</span>
-                        <Kbd>V</Kbd>
+                        <span className="text-xs text-zinc-300">Diagnostics</span>
+                        <Kbd>E</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
                     </motion.div>
@@ -660,7 +1042,7 @@ export default function WorkflowEditorPage() {
               {/* Run button - Blue glowing gradient */}
               <div className="relative group/runwrap">
                 {/* Outer glow */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity" />
+                <div className={`absolute -inset-1 bg-gradient-to-r ${buttonGradient} rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity`} />
                 
                 <motion.button
                   onClick={() => !isWorkflowRunning && setIsRunModalOpen(true)}
@@ -672,7 +1054,7 @@ export default function WorkflowEditorPage() {
                   className="relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden disabled:opacity-60 group/run"
                 >
                   {/* Button gradient background - blue */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 bg-[length:200%_100%] group-hover/run:animate-shimmer" />
+                  <div className={`absolute inset-0 bg-gradient-to-r ${buttonGradient} bg-[length:200%_100%] group-hover/run:animate-shimmer`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                   
                   {/* Content */}
@@ -683,7 +1065,7 @@ export default function WorkflowEditorPage() {
                       <Play className="w-4 h-4 text-white" />
                     )}
                     <span className="text-sm font-semibold text-white tracking-wide">
-                      {isWorkflowRunning ? "Running" : "Run"}
+                      {isWorkflowRunning ? "Executing" : "Execute"}
                     </span>
                   </div>
                   
@@ -702,7 +1084,7 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">Run</span>
+                        <span className="text-xs text-zinc-300">Execute</span>
                         <Kbd>R</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
@@ -717,12 +1099,13 @@ export default function WorkflowEditorPage() {
         {/* Floating context menu near selected node */}
         <NodeContextMenu />
 
-        {/* Execution History Panel (right side) */}
+        {/* Activity Panel (right side) - use dbWorkflowId for database filtering */}
         <ExecutionHistoryPanel 
-          workflowId={workflowId} 
+          workflowId={dbWorkflowId ?? workflowId} 
           isOpen={historyOpen}
           onClose={() => setHistoryOpen(false)}
           onNodeClick={(nodeId) => focusNode(nodeId)}
+          offsetRight={errorsOpen ? 412 : 0}
         />
 
         {/* Version History Panel */}
@@ -734,6 +1117,23 @@ export default function WorkflowEditorPage() {
             loadFlow(nodesJson, edgesJson);
             // Reload the page data
             window.location.reload();
+          }}
+        />
+
+        {/* Diagnostics Panel */}
+        <ErrorInspectorPanel
+          isOpen={errorsOpen}
+          onClose={() => setErrorsOpen(false)}
+          errors={workflowErrors}
+          onClearErrors={() => setWorkflowErrors([])}
+          onRetryNode={(nodeId) => {
+            // Focus on the node and user can re-run
+            focusNode(nodeId);
+            setErrorsOpen(false);
+          }}
+          onNodeClick={(nodeId) => {
+            focusNode(nodeId);
+            setErrorsOpen(false);
           }}
         />
 

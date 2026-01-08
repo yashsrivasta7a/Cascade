@@ -204,13 +204,16 @@ interface ExecutionHistoryPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onNodeClick?: (nodeId: string) => void;
+  /** Offset position when another panel is open */
+  offsetRight?: number;
 }
 
 export function ExecutionHistoryPanel({ 
   workflowId, 
   isOpen, 
   onClose,
-  onNodeClick 
+  onNodeClick,
+  offsetRight = 0,
 }: ExecutionHistoryPanelProps) {
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -223,8 +226,15 @@ export function ExecutionHistoryPanel({
     setIsLoading(true);
     
     try {
-      // Fetch from API
-      const triggerResponse = await fetch(`/api/trigger-runs?limit=20`);
+      // Build query params - include workflowId if available
+      const params = new URLSearchParams();
+      params.set("limit", "20");
+      if (workflowId && workflowId !== "new") {
+        params.set("workflowId", workflowId);
+      }
+      
+      // Fetch from API with workflow filtering
+      const triggerResponse = await fetch(`/api/trigger-runs?${params.toString()}`);
       
       if (triggerResponse.ok) {
         const triggerData = await triggerResponse.json();
@@ -259,11 +269,11 @@ export function ExecutionHistoryPanel({
       }
       
       // Fallback to database
-      const params = new URLSearchParams();
-      if (workflowId && workflowId !== "new") params.set("workflowId", workflowId);
-      params.set("limit", "15");
+      const fallbackParams = new URLSearchParams();
+      if (workflowId && workflowId !== "new") fallbackParams.set("workflowId", workflowId);
+      fallbackParams.set("limit", "15");
       
-      const response = await fetch(`/api/executions?${params.toString()}`);
+      const response = await fetch(`/api/executions?${fallbackParams.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch");
       
       const data = await response.json();
@@ -371,7 +381,8 @@ export function ExecutionHistoryPanel({
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: 16, scale: 0.95 }}
           transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-          className="fixed right-4 top-16 z-50 w-[340px] bg-zinc-950 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50"
+          style={{ right: `${16 + offsetRight}px` }}
+          className="fixed top-16 z-50 w-[340px] bg-zinc-950 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50"
         >
           {/* Header */}
           <div className="px-4 py-3 border-b border-zinc-800/80 bg-gradient-to-r from-zinc-900 to-zinc-950">
@@ -380,7 +391,10 @@ export function ExecutionHistoryPanel({
                 <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/20 to-violet-500/20 flex items-center justify-center">
                   <Zap className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
-                <h3 className="text-sm font-semibold text-zinc-100">Run History</h3>
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-100">Activity</h3>
+                  <p className="text-[10px] text-zinc-600">Recent runs</p>
+                </div>
               </div>
               <div className="flex items-center gap-1">
                 <button

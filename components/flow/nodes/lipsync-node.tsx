@@ -2,8 +2,8 @@
 
 import { memo, useState, useCallback, useRef } from "react";
 import { NodeProps } from "reactflow";
-import { Mic2, Play, Loader2, Settings, Upload, X, Film, Volume2 } from "lucide-react";
-import { BaseNode, type BaseNodeData } from "../base-node";
+import { Mic2, Play, Loader2, Settings, Upload, X, Film, Volume2, Lock } from "lucide-react";
+import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +21,7 @@ const nodeDef = NODE_DEFINITIONS.lipsync;
 function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -82,6 +83,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
     
     setIsProcessing(true);
     updateNode(id, { status: "running" });
+    setWorkflowRunning(true); // Enable polling for status updates
 
     try {
       const response = await fetch("/api/nodes/execute", {
@@ -93,6 +95,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
             video: { url: data.inputVideo },
             audio: { url: data.inputAudio },
             model: data.model || "sync-1.5",
+            nodeId: id, // Pass flow node ID for polling
           },
         }),
       });
@@ -100,13 +103,54 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
       const result = await response.json();
       if (result.status === "triggered") {
         updateNode(id, { status: "running" });
+        
+        // Poll for status updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(id)}`);
+            if (!statusRes.ok) return;
+            
+            const statusData = await statusRes.json();
+            console.log(`[Lipsync] Poll status for ${id}:`, statusData.status);
+            
+            if (statusData.status === "completed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              const videoUrl = statusData.output?.video?.url;
+              updateNode(id, {
+                result: videoUrl || "",
+                status: "completed",
+              });
+              setWorkflowRunning(false);
+            } else if (statusData.status === "failed") {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              updateNode(id, {
+                result: "",
+                status: "failed",
+                error: statusData.error || "Lipsync failed",
+                errorDetails: {
+                  provider: statusData.providerUsed || "fal",
+                  executionId: statusData.executionId,
+                  triggerRunId: statusData.triggerRunId,
+                  duration: statusData.duration,
+                  inputs: statusData.inputs,
+                },
+              });
+              setWorkflowRunning(false);
+            }
+          } catch (err) {
+            console.error("[Lipsync] Poll error:", err);
+          }
+        }, 2000);
       }
     } catch (error) {
       updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      setWorkflowRunning(false);
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputVideo, data.inputAudio, data.model, id, updateNode]);
+  }, [data.inputVideo, data.inputAudio, data.model, id, updateNode, setWorkflowRunning]);
 
   const hasInputs = Boolean(data.inputVideo && data.inputAudio);
 

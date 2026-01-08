@@ -43,6 +43,18 @@ export const executeNode = task({
   run: async (payload: NodeExecutorPayload) => {
     const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input } = payload;
 
+    // Check current status - don't overwrite FAILED on retry
+    const currentExec = await db.nodeExecution.findUnique({
+      where: { id: nodeExecutionId },
+      select: { status: true },
+    });
+
+    // If already failed, don't retry (return early to avoid re-running)
+    if (currentExec?.status === "FAILED") {
+      console.log(`[NodeExecutor] ${nodeType} already FAILED, skipping retry`);
+      throw new Error("Node already failed - not retrying");
+    }
+
     // Update status to RUNNING
     await db.nodeExecution.update({
       where: { id: nodeExecutionId },
@@ -193,14 +205,31 @@ export const executeNode = task({
 // =============================================================================
 
 async function markNodeFailed(nodeExecutionId: string, error: string): Promise<void> {
-  await db.nodeExecution.update({
+  console.log(`[NodeExecutor] Marking node ${nodeExecutionId} as FAILED: ${error}`);
+  
+  const nodeExec = await db.nodeExecution.update({
     where: { id: nodeExecutionId },
     data: {
       status: "FAILED",
       completedAt: new Date(),
       error,
     },
+    select: { workflowExecutionId: true, nodeId: true, nodeType: true },
   });
+
+  console.log(`[NodeExecutor] Node ${nodeExec.nodeId} (${nodeExec.nodeType}) marked FAILED in DB`);
+
+  // Also update the workflow execution status
+  if (nodeExec.workflowExecutionId) {
+    await db.workflowExecution.update({
+      where: { id: nodeExec.workflowExecutionId },
+      data: {
+        status: "FAILED",
+        completedAt: new Date(),
+      },
+    });
+    console.log(`[NodeExecutor] Workflow ${nodeExec.workflowExecutionId} marked FAILED`);
+  }
 }
 
 function parseProviderResult(nodeType: AINodeType, result: unknown): unknown {
