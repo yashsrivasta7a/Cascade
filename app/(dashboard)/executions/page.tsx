@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -25,6 +25,7 @@ import {
 import { Button, Card, Badge, Input } from "@/components/ui";
 import { Header } from "@/components/layout";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/react";
 
 type ExecutionStatus = "running" | "completed" | "failed" | "cancelled" | "queued" | "waiting";
 
@@ -36,42 +37,13 @@ interface NodeExecution {
   startedAt?: string;
   completedAt?: string;
   duration?: string;
-  provider?: string;
+  provider?: string | null;
   cost?: number;
-  error?: string;
+  error?: string | null;
   output?: {
     type: "image" | "video" | "audio" | "text";
     url?: string;
     preview?: string;
-  };
-}
-
-interface Execution {
-  id: string;
-  workflowId: string;
-  workflowName: string;
-  status: ExecutionStatus;
-  startedAt: string;
-  completedAt?: string;
-  duration?: string;
-  totalCost: number;
-  nodeCount: number;
-  nodes: NodeExecution[];
-}
-
-interface ExecutionsResponse {
-  executions: Execution[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
-  stats: {
-    totalRuns: number;
-    successRate: string;
-    avgDuration: string;
-    creditsUsed: number;
   };
 }
 
@@ -230,49 +202,36 @@ export default function ExecutionsPage() {
   const [filter, setFilter] = useState<ExecutionStatus | "all">("all");
   const [expandedExecution, setExpandedExecution] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [data, setData] = useState<ExecutionsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      if (filter !== "all") params.set("status", filter);
-      if (searchQuery) params.set("search", searchQuery);
-
-      const res = await fetch(`/api/executions?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch executions");
-      const json = await res.json();
-      setData(json);
-
-      // Auto-expand first running execution
-      const runningExec = json.executions?.find((e: Execution) => e.status === "running");
-      if (runningExec && !expandedExecution) {
-        setExpandedExecution(runningExec.id);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [filter, searchQuery, expandedExecution]);
-
-  useEffect(() => {
-    fetchData();
-    // Refresh every 10 seconds for running executions
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  // Debounce search
+  // Debounce search query
   useEffect(() => {
     const timeout = setTimeout(() => {
-      fetchData();
+      setDebouncedSearch(searchQuery);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [searchQuery, filter, fetchData]);
+  }, [searchQuery]);
+
+  // Use tRPC query for fetching executions
+  const { data, isLoading, error, refetch, isFetching } = trpc.execution.list.useQuery(
+    {
+      status: filter !== "all" ? filter : undefined,
+      search: debouncedSearch || undefined,
+    },
+    {
+      refetchInterval: 10000, // Refresh every 10 seconds for running executions
+    }
+  );
+
+  // Auto-expand first running execution
+  useEffect(() => {
+    if (data?.executions && !expandedExecution) {
+      const runningExec = data.executions.find((e) => e.status === "running");
+      if (runningExec) {
+        setExpandedExecution(runningExec.id);
+      }
+    }
+  }, [data?.executions, expandedExecution]);
 
   const executions = data?.executions ?? [];
   const stats = data?.stats ?? { totalRuns: 0, successRate: "—", avgDuration: "—", creditsUsed: 0 };
@@ -285,9 +244,9 @@ export default function ExecutionsPage() {
         actions={
           <Button
             variant="ghost"
-            leftIcon={<RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />}
-            onClick={fetchData}
-            disabled={loading}
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />}
+            onClick={() => refetch()}
+            disabled={isFetching}
           >
             Refresh
           </Button>
@@ -371,7 +330,7 @@ export default function ExecutionsPage() {
           </div>
 
           {/* Loading State */}
-          {loading && executions.length === 0 && (
+          {isLoading && executions.length === 0 && (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
             </div>
@@ -380,8 +339,8 @@ export default function ExecutionsPage() {
           {/* Error State */}
           {error && executions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <p className="text-zinc-400">{error}</p>
-              <Button variant="outline" onClick={fetchData}>
+              <p className="text-zinc-400">{error.message}</p>
+              <Button variant="outline" onClick={() => refetch()}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
               </Button>
@@ -389,7 +348,7 @@ export default function ExecutionsPage() {
           )}
 
           {/* Empty State */}
-          {!loading && !error && executions.length === 0 && (
+          {!isLoading && !error && executions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <Activity className="w-12 h-12 text-zinc-600" />
               <p className="text-zinc-400">No executions found</p>
@@ -440,7 +399,7 @@ export default function ExecutionsPage() {
                           <div className="flex items-center gap-4 mt-1 text-xs text-zinc-500">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {new Date(execution.startedAt).toLocaleString()}
+                              {execution.startedAt ? new Date(execution.startedAt).toLocaleString() : "—"}
                             </span>
                             {execution.duration && (
                               <span className="flex items-center gap-1">
@@ -489,12 +448,14 @@ export default function ExecutionsPage() {
                                 Execution Timeline
                               </h4>
                               <div className="flex items-center gap-2">
-                                <Link href={`/workflows/${execution.workflowId}`}>
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs">
-                                    <Eye className="w-3 h-3 mr-1" />
-                                    View Workflow
-                                  </Button>
-                                </Link>
+                                {execution.workflowId && (
+                                  <Link href={`/workflows/${execution.workflowId}`}>
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs">
+                                      <Eye className="w-3 h-3 mr-1" />
+                                      View Workflow
+                                    </Button>
+                                  </Link>
+                                )}
                                 <Button variant="ghost" size="sm" className="h-7 text-xs">
                                   <Play className="w-3 h-3 mr-1" />
                                   Re-run
@@ -502,7 +463,7 @@ export default function ExecutionsPage() {
                               </div>
                             </div>
                             {execution.nodes.length > 0 ? (
-                              <ExecutionTimeline nodes={execution.nodes} />
+                              <ExecutionTimeline nodes={execution.nodes as NodeExecution[]} />
                             ) : (
                               <p className="text-sm text-zinc-500 py-4">No node executions recorded.</p>
                             )}

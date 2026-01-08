@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { ensureCurrentUser } from "@/lib/user";
 
 // =============================================================================
 // WORKFLOW API ROUTES
@@ -23,14 +23,14 @@ const WorkflowSchema = z.object({
 // GET /api/workflows - List all workflows for the current user
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const user = await ensureCurrentUser();
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const workflows = await db.workflow.findMany({
-      where: { userId },
+      where: { userId: user.id },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
@@ -61,22 +61,11 @@ export async function GET() {
 // POST /api/workflows - Create a new workflow
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const user = await ensureCurrentUser();
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Ensure user exists in database
-    await db.user.upsert({
-      where: { id: userId },
-      create: {
-        id: userId,
-        email: `${userId}@placeholder.com`, // Clerk will update this
-        credits: 1000,
-      },
-      update: {},
-    });
 
     const body = await request.json();
     const parsed = WorkflowSchema.safeParse(body);
@@ -90,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const workflow = await db.workflow.create({
       data: {
-        userId,
+        userId: user.id,
         name: parsed.data.name,
         description: parsed.data.description,
         nodesJson: parsed.data.nodesJson,

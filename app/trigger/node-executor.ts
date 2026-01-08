@@ -1,8 +1,5 @@
 import { task, wait } from "@trigger.dev/sdk";
-import dotenv from "dotenv";
 import { db } from "@/lib/db";
-
-dotenv.config({ path: ".env.local" });
 import {
   getNodeExecutor,
   validateNodeInput,
@@ -14,6 +11,7 @@ import {
   parseSeedvrResult,
   parseSeedanceResult,
   parseElevenlabsResult,
+  parseOpenrouterResult,
   parseLipsyncResult,
 } from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
@@ -215,6 +213,8 @@ function parseProviderResult(nodeType: AINodeType, result: unknown): unknown {
       return parseSeedanceResult(result);
     case "elevenlabs":
       return parseElevenlabsResult(result);
+    case "openrouter":
+      return parseOpenrouterResult(result);
     case "lipsync":
       return parseLipsyncResult(result);
     default:

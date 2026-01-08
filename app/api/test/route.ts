@@ -30,7 +30,7 @@ export async function GET() {
   }
 }
 
-// POST /api/test - Run a test workflow execution
+// POST /api/test - Run a test workflow execution with OpenRouter
 export async function POST() {
   try {
     // Create a test user if not exists
@@ -45,21 +45,23 @@ export async function POST() {
       update: {},
     });
 
-    // Create a simple test workflow with one Seedream node
+    // Create a simple test workflow with OpenRouter LLM node
     const testWorkflow = await db.workflow.create({
       data: {
         userId: testUserId,
-        name: "Phase 1 Test Workflow",
-        description: "Testing Seedream node execution",
+        name: "OpenRouter Test Workflow",
+        description: "Testing OpenRouter LLM node execution via Trigger.dev",
         nodesJson: [
           {
             id: "node-1",
-            type: "seedream",
+            type: "openrouter",
             position: { x: 100, y: 100 },
             data: {
-              label: "Generate Image",
-              prompt: "A beautiful sunset over mountains, digital art",
-              aspectRatio: "16:9",
+              label: "Test LLM",
+              prompt: "Say 'Hello from Trigger.dev!' in a creative way. Keep it under 50 words.",
+              model: "openai/gpt-4o-mini",
+              temperature: 0.7,
+              maxTokens: 100,
             },
           },
         ],

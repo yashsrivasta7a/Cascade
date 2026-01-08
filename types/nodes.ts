@@ -4,14 +4,9 @@ import { z } from "zod";
 // NODE CATEGORIES & TYPES
 // ============================================================================
 
-export type NodeCategory = "input" | "image" | "video" | "audio" | "llm" | "utility";
+export type NodeCategory = "image" | "video" | "audio" | "llm" | "utility";
 
 export type AINodeType =
-  // Input Nodes
-  | "text-input"
-  | "image-input"
-  | "video-input"
-  | "audio-input"
   // Image
   | "seedream"
   | "seedvr"
@@ -63,58 +58,6 @@ export interface NodeDefinition {
 
 export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
   // ─────────────────────────────────────────────────────────────────────────
-  // INPUT NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  "text-input": {
-    type: "text-input",
-    category: "input",
-    label: "Text Input",
-    description: "Enter text to pass to other nodes",
-    provider: "Input",
-    inputs: [],
-    outputs: [{ type: "text", label: "Text" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "zinc",
-  },
-  "image-input": {
-    type: "image-input",
-    category: "input",
-    label: "Image Input",
-    description: "Upload or paste an image",
-    provider: "Input",
-    inputs: [],
-    outputs: [{ type: "image", label: "Image" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "emerald",
-  },
-  "video-input": {
-    type: "video-input",
-    category: "input",
-    label: "Video Input",
-    description: "Upload a video file",
-    provider: "Input",
-    inputs: [],
-    outputs: [{ type: "video", label: "Video" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "violet",
-  },
-  "audio-input": {
-    type: "audio-input",
-    category: "input",
-    label: "Audio Input",
-    description: "Upload an audio file",
-    provider: "Input",
-    inputs: [],
-    outputs: [{ type: "audio", label: "Audio" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "amber",
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
   // IMAGE NODES
   // ─────────────────────────────────────────────────────────────────────────
   seedream: {
@@ -125,7 +68,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     provider: "ByteDance",
     inputs: [
       { type: "text", label: "Prompt" },
-      { type: "text", label: "Negative Prompt (optional)" },
+      { type: "image", label: "Reference Image (optional)" },
     ],
     outputs: [{ type: "image", label: "Generated Image" }],
     estimatedCost: 5,
@@ -282,7 +225,6 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
 // ============================================================================
 
 export const CATEGORY_META: Record<NodeCategory, { label: string; icon: string; color: string }> = {
-  input: { label: "Input", icon: "Upload", color: "cyan" },
   image: { label: "Image", icon: "Image", color: "emerald" },
   video: { label: "Video", icon: "Film", color: "violet" },
   audio: { label: "Audio", icon: "Volume2", color: "amber" },
@@ -374,5 +316,3 @@ export interface NodeExecutionState {
   providerUsed?: string;
   actualCost?: number;
 }
-
-

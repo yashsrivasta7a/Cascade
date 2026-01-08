@@ -1,9 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import dotenv from "dotenv";
 import { db } from "@/lib/db";
-
-dotenv.config({ path: ".env.local" });
+import { getUserIdForApi } from "@/lib/user";
 
 // =============================================================================
 // STREAMING LLM API ENDPOINT
@@ -24,6 +22,9 @@ export async function POST(request: NextRequest) {
   let executionId: string | null = null;
 
   try {
+    // Get the current user (creates if not exists)
+    const { userId } = await getUserIdForApi();
+
     const body = await request.json();
     const parsed = LLMRequestSchema.safeParse(body);
 
@@ -36,10 +37,11 @@ export async function POST(request: NextRequest) {
 
     const { prompt, systemPrompt, model, temperature, maxTokens, context, imageUrl } = parsed.data;
 
-    // Create execution record
+    // Create execution record with userId
     try {
       const execution = await db.quickExecution.create({
         data: {
+          userId, // Track the user
           nodeType: "openrouter",
           nodeLabel: "OpenRouter LLM",
           status: "RUNNING",

@@ -138,5 +138,15 @@ function executeMock(input: OpenRouterInput): NodeExecutionResult {
   };
 }
 
+// Parse function for consistency with other nodes (even though OpenRouter is sync)
+export function parseOpenrouterResult(result: unknown): OpenRouterOutput {
+  // OpenRouter returns result directly, no parsing needed
+  const data = result as { type: string; text: string };
+  return {
+    type: "text",
+    text: data.text ?? String(result),
+  };
+}
+
 export default openrouterExecutor;
 

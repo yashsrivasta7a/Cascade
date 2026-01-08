@@ -3,22 +3,6 @@ export { BaseNode } from "./base-node";
 export type { BaseNodeData } from "./base-node";
 
 // ============================================================================
-// INPUT NODES
-// ============================================================================
-import { TextInputNode } from "./nodes/text-input-node";
-import { ImageInputNode } from "./nodes/image-input-node";
-import { VideoInputNode } from "./nodes/video-input-node";
-import { AudioInputNode } from "./nodes/audio-input-node";
-export { TextInputNode };
-export { ImageInputNode };
-export { VideoInputNode };
-export { AudioInputNode };
-export type { TextInputNodeData } from "./nodes/text-input-node";
-export type { ImageInputNodeData } from "./nodes/image-input-node";
-export type { VideoInputNodeData } from "./nodes/video-input-node";
-export type { AudioInputNodeData } from "./nodes/audio-input-node";
-
-// ============================================================================
 // AI PIPELINE NODES (10 Total)
 // ============================================================================
 
@@ -74,6 +58,7 @@ export { NodeInspector } from "./node-inspector";
 export { NodeContextMenu } from "./node-context-menu";
 export { ExecutionPanel } from "./execution-panel";
 export { ExecutionHistoryPanel } from "./execution-history-panel";
+export { EditorSidebar } from "./editor-sidebar";
 export { RunModal, demoNodes } from "./run-modal";
 export { NodeTypeModal } from "./node-type-modal";
 export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node-settings-modal";
@@ -83,11 +68,6 @@ export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node
 // ============================================================================
 
 export const nodeTypes = {
-  // Input
-  "text-input": TextInputNode,
-  "image-input": ImageInputNode,
-  "video-input": VideoInputNode,
-  "audio-input": AudioInputNode,
   // Image
   seedream: SeedreamNode,
   seedvr: SeedVRNode,

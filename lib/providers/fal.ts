@@ -1,13 +1,10 @@
 import { fal } from "@fal-ai/client";
-import dotenv from "dotenv";
 import type {
   AIProvider,
   ProviderId,
   ProviderJobSubmission,
   ProviderWebhookPayload,
 } from "./types";
-
-dotenv.config({ path: ".env.local" });
 
 // =============================================================================
 // FAL.AI PROVIDER

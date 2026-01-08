@@ -1,6 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
 
 // Standard Prisma 6 client initialization for Next.js
 const globalForPrisma = globalThis as unknown as {

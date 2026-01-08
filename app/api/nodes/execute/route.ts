@@ -1,39 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import dotenv from "dotenv";
-import type { NodeExecutionContext } from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
-
-// Import executors directly to avoid module loading issues
-import { openrouterExecutor } from "@/lib/engine/nodes/openrouter";
-import { seedreamExecutor } from "@/lib/engine/nodes/seedream";
-import { seedvrExecutor } from "@/lib/engine/nodes/seedvr";
-import { seedanceExecutor } from "@/lib/engine/nodes/seedance";
-import { elevenlabsExecutor } from "@/lib/engine/nodes/elevenlabs";
-import { lipsyncExecutor } from "@/lib/engine/nodes/lipsync";
-import { cropImageExecutor } from "@/lib/engine/nodes/crop-image";
-import { mergeAudioVideoExecutor } from "@/lib/engine/nodes/merge-audio-video";
-import { mergeVideosExecutor } from "@/lib/engine/nodes/merge-videos";
-import { extractAudioExecutor } from "@/lib/engine/nodes/extract-audio";
-
-dotenv.config({ path: ".env.local" });
-
-// Direct executor map
-const executors: Record<string, typeof openrouterExecutor> = {
-  openrouter: openrouterExecutor,
-  seedream: seedreamExecutor,
-  seedvr: seedvrExecutor,
-  seedance: seedanceExecutor,
-  elevenlabs: elevenlabsExecutor,
-  lipsync: lipsyncExecutor,
-  "crop-image": cropImageExecutor,
-  "merge-audio-video": mergeAudioVideoExecutor,
-  "merge-videos": mergeVideosExecutor,
-  "extract-audio": extractAudioExecutor,
-};
+import { executeNode } from "@/app/trigger/node-executor";
 
 // =============================================================================
-// GENERIC NODE EXECUTION ENDPOINT
+// GENERIC NODE EXECUTION ENDPOINT - VIA TRIGGER.DEV
 // =============================================================================
 
 export async function POST(request: NextRequest) {
@@ -56,113 +27,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Get the executor directly
-    const executor = executors[nodeType];
-    if (!executor) {
-      return NextResponse.json(
-        { 
-          error: `Unknown node type: ${nodeType}`,
-          registeredTypes: Object.keys(executors)
-        },
-        { status: 400 }
-      );
-    }
+    // Create a test user if not exists
+    const testUserId = "test-user-node-execute";
+    await db.user.upsert({
+      where: { id: testUserId },
+      create: {
+        id: testUserId,
+        email: "test-node@flowsmith.dev",
+        credits: 10000,
+      },
+      update: {},
+    });
 
-    // Step 2: Validate input against the node's schema
-    const inputValidation = executor.inputSchema.safeParse(input);
-    if (!inputValidation.success) {
-      return NextResponse.json(
-        { 
-          error: "Invalid input for node type",
-          nodeType,
-          validationError: inputValidation.error.issues.map(i => i.message).join("; "),
-        },
-        { status: 400 }
-      );
-    }
+    // Create a mock workflow execution for tracking
+    const mockWorkflow = await db.workflow.upsert({
+      where: { id: "test-node-execute-workflow" },
+      create: {
+        id: "test-node-execute-workflow",
+        userId: testUserId,
+        name: "Node Test Workflow",
+        nodesJson: [],
+        edgesJson: [],
+      },
+      update: {},
+    });
 
-    // Step 3: Create execution record
-    let executionId: string | null = null;
-    const startTime = Date.now();
-    
-    try {
-      const execution = await db.quickExecution.create({
-        data: {
-          nodeType: nodeType,
-          nodeLabel: executor.nodeType || nodeType,
-          status: "RUNNING",
-          provider: executor.providers?.[0] || "unknown",
-          inputJson: input as object,
-          estimatedCost: executor.config?.estimatedCost ?? 0,
-        },
-      });
-      executionId = execution.id;
-    } catch (dbError) {
-      console.warn("Failed to create execution record:", dbError);
-    }
+    const workflowExecution = await db.workflowExecution.create({
+      data: {
+        workflowId: mockWorkflow.id,
+        userId: testUserId,
+        status: "RUNNING",
+        workflowSnapshot: {},
+        estimatedCost: 5,
+        startedAt: new Date(),
+      },
+    });
 
-    // Step 4: Build execution context
-    const context: NodeExecutionContext = {
-      nodeExecutionId: executionId ?? `direct-${Date.now()}`,
-      workflowExecutionId: `direct-workflow-${Date.now()}`,
-      nodeId: "direct-node",
+    // Create node execution record
+    const nodeExecution = await db.nodeExecution.create({
+      data: {
+        workflowExecutionId: workflowExecution.id,
+        nodeId: `test-${nodeType}-${Date.now()}`,
+        nodeType: nodeType,
+        nodeLabel: `Test ${nodeType}`,
+        status: "QUEUED",
+        inputJson: input as object,
+      },
+    });
+
+    console.log(`[Node Execute] Starting ${nodeType} execution ${nodeExecution.id}`);
+
+    // Trigger the node execution via Trigger.dev
+    const handle = await executeNode.trigger({
+      nodeExecutionId: nodeExecution.id,
+      workflowExecutionId: workflowExecution.id,
+      nodeId: nodeExecution.nodeId,
       nodeType: nodeType as AINodeType,
-      webhookBaseUrl: process.env.WEBHOOK_BASE_URL ?? "http://localhost:3000",
-      attempt: 1,
-    };
+      input,
+    });
 
-    // Step 5: Execute the node
-    console.log(`[Node Executor] Running ${nodeType} with input:`, input);
-    
-    const result = await executor.execute(inputValidation.data, context);
-    
-    const duration = Date.now() - startTime;
-    console.log(`[Node Executor] ${nodeType} completed in ${duration}ms:`, result.success ? "SUCCESS" : "FAILED");
+    console.log(`[Node Execute] Triggered with handle ${handle.id}`);
 
-    // Step 6: Update execution record
-    if (executionId) {
-      try {
-        await db.quickExecution.update({
-          where: { id: executionId },
-          data: {
-            status: result.success ? "COMPLETED" : "FAILED",
-            completedAt: new Date(),
-            durationMs: duration,
-            outputJson: result.output as object ?? null,
-            actualCost: result.actualCost ?? 0,
-            error: result.error ?? null,
-          },
-        });
-      } catch (dbError) {
-        console.warn("Failed to update execution record:", dbError);
-      }
-    }
-
-    // Step 7: Return result
-    if (result.success) {
-      return NextResponse.json({
-        status: "success",
-        nodeType,
-        output: result.output,
-        providerUsed: result.providerUsed,
-        actualCost: result.actualCost,
-        durationMs: duration,
-        executionId,
-      });
-    } else {
-      return NextResponse.json(
-        {
-          status: "failed",
-          nodeType,
-          error: result.error,
-          providerUsed: result.providerUsed,
-          executionId,
-        },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({
+      status: "triggered",
+      message: `${nodeType} node execution started via Trigger.dev!`,
+      nodeExecutionId: nodeExecution.id,
+      workflowExecutionId: workflowExecution.id,
+      triggerRunId: handle.id,
+      dashboardUrl: `https://cloud.trigger.dev/projects/v3/${process.env.TRIGGER_PROJECT_REF}/runs/${handle.id}`,
+    });
   } catch (error) {
-    console.error("[Node Executor] Unexpected error:", error);
+    console.error("[Node Execute] Error:", error);
     return NextResponse.json(
       { 
         status: "error", 
@@ -175,16 +110,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    message: "Phase 2: Generic Node Execution System",
-    description: "This endpoint can execute ANY registered node type",
+    message: "Node Execution via Trigger.dev",
+    description: "This endpoint executes nodes through Trigger.dev for proper tracking",
     usage: {
       method: "POST",
       body: {
-        nodeType: "string (one of the registered types)",
+        nodeType: "string (openrouter | seedream | seedvr | etc.)",
         input: "object (node-specific input)"
       }
     },
-    registeredNodes: Object.keys(executors),
     examples: {
       openrouter: { nodeType: "openrouter", input: { prompt: "Write a haiku", model: "openai/gpt-4o-mini" } },
       seedream: { nodeType: "seedream", input: { prompt: "A sunset over mountains" } },

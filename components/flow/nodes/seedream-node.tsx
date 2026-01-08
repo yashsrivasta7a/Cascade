@@ -2,10 +2,11 @@
 
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeProps } from "reactflow";
-import { ImageIcon, Play, Loader2, Square } from "lucide-react";
+import { ImageIcon, Play, Loader2, Square, ChevronDown, Upload, X, Settings } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
+import { motion, AnimatePresence } from "framer-motion";
 
 export interface SeedreamNodeData extends BaseNodeData {
   prompt?: string;
@@ -13,7 +14,7 @@ export interface SeedreamNodeData extends BaseNodeData {
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
   seed?: number;
   context?: string; // Text from connected text node
-  inputImage?: string; // Image from connected image node
+  inputImage?: string; // Image from connected image node OR uploaded
   result?: string; // URL of generated image
 }
 
@@ -26,7 +27,10 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Propagate output when result changes
   useEffect(() => {
@@ -34,6 +38,38 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       propagateOutput(id, data.result);
     }
   }, [data.result, id, propagateOutput]);
+
+  const handleImageUpload = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputImage: base64 });
+    };
+    reader.readAsDataURL(file);
+  }, [id, updateNode]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageUpload(file);
+  }, [handleImageUpload]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
 
   const generateImage = useCallback(async () => {
     const prompt = data.prompt?.trim() || data.context?.trim();
@@ -58,7 +94,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           prompt,
           negativePrompt: data.negativePrompt,
           aspectRatio: data.aspectRatio || "1:1",
-          image: data.inputImage, // If connected to an image node
+          image: data.inputImage,
           seed: data.seed,
         }),
         signal: abortControllerRef.current.signal,
@@ -75,9 +111,15 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
         return;
       }
 
-      const imageUrl = result.output?.image?.url;
-      if (imageUrl) {
-        updateNode(id, { result: imageUrl, status: "completed" });
+      // Handle async trigger.dev response - poll for result
+      if (result.status === "triggered") {
+        updateNode(id, { status: "running", error: "Processing via Trigger.dev..." });
+        // For now, show that it's processing - real implementation would poll
+      } else {
+        const imageUrl = result.output?.image?.url;
+        if (imageUrl) {
+          updateNode(id, { result: imageUrl, status: "completed" });
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -118,7 +160,70 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       outputs={[{ id: "image", type: "image", label: "Image" }]}
       left={
         <div className="space-y-2">
-          {/* Controls */}
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImageUpload(file);
+            }}
+            className="hidden"
+          />
+
+          {/* Prompt Input */}
+          <textarea
+            value={data.prompt || ""}
+            onChange={(e) => updateNode(id, { prompt: e.target.value })}
+            placeholder={data.context ? "Override prompt..." : "Describe the image..."}
+            rows={2}
+            className="nodrag nowheel w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
+          />
+
+          {/* Image Upload / Preview */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !data.inputImage && fileInputRef.current?.click()}
+            className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all cursor-pointer ${
+              isDragOver
+                ? "border-emerald-500 bg-emerald-500/10"
+                : data.inputImage
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-white/10 bg-white/[0.02] hover:border-white/20"
+            }`}
+          >
+            {data.inputImage ? (
+              <div className="relative p-1">
+                <img 
+                  src={data.inputImage} 
+                  alt="Reference" 
+                  className="w-full h-16 object-cover rounded"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateNode(id, { inputImage: undefined });
+                  }}
+                  className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+                <div className="absolute bottom-2 left-2 text-[9px] text-emerald-400 bg-black/60 px-1.5 py-0.5 rounded">
+                  Edit Mode
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-3 text-zinc-500">
+                <Upload className="w-4 h-4 mb-1" />
+                <span className="text-[9px]">Drop image or click</span>
+              </div>
+            )}
+          </div>
+
+          {/* Controls Row */}
           <div className="flex items-center gap-2">
             <select
               value={data.aspectRatio || "1:1"}
@@ -129,6 +234,17 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => setShowSettings(!showSettings)}
+              className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center transition-all ${
+                showSettings
+                  ? "bg-white/10 border-white/20 text-white"
+                  : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               onClick={(e) => {
@@ -153,35 +269,54 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
               ) : (
                 <>
                   <Play className="w-3 h-3" />
-                  {isEditMode ? "Edit" : "Generate"}
+                  Run
                 </>
               )}
             </button>
           </div>
 
-          {/* Connected Image Indicator */}
-          {data.inputImage && (
-            <div className="flex items-center gap-2 text-[10px] bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-500/20">
-              <img src={data.inputImage} alt="" className="w-8 h-8 object-cover rounded" />
-              <span className="text-emerald-400 font-medium">Edit mode</span>
-            </div>
-          )}
+          {/* Collapsible Settings */}
+          <AnimatePresence>
+            {showSettings && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  {/* Negative Prompt */}
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
+                      Negative Prompt
+                    </label>
+                    <textarea
+                      value={data.negativePrompt || ""}
+                      onChange={(e) => updateNode(id, { negativePrompt: e.target.value })}
+                      placeholder="What to avoid..."
+                      rows={2}
+                      className="nodrag nowheel w-full px-2 py-1.5 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
+                    />
+                  </div>
 
-          {/* Connected Text Indicator */}
-          {data.context && !data.prompt && (
-            <div className="text-[10px] text-blue-400 bg-blue-500/10 rounded-lg px-2 py-1.5 border border-blue-500/20 line-clamp-2">
-              <span className="font-medium">Prompt:</span> {data.context.slice(0, 80)}{data.context.length > 80 ? "..." : ""}
-            </div>
-          )}
-
-          {/* Prompt Input */}
-          <textarea
-            value={data.prompt || ""}
-            onChange={(e) => updateNode(id, { prompt: e.target.value })}
-            placeholder={data.context ? "Override prompt..." : "Describe the image..."}
-            rows={3}
-            className="nodrag nowheel w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
-          />
+                  {/* Seed */}
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
+                      Seed (optional)
+                    </label>
+                    <input
+                      type="number"
+                      value={data.seed || ""}
+                      onChange={(e) => updateNode(id, { seed: e.target.value ? parseInt(e.target.value) : undefined })}
+                      placeholder="Random"
+                      className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       }
       right={

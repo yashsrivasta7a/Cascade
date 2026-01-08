@@ -1,12 +1,9 @@
-import dotenv from "dotenv";
 import type {
   AIProvider,
   ProviderId,
   ProviderJobSubmission,
   ProviderWebhookPayload,
 } from "./types";
-
-dotenv.config({ path: ".env.local" });
 
 // =============================================================================
 // OPENROUTER PROVIDER (for LLM/Vision)

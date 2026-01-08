@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -19,28 +18,7 @@ import {
 } from "lucide-react";
 import { Button, Card, Badge } from "@/components/ui";
 import { Header } from "@/components/layout";
-
-interface DashboardStats {
-  stats: {
-    totalWorkflows: { value: number; change: string; changeLabel: string };
-    executionsToday: { value: number; change: string; changeLabel: string };
-    avgRuntime: { value: string; change: string; changeLabel: string };
-    successRate: { value: string; change: string; changeLabel: string };
-  };
-  recentActivity: Array<{
-    id: string;
-    workflow: string;
-    status: "success" | "error" | "warning";
-    time: string;
-    duration?: string;
-  }>;
-  activeWorkflows: number;
-  credits: {
-    used: number;
-    total: number;
-    remaining: number;
-  };
-}
+import { trpc } from "@/lib/trpc/react";
 
 const statConfig = [
   { key: "totalWorkflows", label: "Total Workflows", icon: Workflow, color: "cyan" },
@@ -55,33 +33,15 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch("/api/dashboard/stats");
-      if (!res.ok) throw new Error("Failed to fetch dashboard stats");
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
+  // Use tRPC query with automatic caching and refetching
+  const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.stats.useQuery(
+    undefined,
+    {
+      refetchInterval: 30000, // Refresh every 30 seconds
     }
-  };
+  );
 
-  useEffect(() => {
-    fetchData();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading && !data) {
+  if (isLoading) {
     return (
       <div className="h-full flex flex-col">
         <Header
@@ -95,7 +55,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (error && !data) {
+  if (error) {
     return (
       <div className="h-full flex flex-col">
         <Header
@@ -103,8 +63,8 @@ export default function DashboardPage() {
           description="Welcome back! Here's your workflow overview."
         />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-zinc-400">{error}</p>
-          <Button variant="outline" onClick={fetchData}>
+          <p className="text-zinc-400">{error.message}</p>
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
           </Button>
@@ -125,8 +85,8 @@ export default function DashboardPage() {
         title="Dashboard"
         description="Welcome back! Here's your workflow overview."
         actions={
-          <Button variant="ghost" size="sm" onClick={fetchData} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         }
       />

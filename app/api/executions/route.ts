@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { getUserIdForApi } from "@/lib/user";
 
 // =============================================================================
 // EXECUTIONS API
@@ -8,20 +8,7 @@ import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
-    let userId: string | null = null;
-
-    try {
-      const authResult = await auth();
-      userId = authResult.userId;
-    } catch {
-      // Auth failed - use dev fallback
-      userId = process.env.DEV_USER_ID ?? "dev-user";
-    }
-
-    if (!userId) {
-      // In dev mode without Clerk, use a fallback
-      userId = process.env.DEV_USER_ID ?? "dev-user";
-    }
+    const { userId } = await getUserIdForApi();
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");
@@ -122,8 +109,9 @@ export async function GET(request: NextRequest) {
         }, 0) / completedRuns.length
       : 0;
 
-    // Also fetch quick executions (single node runs)
+    // Also fetch quick executions (single node runs) for this user
     const quickExecutions = await db.quickExecution.findMany({
+      where: { userId },
       orderBy: { startedAt: "desc" },
       take: limit,
     });

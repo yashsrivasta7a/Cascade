@@ -1,10 +1,7 @@
 import { z } from "zod";
-import dotenv from "dotenv";
 import { Transloadit } from "transloadit";
 import type { NodeExecutor, NodeExecutionContext, NodeExecutionResult } from "../types";
 import { AssetRefSchema, VideoOutSchema } from "@/lib/workflow/node-schemas";
-
-dotenv.config({ path: ".env.local" });
 
 // =============================================================================
 // MERGE VIDEOS - Internal Utility Node (via Transloadit)

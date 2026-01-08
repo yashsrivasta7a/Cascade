@@ -4,19 +4,17 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
-  GripVertical,
   Image,
   Film,
   Volume2,
   Brain,
   Wrench,
-  Upload,
-  ChevronDown,
-  Sparkles,
   Coins,
+  X,
+  Sparkles,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui";
 import {
   NODE_DEFINITIONS,
   CATEGORY_META,
@@ -24,8 +22,11 @@ import {
   type AINodeType,
 } from "@/types/nodes";
 
+// =============================================================================
+// CONFIG
+// =============================================================================
+
 const categoryIcons: Record<NodeCategory, React.ReactNode> = {
-  input: <Upload className="w-4 h-4" />,
   image: <Image className="w-4 h-4" />,
   video: <Film className="w-4 h-4" />,
   audio: <Volume2 className="w-4 h-4" />,
@@ -33,52 +34,45 @@ const categoryIcons: Record<NodeCategory, React.ReactNode> = {
   utility: <Wrench className="w-4 h-4" />,
 };
 
-const colorStyles: Record<string, string> = {
-  emerald: "bg-white/[0.03] text-zinc-200 border-white/10 hover:border-white/20",
-  violet: "bg-white/[0.03] text-zinc-200 border-white/10 hover:border-white/20",
-  amber: "bg-white/[0.03] text-zinc-200 border-white/10 hover:border-white/20",
-  blue: "bg-white/[0.03] text-zinc-200 border-white/10 hover:border-white/20",
-  zinc: "bg-white/[0.03] text-zinc-200 border-white/10 hover:border-white/20",
+const categoryColors: Record<NodeCategory, { bg: string; border: string; text: string; accent: string }> = {
+  llm: { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400", accent: "from-violet-500/20" },
+  image: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400", accent: "from-emerald-500/20" },
+  video: { bg: "bg-rose-500/10", border: "border-rose-500/20", text: "text-rose-400", accent: "from-rose-500/20" },
+  audio: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", accent: "from-amber-500/20" },
+  utility: { bg: "bg-sky-500/10", border: "border-sky-500/20", text: "text-sky-400", accent: "from-sky-500/20" },
 };
 
-const categoryOrder: NodeCategory[] = ["input", "image", "video", "audio", "llm", "utility"];
+const categoryOrder: NodeCategory[] = ["llm", "image", "video", "audio", "utility"];
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
 
 interface NodePaletteProps {
   onDragStart?: (event: React.DragEvent, nodeType: string) => void;
+  onClose?: () => void;
 }
 
-export function NodePalette({ onDragStart }: NodePaletteProps) {
+export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
   const [search, setSearch] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<Set<NodeCategory>>(
-    new Set(categoryOrder)
-  );
+  const [activeCategory, setActiveCategory] = useState<NodeCategory | null>(null);
 
-  const toggleCategory = (category: NodeCategory) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(category)) {
-      newExpanded.delete(category);
-    } else {
-      newExpanded.add(category);
+  const filteredNodes = Object.values(NODE_DEFINITIONS).filter((node) => {
+    const matchesSearch = !search || 
+      node.label.toLowerCase().includes(search.toLowerCase()) ||
+      node.provider.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = !activeCategory || node.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Group nodes by category for display
+  const groupedNodes = categoryOrder.reduce((acc, category) => {
+    const nodes = filteredNodes.filter(n => n.category === category);
+    if (nodes.length > 0) {
+      acc[category] = nodes;
     }
-    setExpandedCategories(newExpanded);
-  };
-
-  const nodesByCategory = categoryOrder.reduce((acc, category) => {
-    acc[category] = Object.values(NODE_DEFINITIONS).filter(
-      (node) => node.category === category
-    );
     return acc;
-  }, {} as Record<NodeCategory, typeof NODE_DEFINITIONS[AINodeType][]>);
-
-  const filteredNodesByCategory = categoryOrder.reduce((acc, category) => {
-    acc[category] = nodesByCategory[category].filter(
-      (node) =>
-        node.label.toLowerCase().includes(search.toLowerCase()) ||
-        node.description.toLowerCase().includes(search.toLowerCase()) ||
-        node.provider.toLowerCase().includes(search.toLowerCase())
-    );
-    return acc;
-  }, {} as Record<NodeCategory, typeof NODE_DEFINITIONS[AINodeType][]>);
+  }, {} as Record<NodeCategory, typeof filteredNodes>);
 
   const handleDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData("application/reactflow", nodeType);
@@ -86,149 +80,221 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
     onDragStart?.(event, nodeType);
   };
 
-  const hasResults = Object.values(filteredNodesByCategory).some(
-    (nodes) => nodes.length > 0
-  );
-
   return (
-    <div className="w-72 h-full bg-zinc-950/80 backdrop-blur-xl border-r border-white/5 flex flex-col">
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      className="w-72 h-full bg-zinc-950 rounded-2xl border border-zinc-800/60 flex flex-col overflow-hidden shadow-2xl shadow-black/40"
+    >
       {/* Header */}
-      <div className="p-4 border-b border-white/5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg bg-white/[0.03] flex items-center justify-center border border-white/10">
-            <Sparkles className="w-4 h-4 text-zinc-200" />
+      <div className="px-4 py-3 border-b border-zinc-800/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5 text-zinc-400" />
+            </div>
+            <span className="text-sm font-semibold text-zinc-200">Nodes</span>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-white">AI Nodes</h2>
-            <p className="text-[10px] text-zinc-500">12 pipeline operations</p>
-          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        <Input
-          placeholder="Search nodes..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          leftIcon={<Search className="w-4 h-4" />}
-          className="h-9 bg-zinc-900/50 border-white/5"
-        />
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+          <input
+            type="text"
+            placeholder="Search nodes..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-9 pl-10 pr-3 rounded-xl bg-zinc-900/80 border border-zinc-800/60 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 transition-all"
+          />
+        </div>
+
+        {/* Category Chips */}
+        <div className="flex items-center gap-1.5 mt-3 overflow-x-auto pb-1 -mx-1 px-1">
+          <button
+            onClick={() => setActiveCategory(null)}
+            className={cn(
+              "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+              !activeCategory
+                ? "bg-zinc-100 text-zinc-900"
+                : "bg-zinc-800/50 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            )}
+          >
+            All
+          </button>
+          {categoryOrder.map((cat) => {
+            const colors = categoryColors[cat];
+            const isActive = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(isActive ? null : cat)}
+                className={cn(
+                  "flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                  isActive
+                    ? `${colors.bg} ${colors.border} ${colors.text}`
+                    : "bg-zinc-900/50 border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80"
+                )}
+              >
+                {categoryIcons[cat]}
+                <span className="hidden sm:inline">{CATEGORY_META[cat].label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Node List by Category */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {!hasResults && search && (
-          <div className="p-8 text-center">
-            <p className="text-sm text-zinc-500">No nodes match "{search}"</p>
+      {/* Node List */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+        {filteredNodes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-3">
+              <Search className="w-5 h-5 text-zinc-700" />
+            </div>
+            <p className="text-sm text-zinc-500 text-center">No nodes found</p>
+            <p className="text-xs text-zinc-600 text-center mt-1">Try a different search term</p>
+          </div>
+        ) : activeCategory ? (
+          // Single category view
+          <div className="p-2">
+            <AnimatePresence mode="popLayout">
+              {filteredNodes.map((node, idx) => (
+                <NodeCard
+                  key={node.type}
+                  node={node}
+                  index={idx}
+                  onDragStart={handleDragStart}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          // Grouped by category view
+          <div className="py-2">
+            {Object.entries(groupedNodes).map(([category, nodes]) => {
+              const cat = category as NodeCategory;
+              const colors = categoryColors[cat];
+              
+              return (
+                <div key={category} className="mb-3">
+                  {/* Category Header */}
+                  <div className="px-4 py-2 flex items-center gap-2">
+                    <div className={cn("p-1.5 rounded-md", colors.bg, colors.text)}>
+                      {categoryIcons[cat]}
+                    </div>
+                    <span className={cn("text-xs font-semibold uppercase tracking-wider", colors.text)}>
+                      {CATEGORY_META[cat].label}
+                    </span>
+                    <span className="text-[10px] text-zinc-600 ml-auto">{nodes.length}</span>
+                  </div>
+                  
+                  {/* Nodes */}
+                  <div className="px-2 space-y-1">
+                    {nodes.map((node, idx) => (
+                      <NodeCard
+                        key={node.type}
+                        node={node}
+                        index={idx}
+                        onDragStart={handleDragStart}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-
-        {categoryOrder.map((category) => {
-          const nodes = filteredNodesByCategory[category];
-          if (nodes.length === 0) return null;
-
-          const meta = CATEGORY_META[category];
-          const isExpanded = expandedCategories.has(category);
-
-          return (
-            <div key={category} className="border-b border-white/5 last:border-0">
-              {/* Category Header */}
-              <button
-                onClick={() => toggleCategory(category)}
-                className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-400">
-                    {categoryIcons[category]}
-                  </span>
-                  <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-                    {meta.label}
-                  </span>
-                  <span className="text-[10px] text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded">
-                    {nodes.length}
-                  </span>
-                </div>
-                <ChevronDown
-                  className={cn(
-                    "w-4 h-4 text-zinc-500 transition-transform duration-200",
-                    isExpanded && "rotate-180"
-                  )}
-                />
-              </button>
-
-              {/* Category Nodes */}
-              <AnimatePresence initial={false}>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-3 pb-3 space-y-1.5">
-                      {nodes.map((node) => (
-                        <motion.div
-                          key={node.type}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, node.type)}
-                          whileHover={{ scale: 1.02, x: 4 }}
-                          whileTap={{ scale: 0.98 }}
-                          className={cn(
-                            "group relative flex items-center gap-3 p-3 rounded-xl border cursor-grab active:cursor-grabbing",
-                            "transition-all duration-200",
-                            colorStyles[node.color]
-                          )}
-                        >
-                          {/* Node Icon */}
-                          <div className="flex-shrink-0 relative">
-                            {categoryIcons[node.category]}
-                          </div>
-
-                          {/* Node Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-white truncate">
-                                {node.label}
-                              </p>
-                            </div>
-                            <p className="text-[10px] text-zinc-500 truncate">
-                              {node.description}
-                            </p>
-                          </div>
-
-                          {/* Cost Badge */}
-                          <div className="flex flex-col items-end gap-1">
-                            {node.estimatedCost > 0 ? (
-                              <div className="flex items-center gap-1 text-[10px] text-zinc-300 bg-white/5 px-1.5 py-0.5 rounded border border-white/10">
-                                <Coins className="w-2.5 h-2.5" />
-                                {node.estimatedCost}
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-zinc-300 bg-white/5 px-1.5 py-0.5 rounded border border-white/10">
-                                Free
-                              </div>
-                            )}
-                            <GripVertical className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/5 bg-zinc-900/30">
-        <div className="flex items-center justify-between text-[10px] text-zinc-500">
-          <span>Drag to canvas</span>
-          <div className="flex items-center gap-1">
-            <Coins className="w-3 h-3 text-zinc-300" />
-            <span>= credits per run</span>
-          </div>
+      <div className="px-4 py-2.5 border-t border-zinc-800/50 bg-zinc-900/30">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-zinc-600 flex items-center gap-1.5">
+            <GripVertical className="w-3 h-3" />
+            Drag to canvas
+          </p>
+          <span className="text-[10px] text-zinc-600">{filteredNodes.length} nodes</span>
         </div>
       </div>
-    </div>
+    </motion.div>
+  );
+}
+
+// =============================================================================
+// NODE CARD COMPONENT
+// =============================================================================
+
+interface NodeCardProps {
+  node: typeof NODE_DEFINITIONS[AINodeType];
+  index: number;
+  onDragStart: (event: React.DragEvent, nodeType: string) => void;
+}
+
+function NodeCard({ node, index, onDragStart }: NodeCardProps) {
+  const colors = categoryColors[node.category];
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ delay: index * 0.02, duration: 0.2 }}
+      draggable
+      onDragStart={(e) => onDragStart(e, node.type)}
+      className={cn(
+        "group relative flex items-center gap-3 p-3 rounded-xl cursor-grab active:cursor-grabbing transition-all",
+        "bg-zinc-900/40 hover:bg-zinc-800/60",
+        "border border-transparent hover:border-zinc-700/50",
+        "hover:shadow-lg hover:shadow-black/20"
+      )}
+    >
+      {/* Accent gradient on hover */}
+      <div className={cn(
+        "absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
+        "bg-gradient-to-r to-transparent",
+        colors.accent
+      )} />
+
+      {/* Icon */}
+      <div className={cn(
+        "relative w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
+        "border transition-all",
+        colors.bg, colors.border, colors.text,
+        "group-hover:scale-105"
+      )}>
+        {categoryIcons[node.category]}
+      </div>
+
+      {/* Info */}
+      <div className="relative flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-zinc-200 truncate group-hover:text-white transition-colors">
+          {node.label}
+        </p>
+        <p className="text-[11px] text-zinc-500 truncate">
+          {node.provider}
+        </p>
+      </div>
+
+      {/* Cost Badge */}
+      <div className={cn(
+        "relative flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium",
+        "bg-zinc-800/50 text-zinc-500",
+        "opacity-0 group-hover:opacity-100 transition-opacity"
+      )}>
+        <Coins className="w-3 h-3" />
+        <span>{node.estimatedCost || 0}</span>
+      </div>
+    </motion.div>
   );
 }

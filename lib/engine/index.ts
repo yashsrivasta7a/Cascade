@@ -17,6 +17,7 @@ export {
   elevenlabsExecutor,
   parseElevenlabsResult,
   openrouterExecutor,
+  parseOpenrouterResult,
   lipsyncExecutor,
   parseLipsyncResult,
   cropImageExecutor,

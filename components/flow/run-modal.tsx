@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -30,7 +30,7 @@ interface NodeEstimate {
 interface RunModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRun: () => void;
+  onRun: () => void | Promise<void>;
   workflowName: string;
   nodes: NodeEstimate[];
   creditBalance: number;
@@ -47,6 +47,13 @@ export function RunModal({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
 
+  // Reset isRunning when modal opens - this fixes the "stuck on Starting" issue
+  useEffect(() => {
+    if (isOpen) {
+      setIsRunning(false);
+    }
+  }, [isOpen]);
+
   const totalCost = nodes.reduce((sum, node) => sum + node.estimatedCost, 0);
   const hasEnoughCredits = creditBalance >= totalCost;
   const estimatedDuration = nodes.length * 15; // rough estimate
@@ -58,13 +65,18 @@ export function RunModal({
     return `~${mins}m ${secs}s`;
   };
 
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsRunning(true);
-    // Simulate a brief delay before triggering the actual run
-    setTimeout(() => {
-      onRun();
-      onClose();
-    }, 500);
+    // Close modal immediately and trigger the workflow
+    // The workflow will run in the background and update node statuses
+    onClose();
+    // Start the run after modal closes - run async without waiting
+    // This ensures the modal closes immediately
+    try {
+      await onRun();
+    } catch (error) {
+      console.error("Workflow execution error:", error);
+    }
   };
 
   if (!isOpen) return null;

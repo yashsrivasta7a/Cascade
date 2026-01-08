@@ -16,8 +16,14 @@ import mergeAudioVideoExecutor from "./merge-audio-video";
 import mergeVideosExecutor from "./merge-videos";
 import extractAudioExecutor from "./extract-audio";
 
-// Register all executors
+// Track if executors have been registered (for idempotency)
+let executorsRegistered = false;
+
+// Register all executors (idempotent - only runs once)
 export function registerAllNodeExecutors(): void {
+  if (executorsRegistered) return;
+  executorsRegistered = true;
+  
   registerNodeExecutor(seedreamExecutor);
   registerNodeExecutor(seedvrExecutor);
   registerNodeExecutor(seedanceExecutor);
@@ -35,7 +41,7 @@ export { seedreamExecutor, parseSeedreamResult } from "./seedream";
 export { seedvrExecutor, parseSeedvrResult } from "./seedvr";
 export { seedanceExecutor, parseSeedanceResult } from "./seedance";
 export { elevenlabsExecutor, parseElevenlabsResult } from "./elevenlabs";
-export { openrouterExecutor } from "./openrouter";
+export { openrouterExecutor, parseOpenrouterResult } from "./openrouter";
 export { lipsyncExecutor, parseLipsyncResult } from "./lipsync";
 export { cropImageExecutor } from "./crop-image";
 export { mergeAudioVideoExecutor } from "./merge-audio-video";

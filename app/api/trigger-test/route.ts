@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import dotenv from "dotenv";
-import { tasks } from "@trigger.dev/sdk";
 import { executeNode } from "@/app/trigger/node-executor";
-
-dotenv.config({ path: ".env.local" });
 
 // Simple test to trigger a node execution
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    
     const prompt = body.prompt || "Write a haiku about coding";
-    
     // Trigger the node executor task
-    const handle = await tasks.trigger("execute-node", {
+    const handle = await executeNode.trigger({
       nodeExecutionId: `test-${Date.now()}`,
       workflowExecutionId: `workflow-test-${Date.now()}`,
       nodeId: "test-node-1",
@@ -30,7 +24,7 @@ export async function POST(request: NextRequest) {
       status: "triggered",
       message: "Task triggered successfully!",
       runId: handle.id,
-      dashboardUrl: `https://cloud.trigger.dev/projects/v3/${process.env.TRIGGER_PROJECT_ID}/runs/${handle.id}`,
+      dashboardUrl: `https://cloud.trigger.dev/projects/v3/${process.env.TRIGGER_PROJECT_REF}/runs/${handle.id}`,
     });
   } catch (error) {
     console.error("Trigger test error:", error);
@@ -52,4 +46,3 @@ export async function GET() {
     example: "curl -X POST http://localhost:3000/api/trigger-test -H 'Content-Type: application/json' -d '{\"prompt\": \"Hello world\"}'",
   });
 }
-

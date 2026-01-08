@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Copy,
   Trash2,
+  Play,
   Clock,
   Loader2,
   CheckCircle2,
@@ -153,10 +154,15 @@ function BaseNodeComponent({
 }: BaseNodeProps) {
   const colors = colorMap[color];
   const status = data.status || "idle";
+  const providerUsed = typeof (data as any).providerUsed === "string" ? ((data as any).providerUsed as string) : undefined;
+  const providerConfigured = data.provider;
+  const isFallbackProvider = Boolean(providerUsed && providerConfigured && providerUsed !== providerConfigured);
   const selectedNodeId = useFlowStore((s) => s.selectedNode?.id ?? null);
   const isSelected = Boolean(selected || (selectedNodeId && selectedNodeId === id));
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
+  const runNode = useFlowStore((s) => s.runNode);
+  const canRun = status !== "running";
 
   // Calculate handle positions
   const getHandleStyle = (index: number, total: number): CSSProperties => {
@@ -196,6 +202,23 @@ function BaseNodeComponent({
             "group-hover/node:opacity-100 group-hover/node:pointer-events-auto"
           )}
         >
+          <button
+            type="button"
+            disabled={!canRun}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void runNode(id);
+            }}
+            className={cn(
+              "nodrag nowheel h-7 w-7 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors inline-flex items-center justify-center",
+              !canRun && "opacity-50 cursor-not-allowed"
+            )}
+            title="Run node"
+            aria-label="Run node"
+          >
+            <Play className="w-3.5 h-3.5" />
+          </button>
           <button
             type="button"
             onClick={(e) => {
@@ -269,10 +292,15 @@ function BaseNodeComponent({
               )}
 
               <div className="mt-2 flex items-center gap-2 flex-wrap">
-                {data.provider && (
+                {(providerConfigured || providerUsed) && (
                   <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-zinc-300 bg-white/[0.03] border border-white/10 rounded-xl px-2 py-1">
                     <ExternalLink className="w-3 h-3" />
-                    <span>{data.provider}</span>
+                    <span>
+                      {providerUsed ?? providerConfigured}
+                      {isFallbackProvider ? (
+                        <span className="text-zinc-500">{" "}• fallback</span>
+                      ) : null}
+                    </span>
                   </div>
                 )}
                 <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-zinc-300 bg-white/[0.03] border border-white/10 rounded-xl px-2 py-1">

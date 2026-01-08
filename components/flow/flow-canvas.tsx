@@ -52,7 +52,22 @@ function CustomEdge({
 }: EdgeProps) {
   const isNegative = data?.isNegative === true;
   const [isHovered, setIsHovered] = useState(false);
-  const { setEdges } = useFlowStore.getState();
+  const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
+  const [colorPhase, setColorPhase] = useState(0);
+  
+  // Animate color phase when workflow is running
+  useEffect(() => {
+    if (!isWorkflowRunning) {
+      setColorPhase(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setColorPhase((prev) => (prev + 1) % 360);
+    }, 20); // Fast smooth animation
+    
+    return () => clearInterval(interval);
+  }, [isWorkflowRunning]);
   
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -69,6 +84,29 @@ function CustomEdge({
     const edges = useFlowStore.getState().edges;
     useFlowStore.getState().setEdges(edges.filter((edge) => edge.id !== id));
   }, [id]);
+
+  // Calculate animated colors when workflow is running
+  const getAnimatedColor = () => {
+    if (!isWorkflowRunning) {
+      return isNegative ? "#ef4444" : "#3b82f6";
+    }
+    // Cycle through rainbow colors
+    return `hsl(${colorPhase}, 80%, 55%)`;
+  };
+  
+  const getAnimatedGlow = () => {
+    if (!isWorkflowRunning) {
+      return isNegative ? "rgba(239, 68, 68, 0.3)" : "rgba(59, 130, 246, 0.3)";
+    }
+    return `hsla(${colorPhase}, 80%, 55%, 0.4)`;
+  };
+  
+  const getAnimatedDash = () => {
+    if (!isWorkflowRunning) {
+      return isNegative ? "#fca5a5" : "#93c5fd";
+    }
+    return `hsl(${(colorPhase + 60) % 360}, 80%, 70%)`;
+  };
 
   return (
     <g
@@ -88,8 +126,8 @@ function CustomEdge({
         id={`${id}-glow`}
         d={edgePath}
         fill="none"
-        stroke={isNegative ? "rgba(239, 68, 68, 0.3)" : "rgba(59, 130, 246, 0.3)"}
-        strokeWidth={8}
+        stroke={getAnimatedGlow()}
+        strokeWidth={isWorkflowRunning ? 12 : 8}
         filter="blur(4px)"
       />
       {/* Main edge */}
@@ -97,8 +135,8 @@ function CustomEdge({
         id={id}
         d={edgePath}
         fill="none"
-        stroke={isNegative ? "#ef4444" : "#3b82f6"}
-        strokeWidth={2}
+        stroke={getAnimatedColor()}
+        strokeWidth={isWorkflowRunning ? 3 : 2}
         markerEnd={markerEnd}
         className="transition-all duration-200"
       />
@@ -106,16 +144,15 @@ function CustomEdge({
       <path
         d={edgePath}
         fill="none"
-        stroke={isNegative ? "#fca5a5" : "#93c5fd"}
-        strokeWidth={2}
-        strokeDasharray="5 5"
-        className="animate-dash"
+        stroke={getAnimatedDash()}
+        strokeWidth={isWorkflowRunning ? 3 : 2}
+        strokeDasharray={isWorkflowRunning ? "8 4" : "5 5"}
         style={{
-          animation: "dash 1s linear infinite",
+          animation: isWorkflowRunning ? "dash 0.3s linear infinite" : "dash 1s linear infinite",
         }}
       />
       {/* Delete button on hover */}
-      {isHovered && (
+      {isHovered && !isWorkflowRunning && (
         <foreignObject
           x={labelX - 10}
           y={labelY - 10}
@@ -163,10 +200,6 @@ function getNodeOutputPreview(node: Node): string | undefined {
 }
 
 const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
-  "text-input": { inputs: {}, outputs: { text: "text" } },
-  "image-input": { inputs: {}, outputs: { image: "image" } },
-  "video-input": { inputs: {}, outputs: { video: "video" } },
-  "audio-input": { inputs: {}, outputs: { audio: "audio" } },
   seedream: { inputs: { prompt: "text", image: "image" }, outputs: { image: "image" } },
   seedvr: { inputs: { image: "image" }, outputs: { upscaled: "image" } },
   seedance: { inputs: { prompt: "text", frame: "image" }, outputs: { video: "video" } },
@@ -229,7 +262,7 @@ function isTypeCompatible(from: DataType | undefined, to: DataType | undefined):
 
 function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, getViewport, setViewport } = useReactFlow();
+  const { screenToFlowPosition, getViewport, setViewport, setCenter } = useReactFlow();
   
   // Modal state for adding nodes
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -250,7 +283,35 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     duplicateNode,
     viewport,
     setViewport: setViewportState,
+    focusNodeId,
+    focusNode,
   } = useFlowStore();
+
+  // Focus on node when focusNodeId changes - pan so the NODE is at screen center
+  useEffect(() => {
+    if (!focusNodeId) return;
+    
+    const node = nodes.find((n) => n.id === focusNodeId);
+    if (node) {
+      // node.position is top-left corner of the node
+      // Nodes are approximately 280px wide and 300-400px tall (with all fields)
+      // Center point should be middle of the node
+      const nodeHalfWidth = 140;  // ~280/2
+      const nodeHalfHeight = 180; // ~360/2 for expanded nodes
+      
+      const nodeCenterX = node.position.x + nodeHalfWidth;
+      const nodeCenterY = node.position.y + nodeHalfHeight;
+      
+      // setCenter puts these coordinates at the CENTER of the viewport
+      setCenter(nodeCenterX, nodeCenterY, { 
+        zoom: 1, 
+        duration: 500 
+      });
+      
+      // Clear focus after animation
+      setTimeout(() => focusNode(null), 550);
+    }
+  }, [focusNodeId, nodes, setCenter, focusNode]);
 
   // Save/restore viewport (per workflow)
   useEffect(() => {
@@ -535,8 +596,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     setPendingConnection(null);
   }, []);
 
-  const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
       selectNode(node as Parameters<typeof selectNode>[0]);
     },
     [selectNode]
@@ -545,6 +607,10 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const onPaneClick = useCallback(() => {
     selectNode(null);
   }, [selectNode]);
+
+  const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+  }, []);
 
   // Double-click on canvas to add a standalone node
   const onDoubleClick = useCallback(
@@ -580,8 +646,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         onConnectEnd={onConnectEnd}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        onNodeClick={onNodeClick}
+        onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
+        onPaneContextMenu={onPaneContextMenu}
         onDoubleClick={onDoubleClick}
         onMoveEnd={handleMoveEnd}
         nodeTypes={memoizedNodeTypes}
@@ -645,28 +712,6 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
 
   // Node-specific defaults
   switch (type) {
-    case "text-input":
-      return {
-        ...baseData,
-        text: "",
-      };
-    case "image-input":
-      return {
-        ...baseData,
-        image: "",
-      };
-    case "video-input":
-      return {
-        ...baseData,
-        video: "",
-        videoName: "",
-      };
-    case "audio-input":
-      return {
-        ...baseData,
-        audio: "",
-        audioName: "",
-      };
     case "seedream":
       return {
         ...baseData,

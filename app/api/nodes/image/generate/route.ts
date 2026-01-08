@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import dotenv from "dotenv";
-import { fal } from "@fal-ai/client";
+import type { AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
-
-dotenv.config({ path: ".env.local" });
-
-// Configure fal.ai
-if (process.env.FAL_KEY) {
-  fal.config({ credentials: process.env.FAL_KEY });
-}
+import { executeNode } from "@/app/trigger/node-executor";
+import { getUserIdForApi } from "@/lib/user";
 
 // =============================================================================
-// SEEDREAM 4.5 IMAGE GENERATION / EDITING API
+// SEEDREAM 4.5 IMAGE GENERATION - VIA TRIGGER.DEV
 // =============================================================================
 
 export async function POST(request: NextRequest) {
   try {
+    // Get the current user (creates if not exists)
+    const { userId } = await getUserIdForApi();
+
     const body = await request.json() as {
       prompt?: string;
       negativePrompt?: string;
       aspectRatio?: string;
-      image?: string; // Base64 or URL for image editing
+      image?: string;
       seed?: number;
     };
 
@@ -33,138 +30,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.FAL_KEY) {
-      // Return mock response if no API key
-      return NextResponse.json({
-        status: "success",
-        mode: "mock",
-        output: {
-          type: "image",
-          image: {
-            url: `https://placehold.co/512x512/1a1a2e/ffffff?text=${encodeURIComponent(prompt.slice(0, 20))}`,
-            width: 512,
-            height: 512,
-          },
-        },
-        message: "Mock response - Set FAL_KEY for real generation",
-      });
-    }
+    // Create a workflow for tracking this image generation
+    const trackingWorkflow = await db.workflow.upsert({
+      where: { id: `seedream-workflow-${userId}` },
+      create: {
+        id: `seedream-workflow-${userId}`,
+        userId,
+        name: "Image Generation",
+        description: "Auto-created for tracking image generations",
+        nodesJson: [],
+        edgesJson: [],
+      },
+      update: {},
+    });
 
-    // Determine if this is generation or editing
-    const isEditing = Boolean(image);
-    const startTime = Date.now();
-    
-    // Create execution record
-    let executionId: string | null = null;
-    try {
-      const execution = await db.quickExecution.create({
-        data: {
-          nodeType: "seedream",
-          nodeLabel: isEditing ? "Seedream Edit" : "Seedream Generate",
-          status: "RUNNING",
-          provider: "fal",
-          inputJson: { prompt, negativePrompt, aspectRatio, hasImage: !!image, seed },
-          estimatedCost: 5, // 5 credits per image
-        },
-      });
-      executionId = execution.id;
-    } catch (dbError) {
-      console.warn("Failed to create execution record:", dbError);
-    }
-
-    console.log(`[Seedream] Generating image: "${prompt.slice(0, 50)}..."`);
-    
-    
-    // Build input for fal.ai
-    const input: Record<string, unknown> = {
-      prompt,
-      negative_prompt: negativePrompt || "",
-      image_size: aspectRatioToSize(aspectRatio || "1:1"),
-      num_images: 1,
-      enable_safety_checker: true,
-    };
-
-    if (seed !== undefined) {
-      input.seed = seed;
-    }
-
-    if (isEditing && image) {
-      input.image_url = image;
-      input.strength = 0.75; // How much to change the image
-    }
-
-    // Call fal.ai Seedream
-    const result = await fal.subscribe("fal-ai/seedream-4.5", {
-      input,
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === "IN_PROGRESS") {
-          console.log(`[Seedream] Progress: ${update.logs?.map(l => l.message).join(", ")}`);
-        }
+    const workflowExecution = await db.workflowExecution.create({
+      data: {
+        workflowId: trackingWorkflow.id,
+        userId,
+        status: "RUNNING",
+        workflowSnapshot: { prompt, aspectRatio, hasImage: !!image },
+        estimatedCost: 5,
+        startedAt: new Date(),
       },
     });
 
-    const duration = Date.now() - startTime;
-    console.log(`[Seedream] Generation complete in ${duration}ms`);
+    // Create node execution record
+    const isEditing = Boolean(image);
+    const nodeExecution = await db.nodeExecution.create({
+      data: {
+        workflowExecutionId: workflowExecution.id,
+        nodeId: `seedream-${Date.now()}`,
+        nodeType: "seedream",
+        nodeLabel: isEditing ? "Seedream Edit" : "Seedream Generate",
+        status: "QUEUED",
+        inputJson: { prompt, negativePrompt, aspectRatio, hasImage: !!image, seed },
+      },
+    });
 
-    // Extract the image URL from result
-    const images = (result.data as { images?: Array<{ url: string; width: number; height: number }> })?.images;
-    
-    if (!images || images.length === 0) {
-      // Update execution as failed
-      if (executionId) {
-        await db.quickExecution.update({
-          where: { id: executionId },
-          data: { status: "FAILED", completedAt: new Date(), durationMs: duration, error: "No image generated" },
-        }).catch(console.warn);
-      }
-      return NextResponse.json(
-        { error: "No image generated" },
-        { status: 500 }
-      );
-    }
+    console.log(`[Seedream] Starting execution ${nodeExecution.id} via Trigger.dev`);
 
-    const generatedImage = images[0];
+    // Trigger the node execution via Trigger.dev
+    const handle = await executeNode.trigger({
+      nodeExecutionId: nodeExecution.id,
+      workflowExecutionId: workflowExecution.id,
+      nodeId: nodeExecution.nodeId,
+      nodeType: "seedream" as AINodeType,
+      input: {
+        prompt,
+        negativePrompt,
+        aspectRatio: aspectRatio || "1:1",
+        image,
+        seed,
+      },
+    });
 
-    // Update execution as completed
-    if (executionId) {
-      await db.quickExecution.update({
-        where: { id: executionId },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          durationMs: duration,
-          actualCost: 5,
-          outputJson: { type: "image", url: generatedImage.url, width: generatedImage.width, height: generatedImage.height },
-        },
-      }).catch(console.warn);
-    }
+    console.log(`[Seedream] Triggered with handle ${handle.id}`);
 
     return NextResponse.json({
-      status: "success",
+      status: "triggered",
+      message: "Image generation started via Trigger.dev!",
       mode: isEditing ? "edit" : "generate",
-      output: {
-        type: "image",
-        image: {
-          url: generatedImage.url,
-          width: generatedImage.width,
-          height: generatedImage.height,
-        },
-      },
-      requestId: (result as { requestId?: string }).requestId,
-      executionId,
+      nodeExecutionId: nodeExecution.id,
+      workflowExecutionId: workflowExecution.id,
+      triggerRunId: handle.id,
+      dashboardUrl: `https://cloud.trigger.dev/projects/v3/${process.env.TRIGGER_PROJECT_REF}/runs/${handle.id}`,
     });
   } catch (error) {
     console.error("[Seedream] Error:", error);
-    
-    // Update execution as failed if we have one
-    if (executionId) {
-      await db.quickExecution.update({
-        where: { id: executionId },
-        data: { status: "FAILED", completedAt: new Date(), error: error instanceof Error ? error.message : String(error) },
-      }).catch(console.warn);
-    }
-    
     return NextResponse.json(
       { 
         status: "error",
@@ -188,7 +121,7 @@ function aspectRatioToSize(ratio: string): { width: number; height: number } {
 
 export async function GET() {
   return NextResponse.json({
-    message: "Seedream 4.5 Image Generation API",
+    message: "Seedream 4.5 Image Generation API (via Trigger.dev)",
     usage: {
       method: "POST",
       body: {
@@ -199,7 +132,7 @@ export async function GET() {
         seed: "number (optional) - For reproducibility",
       }
     },
+    note: "Responses are async - use the triggerRunId to track progress",
     configured: Boolean(process.env.FAL_KEY),
   });
 }
-

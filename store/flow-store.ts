@@ -11,17 +11,21 @@ import {
   addEdge,
   Connection,
 } from "reactflow";
+import { runSingleNode } from "@/lib/workflow/run-workflow";
 
 export interface FlowState {
   nodes: Node[];
   edges: Edge[];
   selectedNode: Node | null;
   viewport?: { x: number; y: number; zoom: number };
+  isWorkflowRunning: boolean;
+  focusNodeId: string | null;
   
   // Actions
   setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void;
   setEdges: (edges: Edge[]) => void;
   setViewport: (viewport: { x: number; y: number; zoom: number } | undefined) => void;
+  setWorkflowRunning: (running: boolean) => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
@@ -32,6 +36,7 @@ export interface FlowState {
   duplicateNode: (id: string) => void;
   
   selectNode: (node: Node | null) => void;
+  focusNode: (nodeId: string | null) => void;
   
   // Utilities
   clearFlow: () => void;
@@ -39,6 +44,9 @@ export interface FlowState {
   
   // Propagate output from a node to all connected downstream nodes
   propagateOutput: (sourceNodeId: string, output: string) => void;
+
+  // Run a single node (for debugging)
+  runNode: (nodeId: string) => Promise<void>;
 }
 
 export const useFlowStore = create<FlowState>()(
@@ -48,6 +56,10 @@ export const useFlowStore = create<FlowState>()(
       edges: [],
       selectedNode: null,
       viewport: undefined,
+      isWorkflowRunning: false,
+      focusNodeId: null,
+
+      setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
 
       setNodes: (nodes) =>
         set((state) => ({
@@ -130,6 +142,56 @@ export const useFlowStore = create<FlowState>()(
 
       selectNode: (node) => set({ selectedNode: node }),
 
+      focusNode: (nodeId) => {
+        if (!nodeId) {
+          set({ focusNodeId: null });
+          return;
+        }
+        const state = get();
+        let node: Node | undefined;
+        
+        // Check if it's the new format: "nodeType:index"
+        if (nodeId.includes(":")) {
+          const [nodeType, indexStr] = nodeId.split(":");
+          const index = parseInt(indexStr, 10);
+          
+          if (!isNaN(index)) {
+            // Find all nodes of this type and get the one at the specified index
+            const nodesOfType = state.nodes.filter((n) => 
+              n.type === nodeType || n.id.startsWith(nodeType)
+            );
+            if (index < nodesOfType.length) {
+              node = nodesOfType[index];
+            }
+          }
+          
+          // If that didn't work, try using index directly on all nodes
+          if (!node && !isNaN(index) && index < state.nodes.length) {
+            node = state.nodes[index];
+          }
+        }
+        
+        // Try exact ID match
+        if (!node) {
+          node = state.nodes.find((n) => n.id === nodeId);
+        }
+        
+        // Try matching by node type prefix
+        if (!node && nodeId.includes("-")) {
+          const nodeType = nodeId.split("-")[0];
+          const nodesOfType = state.nodes.filter((n) => 
+            n.type === nodeType || n.id.startsWith(nodeType)
+          );
+          if (nodesOfType.length === 1) {
+            node = nodesOfType[0];
+          }
+        }
+        
+        if (node) {
+          set({ focusNodeId: node.id, selectedNode: node });
+        }
+      },
+
       clearFlow: () => set({ nodes: [], edges: [], selectedNode: null }),
 
       loadFlow: (nodes, edges) => set({ nodes, edges, selectedNode: null }),
@@ -137,10 +199,20 @@ export const useFlowStore = create<FlowState>()(
       propagateOutput: (sourceNodeId, output) => {
         const state = get();
         
+        // Find the source node to get its prompt
+        const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
+        const sourceData = (sourceNode?.data ?? {}) as { prompt?: string };
+        const sourcePrompt = sourceData.prompt;
+        
         // Find all edges that start from this source node
         const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
         
         if (outgoingEdges.length === 0) return;
+        
+        // Build context that includes both the prompt and response
+        const contextWithHistory = sourcePrompt
+          ? `[Previous: "${sourcePrompt}"]\n[Response: "${output}"]`
+          : output;
         
         // Update all target nodes based on which handle they're connected to
         const updatedNodes = state.nodes.map((node) => {
@@ -164,10 +236,10 @@ export const useFlowStore = create<FlowState>()(
           } else if (targetHandle === "audio") {
             nodeData.inputAudio = output;
           } else if (targetHandle === "prompt" && !isImageOutput && !isVideoOutput && !isAudioOutput) {
-            // Text going to prompt - use as context
-            nodeData.context = output;
+            // Text going to prompt - use context with history
+            nodeData.context = contextWithHistory;
           } else if (targetHandle === "context" || !targetHandle) {
-            nodeData.context = output;
+            nodeData.context = contextWithHistory;
           } else if (targetHandle === "text") {
             nodeData.text = output;
           } else {
@@ -179,6 +251,56 @@ export const useFlowStore = create<FlowState>()(
         });
         
         set({ nodes: updatedNodes });
+      },
+
+      runNode: async (nodeId) => {
+        const state = get();
+        const node = state.nodes.find((n) => n.id === nodeId);
+        if (!node) return;
+
+        // Reset status for this node only
+        set({
+          nodes: state.nodes.map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  data: {
+                    ...(n.data as any),
+                    status: "queued",
+                    progress: 0,
+                    error: undefined,
+                  },
+                }
+              : n
+          ),
+        });
+
+        const applyStatus = (status: string, patch?: Record<string, unknown>) => {
+          set((prev) => ({
+            nodes: prev.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...(n.data as any), status, ...(patch ?? {}) } } : n
+            ),
+          }));
+        };
+
+        const applyResult = (resultText: string) => {
+          set((prev) => ({
+            nodes: prev.nodes.map((n) =>
+              n.id === nodeId ? { ...n, data: { ...(n.data as any), result: resultText } } : n
+            ),
+          }));
+        };
+
+        await runSingleNode(nodeId, get().nodes, get().edges, {
+          onNodeStatus: (id, status, patch) => {
+            if (id !== nodeId) return;
+            applyStatus(status, patch);
+          },
+          onNodeResult: (id, resultText) => {
+            if (id !== nodeId) return;
+            applyResult(resultText);
+          },
+        });
       },
     }),
     { name: "flow-store" }
