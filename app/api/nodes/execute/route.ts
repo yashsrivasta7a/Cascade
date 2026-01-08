@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { AINodeType } from "@/types/nodes";
+import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
 import { executeNode } from "@/app/trigger/node-executor";
 
@@ -63,13 +63,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Get proper node label from definitions
+    const nodeDef = NODE_DEFINITIONS[nodeType as AINodeType];
+    const nodeLabel = nodeDef?.label || nodeType;
+
     // Create node execution record
     const nodeExecution = await db.nodeExecution.create({
       data: {
         workflowExecutionId: workflowExecution.id,
-        nodeId: `test-${nodeType}-${Date.now()}`,
+        nodeId: `${nodeType}-${Date.now()}`,
         nodeType: nodeType,
-        nodeLabel: `Test ${nodeType}`,
+        nodeLabel: nodeLabel,
         status: "QUEUED",
         inputJson: input as object,
       },
@@ -84,6 +88,12 @@ export async function POST(request: NextRequest) {
       nodeId: nodeExecution.nodeId,
       nodeType: nodeType as AINodeType,
       input,
+    });
+
+    // Save the trigger run ID for tracking in Run History
+    await db.workflowExecution.update({
+      where: { id: workflowExecution.id },
+      data: { triggerRunId: handle.id },
     });
 
     console.log(`[Node Execute] Triggered with handle ${handle.id}`);

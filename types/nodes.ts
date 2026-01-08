@@ -28,7 +28,7 @@ export type AINodeType =
 // DATA TYPES (What flows between nodes)
 // ============================================================================
 
-export type DataType = "text" | "image" | "video" | "audio" | "any" | "negative";
+export type DataType = "text" | "image" | "video" | "audio" | "any" | "negative" | "number" | "boolean";
 
 export const dataTypeColors: Record<DataType, { bg: string; border: string; text: string }> = {
   text: { bg: "bg-blue-500/20", border: "border-blue-500/50", text: "text-blue-300" },
@@ -37,6 +37,8 @@ export const dataTypeColors: Record<DataType, { bg: string; border: string; text
   audio: { bg: "bg-amber-500/20", border: "border-amber-500/50", text: "text-amber-300" },
   any: { bg: "bg-zinc-500/20", border: "border-zinc-500/50", text: "text-zinc-300" },
   negative: { bg: "bg-red-500/20", border: "border-red-500/50", text: "text-red-300" },
+  number: { bg: "bg-purple-500/20", border: "border-purple-500/50", text: "text-purple-300" },
+  boolean: { bg: "bg-cyan-500/20", border: "border-cyan-500/50", text: "text-cyan-300" },
 };
 
 // ============================================================================
@@ -297,7 +299,11 @@ export const MergeVideosConfigSchema = z.object({
 });
 
 export const ExtractAudioConfigSchema = z.object({
-  format: z.enum(["mp3", "wav", "aac"]).default("mp3"),
+  format: z.enum(["mp3", "wav", "aac", "ogg"]).default("mp3"),
+  bitrate: z.enum(["128k", "192k", "256k", "320k"]).default("192k"),
+  sampleRate: z.enum(["22050", "44100", "48000"]).default("44100"),
+  channels: z.enum(["1", "2"]).default("2"),
+  normalize: z.boolean().default(false),
 });
 
 // ============================================================================

@@ -78,6 +78,43 @@ function CustomEdge({
     targetPosition,
   });
 
+  // Hide "advanced setting" edges when the target node's advanced panel is collapsed
+  const targetHandle = (data as any)?.targetHandle as string | undefined;
+  const targetNodeId = (data as any)?.targetNodeId as string | undefined;
+  const shouldHideAdvanced = useFlowStore((s) => {
+    if (!targetNodeId || !targetHandle) return false;
+    const node = s.nodes.find((n) => n.id === targetNodeId);
+    if (!node) return false;
+    const open = Boolean((node.data as any)?.advancedOpen);
+    if (open) return false;
+    const nodeType = node.type as AINodeType | undefined;
+    const advancedByType: Partial<Record<AINodeType, Set<string>>> = {
+      seedream: new Set([
+        "numInferenceSteps",
+        "guidanceScale",
+        "seed",
+        "aspectRatio",
+        "negativePrompt",
+        "truncatePrompt",
+        "promptEnhancer",
+        "syncMode",
+      ]),
+      openrouter: new Set(["systemPrompt", "model", "temperature", "maxTokens", "negativePrompt"]),
+      elevenlabs: new Set(["stability", "clarity", "voiceId"]),
+      seedance: new Set(["duration", "aspectRatio", "seed"]),
+      seedvr: new Set(["scale", "enhanceFaces"]),
+      lipsync: new Set(["model"]),
+      "crop-image": new Set(["xPercent", "yPercent", "widthPercent", "heightPercent"]),
+      "merge-audio-video": new Set(["replaceAudio"]),
+      "merge-videos": new Set(["transition"]),
+      "extract-audio": new Set(["format", "bitrate", "sampleRate", "channels", "normalize"]),
+    };
+    const set = nodeType ? advancedByType[nodeType] : undefined;
+    return Boolean(set?.has(targetHandle));
+  });
+
+  if (shouldHideAdvanced) return null;
+
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -200,17 +237,67 @@ function getNodeOutputPreview(node: Node): string | undefined {
 }
 
 const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
-  seedream: { inputs: { prompt: "text", image: "image" }, outputs: { image: "image" } },
-  seedvr: { inputs: { image: "image" }, outputs: { upscaled: "image" } },
-  seedance: { inputs: { prompt: "text", frame: "image" }, outputs: { video: "video" } },
-  elevenlabs: { inputs: { text: "text" }, outputs: { audio: "audio" } },
-  openrouter: { inputs: { context: "text" }, outputs: { response: "text" } },
-  lipsync: { inputs: { video: "video", audio: "audio" }, outputs: { synced: "video" } },
-  "crop-image": { inputs: { image: "image" }, outputs: { cropped: "image" } },
-  "merge-audio-video": { inputs: { video: "video", audio: "audio" }, outputs: { combined: "video" } },
-  "merge-videos": { inputs: { video1: "video", video2: "video" }, outputs: { merged: "video" } },
-  "extract-audio": { inputs: { video: "video" }, outputs: { audio: "audio" } },
+  seedream: {
+    inputs: {
+      prompt: "text",
+      numInferenceSteps: "number",
+      seed: "number",
+      aspectRatio: "text",
+      negativePrompt: "negative",
+      guidanceScale: "number",
+      truncatePrompt: "boolean",
+      promptEnhancer: "boolean",
+      syncMode: "boolean",
+      image: "image",
+    },
+    outputs: {
+      out: "any",
+    },
+  },
+  seedvr: { inputs: { inputImage: "image", scale: "text", enhanceFaces: "boolean" }, outputs: { upscaled: "image" } },
+  seedance: {
+    inputs: { prompt: "text", inputFrame: "image", duration: "text", aspectRatio: "text", seed: "number" },
+    outputs: { video: "video" },
+  },
+  elevenlabs: { inputs: { text: "text", voiceId: "text", stability: "number", clarity: "number" }, outputs: { audio: "audio" } },
+  openrouter: {
+    inputs: {
+      prompt: "text",
+      context: "text",
+      inputImage: "image",
+      systemPrompt: "text",
+      model: "text",
+      temperature: "number",
+      maxTokens: "number",
+      negativePrompt: "negative",
+    },
+    outputs: { response: "text", out: "any" },
+  },
+  lipsync: { inputs: { inputVideo: "video", inputAudio: "audio", model: "text" }, outputs: { synced: "video" } },
+  "crop-image": { 
+    inputs: { inputImage: "image", xPercent: "number", yPercent: "number", widthPercent: "number", heightPercent: "number" }, 
+    outputs: { cropped: "image" } 
+  },
+  "merge-audio-video": { 
+    inputs: { inputVideo: "video", inputAudio: "audio", replaceAudio: "boolean" }, 
+    outputs: { combined: "video" } 
+  },
+  "merge-videos": { 
+    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text" }, 
+    outputs: { merged: "video" } 
+  },
+  "extract-audio": { 
+    inputs: { inputVideo: "video", format: "text", bitrate: "text", sampleRate: "text", channels: "text", normalize: "boolean" }, 
+    outputs: { audio: "audio" } 
+  },
 };
+
+function getNodeSettingKeys(node: Node | undefined): string[] {
+  if (!node?.type) return [];
+  const def = HANDLE_TYPES[node.type as AINodeType];
+  if (!def) return [];
+  return Object.keys(def.inputs ?? {});
+}
 
 function getHandleDataType(
   node: Node | undefined,
@@ -387,6 +474,14 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       if (!isTypeCompatible(fromType, toType)) return false;
       if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
 
+      // If source is a "bundle" output (`out`), only allow connecting to settings that the source node actually supports.
+      // (Prevents connecting bundle from nodes that don't have that setting.)
+      if (conn.sourceHandle === "out") {
+        const targetHandle = conn.targetHandle ?? "";
+        const allowed = new Set(getNodeSettingKeys(sourceNode));
+        if (targetHandle && !allowed.has(targetHandle)) return false;
+      }
+
       return true;
     },
     [edges, nodes]
@@ -439,7 +534,12 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           ...params,
           type: "custom",
           animated: false,
-          data: { dataType: edgeDataType, isNegative },
+          data: {
+            dataType: edgeDataType,
+            isNegative,
+            targetHandle: params.targetHandle ?? null,
+            targetNodeId: params.target ?? null,
+          },
         },
         edges
       );
@@ -447,12 +547,31 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       // Mark as successful connect so onConnectEnd doesn't open the modal.
       connectionCompletedRef.current = true;
 
-      // When users connect nodes, treat it like "pass output -> input" by copying a preview into target context.
+      // When users connect nodes, treat it like "pass output -> input" by copying a value into the target handle.
       if (params.source && params.target) {
-        const sourceNode = nodes.find((n) => n.id === params.source);
-        const preview = sourceNode ? getNodeOutputPreview(sourceNode) : undefined;
+        const src = nodes.find((n) => n.id === params.source);
+        const targetHandle = params.targetHandle ?? "context";
+        const sourceHandle = params.sourceHandle ?? null;
 
-        if (preview) {
+        const preview = src ? getNodeOutputPreview(src) : undefined;
+        const srcData = (src?.data ?? {}) as any;
+        const valueFromSourceHandle =
+          sourceHandle && sourceHandle in srcData ? srcData[sourceHandle] : undefined;
+
+        // Prefer same-named field value, otherwise use preview string
+        const nextValue = valueFromSourceHandle !== undefined ? valueFromSourceHandle : preview;
+
+        // If we got a bundle object (e.g., Seedream `out`) and the targetHandle is a specific setting,
+        // pull the matching value out of the bundle.
+        const derivedValue =
+          nextValue &&
+          typeof nextValue === "object" &&
+          !Array.isArray(nextValue) &&
+          targetHandle in (nextValue as any)
+            ? (nextValue as any)[targetHandle]
+            : nextValue;
+
+        if (derivedValue !== undefined) {
           setNodes(
             nodes.map((n) =>
               n.id === params.target
@@ -460,8 +579,11 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
                     ...n,
                     data: {
                       ...(n.data as any),
-                      context: preview,
-                      incomingFrom: { nodeId: params.source, handleId: params.sourceHandle ?? null },
+                      [targetHandle]: derivedValue,
+                      incomingFrom: {
+                        ...(n.data as any)?.incomingFrom,
+                        [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
+                      },
                     },
                   }
                 : n
@@ -579,7 +701,12 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           targetHandle,
           type: "custom",
           animated: false,
-          data: { dataType: edgeDataType, isNegative },
+          data: {
+            dataType: edgeDataType,
+            isNegative,
+            targetHandle: targetHandle ?? null,
+            targetNodeId: newNodeId,
+          },
         };
         setEdges([...edges, newEdge]);
       }
@@ -718,6 +845,11 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
         prompt: "",
         negativePrompt: "",
         aspectRatio: "1:1",
+        numInferenceSteps: 30,
+        guidanceScale: 5,
+        truncatePrompt: false,
+        promptEnhancer: false,
+        syncMode: false,
         result: "",
       };
     case "seedvr":
@@ -761,10 +893,10 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
     case "crop-image":
       return {
         ...baseData,
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
+        xPercent: 0,
+        yPercent: 0,
+        widthPercent: 100,
+        heightPercent: 100,
       };
     case "merge-audio-video":
       return {
@@ -781,6 +913,10 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
       return {
         ...baseData,
         format: "mp3",
+        bitrate: "192k",
+        sampleRate: "44100",
+        channels: "2",
+        normalize: false,
       };
     default:
       return baseData;

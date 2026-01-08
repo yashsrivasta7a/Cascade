@@ -13,6 +13,12 @@ export interface SeedreamNodeData extends BaseNodeData {
   negativePrompt?: string;
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
   seed?: number;
+  numInferenceSteps?: number;
+  guidanceScale?: number;
+  truncatePrompt?: boolean;
+  promptEnhancer?: boolean;
+  syncMode?: boolean;
+  out?: Record<string, unknown>;
   context?: string; // Text from connected text node
   inputImage?: string; // Image from connected image node OR uploaded
   result?: string; // URL of generated image
@@ -27,7 +33,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,7 +124,23 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       } else {
         const imageUrl = result.output?.image?.url;
         if (imageUrl) {
-          updateNode(id, { result: imageUrl, status: "completed" });
+          updateNode(id, {
+            result: imageUrl,
+            status: "completed",
+            // Single bundled output payload (for downstream overrides)
+            out: {
+              prompt: data.prompt ?? "",
+              negativePrompt: data.negativePrompt ?? "",
+              aspectRatio: data.aspectRatio ?? "1:1",
+              seed: data.seed,
+              numInferenceSteps: data.numInferenceSteps ?? 30,
+              guidanceScale: data.guidanceScale ?? 5,
+              truncatePrompt: data.truncatePrompt ?? false,
+              promptEnhancer: data.promptEnhancer ?? false,
+              syncMode: data.syncMode ?? false,
+              image: imageUrl,
+            },
+          });
         }
       }
     } catch (error) {
@@ -154,12 +176,26 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "prompt", type: "text", label: "Prompt" },
+        // Always-visible ports
+        { id: "prompt", type: "text", label: "Prompt", required: true },
         { id: "image", type: "image", label: "Image" },
+
+        // Advanced ports (only show when settings panel is expanded)
+        { id: "numInferenceSteps", type: "number", label: "Steps", hidden: !showSettings },
+        { id: "guidanceScale", type: "number", label: "Guidance", hidden: !showSettings },
+        { id: "seed", type: "number", label: "Seed", hidden: !showSettings },
+        { id: "aspectRatio", type: "text", label: "Aspect", hidden: !showSettings },
+        { id: "negativePrompt", type: "negative", label: "Negative", hidden: !showSettings },
+        { id: "truncatePrompt", type: "boolean", label: "Truncate", hidden: !showSettings },
+        { id: "promptEnhancer", type: "boolean", label: "Enhancer", hidden: !showSettings },
+        { id: "syncMode", type: "boolean", label: "Sync", hidden: !showSettings },
       ]}
-      outputs={[{ id: "image", type: "image", label: "Image" }]}
+      outputs={[
+        // Single output: bundle of settings + image
+        { id: "out", type: "any", label: "Out" },
+      ]}
       left={
-        <div className="space-y-2">
+        <div className="space-y-3">
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -173,52 +209,47 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           />
 
           {/* Prompt Input */}
-          <textarea
-            value={data.prompt || ""}
-            onChange={(e) => updateNode(id, { prompt: e.target.value })}
-            placeholder={data.context ? "Override prompt..." : "Describe the image..."}
-            rows={2}
-            className="nodrag nowheel w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
-          />
+          <div>
+            <label className="text-[10px] font-medium text-zinc-400 mb-1 block">Prompt</label>
+            <textarea
+              value={data.prompt || ""}
+              onChange={(e) => updateNode(id, { prompt: e.target.value })}
+              placeholder={data.context ? "Override prompt..." : "Describe the image..."}
+              rows={3}
+              className="nodrag nowheel w-full px-3 py-2 rounded-xl bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
+            />
+          </div>
 
-          {/* Image Upload / Preview */}
+          {/* Image (optional) - kept compact to avoid "messy" layout */}
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onClick={() => !data.inputImage && fileInputRef.current?.click()}
-            className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-              isDragOver
-                ? "border-emerald-500 bg-emerald-500/10"
-                : data.inputImage
-                ? "border-emerald-500/30 bg-emerald-500/5"
-                : "border-white/10 bg-white/[0.02] hover:border-white/20"
+            className={`nodrag nowheel relative rounded-xl border border-white/10 bg-white/[0.02] transition-all cursor-pointer ${
+              isDragOver ? "border-emerald-500/40 bg-emerald-500/10" : "hover:border-white/20"
             }`}
           >
             {data.inputImage ? (
-              <div className="relative p-1">
-                <img 
-                  src={data.inputImage} 
-                  alt="Reference" 
-                  className="w-full h-16 object-cover rounded"
-                />
+              <div className="relative p-2">
+                <img src={data.inputImage} alt="Reference" className="w-full h-20 object-cover rounded-lg" />
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     updateNode(id, { inputImage: undefined });
                   }}
-                  className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
+                  className="absolute top-3 right-3 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
                 >
                   <X className="w-3 h-3 text-white" />
                 </button>
-                <div className="absolute bottom-2 left-2 text-[9px] text-emerald-400 bg-black/60 px-1.5 py-0.5 rounded">
-                  Edit Mode
-                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-3 text-zinc-500">
-                <Upload className="w-4 h-4 mb-1" />
-                <span className="text-[9px]">Drop image or click</span>
+              <div className="flex items-center justify-between px-3 py-2 text-zinc-500">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  <span className="text-[10px]">Add image (optional)</span>
+                </div>
+                <span className="text-[10px] text-zinc-600">Drag / click</span>
               </div>
             )}
           </div>
@@ -236,7 +267,11 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             </select>
             <button
               type="button"
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center transition-all ${
                 showSettings
                   ? "bg-white/10 border-white/20 text-white"
@@ -285,7 +320,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-2 pt-2 border-t border-white/5">
+                <div className="space-y-3 pt-2 border-t border-white/5">
                   {/* Negative Prompt */}
                   <div>
                     <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
@@ -295,9 +330,35 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                       value={data.negativePrompt || ""}
                       onChange={(e) => updateNode(id, { negativePrompt: e.target.value })}
                       placeholder="What to avoid..."
-                      rows={2}
+                      rows={3}
                       className="nodrag nowheel w-full px-2 py-1.5 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
                     />
+                  </div>
+
+                  {/* Num Inference Steps */}
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
+                      Num Inference Steps
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={1}
+                        max={60}
+                        step={1}
+                        value={data.numInferenceSteps ?? 30}
+                        onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value, 10) })}
+                        className="nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-200"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={data.numInferenceSteps ?? 30}
+                        onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value || "30", 10) })}
+                        className="nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono"
+                      />
+                    </div>
                   </div>
 
                   {/* Seed */}
@@ -313,6 +374,72 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                       className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20"
                     />
                   </div>
+
+                  {/* Guidance Scale */}
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
+                      Guidance Scale
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={1}
+                        max={12}
+                        step={0.5}
+                        value={data.guidanceScale ?? 5}
+                        onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value) })}
+                        className="nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-200"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        step={0.5}
+                        value={data.guidanceScale ?? 5}
+                        onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value || "5") })}
+                        className="nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Additional Settings */}
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                        Additional Settings
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                        <span className="text-[10px] text-zinc-300">Truncate Prompt</span>
+                        <input
+                          type="checkbox"
+                          checked={data.truncatePrompt ?? false}
+                          onChange={(e) => updateNode(id, { truncatePrompt: e.target.checked })}
+                          className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                        <span className="text-[10px] text-zinc-300">Prompt Enhancer</span>
+                        <input
+                          type="checkbox"
+                          checked={data.promptEnhancer ?? false}
+                          onChange={(e) => updateNode(id, { promptEnhancer: e.target.checked })}
+                          className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                        <span className="text-[10px] text-zinc-300">Sync Mode</span>
+                        <input
+                          type="checkbox"
+                          checked={data.syncMode ?? false}
+                          onChange={(e) => updateNode(id, { syncMode: e.target.checked })}
+                          className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -325,24 +452,23 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             {isGenerating ? (
               <>
                 <Loader2 className="w-3 h-3 animate-spin" />
-                {isEditMode ? "Editing..." : "Generating..."}
+                Generating...
               </>
             ) : data.result ? (
-              "Generated"
+              "Output"
             ) : (
-              "No output"
+              "—"
             )}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[100px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden min-h-[120px] flex items-center justify-center">
             {data.result ? (
-              <img
-                src={data.result}
-                alt="Generated"
-                className="w-full h-auto max-h-[180px] object-contain"
-              />
+              <img src={data.result} alt="Generated" className="w-full h-auto max-h-[220px] object-contain" />
             ) : (
-              <div className="text-zinc-600 text-[10px]">—</div>
+              <div className="text-zinc-600 text-[10px]">No output yet</div>
             )}
+          </div>
+          <div className="text-[9px] text-zinc-600 leading-relaxed">
+            Connect the single <span className="text-zinc-400 font-medium">Out</span> handle to override any target setting.
           </div>
         </div>
       }

@@ -159,6 +159,29 @@ function getConnectedPreviewFromLastOutputs(nodes: Node[], edges: Edge[], nodeId
   return undefined;
 }
 
+// Get incoming media (video/audio/image) from connected nodes
+function getIncomingMedia(edges: Edge[], outputs: OutputByNode, nodeId: string, targetHandle?: string): string | undefined {
+  const incoming = edges.filter((e) => e.target === nodeId && (!targetHandle || e.targetHandle === targetHandle));
+  
+  for (const e of incoming) {
+    const out = outputs.get(e.source);
+    if (!out) continue;
+    
+    // Check what type of output this is and return the URL
+    if (out.type === "video" && out.video?.url) {
+      return out.video.url;
+    }
+    if (out.type === "audio" && out.audio?.url) {
+      return out.audio.url;
+    }
+    if (out.type === "image" && out.image?.url) {
+      return out.image.url;
+    }
+  }
+  
+  return undefined;
+}
+
 function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes: Node[]) {
   const type = node.type as AINodeType;
   const data = (node.data ?? {}) as any;
@@ -186,21 +209,69 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     return v;
   };
 
+  // Helper to get media from connected nodes or from node data
+  const getVideoInput = (handleId?: string, dataField: string = "inputVideo") => {
+    // First check connected nodes
+    const connected = getIncomingMedia(edges, outputs, node.id, handleId);
+    if (connected) return { url: connected };
+    // Fall back to node's stored data
+    return normalizeAsset(data[dataField]);
+  };
+
+  const getAudioInput = (handleId?: string, dataField: string = "inputAudio") => {
+    // First check connected nodes
+    const connected = getIncomingMedia(edges, outputs, node.id, handleId);
+    if (connected) return { url: connected };
+    // Fall back to node's stored data
+    return normalizeAsset(data[dataField]);
+  };
+
+  const getImageInput = (handleId?: string, dataField: string = "inputImage") => {
+    // First check connected nodes
+    const connected = getIncomingMedia(edges, outputs, node.id, handleId);
+    if (connected) return { url: connected };
+    // Fall back to node's stored data
+    return normalizeAsset(data[dataField]);
+  };
+
   switch (type) {
     case "seedvr":
-      return { ...base, image: normalizeAsset(base.image) };
+      return { ...base, image: getImageInput("image", "inputImage") || normalizeAsset(base.image) };
     case "crop-image":
-      return { ...base, image: normalizeAsset(base.image) };
+      return { ...base, image: getImageInput("inputImage", "inputImage") || normalizeAsset(base.image) };
     case "extract-audio":
-      return { ...base, video: normalizeAsset(base.video) };
-    case "merge-videos":
-      return { ...base, video1: normalizeAsset(base.video1), video2: normalizeAsset(base.video2) };
-    case "merge-audio-video":
-      return { ...base, video: normalizeAsset(base.video), audio: normalizeAsset(base.audio) };
-    case "lipsync":
-      return { ...base, video: normalizeAsset(base.video), audio: normalizeAsset(base.audio) };
+      return { ...base, video: getVideoInput("inputVideo", "inputVideo") };
+    case "merge-videos": {
+      // Get videos from connected nodes by their specific handles
+      const video1Connected = getIncomingMedia(edges, outputs, node.id, "inputVideo1");
+      const video2Connected = getIncomingMedia(edges, outputs, node.id, "inputVideo2");
+      return {
+        ...base,
+        video1: video1Connected ? { url: video1Connected } : normalizeAsset(data.inputVideo1),
+        video2: video2Connected ? { url: video2Connected } : normalizeAsset(data.inputVideo2),
+      };
+    }
+    case "merge-audio-video": {
+      // Get video and audio from connected nodes by their specific handles
+      const videoConnected = getIncomingMedia(edges, outputs, node.id, "inputVideo");
+      const audioConnected = getIncomingMedia(edges, outputs, node.id, "inputAudio");
+      return {
+        ...base,
+        video: videoConnected ? { url: videoConnected } : normalizeAsset(data.inputVideo),
+        audio: audioConnected ? { url: audioConnected } : normalizeAsset(data.inputAudio),
+      };
+    }
+    case "lipsync": {
+      const videoConnected = getIncomingMedia(edges, outputs, node.id, "video");
+      const audioConnected = getIncomingMedia(edges, outputs, node.id, "audio");
+      return {
+        ...base,
+        video: videoConnected ? { url: videoConnected } : normalizeAsset(data.video),
+        audio: audioConnected ? { url: audioConnected } : normalizeAsset(data.audio),
+      };
+    }
     case "seedance":
-      return { ...base, frame: normalizeAsset(base.frame) };
+      return { ...base, frame: getImageInput("frame", "frame") || normalizeAsset(base.frame) };
     default:
       return base;
   }
@@ -218,13 +289,49 @@ function fakeAssetUrl(kind: "image" | "video" | "audio") {
   return "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav";
 }
 
+// Utility nodes that should be executed via the sync API
+const UTILITY_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
+
 async function executeWithProvider(type: AINodeType, provider: ProviderId, input: unknown): Promise<AnyOut> {
   void provider;
 
   const outType = NodePrimaryOutputType[type];
   
   console.log(`[executeWithProvider] Executing ${type} with provider ${provider}`);
-  console.log(`[executeWithProvider] Input:`, input);
+  console.log(`[executeWithProvider] Input:`, JSON.stringify(input).slice(0, 500));
+
+  // For utility nodes, call the sync execute API
+  if (UTILITY_NODE_TYPES.includes(type)) {
+    try {
+      console.log(`[executeWithProvider] Calling sync API for ${type}`);
+      
+      const response = await fetch("/api/nodes/execute-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeType: type,
+          input,
+        }),
+      });
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        throw new Error(`Failed to parse response: ${parseError}`);
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || `${type} execution failed`);
+      }
+
+      console.log(`[executeWithProvider] ${type} completed successfully`);
+      return result.output as AnyOut;
+    } catch (error) {
+      console.error(`[executeWithProvider] ${type} execution error:`, error);
+      throw new Error(`${type} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   
   // For OpenRouter/LLM nodes, call the real API
   if (type === "openrouter" && outType === "text") {

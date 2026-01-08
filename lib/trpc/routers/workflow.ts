@@ -2,6 +2,42 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../server";
 import { TRPCError } from "@trpc/server";
 
+// Sanitize nodes to remove large base64 content when returning from DB
+function sanitizeNodesFromStorage(nodesJson: unknown): unknown[] {
+  if (!Array.isArray(nodesJson)) return [];
+  
+  return nodesJson.map((node) => {
+    const n = node as Record<string, unknown>;
+    const data = (n.data ?? {}) as Record<string, unknown>;
+    
+    // Remove any remaining large base64 data
+    const sanitizedData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      // Check for base64 strings
+      if (typeof value === "string" && value.startsWith("data:") && value.length > 50000) {
+        sanitizedData[key] = "[media data - reload to view]";
+        continue;
+      }
+      
+      // Check for objects with base64 url
+      if (typeof value === "object" && value !== null && "url" in value) {
+        const obj = value as { url?: string };
+        if (typeof obj.url === "string" && obj.url.startsWith("data:") && obj.url.length > 50000) {
+          sanitizedData[key] = { ...obj, url: "[media data - reload to view]" };
+          continue;
+        }
+      }
+      
+      sanitizedData[key] = value;
+    }
+    
+    return {
+      ...n,
+      data: sanitizedData,
+    };
+  });
+}
+
 // =============================================================================
 // WORKFLOW ROUTER
 // =============================================================================
@@ -89,7 +125,13 @@ export const workflowRouter = router({
         });
       }
 
-      return { workflow };
+      // Sanitize nodesJson to remove any large base64 data before returning
+      const sanitizedWorkflow = {
+        ...workflow,
+        nodesJson: sanitizeNodesFromStorage(workflow.nodesJson),
+      };
+
+      return { workflow: sanitizedWorkflow };
     }),
 
   // Create a new workflow

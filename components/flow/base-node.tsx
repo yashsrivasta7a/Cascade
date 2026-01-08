@@ -35,6 +35,8 @@ interface HandleConfig {
   type: DataType;
   label: string;
   position?: "top" | "center" | "bottom";
+  required?: boolean;
+  hidden?: boolean; // hide port+label unless advanced section is open
 }
 
 interface BaseNodeProps extends NodeProps<BaseNodeData> {
@@ -166,9 +168,15 @@ function BaseNodeComponent({
 
   // Calculate handle positions
   const getHandleStyle = (index: number, total: number): CSSProperties => {
-    if (total === 1) return { top: "50%" };
-    const spacing = 100 / (total + 1);
-    return { top: `${spacing * (index + 1)}%` };
+    // Fal-like: keep ports higher and closer together (clustered),
+    // instead of spreading across full height.
+    if (total === 1) return { top: "40%" };
+
+    const bandStart = 20; // %
+    const bandEnd = 58; // %
+    const span = bandEnd - bandStart;
+    const spacing = span / (total - 1);
+    return { top: `${bandStart + spacing * index}%` };
   };
 
   return (
@@ -403,69 +411,97 @@ function BaseNodeComponent({
 
       {/* Input Handles */}
       {inputs.map((input, index) => {
+        const isHidden = Boolean(input.hidden);
         const handleColor = dataTypeColors[input.type];
-        const showLabel = inputs.length > 1 || isSelected;
+        const showLabel = true; // always show (Fal-style)
+        const top = getHandleStyle(index, inputs.length).top as string | undefined;
         return (
-          <Handle
+          <div
             key={`input-${input.id}`}
-            id={input.id}
-            type="target"
-            position={Position.Left}
-            style={getHandleStyle(index, inputs.length)}
-            className={cn(
-              "!w-3 !h-3 !-left-1.5 !border-2 transition-all duration-200",
-              "hover:scale-110",
-              `!${handleColor.bg}`,
-              `!${handleColor.border}`
-            )}
+            className="absolute left-0 h-0 z-20"
+            style={{ top }}
           >
-            <span
-              className={cn(
-                // Labels should live OUTSIDE the node, not inside it.
-                "absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full -ml-3 text-[9px] font-semibold whitespace-nowrap pointer-events-none",
-                "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
-                "transition-opacity",
-                handleColor.text,
-                showLabel ? "opacity-95" : "opacity-0 group-hover/node:opacity-95"
+            <div className={cn("group/port relative", isHidden && "opacity-0 pointer-events-none")}>
+              <Handle
+                id={input.id}
+                type="target"
+                position={Position.Left}
+                style={{ top: 0 }}
+                className={cn(
+                  // Bigger hitbox + half outside the card edge (Fal-like)
+                  "!w-4 !h-4 !-left-2 !border-2 !top-0 !-translate-y-1/2",
+                  // Subtle until user hovers the label/row
+                  "opacity-40 scale-90 group-hover/port:opacity-100 group-hover/port:scale-110",
+                  "transition-all duration-200",
+                  `!${handleColor.bg}`,
+                  `!${handleColor.border}`
+                )}
+              />
+
+              {showLabel && (
+                <span
+                  className={cn(
+                    "absolute right-full mr-2 top-0 -translate-y-1/2",
+                    "text-[10px] font-semibold whitespace-nowrap",
+                    "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
+                    "text-zinc-300 hover:text-white cursor-crosshair",
+                    handleColor.text
+                  )}
+                  title="Hover to reveal connector, then drag from the dot"
+                >
+                  {input.label}
+                  {input.required ? <span className="text-zinc-200 ml-0.5">*</span> : null}
+                </span>
               )}
-            >
-              {input.label}
-            </span>
-          </Handle>
+            </div>
+          </div>
         );
       })}
 
       {/* Output Handles */}
       {outputs.map((output, index) => {
+        const isHidden = Boolean(output.hidden);
         const handleColor = dataTypeColors[output.type];
-        const showLabel = outputs.length > 1 || isSelected;
+        const showLabel = true; // always show (Fal-style)
+        const top = getHandleStyle(index, outputs.length).top as string | undefined;
         return (
-          <Handle
+          <div
             key={`output-${output.id}`}
-            id={output.id}
-            type="source"
-            position={Position.Right}
-            style={getHandleStyle(index, outputs.length)}
-            className={cn(
-              "!w-3 !h-3 !-right-1.5 !border-2 transition-all duration-200",
-              "hover:scale-110",
-              `!${handleColor.bg}`,
-              `!${handleColor.border}`
-            )}
+            className="absolute right-0 h-0 z-20"
+            style={{ top }}
           >
-            <span
-              className={cn(
-                // Labels should live OUTSIDE the node, not inside it.
-                "absolute right-0 top-1/2 -translate-y-1/2 translate-x-full ml-3 text-[9px] font-semibold whitespace-nowrap pointer-events-none",
-                "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
-                "transition-opacity",
-                handleColor.text,
-                showLabel ? "opacity-95" : "opacity-0 group-hover/node:opacity-95"
+            <div className={cn("group/port relative", isHidden && "opacity-0 pointer-events-none")}>
+              <Handle
+                id={output.id}
+                type="source"
+                position={Position.Right}
+                style={{ top: 0 }}
+                className={cn(
+                  "!w-4 !h-4 !-right-2 !border-2 !top-0 !-translate-y-1/2",
+                  "opacity-40 scale-90 group-hover/port:opacity-100 group-hover/port:scale-110",
+                  "transition-all duration-200",
+                  `!${handleColor.bg}`,
+                  `!${handleColor.border}`
+                )}
+              />
+
+              {showLabel && (
+                <span
+                  className={cn(
+                    "absolute left-full ml-2 top-0 -translate-y-1/2",
+                    "text-[10px] font-semibold whitespace-nowrap",
+                    "px-2 py-1 rounded-xl border border-white/10 bg-black/40 backdrop-blur-md",
+                    "text-zinc-300 hover:text-white cursor-crosshair",
+                    handleColor.text
+                  )}
+                  title="Hover to reveal connector, then drag from the dot"
+                >
+                  {output.label}
+                  {output.required ? <span className="text-zinc-200 ml-0.5">*</span> : null}
+                </span>
               )}
-            >
-              {output.label}
-            </span>
-          </Handle>
+            </div>
+          </div>
         );
       })}
     </motion.div>

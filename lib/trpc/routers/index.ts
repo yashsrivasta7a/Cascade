@@ -2,6 +2,7 @@ import { router } from "../server";
 import { workflowRouter } from "./workflow";
 import { executionRouter } from "./execution";
 import { dashboardRouter } from "./dashboard";
+import { versionRouter } from "./version";
 
 // =============================================================================
 // ROOT ROUTER
@@ -12,6 +13,7 @@ export const appRouter = router({
   workflow: workflowRouter,
   execution: executionRouter,
   dashboard: dashboardRouter,
+  version: versionRouter,
 });
 
 // Export type for client-side inference

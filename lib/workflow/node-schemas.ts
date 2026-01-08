@@ -108,6 +108,12 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
     .object({
       prompt: z.string().min(1).max(LIMITS.text.maxPromptChars),
       negativePrompt: z.string().optional(),
+      numInferenceSteps: z.number().int().min(1).max(60).optional(),
+      guidanceScale: z.number().min(0).max(30).optional(),
+      seed: z.number().int().optional(),
+      truncatePrompt: z.boolean().optional(),
+      promptEnhancer: z.boolean().optional(),
+      syncMode: z.boolean().optional(),
       aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
       // Optional text context from previous nodes
       context: z.string().optional(),

@@ -22,7 +22,7 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,7 +101,12 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
         provider: nodeDef.provider,
         estimatedCost: nodeDef.estimatedCost,
       }}
-      inputs={[{ id: "image", type: "image", label: "Image" }]}
+      inputs={[
+        // Align port id with node.data field used by UI so edges override correctly
+        { id: "inputImage", type: "image", label: "Image", required: true },
+        { id: "scale", type: "text", label: "Scale", hidden: !showSettings },
+        { id: "enhanceFaces", type: "boolean", label: "Faces", hidden: !showSettings },
+      ]}
       outputs={[{ id: "upscaled", type: "image", label: "Upscaled" }]}
       left={
         <div className="space-y-2">
@@ -168,7 +173,11 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
             </select>
             <button
               type="button"
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center transition-all ${
                 showSettings
                   ? "bg-white/10 border-white/20 text-white"

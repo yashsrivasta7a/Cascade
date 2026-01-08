@@ -13,6 +13,7 @@ export interface LipsyncNodeData extends BaseNodeData {
   inputVideo?: string;
   inputAudio?: string;
   result?: string;
+  error?: string;
 }
 
 const nodeDef = NODE_DEFINITIONS.lipsync;
@@ -22,7 +23,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOverVideo, setIsDragOverVideo] = useState(false);
   const [isDragOverAudio, setIsDragOverAudio] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -30,14 +31,34 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
 
   const handleVideoUpload = useCallback((file: File) => {
     if (!file.type.startsWith("video/")) return;
-    const url = URL.createObjectURL(file);
-    updateNode(id, { inputVideo: url });
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { error: `Video too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+      return;
+    }
+    // Convert to base64 data URL so it can be sent to the server
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputVideo: base64, error: undefined });
+    };
+    reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const handleAudioUpload = useCallback((file: File) => {
     if (!file.type.startsWith("audio/")) return;
-    const url = URL.createObjectURL(file);
-    updateNode(id, { inputAudio: url });
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { error: `Audio too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+      return;
+    }
+    // Convert to base64 data URL so it can be sent to the server
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputAudio: base64, error: undefined });
+    };
+    reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const handleVideoDrop = useCallback((e: React.DragEvent) => {
@@ -103,8 +124,10 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "video", type: "video", label: "Video" },
-        { id: "audio", type: "audio", label: "Audio" },
+        // Align port ids with node.data fields used by UI so edges override correctly
+        { id: "inputVideo", type: "video", label: "Video", required: true },
+        { id: "inputAudio", type: "audio", label: "Audio", required: true },
+        { id: "model", type: "text", label: "Model", hidden: !showSettings },
       ]}
       outputs={[{ id: "synced", type: "video", label: "Synced" }]}
       left={
@@ -201,7 +224,11 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
                 showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
               }`}
@@ -246,6 +273,13 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Error Display */}
+          {data.error && (
+            <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-300">
+              {data.error}
+            </div>
+          )}
         </div>
       }
       right={

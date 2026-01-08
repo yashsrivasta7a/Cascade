@@ -25,7 +25,7 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,8 +99,12 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "prompt", type: "text", label: "Prompt" },
-        { id: "frame", type: "image", label: "Start Frame" },
+        { id: "prompt", type: "text", label: "Prompt", required: true },
+        // Align port id with node.data field used by UI so edges override correctly
+        { id: "inputFrame", type: "image", label: "Start Frame" },
+        { id: "duration", type: "text", label: "Duration", hidden: !showSettings },
+        { id: "aspectRatio", type: "text", label: "Aspect", hidden: !showSettings },
+        { id: "seed", type: "number", label: "Seed", hidden: !showSettings },
       ]}
       outputs={[{ id: "video", type: "video", label: "Video" }]}
       left={
@@ -182,7 +186,11 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
               <option value="1:1">1:1</option>
             </select>
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
                 showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
               }`}

@@ -1,18 +1,18 @@
 import { z } from "zod";
-import { Transloadit } from "transloadit";
 import type { NodeExecutor, NodeExecutionContext, NodeExecutionResult } from "../types";
 import { AssetRefSchema, ImageOutSchema } from "@/lib/workflow/node-schemas";
 
 // =============================================================================
-// CROP IMAGE - Internal Utility Node (via Transloadit)
+// CROP IMAGE - Internal Utility Node (via sharp)
 // =============================================================================
 
 export const CropImageInputSchema = z.object({
   image: AssetRefSchema,
-  top: z.number().min(0).max(100).default(0),
-  right: z.number().min(0).max(100).default(0),
-  bottom: z.number().min(0).max(100).default(0),
-  left: z.number().min(0).max(100).default(0),
+  // Percentage-based crop (0-100)
+  xPercent: z.number().min(0).max(100).default(0),
+  yPercent: z.number().min(0).max(100).default(0),
+  widthPercent: z.number().min(1).max(100).default(100),
+  heightPercent: z.number().min(1).max(100).default(100),
   context: z.string().optional(),
 });
 
@@ -21,18 +21,12 @@ export type CropImageInput = z.infer<typeof CropImageInputSchema>;
 export const CropImageOutputSchema = ImageOutSchema;
 export type CropImageOutput = z.infer<typeof CropImageOutputSchema>;
 
-function isTransloaditConfigured(): boolean {
-  return Boolean(
-    process.env.TRANSLOADIT_AUTH_KEY && process.env.TRANSLOADIT_AUTH_SECRET
-  );
-}
-
 export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = {
   type: "crop-image",
   version: "1.0.0",
   inputSchema: CropImageInputSchema,
   outputSchema: CropImageOutputSchema,
-  providers: ["internal"],  // Internal processing only
+  providers: ["internal"], // Uses sharp internally
   config: {
     timeout: "2m",
     retryPerProvider: 2,
@@ -43,67 +37,75 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
     input: CropImageInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
-    if (!isTransloaditConfigured()) {
-      return executeMock(input);
-    }
-
     try {
-      const transloadit = new Transloadit({
-        authKey: process.env.TRANSLOADIT_AUTH_KEY!,
-        authSecret: process.env.TRANSLOADIT_AUTH_SECRET!,
-      });
+      // Dynamic import to avoid bundling sharp in client
+      const sharp = (await import("sharp")).default;
 
-      // Calculate crop percentages
-      const cropX1 = `${input.left}%`;
-      const cropY1 = `${input.top}%`;
-      const cropX2 = `${100 - input.right}%`;
-      const cropY2 = `${100 - input.bottom}%`;
-
-      const result = await transloadit.createAssembly({
-        params: {
-          steps: {
-            import: {
-              robot: "/http/import",
-              url: input.image.url,
-            },
-            crop: {
-              robot: "/image/resize",
-              use: "import",
-              crop: {
-                x1: cropX1,
-                y1: cropY1,
-                x2: cropX2,
-                y2: cropY2,
-              },
-            },
-            export: {
-              robot: "/s3/store",
-              use: "crop",
-              // Configure your S3 bucket in Transloadit
-            },
-          },
-        },
-        waitForCompletion: true,
-      });
-
-      if (result.ok !== "ASSEMBLY_COMPLETED") {
-        throw new Error(`Transloadit assembly failed: ${result.error}`);
+      let imageBuffer: Buffer;
+      
+      // Handle base64 data URLs
+      if (input.image.url.startsWith("data:")) {
+        const base64Data = input.image.url.split(",")[1];
+        if (!base64Data) {
+          throw new Error("Invalid data URL format");
+        }
+        imageBuffer = Buffer.from(base64Data, "base64");
+      } else {
+        // Fetch remote URL
+        const response = await fetch(input.image.url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        imageBuffer = Buffer.from(await response.arrayBuffer());
       }
 
-      const croppedImage = result.results?.crop?.[0];
-      if (!croppedImage) {
-        throw new Error("No cropped image in result");
+      // Get image metadata
+      const metadata = await sharp(imageBuffer).metadata();
+      const width = metadata.width ?? 0;
+      const height = metadata.height ?? 0;
+
+      if (width === 0 || height === 0) {
+        throw new Error("Could not determine image dimensions");
       }
+
+      // Calculate crop region from percentages
+      const left = Math.round((input.xPercent / 100) * width);
+      const top = Math.round((input.yPercent / 100) * height);
+      const cropWidth = Math.round((input.widthPercent / 100) * width);
+      const cropHeight = Math.round((input.heightPercent / 100) * height);
+
+      // Ensure we don't exceed image bounds
+      const safeWidth = Math.min(cropWidth, width - left);
+      const safeHeight = Math.min(cropHeight, height - top);
+
+      if (safeWidth <= 0 || safeHeight <= 0) {
+        throw new Error("Invalid crop dimensions");
+      }
+
+      // Perform the crop
+      const croppedBuffer = await sharp(imageBuffer)
+        .extract({
+          left,
+          top,
+          width: safeWidth,
+          height: safeHeight,
+        })
+        .toBuffer();
+
+      // Convert to base64 data URL for immediate use
+      const mimeType = metadata.format === "png" ? "image/png" : "image/jpeg";
+      const base64 = croppedBuffer.toString("base64");
+      const dataUrl = `data:${mimeType};base64,${base64}`;
 
       return {
         success: true,
         output: {
           type: "image",
           image: {
-            url: croppedImage.ssl_url,
-            mimeType: croppedImage.mime,
-            width: croppedImage.meta?.width,
-            height: croppedImage.meta?.height,
+            url: dataUrl,
+            mimeType,
+            width: safeWidth,
+            height: safeHeight,
           },
         },
         providerUsed: "internal",
@@ -119,23 +121,4 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
   },
 };
 
-function executeMock(input: CropImageInput): NodeExecutionResult {
-  // For mock, just return the original image
-  return {
-    success: true,
-    output: {
-      type: "image",
-      image: {
-        url: input.image.url,
-        mimeType: input.image.mimeType ?? "image/jpeg",
-        width: input.image.width,
-        height: input.image.height,
-      },
-    },
-    providerUsed: "mock",
-    actualCost: 0,
-  };
-}
-
 export default cropImageExecutor;
-

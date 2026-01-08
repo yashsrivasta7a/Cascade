@@ -13,14 +13,14 @@ import {
   Layers,
   History,
   Target,
+  GitBranch,
 } from "lucide-react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Button } from "@/components/ui";
+import { useParams, useSearchParams } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
 import { NodeContextMenu } from "@/components/flow/node-context-menu";
 import { NodeTypeModal } from "@/components/flow/node-type-modal";
-import { NodePalette, ExecutionHistoryPanel } from "@/components/flow";
+import { NodePalette, ExecutionHistoryPanel, VersionHistoryPanel } from "@/components/flow";
+import { WorkflowSidebar } from "@/components/flow/workflow-sidebar";
 import { useFlowStore } from "@/store";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { RunModal } from "@/components/flow/run-modal";
@@ -28,18 +28,129 @@ import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { runWorkflow } from "@/lib/workflow/run-workflow";
 import { trpc } from "@/lib/trpc/react";
 
+// Sanitize node data for storage - removes large base64 content
+function sanitizeNodesForStorage(nodes: unknown[]): unknown[] {
+  return nodes.map((node) => {
+    const n = node as Record<string, unknown>;
+    const data = (n.data ?? {}) as Record<string, unknown>;
+    
+    // Create sanitized data - remove large base64 content
+    const sanitizedData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data)) {
+      // Skip output fields that contain base64 data
+      if (key === "outputVideo" || key === "outputAudio" || key === "outputImage" || 
+          key === "croppedImage" || key === "mergedVideo" || key === "extractedAudio" ||
+          key === "generatedImage" || key === "generatedVideo" || key === "generatedAudio") {
+        continue;
+      }
+      
+      // Skip result field (contains output data)
+      if (key === "result") continue;
+      
+      // Skip status/progress (runtime state)
+      if (key === "status" || key === "progress" || key === "error") continue;
+      
+      // Check for base64 strings
+      if (typeof value === "string" && value.startsWith("data:") && value.length > 10000) {
+        continue; // Skip large base64 data
+      }
+      
+      // Check for objects with base64 url
+      if (typeof value === "object" && value !== null && "url" in value) {
+        const obj = value as { url?: string };
+        if (typeof obj.url === "string" && obj.url.startsWith("data:") && obj.url.length > 10000) {
+          continue; // Skip objects with large base64 URLs
+        }
+      }
+      
+      sanitizedData[key] = value;
+    }
+    
+    return {
+      ...n,
+      data: sanitizedData,
+    };
+  });
+}
+
+// Keyboard shortcut component
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="px-1.5 py-0.5 text-[10px] font-medium bg-zinc-800 rounded border border-zinc-600 text-zinc-400 font-mono">
+      {children}
+    </kbd>
+  );
+}
+
 export default function WorkflowEditorPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const workflowId = params?.id ?? "unknown";
+  const focusParam = searchParams?.get("focus");
   const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, focusNode, focusNodeId } = useFlowStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [workflowSidebarOpen, setWorkflowSidebarOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [creditBalance] = useState(10_000);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [workflowName, setWorkflowName] = useState("My Workflow");
   const [dbWorkflowId, setDbWorkflowId] = useState<string | null>(null);
+  const [hoveredAction, setHoveredAction] = useState<string | null>(null);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+      
+      const key = e.key.toLowerCase();
+      
+      switch (key) {
+        case "n":
+          e.preventDefault();
+          e.stopPropagation();
+          setPaletteOpen(prev => !prev);
+          break;
+        case "h":
+          e.preventDefault();
+          e.stopPropagation();
+          setHistoryOpen(prev => !prev);
+          break;
+        case "v":
+          e.preventDefault();
+          e.stopPropagation();
+          setVersionsOpen(prev => !prev);
+          break;
+        case "r":
+          e.preventDefault();
+          e.stopPropagation();
+          if (!isWorkflowRunning) setIsRunModalOpen(true);
+          break;
+        case "w":
+          e.preventDefault();
+          e.stopPropagation();
+          setWorkflowSidebarOpen(prev => !prev);
+          break;
+        case "escape":
+          setPaletteOpen(false);
+          setHistoryOpen(false);
+          setVersionsOpen(false);
+          setWorkflowSidebarOpen(false);
+          setIsAddModalOpen(false);
+          setIsRunModalOpen(false);
+          break;
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, [isWorkflowRunning]);
 
   // tRPC queries and mutations
   const utils = trpc.useUtils();
@@ -102,13 +213,27 @@ export default function WorkflowEditorPage() {
     }
   }, [workflowId, workflowData, loadFlow]);
 
+  // Handle focus parameter from URL (e.g., when navigating from executions page)
+  useEffect(() => {
+    if (focusParam && nodes.length > 0) {
+      // Small delay to ensure the canvas is ready
+      const timer = setTimeout(() => {
+        focusNode(focusParam);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [focusParam, nodes.length, focusNode]);
+
   // Save workflow to database (manual only)
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
     
+    // Sanitize nodes to remove large base64 content before saving
+    const sanitizedNodes = sanitizeNodesForStorage(nodes as unknown[]);
+    
     const workflowData = {
       name: workflowName,
-      nodesJson: nodes as unknown[],
+      nodesJson: sanitizedNodes,
       edgesJson: edges as unknown[],
       viewportJson: viewport,
     };
@@ -280,16 +405,16 @@ export default function WorkflowEditorPage() {
           </div>
         )}
 
-        {/* Top Bar */}
-        <div className="fixed top-3 left-3 right-3 z-50 flex items-center justify-between">
-          {/* Left: Back + Name */}
+        {/* Top Left: Workflows Button + Name */}
+        <div className="fixed top-3 left-3 z-50">
           <div className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-2 py-1.5">
-            <Link
-              href="/workflows"
+            <button
+              onClick={() => setWorkflowSidebarOpen(true)}
               className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+              title="All Workflows"
             >
               <ChevronLeft className="w-4 h-4" />
-            </Link>
+            </button>
             <div className="w-px h-5 bg-zinc-800" />
             <input
               type="text"
@@ -299,70 +424,294 @@ export default function WorkflowEditorPage() {
               placeholder="Workflow Name"
             />
           </div>
+        </div>
 
-          {/* Center: Actions */}
-          <div className="flex items-center gap-1 bg-zinc-950/90 border border-zinc-800 rounded-xl px-1.5 py-1.5">
-            <button
-              onClick={() => setPaletteOpen((v) => !v)}
-              className={`p-2 rounded-lg transition-colors ${
-                paletteOpen 
-                  ? "bg-zinc-800 text-zinc-200" 
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}
-              title="Toggle Nodes"
-            >
-              <Layers className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
-              title="Add Node"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setHistoryOpen(true)}
-              className={`p-2 rounded-lg transition-colors ${
-                historyOpen 
-                  ? "bg-zinc-800 text-zinc-200" 
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
-              }`}
-              title="Run History"
-            >
-              <History className="w-4 h-4" />
-            </button>
-            <div className="w-px h-5 bg-zinc-800 mx-0.5" />
-            <button
-              onClick={handleSave}
-              disabled={saveStatus === "saving"}
-              className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors disabled:opacity-50"
-              title={saveStatus === "saved" ? "Saved!" : "Save"}
-            >
-              {saveStatus === "saving" ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : saveStatus === "saved" ? (
-                <Check className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-            </button>
-            <div className="w-px h-5 bg-zinc-800 mx-0.5" />
-            <button
-              onClick={() => !isWorkflowRunning && setIsRunModalOpen(true)}
-              disabled={isWorkflowRunning}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              {isWorkflowRunning ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Play className="w-3.5 h-3.5" />
-              )}
-              <span>{isWorkflowRunning ? "Running" : "Run"}</span>
-            </button>
-          </div>
+        {/* Workflow Sidebar */}
+        <WorkflowSidebar
+          isOpen={workflowSidebarOpen}
+          onClose={() => setWorkflowSidebarOpen(false)}
+          currentWorkflowId={dbWorkflowId ?? workflowId}
+        />
 
-          {/* Right: Spacer for balance */}
-          <div className="w-[180px]" />
+        {/* Bottom Center: Floating Actions Bar - Sleek Dark Theme with Blue Accents */}
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+          <motion.div
+            initial={{ y: 30, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="relative group"
+          >
+            {/* Subtle glow effect */}
+            <div className="absolute inset-0 bg-zinc-600/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
+            
+            {/* Main bar */}
+            <div className="relative flex items-center gap-0.5 bg-gradient-to-b from-zinc-800/95 to-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-2xl px-1.5 py-1.5 shadow-2xl shadow-black/50">
+              {/* Subtle inner glow */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-zinc-700/5 to-zinc-600/10 pointer-events-none" />
+              
+              {/* Nodes toggle */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setPaletteOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("nodes")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    paletteOpen 
+                      ? "text-blue-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Layers className="w-4 h-4 relative z-10" />
+                  {paletteOpen && (
+                    <>
+                      {/* Blue glow behind */}
+                      <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicator"
+                        className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
+                </motion.button>
+                
+                {/* Tooltip with shortcut */}
+                <AnimatePresence>
+                  {hoveredAction === "nodes" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Nodes</span>
+                        <Kbd>N</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Add node */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setIsAddModalOpen(true)}
+                  onMouseEnter={() => setHoveredAction("add")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+                >
+                  <Plus className="w-4 h-4" />
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "add" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <span className="text-xs text-zinc-300">Add Node</span>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* History toggle */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setHistoryOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("history")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    historyOpen 
+                      ? "text-blue-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <History className="w-4 h-4 relative z-10" />
+                  {historyOpen && (
+                    <>
+                      {/* Blue glow behind */}
+                      <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicator2"
+                        className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "history" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">History</span>
+                        <Kbd>H</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Versions toggle */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setVersionsOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("versions")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    versionsOpen 
+                      ? "text-blue-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <GitBranch className="w-4 h-4 relative z-10" />
+                  {versionsOpen && (
+                    <>
+                      {/* Blue glow behind */}
+                      <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicator3"
+                        className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "versions" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Versions</span>
+                        <Kbd>V</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* Save */}
+              <div className="relative">
+                <motion.button
+                  onClick={handleSave}
+                  onMouseEnter={() => setHoveredAction("save")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  disabled={saveStatus === "saving"}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all duration-200 disabled:opacity-50"
+                >
+                  {saveStatus === "saving" ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  ) : saveStatus === "saved" ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "save" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">
+                          {saveStatus === "saved" ? "Saved!" : "Save"}
+                        </span>
+                        <Kbd>S</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* Run button - Blue glowing gradient */}
+              <div className="relative group/runwrap">
+                {/* Outer glow */}
+                <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity" />
+                
+                <motion.button
+                  onClick={() => !isWorkflowRunning && setIsRunModalOpen(true)}
+                  onMouseEnter={() => setHoveredAction("run")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  disabled={isWorkflowRunning}
+                  whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: 1.02 }}
+                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden disabled:opacity-60 group/run"
+                >
+                  {/* Button gradient background - blue */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 bg-[length:200%_100%] group-hover/run:animate-shimmer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                  
+                  {/* Content */}
+                  <div className="relative flex items-center gap-2">
+                    {isWorkflowRunning ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Play className="w-4 h-4 text-white" />
+                    )}
+                    <span className="text-sm font-semibold text-white tracking-wide">
+                      {isWorkflowRunning ? "Running" : "Run"}
+                    </span>
+                  </div>
+                  
+                  {/* Shine effect */}
+                  <div className="absolute inset-0 opacity-0 group-hover/run:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover/run:translate-x-full transition-transform duration-700" />
+                  </div>
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "run" && !isWorkflowRunning && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Run</span>
+                        <Kbd>R</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Floating context menu near selected node */}
@@ -376,13 +725,25 @@ export default function WorkflowEditorPage() {
           onNodeClick={(nodeId) => focusNode(nodeId)}
         />
 
-        {/* Hint when has nodes but few */}
+        {/* Version History Panel */}
+        <VersionHistoryPanel
+          workflowId={dbWorkflowId ?? workflowId}
+          isOpen={versionsOpen}
+          onClose={() => setVersionsOpen(false)}
+          onRestore={(nodesJson, edgesJson, viewportJson) => {
+            loadFlow(nodesJson, edgesJson);
+            // Reload the page data
+            window.location.reload();
+          }}
+        />
+
+        {/* Hint when has nodes but few - positioned above the floating bar */}
         {nodes.length > 0 && nodes.length < 3 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none"
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 pointer-events-none z-40"
           >
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/80 border border-zinc-800">
               <MousePointer2 className="w-3.5 h-3.5 text-zinc-500" />

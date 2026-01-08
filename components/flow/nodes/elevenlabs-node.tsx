@@ -37,7 +37,7 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
 
   const runGenerate = useCallback(async () => {
     const text = data.text?.trim() || data.context?.trim();
@@ -87,7 +87,12 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
         provider: nodeDef.provider,
         estimatedCost: nodeDef.estimatedCost,
       }}
-      inputs={[{ id: "text", type: "text", label: "Script" }]}
+      inputs={[
+        { id: "text", type: "text", label: "Script", required: true },
+        { id: "voiceId", type: "text", label: "Voice", hidden: !showSettings },
+        { id: "stability", type: "number", label: "Stability", hidden: !showSettings },
+        { id: "clarity", type: "number", label: "Clarity", hidden: !showSettings },
+      ]}
       outputs={[{ id: "audio", type: "audio", label: "Audio" }]}
       left={
         <div className="space-y-2">
@@ -118,7 +123,11 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
                 showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
               }`}

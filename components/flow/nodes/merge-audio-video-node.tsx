@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
 import { Combine, Settings, Play, Loader2, Upload, X, Film, Volume2 } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "../base-node";
@@ -13,6 +13,8 @@ export interface MergeAudioVideoNodeData extends BaseNodeData {
   inputVideo?: string;
   inputAudio?: string;
   result?: string;
+  advancedOpen?: boolean;
+  error?: string;
 }
 
 const nodeDef = NODE_DEFINITIONS["merge-audio-video"];
@@ -20,9 +22,10 @@ const nodeDef = NODE_DEFINITIONS["merge-audio-video"];
 function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const propagateOutput = useFlowStore((s) => s.propagateOutput);
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
   const [isDragOverVideo, setIsDragOverVideo] = useState(false);
   const [isDragOverAudio, setIsDragOverAudio] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -30,28 +33,63 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
 
   const handleVideoUpload = useCallback((file: File) => {
     if (!file.type.startsWith("video/")) return;
-    const url = URL.createObjectURL(file);
-    updateNode(id, { inputVideo: url });
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { error: `Video too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+      return;
+    }
+    // Convert to base64 data URL so it can be sent to the server
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputVideo: base64, error: undefined });
+    };
+    reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const handleAudioUpload = useCallback((file: File) => {
     if (!file.type.startsWith("audio/")) return;
-    const url = URL.createObjectURL(file);
-    updateNode(id, { inputAudio: url });
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { error: `Audio too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+      return;
+    }
+    // Convert to base64 data URL so it can be sent to the server
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputAudio: base64, error: undefined });
+    };
+    reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const runMerge = useCallback(async () => {
     if (!data.inputVideo || !data.inputAudio) return;
     
+    // Check combined size before sending (rough estimate from base64 length)
+    const videoSize = data.inputVideo.length;
+    const audioSize = data.inputAudio.length;
+    const combinedSizeMB = (videoSize + audioSize) / (1024 * 1024);
+    
+    if (combinedSizeMB > 45) {
+      updateNode(id, { 
+        status: "failed", 
+        error: `Combined input too large (${combinedSizeMB.toFixed(1)}MB). Try using smaller video/audio files (max ~15MB each).` 
+      });
+      return;
+    }
+    
     setIsProcessing(true);
-    updateNode(id, { status: "running" });
+    updateNode(id, { status: "running", error: undefined });
 
     try {
-      const response = await fetch("/api/nodes/execute", {
+      const response = await fetch("/api/nodes/execute-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodeType: "merge-audio-video",
+          nodeId: id,
+          nodeLabel: data.label || nodeDef.label,
           input: {
             video: { url: data.inputVideo },
             audio: { url: data.inputAudio },
@@ -60,18 +98,46 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
         }),
       });
 
-      const result = await response.json();
-      if (result.status === "triggered") {
-        updateNode(id, { status: "running" });
+      // Handle response parsing errors (can happen with very large payloads)
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        updateNode(id, { 
+          status: "failed", 
+          error: "Response too large or malformed. Try with smaller files." 
+        });
+        return;
+      }
+
+      if (result.success && result.output?.video?.url) {
+        updateNode(id, { result: result.output.video.url, status: "completed" });
+        // Propagate to connected nodes
+        propagateOutput(id, result.output.video.url);
+      } else {
+        updateNode(id, { status: "failed", error: result.error || "Unknown error" });
       }
     } catch (error) {
-      updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      // Check for common size-related errors
+      if (errorMsg.includes("JSON") || errorMsg.includes("body")) {
+        updateNode(id, { status: "failed", error: "Request too large. Try using smaller video/audio files." });
+      } else {
+        updateNode(id, { status: "failed", error: errorMsg });
+      }
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputVideo, data.inputAudio, data.replaceAudio, id, updateNode]);
+  }, [data.inputVideo, data.inputAudio, data.replaceAudio, id, updateNode, propagateOutput]);
 
   const hasInputs = Boolean(data.inputVideo && data.inputAudio);
+
+  // Memoize inputs
+  const inputs = useMemo(() => [
+    { id: "inputVideo", type: "video" as const, label: "Video", required: true },
+    { id: "inputAudio", type: "audio" as const, label: "Audio", required: true },
+    { id: "replaceAudio", type: "boolean" as const, label: "Replace", hidden: !showSettings },
+  ], [showSettings]);
 
   return (
     <BaseNode
@@ -87,10 +153,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
         provider: nodeDef.provider,
         estimatedCost: nodeDef.estimatedCost,
       }}
-      inputs={[
-        { id: "video", type: "video", label: "Video" },
-        { id: "audio", type: "audio", label: "Audio" },
-      ]}
+      inputs={inputs}
       outputs={[{ id: "combined", type: "video", label: "Combined" }]}
       left={
         <div className="space-y-2">
@@ -186,7 +249,11 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
                 showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
               }`}
@@ -234,6 +301,13 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Error Display */}
+          {data.error && (
+            <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-300">
+              {data.error}
+            </div>
+          )}
         </div>
       }
       right={

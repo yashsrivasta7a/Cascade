@@ -68,7 +68,7 @@ function OpenRouterNodeComponent(props: NodeProps<OpenRouterNodeData>) {
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
 
   const [isStreaming, setIsStreaming] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [showNegative, setShowNegative] = useState(Boolean(data.negativePrompt));
   const [isDragOver, setIsDragOver] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -237,10 +237,20 @@ ${data.prompt}`;
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
+        { id: "prompt", type: "text", label: "Prompt", required: true },
         { id: "context", type: "text", label: "Context" },
-        { id: "image", type: "image", label: "Image" },
+        // Use actual node.data fields so edges can override behavior.
+        { id: "inputImage", type: "image", label: "Image", hidden: !showSettings },
+        { id: "systemPrompt", type: "text", label: "System", hidden: !showSettings },
+        { id: "model", type: "text", label: "Model", hidden: !showSettings },
+        { id: "temperature", type: "number", label: "Temp", hidden: !showSettings },
+        { id: "maxTokens", type: "number", label: "MaxTok", hidden: !showSettings },
+        { id: "negativePrompt", type: "negative", label: "Negative", hidden: !showSettings },
       ]}
-      outputs={[{ id: "response", type: "text", label: "Response" }]}
+      outputs={[
+        { id: "response", type: "text", label: "Response" },
+        { id: "out", type: "any", label: "Out" },
+      ]}
       left={
         <div className="space-y-2">
           {/* Hidden file input */}
@@ -312,7 +322,11 @@ ${data.prompt}`;
               ))}
             </select>
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
               className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
                 showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
               }`}

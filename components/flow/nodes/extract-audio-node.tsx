@@ -1,34 +1,73 @@
 "use client";
 
-import { memo, useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { AudioLines, Settings, Play, Loader2, Upload, X, Film } from "lucide-react";
+import { AudioLines, Settings, Play, Loader2, Upload, X, Film, Download, Volume2 } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface ExtractAudioNodeData extends BaseNodeData {
-  format?: "mp3" | "wav" | "aac";
+  format?: "mp3" | "wav" | "aac" | "ogg";
+  bitrate?: "128k" | "192k" | "256k" | "320k";
+  sampleRate?: "22050" | "44100" | "48000";
+  channels?: "1" | "2";
+  normalize?: boolean;
   inputVideo?: string;
   result?: string;
+  advancedOpen?: boolean;
+  error?: string;
 }
 
 const nodeDef = NODE_DEFINITIONS["extract-audio"];
 
+const FORMAT_INFO = {
+  mp3: { name: "MP3", desc: "Most compatible, good compression" },
+  wav: { name: "WAV", desc: "Lossless, large files" },
+  aac: { name: "AAC", desc: "High quality, Apple preferred" },
+  ogg: { name: "OGG", desc: "Open format, good quality" },
+};
+
+const BITRATE_INFO = {
+  "128k": { name: "128 kbps", desc: "Good for speech" },
+  "192k": { name: "192 kbps", desc: "Balanced quality" },
+  "256k": { name: "256 kbps", desc: "High quality" },
+  "320k": { name: "320 kbps", desc: "Maximum quality" },
+};
+
 function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const propagateOutput = useFlowStore((s) => s.propagateOutput);
   
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const handleVideoUpload = useCallback((file: File) => {
     if (!file.type.startsWith("video/")) return;
-    const url = URL.createObjectURL(file);
-    updateNode(id, { inputVideo: url });
+    
+    // Check file size - limit to 10MB for base64 JSON transport
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { error: `File too large (${sizeMB.toFixed(1)}MB). Max 10MB for video processing. Try a shorter or lower resolution video.` });
+      return;
+    }
+
+    updateNode(id, { error: undefined, status: "idle" });
+
+    // Convert to base64 data URL so it can be sent to the server
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      updateNode(id, { inputVideo: base64, result: undefined, error: undefined });
+    };
+    reader.onerror = () => {
+      updateNode(id, { error: "Failed to read file" });
+    };
+    reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -43,31 +82,61 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
     if (!data.inputVideo) return;
     
     setIsProcessing(true);
-    updateNode(id, { status: "running" });
+    updateNode(id, { status: "running", error: undefined });
 
     try {
-      const response = await fetch("/api/nodes/execute", {
+      const response = await fetch("/api/nodes/execute-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodeType: "extract-audio",
+          nodeId: id,
+          nodeLabel: data.label || nodeDef.label,
           input: {
             video: { url: data.inputVideo },
             format: data.format || "mp3",
+            bitrate: data.bitrate || "192k",
+            sampleRate: data.sampleRate || "44100",
+            channels: data.channels || "2",
+            normalize: data.normalize || false,
           },
         }),
       });
 
       const result = await response.json();
-      if (result.status === "triggered") {
-        updateNode(id, { status: "running" });
+      if (result.success && result.output?.audio?.url) {
+        updateNode(id, { result: result.output.audio.url, status: "completed" });
+        // Propagate to connected nodes
+        propagateOutput(id, result.output.audio.url);
+      } else {
+        updateNode(id, { status: "failed", error: result.error || "Unknown error" });
       }
     } catch (error) {
       updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputVideo, data.format, id, updateNode]);
+  }, [data.inputVideo, data.format, data.bitrate, data.sampleRate, data.channels, data.normalize, id, updateNode, propagateOutput]);
+
+  // Memoize inputs
+  const inputs = useMemo(() => [
+    { id: "inputVideo", type: "video" as const, label: "Video", required: true },
+    { id: "format", type: "text" as const, label: "Format", hidden: !showSettings },
+    { id: "bitrate", type: "text" as const, label: "Bitrate", hidden: !showSettings },
+    { id: "sampleRate", type: "text" as const, label: "Sample Rate", hidden: !showSettings },
+    { id: "channels", type: "text" as const, label: "Channels", hidden: !showSettings },
+  ], [showSettings]);
+
+  const handleDownload = useCallback(() => {
+    if (!data.result) return;
+    const link = document.createElement("a");
+    link.href = data.result;
+    link.download = `audio-${Date.now()}.${data.format || "mp3"}`;
+    link.click();
+  }, [data.result, data.format]);
+
+  const formatInfo = FORMAT_INFO[data.format || "mp3"];
+  const bitrateInfo = BITRATE_INFO[data.bitrate || "192k"];
 
   return (
     <BaseNode
@@ -83,10 +152,10 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
         provider: nodeDef.provider,
         estimatedCost: nodeDef.estimatedCost,
       }}
-      inputs={[{ id: "video", type: "video", label: "Video" }]}
+      inputs={inputs}
       outputs={[{ id: "audio", type: "audio", label: "Audio" }]}
       left={
-        <div className="space-y-2">
+        <div className="space-y-3">
           {/* Hidden input */}
           <input
             ref={videoInputRef}
@@ -99,76 +168,117 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
             className="hidden"
           />
 
-          {/* Video Upload */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onClick={() => !data.inputVideo && videoInputRef.current?.click()}
-            className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-              isDragOver
-                ? "border-violet-500 bg-violet-500/10"
-                : data.inputVideo
-                ? "border-violet-500/30 bg-violet-500/5"
-                : "border-white/10 bg-white/[0.02] hover:border-white/20"
-            }`}
-          >
-            {data.inputVideo ? (
-              <div className="relative p-1">
-                <video src={data.inputVideo} className="w-full h-14 object-cover rounded" muted />
-                <button
-                  onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined }); }}
-                  className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
-                <div className="absolute bottom-2 left-2 text-[9px] text-violet-400 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-1">
-                  <Film className="w-2.5 h-2.5" />Video
+          {/* INPUT Section */}
+          <div>
+            <label className="text-[10px] font-medium text-zinc-400 mb-1.5 block">Video Input</label>
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onClick={() => !data.inputVideo && videoInputRef.current?.click()}
+              className={`nodrag nowheel relative rounded-xl overflow-hidden transition-all cursor-pointer ${
+                isDragOver
+                  ? "ring-2 ring-violet-500"
+                  : data.inputVideo
+                  ? "ring-1 ring-white/10"
+                  : "border-2 border-dashed border-white/10 hover:border-white/20"
+              }`}
+            >
+              {data.inputVideo ? (
+                <div className="relative">
+                  <video 
+                    src={data.inputVideo} 
+                    className="w-full h-auto max-h-[100px] object-contain bg-black/20" 
+                    muted 
+                  />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined, result: undefined }); }}
+                    className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 text-[9px] text-violet-400 bg-black/70 px-2 py-1 rounded-lg flex items-center gap-1">
+                    <Film className="w-3 h-3" />Video loaded
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-4 text-zinc-500">
-                <Film className="w-4 h-4 mb-1" />
-                <span className="text-[9px]">Drop video or click</span>
-              </div>
-            )}
+              ) : (
+                <div className="flex flex-col items-center justify-center py-6 text-zinc-500">
+                  <Film className="w-5 h-5 mb-2" />
+                  <span className="text-[10px]">Drop video or click to upload</span>
+                  <span className="text-[9px] text-zinc-600 mt-1">Max 10MB</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Format Selection */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] text-zinc-500 mb-1 block">Format</label>
+              <select
+                value={data.format || "mp3"}
+                onChange={(e) => updateNode(id, { format: e.target.value as any })}
+                className="nodrag nowheel w-full h-8 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+              >
+                {Object.entries(FORMAT_INFO).map(([key, { name }]) => (
+                  <option key={key} value={key}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] text-zinc-500 mb-1 block">Bitrate</label>
+              <select
+                value={data.bitrate || "192k"}
+                onChange={(e) => updateNode(id, { bitrate: e.target.value as any })}
+                className="nodrag nowheel w-full h-8 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+              >
+                {Object.entries(BITRATE_INFO).map(([key, { name }]) => (
+                  <option key={key} value={key}>{name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Info badges */}
+          <div className="flex gap-2 text-[8px]">
+            <span className="px-2 py-1 bg-white/5 rounded-md text-zinc-400">{formatInfo.desc}</span>
+            <span className="px-2 py-1 bg-white/5 rounded-md text-zinc-400">{bitrateInfo.desc}</span>
           </div>
 
           {/* Controls Row */}
           <div className="flex items-center gap-2">
-            <select
-              value={data.format || "mp3"}
-              onChange={(e) => updateNode(id, { format: e.target.value as "mp3" | "wav" | "aac" })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
-            >
-              <option value="mp3">MP3</option>
-              <option value="wav">WAV</option>
-              <option value="aac">AAC</option>
-            </select>
             <button
-              onClick={() => setShowSettings(!showSettings)}
-              className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
-                showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
+              onClick={() => {
+                const next = !showSettings;
+                setShowSettings(next);
+                updateNode(id, { advancedOpen: next });
+              }}
+              className={`nodrag nowheel h-8 w-8 rounded-lg border flex items-center justify-center transition-all ${
+                showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
               }`}
             >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className="w-4 h-4" />
             </button>
             <button
               onClick={runExtract}
-              disabled={!data.inputVideo}
-              className={`nodrag nowheel h-7 px-3 rounded-lg border text-[10px] font-semibold flex items-center gap-1.5 ${
+              disabled={!data.inputVideo || isProcessing}
+              className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
                 isProcessing
-                  ? "bg-red-500/20 border-red-500/30 text-red-300"
+                  ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                   : data.inputVideo
-                  ? "bg-zinc-500/20 border-zinc-500/30 text-zinc-300 hover:bg-zinc-500/30"
+                  ? "bg-violet-500/20 border-violet-500/30 text-violet-300 hover:bg-violet-500/30"
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Play className="w-3 h-3" />Extract</>}
+              {isProcessing ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" />Extracting...</>
+              ) : (
+                <><AudioLines className="w-3.5 h-3.5" />Extract Audio</>
+              )}
             </button>
           </div>
 
-          {/* Collapsible Settings */}
+          {/* Collapsible Advanced Settings */}
           <AnimatePresence>
             {showSettings && (
               <motion.div
@@ -177,38 +287,93 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="pt-2 border-t border-white/5">
-                  <div className="text-[9px] text-zinc-500 space-y-1">
-                    <div className="flex justify-between">
-                      <span>MP3</span>
-                      <span className="text-zinc-400">Compressed, most compatible</span>
+                <div className="space-y-3 pt-3 border-t border-white/5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] text-zinc-500 mb-1 block">Sample Rate</label>
+                      <select
+                        value={data.sampleRate || "44100"}
+                        onChange={(e) => updateNode(id, { sampleRate: e.target.value as any })}
+                        className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                      >
+                        <option value="22050">22.05 kHz</option>
+                        <option value="44100">44.1 kHz (CD)</option>
+                        <option value="48000">48 kHz (Video)</option>
+                      </select>
                     </div>
-                    <div className="flex justify-between">
-                      <span>WAV</span>
-                      <span className="text-zinc-400">Lossless, large files</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>AAC</span>
-                      <span className="text-zinc-400">Advanced, Apple preferred</span>
+                    <div>
+                      <label className="text-[9px] text-zinc-500 mb-1 block">Channels</label>
+                      <select
+                        value={data.channels || "2"}
+                        onChange={(e) => updateNode(id, { channels: e.target.value as any })}
+                        className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                      >
+                        <option value="1">Mono</option>
+                        <option value="2">Stereo</option>
+                      </select>
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={data.normalize || false}
+                      onChange={(e) => updateNode(id, { normalize: e.target.checked })}
+                      className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20 accent-violet-500"
+                    />
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Normalize Audio</span>
+                      <p className="text-[8px] text-zinc-500">Adjusts volume to optimal level</p>
+                    </div>
+                  </label>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      }
-      right={
-        <div className="space-y-2">
-          <div className="text-[10px] text-zinc-500">
-            {isProcessing ? "Extracting..." : data.result ? "Audio Ready" : "No output"}
-          </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2 min-h-[50px] flex items-center justify-center">
-            {data.result ? (
-              <audio src={data.result} controls className="w-full h-8" />
-            ) : (
-              <span className="text-zinc-600 text-[10px]">—</span>
-            )}
+
+          {/* Error Display */}
+          {data.error && (
+            <div className="px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-[10px] text-red-300">
+              {data.error}
+            </div>
+          )}
+
+          {/* OUTPUT Section */}
+          <div>
+            <label className="text-[10px] font-medium text-zinc-400 mb-1.5 block">
+              {isProcessing ? "Processing..." : data.result ? "Audio Output" : "Result"}
+            </label>
+            <div className={`relative rounded-xl overflow-hidden transition-all ${
+              data.result 
+                ? "ring-1 ring-violet-500/30 bg-violet-500/5" 
+                : "bg-white/[0.02] border border-white/5"
+            }`}>
+              {data.result ? (
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-violet-400">
+                    <Volume2 className="w-4 h-4" />
+                    <span className="text-[10px]">Audio extracted successfully</span>
+                  </div>
+                  <audio 
+                    src={data.result} 
+                    controls 
+                    className="w-full h-8" 
+                  />
+                  <button
+                    onClick={handleDownload}
+                    className="nodrag nowheel w-full h-7 px-3 rounded-lg bg-violet-500/20 border border-violet-500/30 text-[10px] font-medium text-violet-300 flex items-center justify-center gap-2 hover:bg-violet-500/30 transition-all"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download {(data.format || "mp3").toUpperCase()}
+                  </button>
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <span className="text-zinc-600 text-[10px]">
+                    {data.inputVideo ? "Click 'Extract Audio' to process" : "Upload a video first"}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       }

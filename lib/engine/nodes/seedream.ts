@@ -18,6 +18,11 @@ export const SeedreamInputSchema = z.object({
   negativePrompt: z.string().optional(),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
   seed: z.number().int().optional(),
+  numInferenceSteps: z.number().int().min(1).max(60).optional(),
+  guidanceScale: z.number().min(0).max(30).optional(),
+  truncatePrompt: z.boolean().optional(),
+  promptEnhancer: z.boolean().optional(),
+  syncMode: z.boolean().optional(),
   // Context from previous nodes
   context: z.string().optional(),
 });
@@ -82,6 +87,11 @@ const imageGenProviders = createProviderMap<SeedreamInput>({
       negative_prompt: input.negativePrompt || undefined,
       image_size: size,
       seed: input.seed,
+      num_inference_steps: input.numInferenceSteps,
+      guidance_scale: input.guidanceScale,
+      truncate_prompt: input.truncatePrompt,
+      prompt_enhancer: input.promptEnhancer,
+      sync_mode: input.syncMode,
       num_images: 1,
     };
 

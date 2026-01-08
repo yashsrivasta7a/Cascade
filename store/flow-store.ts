@@ -150,13 +150,16 @@ export const useFlowStore = create<FlowState>()(
         const state = get();
         let node: Node | undefined;
         
-        // Check if it's the new format: "nodeType:index"
-        if (nodeId.includes(":")) {
+        // Strategy 1: Exact ID match (most reliable)
+        node = state.nodes.find((n) => n.id === nodeId);
+        
+        // Strategy 2: Check if it's "nodeType:index" format
+        if (!node && nodeId.includes(":")) {
           const [nodeType, indexStr] = nodeId.split(":");
           const index = parseInt(indexStr, 10);
           
           if (!isNaN(index)) {
-            // Find all nodes of this type and get the one at the specified index
+            // Find all nodes of this type
             const nodesOfType = state.nodes.filter((n) => 
               n.type === nodeType || n.id.startsWith(nodeType)
             );
@@ -164,31 +167,39 @@ export const useFlowStore = create<FlowState>()(
               node = nodesOfType[index];
             }
           }
-          
-          // If that didn't work, try using index directly on all nodes
-          if (!node && !isNaN(index) && index < state.nodes.length) {
-            node = state.nodes[index];
+        }
+        
+        // Strategy 3: Match by node type (if only one of that type exists)
+        if (!node) {
+          const nodesOfType = state.nodes.filter((n) => n.type === nodeId);
+          if (nodesOfType.length >= 1) {
+            node = nodesOfType[0];
           }
         }
         
-        // Try exact ID match
-        if (!node) {
-          node = state.nodes.find((n) => n.id === nodeId);
-        }
-        
-        // Try matching by node type prefix
+        // Strategy 4: Match by ID prefix (e.g., "openrouter-123456")
         if (!node && nodeId.includes("-")) {
           const nodeType = nodeId.split("-")[0];
           const nodesOfType = state.nodes.filter((n) => 
             n.type === nodeType || n.id.startsWith(nodeType)
           );
-          if (nodesOfType.length === 1) {
+          if (nodesOfType.length >= 1) {
             node = nodesOfType[0];
           }
         }
         
+        // Strategy 5: Partial match on ID
+        if (!node) {
+          node = state.nodes.find((n) => 
+            n.id.includes(nodeId) || nodeId.includes(n.id)
+          );
+        }
+        
         if (node) {
+          console.log(`[focusNode] Found node: ${node.id} (type: ${node.type})`);
           set({ focusNodeId: node.id, selectedNode: node });
+        } else {
+          console.warn(`[focusNode] Could not find node matching: ${nodeId}`);
         }
       },
 
@@ -213,6 +224,11 @@ export const useFlowStore = create<FlowState>()(
         const contextWithHistory = sourcePrompt
           ? `[Previous: "${sourcePrompt}"]\n[Response: "${output}"]`
           : output;
+
+        const sourceBundle =
+          sourceNode && typeof (sourceNode.data as any)?.out === "object" && (sourceNode.data as any)?.out
+            ? ((sourceNode.data as any).out as Record<string, unknown>)
+            : undefined;
         
         // Update all target nodes based on which handle they're connected to
         const updatedNodes = state.nodes.map((node) => {
@@ -230,7 +246,9 @@ export const useFlowStore = create<FlowState>()(
           
           // Map to appropriate field based on target handle and output type
           if (targetHandle === "image" || targetHandle === "frame") {
-            nodeData.inputImage = output;
+            // If source is a bundle output, prefer bundle.image
+            const bundleImage = sourceBundle?.image;
+            nodeData.inputImage = typeof bundleImage === "string" ? bundleImage : output;
           } else if (targetHandle === "video" || targetHandle === "video1" || targetHandle === "video2") {
             nodeData.inputVideo = output;
           } else if (targetHandle === "audio") {
@@ -242,6 +260,9 @@ export const useFlowStore = create<FlowState>()(
             nodeData.context = contextWithHistory;
           } else if (targetHandle === "text") {
             nodeData.text = output;
+          } else if (sourceHandle === "out" && targetHandle && sourceBundle && targetHandle in sourceBundle) {
+            // Settings override via bundle output: out -> <setting>
+            nodeData[targetHandle] = sourceBundle[targetHandle];
           } else {
             // For other handles, use the handle ID as the field name
             nodeData[targetHandle] = output;

@@ -195,8 +195,8 @@ body {
 }
 
 .react-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
+  width: 10px !important;
+  height: 10px !important;
   background: rgba(20, 20, 22, 0.9) !important;
   border: 2px solid rgba(255, 255, 255, 0.2) !important;
   backdrop-filter: blur(8px);
@@ -211,11 +211,11 @@ body {
 }
 
 .react-flow__handle-left {
-  left: -6px !important;
+  left: -2px !important;
 }
 
 .react-flow__handle-right {
-  right: -6px !important;
+  right: -2px !important;
 }
 
 .react-flow__controls {
@@ -229,63 +229,64 @@ body {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MONOCHROME OVERRIDES (force B/W even if some components still use accents)
+   Note: .allow-color class exempts elements from these overrides
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.text-cyan-400,
-.text-violet-400,
-.text-emerald-400,
-.text-amber-400,
-.text-blue-400,
-.text-red-400,
-.text-yellow-400,
-.text-purple-500,
-.text-pink-500 {
+:not(.allow-color):not(.allow-color *) > .text-cyan-400,
+:not(.allow-color):not(.allow-color *) > .text-violet-400,
+:not(.allow-color):not(.allow-color *) > .text-emerald-400,
+:not(.allow-color):not(.allow-color *) > .text-amber-400,
+:not(.allow-color):not(.allow-color *) > .text-blue-400,
+:not(.allow-color):not(.allow-color *) > .text-red-400,
+:not(.allow-color):not(.allow-color *) > .text-yellow-400,
+:not(.allow-color):not(.allow-color *) > .text-purple-500,
+:not(.allow-color):not(.allow-color *) > .text-pink-500 {
   color: rgba(244, 244, 245, 0.9) !important;
 }
 
-.bg-cyan-500\/10,
-.bg-violet-500\/10,
-.bg-emerald-500\/10,
-.bg-amber-500\/10,
-.bg-blue-500\/10,
-.bg-red-500\/10,
-.bg-cyan-500\/20,
-.bg-violet-500\/20,
-.bg-emerald-500\/20,
-.bg-amber-500\/20,
-.bg-blue-500\/20,
-.bg-red-500\/20 {
+:not(.allow-color) > .bg-cyan-500\/10,
+:not(.allow-color) > .bg-violet-500\/10,
+:not(.allow-color) > .bg-emerald-500\/10,
+:not(.allow-color) > .bg-amber-500\/10,
+:not(.allow-color) > .bg-blue-500\/10,
+:not(.allow-color) > .bg-red-500\/10,
+:not(.allow-color) > .bg-cyan-500\/20,
+:not(.allow-color) > .bg-violet-500\/20,
+:not(.allow-color) > .bg-emerald-500\/20,
+:not(.allow-color) > .bg-amber-500\/20,
+:not(.allow-color) > .bg-blue-500\/20,
+:not(.allow-color) > .bg-red-500\/20 {
   background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
-.bg-cyan-500,
-.bg-violet-500,
-.bg-emerald-500,
-.bg-amber-500,
-.bg-blue-500,
-.bg-red-600,
-.bg-red-500 {
+:not(.allow-color) > .bg-cyan-500,
+:not(.allow-color) > .bg-violet-500,
+:not(.allow-color) > .bg-emerald-500,
+:not(.allow-color) > .bg-amber-500,
+:not(.allow-color) > .bg-blue-500,
+:not(.allow-color) > .bg-red-600,
+:not(.allow-color) > .bg-red-500 {
   background-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-.border-cyan-500\/20,
-.border-violet-500\/20,
-.border-emerald-500\/20,
-.border-amber-500\/20,
-.border-blue-500\/20,
-.border-cyan-500\/30,
-.border-emerald-500\/30,
-.border-amber-500\/30,
-.border-blue-500\/30 {
+:not(.allow-color) > .border-cyan-500\/20,
+:not(.allow-color) > .border-violet-500\/20,
+:not(.allow-color) > .border-emerald-500\/20,
+:not(.allow-color) > .border-amber-500\/20,
+:not(.allow-color) > .border-blue-500\/20,
+:not(.allow-color) > .border-cyan-500\/30,
+:not(.allow-color) > .border-emerald-500\/30,
+:not(.allow-color) > .border-amber-500\/30,
+:not(.allow-color) > .border-blue-500\/30 {
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-.from-cyan-500\/10,
-.from-violet-500\/10,
-.from-cyan-500\/20,
-.to-violet-500\/10,
-.to-violet-500\/20,
-.via-violet-500\/10 {
+:not(.allow-color) > .from-cyan-500\/10,
+:not(.allow-color) > .from-violet-500\/10,
+:not(.allow-color) > .from-cyan-500\/20,
+:not(.allow-color) > .to-violet-500\/10,
+:not(.allow-color) > .to-violet-500\/20,
+:not(.allow-color) > .via-violet-500\/10 {
   --tw-gradient-from: rgba(255, 255, 255, 0.05) !important;
   --tw-gradient-to: rgba(255, 255, 255, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;

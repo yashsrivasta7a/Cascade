@@ -51,9 +51,42 @@ model Workflow {
 
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions WorkflowExecution[]
+  versions   WorkflowVersion[]
 
   @@index([userId])
   @@map("workflows")
+}
+
+// =============================================================================
+// WORKFLOW VERSIONS (Version Control)
+// =============================================================================
+
+model WorkflowVersion {
+  id          String   @id @default(cuid())
+  workflowId  String
+  
+  // Version number (auto-incremented per workflow)
+  version     Int
+  
+  // Snapshot of workflow at this version
+  name        String
+  nodesJson   Json
+  edgesJson   Json
+  viewportJson Json?
+  
+  // Optional commit message/label
+  message     String?
+  
+  // Node count for quick display
+  nodeCount   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@unique([workflowId, version])
+  @@index([workflowId])
+  @@map("workflow_versions")
 }
 
 // =============================================================================
