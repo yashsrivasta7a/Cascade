@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { LayoutList, Settings, Play, Loader2, X, Film, Download, ArrowDown, ArrowRightLeft, ChevronRight, Lock } from "lucide-react";
+import { LayoutList, Play, Loader2, X, Film, Download, ArrowDown, ArrowRightLeft, ChevronRight, ChevronDown, Lock } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -30,6 +30,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const workflowId = useFlowStore((s) => s.workflowId);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
@@ -79,6 +80,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
           nodeType: "merge-videos",
           nodeId: id,
           nodeLabel: data.label || nodeDef.label,
+          workflowId: workflowId ?? undefined,
           input: {
             video1: { url: data.inputVideo1 },
             video2: { url: data.inputVideo2 },
@@ -184,7 +186,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
               >
                 {data.inputVideo1 ? (
                   <div className="relative">
-                    <video src={data.inputVideo1} className="w-full h-16 object-cover" muted />
+                    <video src={data.inputVideo1} className="w-full aspect-video object-cover" muted />
                     {!isProcessing && (
                       <button
                         onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo1: undefined, result: undefined }); }}
@@ -248,7 +250,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
               >
                 {data.inputVideo2 ? (
                   <div className="relative">
-                    <video src={data.inputVideo2} className="w-full h-16 object-cover" muted />
+                    <video src={data.inputVideo2} className="w-full aspect-video object-cover" muted />
                     {!isProcessing && (
                       <button
                         onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo2: undefined, result: undefined }); }}
@@ -284,23 +286,6 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const next = !showSettings;
-                setShowSettings(next);
-                updateNode(id, { advancedOpen: next });
-              }}
-              disabled={isProcessing}
-              className={`nodrag nowheel h-8 w-8 rounded-lg border flex items-center justify-center transition-all ${
-                isProcessing
-                  ? "bg-white/[0.02] border-white/5 text-zinc-600 cursor-not-allowed"
-                  : showSettings 
-                  ? "bg-white/10 border-white/20 text-white" 
-                  : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
               onClick={runMerge}
               disabled={!hasInputs || isProcessing}
               className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
@@ -319,7 +304,34 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
             </button>
           </div>
 
-          {/* Collapsible Settings */}
+          {/* Additional Settings Toggle */}
+          <button
+            onClick={() => {
+              const next = !showSettings;
+              setShowSettings(next);
+              updateNode(id, { advancedOpen: next });
+            }}
+            disabled={isProcessing}
+            className="nodrag nowheel w-full mt-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="text-left">
+                <div className="text-[11px] font-medium text-zinc-300">Additional Settings</div>
+                <div className="text-[9px] text-zinc-500">Customize transition effects.</div>
+              </div>
+              <div className="flex items-center gap-1 text-zinc-400">
+                <span className="text-[10px]">{showSettings ? "Less" : "More"}</span>
+                <motion.div
+                  animate={{ rotate: showSettings ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </motion.div>
+              </div>
+            </div>
+          </button>
+
+          {/* Collapsible Settings Content */}
           <AnimatePresence>
             {showSettings && (
               <motion.div
@@ -328,7 +340,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-3 pt-3 border-t border-white/5">
+                <div className="space-y-3 pt-3">
                   <div className={isSettingInherited(data, "transition") ? "opacity-60" : ""}>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-[9px] text-zinc-500">Transition Style</label>
@@ -411,7 +423,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                   <video 
                     src={data.result} 
                     controls 
-                    className="w-full h-auto max-h-[100px]" 
+                    className="w-full aspect-video" 
                   />
                   {/* Hover download button */}
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Read the raw body text first to handle large payloads (base64 media can be 10MB+)
-    let body: { nodeType?: string; input?: Record<string, unknown>; nodeId?: string; nodeLabel?: string };
+    let body: { nodeType?: string; input?: Record<string, unknown>; nodeId?: string; nodeLabel?: string; workflowId?: string };
     try {
       const rawBody = await request.text();
       body = JSON.parse(rawBody);
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     const input = body?.input ?? {};
     const nodeId = body?.nodeId;
     const nodeLabel = body?.nodeLabel;
+    const workflowId = body?.workflowId;
 
     if (!nodeType || typeof nodeType !== "string") {
       return NextResponse.json(
@@ -111,11 +112,13 @@ export async function POST(request: NextRequest) {
       const execution = await db.quickExecution.create({
         data: {
           userId,
+          workflowId, // Link to workflow for Activity tab
+          nodeId, // React Flow node ID
           nodeType,
           nodeLabel: displayLabel,
           status: "RUNNING",
           provider: "internal",
-          inputJson: { nodeId, ...sanitizeInputForStorage(input) },
+          inputJson: sanitizeInputForStorage(input),
           estimatedCost: 0,
         },
       });

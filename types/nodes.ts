@@ -51,6 +51,8 @@ export interface NodeDefinition {
   label: string;
   description: string;
   provider: string;
+  /** Short action description shown in sidebar (e.g., "Text → Image") */
+  action: string;
   inputs: { type: DataType; label: string }[];
   outputs: { type: DataType; label: string }[];
   estimatedCost: number; // in credits
@@ -75,12 +77,13 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Seedream 4.5",
     description: "High-quality text-to-image generation with advanced prompt understanding and image editing capabilities",
     provider: "ByteDance",
+    action: "Text → Image",
     inputs: [
       { type: "text", label: "Prompt" },
       { type: "image", label: "Reference Image (optional)" },
     ],
     outputs: [{ type: "image", label: "Generated Image" }],
-    estimatedCost: 5,
+    estimatedCost: 40_000, // $0.04 per image
     isUtility: false,
     color: "emerald",
     estimatedTime: "~10s",
@@ -94,9 +97,10 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "SeedVR 2",
     description: "AI-powered image upscaling with face enhancement and detail preservation",
     provider: "ByteDance",
+    action: "Image Upscaler",
     inputs: [{ type: "image", label: "Input Image" }],
     outputs: [{ type: "image", label: "Upscaled Image" }],
-    estimatedCost: 3,
+    estimatedCost: 2_000, // ~$0.002 per 1-2 megapixel (variable)
     isUtility: false,
     color: "emerald",
     estimatedTime: "~5s",
@@ -112,12 +116,13 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Seedance 1.5",
     description: "Generate cinematic videos from text prompts or animate still images with AI motion",
     provider: "ByteDance",
+    action: "Text/Image → Video",
     inputs: [
       { type: "text", label: "Prompt" },
       { type: "image", label: "Start Frame (optional)" },
     ],
     outputs: [{ type: "video", label: "Generated Video" }],
-    estimatedCost: 25,
+    estimatedCost: 260_000, // ~$0.26 for 720p 5s with audio (variable)
     isUtility: false,
     color: "violet",
     estimatedTime: "~45s",
@@ -134,9 +139,10 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "ElevenLabs V3",
     description: "Ultra-realistic text-to-speech with emotion control and voice cloning capabilities",
     provider: "ElevenLabs",
+    action: "Text → Speech",
     inputs: [{ type: "text", label: "Script" }],
     outputs: [{ type: "audio", label: "Voice Audio" }],
-    estimatedCost: 8,
+    estimatedCost: 50_000, // ~$0.05 for ~500 characters (variable: $0.1/1000 chars)
     isUtility: false,
     color: "amber",
     estimatedTime: "~3s",
@@ -152,12 +158,13 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "OpenRouter LLM",
     description: "Access GPT-4, Claude, Gemini and more through a unified API with vision capabilities",
     provider: "OpenRouter",
+    action: "AI Chat & Vision",
     inputs: [
       { type: "text", label: "Prompt" },
       { type: "any", label: "Context (optional)" },
     ],
     outputs: [{ type: "text", label: "Response" }],
-    estimatedCost: 2,
+    estimatedCost: 50_000, // ~$0.05 estimate (varies by model and tokens)
     isUtility: false,
     color: "blue",
     estimatedTime: "~2s",
@@ -174,12 +181,13 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Sync Lipsync",
     description: "AI-powered lip synchronization that matches any audio to video with realistic mouth movements",
     provider: "Sync Labs",
+    action: "Audio + Video → Lipsync",
     inputs: [
       { type: "video", label: "Source Video" },
       { type: "audio", label: "Voice Audio" },
     ],
     outputs: [{ type: "video", label: "Synced Video" }],
-    estimatedCost: 15,
+    estimatedCost: 350_000, // ~$0.35 for ~30 seconds (variable: $0.7/min)
     isUtility: false,
     color: "violet",
     estimatedTime: "~30s",
@@ -196,6 +204,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Crop Image",
     description: "Precisely crop images using percentage-based coordinates for consistent results",
     provider: "Internal",
+    action: "Image Editor",
     inputs: [{ type: "image", label: "Input Image" }],
     outputs: [{ type: "image", label: "Cropped Image" }],
     estimatedCost: 0,
@@ -210,6 +219,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Merge Audio + Video",
     description: "Combine or replace audio tracks in video files with perfect synchronization",
     provider: "Internal",
+    action: "Audio + Video Merge",
     inputs: [
       { type: "video", label: "Video" },
       { type: "audio", label: "Audio" },
@@ -227,6 +237,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Merge Videos",
     description: "Seamlessly concatenate multiple videos with optional transitions",
     provider: "Internal",
+    action: "Video Concatenate",
     inputs: [
       { type: "video", label: "Video 1" },
       { type: "video", label: "Video 2" },
@@ -244,6 +255,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     label: "Extract Audio",
     description: "Extract and convert audio tracks from video with format options",
     provider: "Internal",
+    action: "Video → Audio",
     inputs: [{ type: "video", label: "Video" }],
     outputs: [{ type: "audio", label: "Audio Track" }],
     estimatedCost: 0,

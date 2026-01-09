@@ -17,7 +17,7 @@ datasource db {
 model User {
   id        String   @id // Clerk user ID
   email     String   @unique
-  credits   Int      @default(100000) // Default 100k credits for new users
+  credits   Int      @default(1000000) // Default 1M credits for new users ($1.00 value)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -235,6 +235,10 @@ model QuickExecution {
   id            String   @id @default(cuid())
   userId        String?  // Optional - may not have auth in dev
   
+  // Workflow context (optional - for filtering by workflow in Activity tab)
+  workflowId    String?  // Workflow this node belongs to
+  nodeId        String?  // React Flow node ID
+  
   nodeType      String   // AINodeType
   nodeLabel     String?  // Custom label if any
   
@@ -267,6 +271,7 @@ model QuickExecution {
   @@index([userId])
   @@index([nodeType])
   @@index([startedAt])
+  @@index([workflowId])
   @@map("quick_executions")
 }
 

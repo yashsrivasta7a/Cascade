@@ -27,6 +27,54 @@ import {
   type DataType,
   dataTypeColors,
 } from "@/types/nodes";
+import { formatCredits, creditsToDollars } from "@/lib/credits";
+
+// =============================================================================
+// PRICING INFO - Human-readable pricing details for each node
+// =============================================================================
+
+const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: string }> = {
+  seedream: {
+    priceLabel: "$0.04/image",
+    priceNote: "Fixed price per image generation",
+  },
+  seedvr: {
+    priceLabel: "$0.001/megapixel",
+    priceNote: "Cost scales with output resolution",
+  },
+  seedance: {
+    priceLabel: "$0.26/5s 720p",
+    priceNote: "With audio • Cost scales with resolution & duration",
+  },
+  elevenlabs: {
+    priceLabel: "$0.1/1K chars",
+    priceNote: "Cost scales with text length",
+  },
+  openrouter: {
+    priceLabel: "~$0.05 avg",
+    priceNote: "Varies by model (GPT-4, Claude, etc.)",
+  },
+  lipsync: {
+    priceLabel: "$0.70/minute",
+    priceNote: "Cost scales with video duration",
+  },
+  "crop-image": {
+    priceLabel: "Free",
+    priceNote: "Utility node - no cost",
+  },
+  "merge-videos": {
+    priceLabel: "Free",
+    priceNote: "Utility node - no cost",
+  },
+  "merge-audio-video": {
+    priceLabel: "Free",
+    priceNote: "Utility node - no cost",
+  },
+  "extract-audio": {
+    priceLabel: "Free",
+    priceNote: "Utility node - no cost",
+  },
+};
 
 // =============================================================================
 // CONFIG
@@ -376,7 +424,7 @@ function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProp
           {node.label}
         </p>
         <p className="text-[11px] text-zinc-500 truncate">
-          {node.provider}
+          {node.action}
         </p>
       </div>
 
@@ -388,9 +436,10 @@ function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProp
             isHovered ? colors.bg : "bg-white/[0.04]",
           )}
           style={{ color: isHovered ? colors.solid : "#71717a" }}
+          title={nodePricingInfo[node.type]?.priceLabel}
         >
           <Zap className="w-3 h-3" />
-          <span>{node.estimatedCost}</span>
+          <span>{formatCredits(node.estimatedCost)}</span>
         </div>
       )}
     </motion.div>
@@ -442,6 +491,30 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
         </p>
       </div>
 
+      {/* Pricing Section */}
+      <div className="p-4 border-b border-white/[0.04]">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <Zap className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <span className="text-lg font-bold text-white">
+                {nodePricingInfo[node.type]?.priceLabel || "Free"}
+              </span>
+              {node.estimatedCost > 0 && (
+                <span className="text-xs text-zinc-500">
+                  ≈ {formatCredits(node.estimatedCost)} credits
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              {nodePricingInfo[node.type]?.priceNote || "No cost for this operation"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="p-4 grid grid-cols-2 gap-3">
         {/* Time */}
@@ -456,17 +529,6 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
             </div>
           </div>
         )}
-
-        {/* Cost */}
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-white/[0.04] flex items-center justify-center">
-            <Zap className="w-3.5 h-3.5 text-zinc-500" />
-          </div>
-          <div>
-            <p className="text-[11px] text-zinc-500">Credits</p>
-            <p className="text-xs font-medium text-white">{node.estimatedCost || "Free"}</p>
-          </div>
-        </div>
 
         {/* Aspect Ratios */}
         {node.aspectRatios && node.aspectRatios.length > 0 && (
@@ -526,7 +588,7 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
       )}
 
       {/* Inputs/Outputs */}
-      <div className="px-4 pb-4 pt-2 border-t border-white/[0.04]">
+      <div className="px-4 pb-3 pt-2 border-t border-white/[0.04]">
         <div className="flex items-center gap-4">
           <div>
             <p className="text-[10px] text-zinc-500 mb-1">Inputs</p>
@@ -566,6 +628,16 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
           </div>
         </div>
       </div>
+
+      {/* Estimation Note */}
+      {node.estimatedCost > 0 && (
+        <div className="px-4 pb-4">
+          <p className="text-[10px] text-zinc-600 leading-relaxed italic">
+            * Costs are estimates and may vary based on input parameters. 
+            Actual credits will be deducted after execution.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

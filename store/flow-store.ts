@@ -20,6 +20,7 @@ export interface FlowState {
   viewport?: { x: number; y: number; zoom: number };
   isWorkflowRunning: boolean;
   focusNodeId: string | null;
+  workflowId: string | null; // Current workflow ID for Activity tracking
   
   // Connection dragging state for highlighting compatible nodes
   connectingFrom: {
@@ -33,6 +34,7 @@ export interface FlowState {
   setEdges: (edges: Edge[]) => void;
   setViewport: (viewport: { x: number; y: number; zoom: number } | undefined) => void;
   setWorkflowRunning: (running: boolean) => void;
+  setWorkflowId: (workflowId: string | null) => void;
   setConnectingFrom: (info: FlowState["connectingFrom"]) => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -53,6 +55,12 @@ export interface FlowState {
   // Propagate output from a node to all connected downstream nodes
   propagateOutput: (sourceNodeId: string, output: string) => void;
 
+  // Check if a handle on a node has an incoming connection
+  isHandleConnected: (nodeId: string, handleId: string) => boolean;
+  
+  // Get the source of a connected handle (returns source node id and handle)
+  getHandleSource: (nodeId: string, handleId: string) => { sourceNodeId: string; sourceHandle: string } | null;
+
   // Run a single node (for debugging)
   runNode: (nodeId: string) => Promise<void>;
 }
@@ -66,9 +74,11 @@ export const useFlowStore = create<FlowState>()(
       viewport: undefined,
       isWorkflowRunning: false,
       focusNodeId: null,
+      workflowId: null,
       connectingFrom: null,
 
       setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
+      setWorkflowId: (workflowId) => set({ workflowId }),
       setConnectingFrom: (info) => set({ connectingFrom: info }),
 
       setNodes: (nodes) =>
@@ -175,13 +185,66 @@ export const useFlowStore = create<FlowState>()(
       },
 
       updateNode: (id, data) => {
+        const state = get();
+        const node = state.nodes.find((n) => n.id === id);
+        if (!node) return;
+
+        const oldData = node.data as Record<string, unknown>;
+        const newData = { ...oldData, ...data };
+
+        // Update the node
         set({
-          nodes: get().nodes.map((node) =>
-            node.id === id
-              ? { ...node, data: { ...node.data, ...data } }
-              : node
+          nodes: state.nodes.map((n) =>
+            n.id === id
+              ? { ...n, data: newData }
+              : n
           ),
         });
+
+        // Real-time propagation: if result/output changes, propagate to connected nodes
+        const resultChanged = data.result !== undefined && data.result !== oldData.result;
+        console.log(`[updateNode] Node ${id}: resultChanged=${resultChanged}, hasResult=${!!data.result}`);
+        if (resultChanged && data.result) {
+          // Debounce propagation slightly to batch rapid updates
+          console.log(`[updateNode] Scheduling propagation for node ${id}`);
+          setTimeout(() => {
+            console.log(`[updateNode] Executing propagation for node ${id}`);
+            get().propagateOutput(id, data.result as string);
+          }, 50);
+        }
+
+        // Also propagate settings changes to connected nodes in real-time
+        const settingsKeys = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens"];
+        const changedSettings = settingsKeys.filter(key => 
+          data[key as keyof typeof data] !== undefined && 
+          data[key as keyof typeof data] !== oldData[key]
+        );
+
+        if (changedSettings.length > 0) {
+          // Find edges where this node is the source and propagate settings
+          const outgoingEdges = state.edges.filter(e => e.source === id);
+          if (outgoingEdges.length > 0) {
+            const updatedNodes = state.nodes.map((targetNode) => {
+              const edge = outgoingEdges.find(e => e.target === targetNode.id);
+              if (!edge) return targetNode;
+
+              const targetHandle = edge.targetHandle;
+              const edgeData = edge.data as Record<string, unknown> | undefined;
+              const isSettingsConnection = edgeData?.isSettingsConnection === true;
+
+              // If it's a settings connection and the target handle matches a changed setting
+              if (isSettingsConnection && targetHandle && changedSettings.includes(targetHandle)) {
+                const nodeData = { ...(targetNode.data as Record<string, unknown>) };
+                nodeData[targetHandle] = newData[targetHandle];
+                return { ...targetNode, data: nodeData };
+              }
+
+              return targetNode;
+            });
+
+            set({ nodes: updatedNodes });
+          }
+        }
       },
 
       deleteNode: (id) => {
@@ -285,22 +348,29 @@ export const useFlowStore = create<FlowState>()(
       propagateOutput: (sourceNodeId, output) => {
         const state = get();
         
+        console.log(`[propagateOutput] Called with sourceNodeId=${sourceNodeId}, output="${output?.slice?.(0, 50) || output}..."`);
+
         // Find the source node to get its data
         const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
-        if (!sourceNode) return;
-        
+        if (!sourceNode) {
+          console.log(`[propagateOutput] Source node not found`);
+          return;
+        }
+
         const sourceData = sourceNode.data as Record<string, unknown>;
         const sourceNodeType = sourceNode.type;
         const sourcePrompt = sourceData.prompt as string | undefined;
-        
+
         // Find all edges that start from this source node
         const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
         
+        console.log(`[propagateOutput] Found ${outgoingEdges.length} outgoing edges from ${sourceNode.type}`);
+
         if (outgoingEdges.length === 0) return;
-        
+
         // Build context that includes both the prompt and response
         const contextWithHistory = sourcePrompt
-          ? `[Previous: "${sourcePrompt}"]\n[Response: "${output}"]`
+          ? `[Previous prompt: "${sourcePrompt?.slice(0, 50)}..."]\n\n[Response: "${output?.slice(0, 100)}..."]`
           : output;
 
         // Build complete settings bundle from source node data
@@ -343,6 +413,8 @@ export const useFlowStore = create<FlowState>()(
           const isFullInheritance = edgeData?.isFullInheritance === true;
           const settingKey = edgeData?.settingKey as string | undefined;
           const nodeData = { ...(node.data as Record<string, unknown>) };
+          
+          console.log(`[propagateOutput] Processing edge to ${node.id} (${node.type}): sourceHandle=${sourceHandle}, targetHandle=${targetHandle}, isSettings=${isSettingsConnection}, isFull=${isFullInheritance}`);
           
           // Handle FULL inheritance: pass ALL settings to target node
           if (isFullInheritance) {
@@ -406,9 +478,10 @@ export const useFlowStore = create<FlowState>()(
           }
           
           // Determine the type of output based on source handle
-          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped" || sourceHandle === "out";
+          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped";
           const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged";
           const isAudioOutput = sourceHandle === "audio";
+          const isTextResponse = sourceHandle === "response"; // LLM text response
           
           // Map to appropriate field based on target handle and output type
           if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
@@ -419,9 +492,15 @@ export const useFlowStore = create<FlowState>()(
             nodeData.inputVideo2 = output;
           } else if (targetHandle === "audio" || targetHandle === "inputAudio") {
             nodeData.inputAudio = output;
-          } else if (targetHandle === "prompt" && !isImageOutput && !isVideoOutput && !isAudioOutput) {
+          } else if (targetHandle === "prompt") {
+            // response → prompt: use ONLY the LLM response as the new prompt
+            console.log(`[propagateOutput] Setting prompt on ${node.id} to: "${output?.slice?.(0, 100) || output}..."`);
+            nodeData.prompt = output;
+          } else if (targetHandle === "context") {
+            // response → context: include BOTH prompt and response (conversation history)
             nodeData.context = contextWithHistory;
-          } else if (targetHandle === "context" || !targetHandle) {
+          } else if (!targetHandle) {
+            // Default: use context with history
             nodeData.context = contextWithHistory;
           } else if (targetHandle === "text") {
             nodeData.text = output;
@@ -436,7 +515,20 @@ export const useFlowStore = create<FlowState>()(
           return { ...node, data: nodeData };
         });
         
+        console.log(`[propagateOutput] Setting ${updatedNodes.length} updated nodes`);
         set({ nodes: updatedNodes });
+      },
+
+      isHandleConnected: (nodeId, handleId) => {
+        const edges = get().edges;
+        return edges.some((e) => e.target === nodeId && e.targetHandle === handleId);
+      },
+
+      getHandleSource: (nodeId, handleId) => {
+        const edges = get().edges;
+        const edge = edges.find((e) => e.target === nodeId && e.targetHandle === handleId);
+        if (!edge) return null;
+        return { sourceNodeId: edge.source, sourceHandle: edge.sourceHandle || "out" };
       },
 
       runNode: async (nodeId) => {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
+import { formatCredits } from "@/lib/credits";
 
 // =============================================================================
 // TYPES
@@ -163,7 +164,7 @@ export function RunModal({
                   <div className="flex items-end justify-between mb-3">
                     <div>
                       <span className="text-3xl font-bold text-zinc-100 tracking-tight block tabular-nums">
-                        {stats.totalCost}
+                        {formatCredits(stats.totalCost)}
                       </span>
                       <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">Credits Req.</span>
                     </div>
@@ -173,7 +174,7 @@ export function RunModal({
                           "text-sm font-mono block tabular-nums",
                           stats.hasEnoughCredits ? "text-zinc-300" : "text-red-400"
                         )}>
-                          {creditBalance.toLocaleString()}
+                          {formatCredits(creditBalance)}
                         </span>
                         {stats.hasEnoughCredits && <ShieldCheck className="w-3 h-3 text-emerald-500/50" />}
                       </div>
@@ -301,7 +302,7 @@ export function RunModal({
                             {node.estimatedCost > 0 && (
                               <div className="flex-shrink-0 flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[10px] font-mono text-zinc-400 group-hover:border-zinc-700 group-hover:text-zinc-300 transition-colors">
                                 <Coins className="w-3 h-3 text-zinc-600 group-hover:text-zinc-500" />
-                                <span>{node.estimatedCost}</span>
+                                <span>{formatCredits(node.estimatedCost)}</span>
                               </div>
                             )}
                           </div>
@@ -389,9 +390,9 @@ function formatDuration(seconds: number): string {
 
 // Demo usage export for testing
 export const demoNodes: NodeEstimate[] = [
-  { id: "1", label: "Generate Script", type: "openrouter", estimatedCost: 2, provider: "OpenRouter" },
-  { id: "2", label: "Create Thumbnail", type: "seedream", estimatedCost: 5, provider: "ByteDance", fallbackProviders: ["Replicate"] },
-  { id: "3", label: "Voice Narration", type: "elevenlabs", estimatedCost: 8, provider: "ElevenLabs" },
-  { id: "4", label: "Generate Video", type: "seedance", estimatedCost: 25, provider: "ByteDance" },
-  { id: "5", label: "Merge Audio", type: "merge-audio-video", estimatedCost: 0, provider: "Internal" },
+  { id: "1", label: "Generate Script", type: "openrouter", estimatedCost: 50000, provider: "OpenRouter" },
+  { id: "2", label: "Create Thumbnail", type: "seedream", estimatedCost: 40000, provider: "ByteDance", fallbackProviders: ["Replicate"] },
+  { id: "3", label: "Voice Narration", type: "elevenlabs", estimatedCost: 50000, provider: "ElevenLabs" },
+  { id: "4", label: "Generate Video", type: "seedance", estimatedCost: 260000, provider: "ByteDance" },
+  { id: "5", label: "Merge Audio", type: "merge-audio-video", estimatedCost: 3000, provider: "Internal" },
 ];

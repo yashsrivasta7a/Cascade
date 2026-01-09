@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
+import { getNodeCost, calculateOpenrouterCost } from "@/lib/credits";
 
 // =============================================================================
 // STREAMING LLM API ENDPOINT
@@ -14,7 +15,11 @@ const LLMRequestSchema = z.object({
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().min(1).max(128000).default(4096),
   context: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().optional(), // Can be URL or base64 data URL
+  // Workflow context for Activity tab
+  workflowId: z.string().optional(),
+  nodeId: z.string().optional(),
+  nodeLabel: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -24,6 +29,25 @@ export async function POST(request: NextRequest) {
   try {
     // Get the current user (creates if not exists)
     const { userId } = await getUserIdForApi();
+
+    // Check if user has enough credits before execution
+    const creditCost = getNodeCost("openrouter");
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { credits: true },
+    });
+
+    if (!user || user.credits < creditCost) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Insufficient credits", 
+          required: creditCost,
+          available: user?.credits ?? 0,
+          message: `You need ${creditCost.toLocaleString()} credits but only have ${(user?.credits ?? 0).toLocaleString()}. Please add more credits.`
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     const body = await request.json();
     const parsed = LLMRequestSchema.safeParse(body);
@@ -35,15 +59,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, systemPrompt, model, temperature, maxTokens, context, imageUrl } = parsed.data;
+    const { prompt, systemPrompt, model, temperature, maxTokens, context, imageUrl, workflowId, nodeId, nodeLabel } = parsed.data;
 
-    // Create execution record with userId
+    // Create execution record with userId and workflow context
     try {
       const execution = await db.quickExecution.create({
         data: {
           userId, // Track the user
+          workflowId, // Link to workflow for Activity tab
+          nodeId, // React Flow node ID
           nodeType: "openrouter",
-          nodeLabel: "OpenRouter LLM",
+          nodeLabel: nodeLabel || "OpenRouter LLM",
           status: "RUNNING",
           provider: "openrouter",
           model,
@@ -138,8 +164,17 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let fullResponse = "";
+    let outputTokenCount = 0; // Track output tokens
     const execId = executionId; // Capture for closure
     const execStartTime = startTime;
+    const execUserId = userId; // Capture userId for closure
+    const execModel = model; // Capture model for closure
+    
+    // Estimate input tokens (roughly 4 characters per token)
+    const inputText = messages.map(m => 
+      typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+    ).join(' ');
+    const estimatedInputTokens = Math.ceil(inputText.length / 4);
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -170,8 +205,14 @@ export async function POST(request: NextRequest) {
                   const content = parsed.choices?.[0]?.delta?.content;
                   if (content) {
                     fullResponse += content;
+                    // Estimate tokens from content (roughly 4 chars per token)
+                    outputTokenCount += Math.ceil(content.length / 4);
                     // Send just the content as a simple SSE event
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
+                  }
+                  // Also check for usage data in the final message
+                  if (parsed.usage) {
+                    outputTokenCount = parsed.usage.completion_tokens || outputTokenCount;
                   }
                 } catch {
                   // Ignore parse errors for incomplete chunks
@@ -180,9 +221,16 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Mark as completed - use await to ensure it completes
+          // Mark as completed and deduct credits
           if (execId) {
             try {
+              // Calculate actual cost based on token usage
+              const creditCost = calculateOpenrouterCost(
+                estimatedInputTokens, 
+                outputTokenCount, 
+                execModel
+              );
+              
               await db.quickExecution.update({
                 where: { id: execId },
                 data: {
@@ -190,10 +238,51 @@ export async function POST(request: NextRequest) {
                   completedAt: new Date(),
                   durationMs: Date.now() - execStartTime,
                   outputJson: { type: "text", text: fullResponse.slice(0, 1000) }, // Store preview
-                  actualCost: 2, // Estimated
+                  actualCost: creditCost,
                 },
               });
-              console.log(`[LLM Stream] Execution ${execId} marked as COMPLETED`);
+              console.log(`[LLM Stream] Execution ${execId} marked as COMPLETED. Tokens: ${estimatedInputTokens} in, ${outputTokenCount} out. Cost: ${creditCost} credits`);
+              
+              // Deduct credits from user
+              if (execUserId && creditCost > 0) {
+                try {
+                  await db.$transaction(async (tx) => {
+                    const user = await tx.user.findUnique({
+                      where: { id: execUserId },
+                      select: { credits: true },
+                    });
+                    
+                    if (user) {
+                      const newBalance = Math.max(0, user.credits - creditCost);
+                      
+                      await tx.user.update({
+                        where: { id: execUserId },
+                        data: { credits: newBalance },
+                      });
+                      
+                      await tx.creditTransaction.create({
+                        data: {
+                          userId: execUserId,
+                          amount: -creditCost,
+                          balanceAfter: newBalance,
+                          type: "EXECUTION",
+                          description: `OpenRouter LLM (${outputTokenCount} tokens)`,
+                          metadata: { 
+                            nodeType: "openrouter", 
+                            model: execModel,
+                            inputTokens: estimatedInputTokens,
+                            outputTokens: outputTokenCount,
+                          },
+                        },
+                      });
+                      
+                      console.log(`[LLM Stream] Deducted ${creditCost} credits from user ${execUserId}, new balance: ${newBalance}`);
+                    }
+                  });
+                } catch (creditErr) {
+                  console.warn("Failed to deduct credits:", creditErr);
+                }
+              }
             } catch (dbErr) {
               console.warn("Failed to update execution as completed:", dbErr);
             }

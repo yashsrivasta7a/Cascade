@@ -8,7 +8,6 @@ import {
   NodeProviders,
   type ProviderId,
   type AnyOut,
-  AssetRefSchema,
 } from "./node-schemas";
 
 export type NodeRunStatus = "queued" | "running" | "completed" | "failed";
@@ -84,9 +83,10 @@ function topoSort(nodes: Node[], edges: Edge[]): Node[] {
   return out;
 }
 
-function getIncomingText(edges: Edge[], outputs: OutputByNode, nodeId: string, nodes: Node[]): string | undefined {
-  const incoming = edges.filter((e) => e.target === nodeId);
-  console.log(`[getIncomingText] Node ${nodeId} has ${incoming.length} incoming edges`);
+// Get incoming text for context (includes history)
+function getIncomingTextForContext(edges: Edge[], outputs: OutputByNode, nodeId: string, nodes: Node[]): string | undefined {
+  const incoming = edges.filter((e) => e.target === nodeId && e.targetHandle !== "prompt");
+  console.log(`[getIncomingTextForContext] Node ${nodeId} has ${incoming.length} context edges`);
   
   const textParts: string[] = [];
   
@@ -94,19 +94,10 @@ function getIncomingText(edges: Edge[], outputs: OutputByNode, nodeId: string, n
     const out = outputs.get(e.source);
     const sourceNode = nodes.find((n) => n.id === e.source);
     
-    console.log(`[getIncomingText] Checking edge from ${e.source}:`, {
-      hasOutput: !!out,
-      outputType: out?.type,
-      sourceNodeFound: !!sourceNode,
-    });
-    
     if (out?.type === "text") {
       // Include both the original prompt and the response for full context
       const sourceData = (sourceNode?.data ?? {}) as { prompt?: string };
       const originalPrompt = sourceData.prompt;
-      
-      console.log(`[getIncomingText] Source node prompt: "${originalPrompt?.slice(0, 50)}..."`);
-      console.log(`[getIncomingText] Source output text: "${out.text?.slice(0, 50)}..."`);
       
       if (originalPrompt) {
         textParts.push(`[Previous message: "${originalPrompt}"]\n[Response: "${out.text}"]`);
@@ -116,10 +107,25 @@ function getIncomingText(edges: Edge[], outputs: OutputByNode, nodeId: string, n
     }
   }
   
-  const result = textParts.length > 0 ? textParts.join("\n\n") : undefined;
-  console.log(`[getIncomingText] Result for node ${nodeId}:`, result ? `"${result.slice(0, 100)}..."` : "undefined");
+  return textParts.length > 0 ? textParts.join("\n\n") : undefined;
+}
+
+// Get incoming text for prompt (just the response, no history)
+function getIncomingTextForPrompt(edges: Edge[], outputs: OutputByNode, nodeId: string): string | undefined {
+  const incoming = edges.filter((e) => e.target === nodeId && e.targetHandle === "prompt");
+  console.log(`[getIncomingTextForPrompt] Node ${nodeId} has ${incoming.length} prompt edges`);
   
-  return result;
+  for (const e of incoming) {
+    const out = outputs.get(e.source);
+    
+    if (out?.type === "text") {
+      // response → prompt: ONLY the LLM response, no history
+      console.log(`[getIncomingTextForPrompt] Using response as prompt: "${out.text?.slice(0, 100)}..."`);
+      return out.text;
+    }
+  }
+  
+  return undefined;
 }
 
 function getNodeOutputPreviewFromData(node: Node): string | undefined {
@@ -186,19 +192,25 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
   const type = node.type as AINodeType;
   const data = (node.data ?? {}) as any;
 
-  // Black box rule: only pass validated outputs forward. Here we only use prior outputs map (not raw node.data).
-  const prevText = getIncomingText(edges, outputs, node.id, nodes);
-
-  // Map connected outputs into expected input fields
-  // For this submission we support:
-  // - text context chaining (prevText -> context)
-  // - keeping node's own config fields from node.data
-  // IMPORTANT: Use prevText if available (it contains previous node outputs)
-  // Only fall back to data.context if there's no incoming connection output
-  const contextValue = prevText || (typeof data.context === 'string' && data.context.trim() ? data.context : undefined);
+  // Get incoming text for prompt (response → prompt: just the response)
+  const incomingPrompt = getIncomingTextForPrompt(edges, outputs, node.id);
   
+  // Get incoming text for context (includes conversation history)
+  const incomingContext = getIncomingTextForContext(edges, outputs, node.id, nodes);
+
+  // Determine prompt value:
+  // 1. If there's an incoming prompt connection, use the LLM response as the prompt
+  // 2. Otherwise, use the node's own prompt setting
+  const promptValue = incomingPrompt || data.prompt;
+
+  // Determine context value:
+  // 1. If there's incoming context, use it (includes history)
+  // 2. Otherwise, fall back to node's stored context
+  const contextValue = incomingContext || (typeof data.context === 'string' && data.context.trim() ? data.context : undefined);
+
   const base = {
     ...data,
+    prompt: promptValue,
     context: contextValue,
   };
 
@@ -282,28 +294,55 @@ function providerIsConfigured(_provider: ProviderId): boolean {
   return true;
 }
 
-function fakeAssetUrl(kind: "image" | "video" | "audio") {
-  // Deterministic placeholder assets for non-implemented nodes
-  if (kind === "image") return "https://picsum.photos/seed/flowsmith/512/512";
-  if (kind === "video") return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-  return "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav";
-}
 
-// Utility nodes that should be executed via the sync API
-const UTILITY_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
+// AI nodes that go through Trigger.dev (external API calls)
+const TRIGGER_NODE_TYPES = [
+  "seedream", "seedvr", "seedance", "elevenlabs", "lipsync", "openrouter",
+];
+
+// Utility nodes that run locally (fast internal processing)
+const LOCAL_NODE_TYPES = [
+  "crop-image", "merge-audio-video", "merge-videos", "extract-audio",
+];
+
+// Poll for node completion
+async function pollNodeStatus(nodeId: string, timeoutMs: number = 300000): Promise<{ status: string; output?: unknown; error?: string }> {
+  const startTime = Date.now();
+  const pollInterval = 2000; // Poll every 2 seconds
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const response = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(nodeId)}`);
+      const result = await response.json();
+
+      if (result.status === "completed") {
+        return { status: "completed", output: result.output };
+      }
+
+      if (result.status === "failed") {
+        return { status: "failed", error: result.error || "Node execution failed" };
+      }
+
+      // Still running, wait and poll again
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    } catch (error) {
+      console.error(`[pollNodeStatus] Error polling ${nodeId}:`, error);
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  return { status: "failed", error: "Execution timed out" };
+}
 
 async function executeWithProvider(type: AINodeType, provider: ProviderId, input: unknown): Promise<AnyOut> {
   void provider;
-
-  const outType = NodePrimaryOutputType[type];
   
   console.log(`[executeWithProvider] Executing ${type} with provider ${provider}`);
-  console.log(`[executeWithProvider] Input:`, JSON.stringify(input).slice(0, 500));
 
-  // For utility nodes, call the sync execute API
-  if (UTILITY_NODE_TYPES.includes(type)) {
+  // LOCAL utility nodes - run via sync API (no network overhead for large data)
+  if (LOCAL_NODE_TYPES.includes(type)) {
     try {
-      console.log(`[executeWithProvider] Calling sync API for ${type}`);
+      console.log(`[executeWithProvider] Calling sync API for LOCAL node: ${type}`);
       
       const response = await fetch("/api/nodes/execute-sync", {
         method: "POST",
@@ -314,26 +353,66 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
         }),
       });
 
-      let result;
-      try {
-        result = await response.json();
-      } catch (parseError) {
-        throw new Error(`Failed to parse response: ${parseError}`);
-      }
+      const result = await response.json();
 
       if (!result.success) {
         throw new Error(result.error || `${type} execution failed`);
       }
 
-      console.log(`[executeWithProvider] ${type} completed successfully`);
+      console.log(`[executeWithProvider] ${type} completed successfully (local)`);
       return result.output as AnyOut;
     } catch (error) {
       console.error(`[executeWithProvider] ${type} execution error:`, error);
       throw new Error(`${type} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  
-  // For OpenRouter/LLM nodes, call the real API
+
+  // AI nodes go through Trigger.dev
+  if (TRIGGER_NODE_TYPES.includes(type)) {
+    try {
+      console.log(`[executeWithProvider] Calling Trigger.dev API for ${type}`);
+      
+      // Generate a unique nodeId for this execution
+      const nodeId = (input as { nodeId?: string })?.nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      
+      const response = await fetch("/api/nodes/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeType: type,
+          input: { ...input as object, nodeId },
+        }),
+      });
+
+      const triggerResult = await response.json();
+
+      if (triggerResult.status === "error") {
+        throw new Error(triggerResult.error || `${type} execution failed to start`);
+      }
+
+      console.log(`[executeWithProvider] ${type} triggered via Trigger.dev, polling for completion...`);
+      
+      // Poll for completion (5 min timeout for AI nodes)
+      const pollResult = await pollNodeStatus(nodeId, 300000);
+      
+      if (pollResult.status === "failed") {
+        throw new Error(pollResult.error || `${type} execution failed`);
+      }
+
+      if (pollResult.output) {
+        console.log(`[executeWithProvider] ${type} completed successfully via Trigger.dev`);
+        return pollResult.output as AnyOut;
+      }
+
+      throw new Error(`${type} completed but no output received`);
+    } catch (error) {
+      console.error(`[executeWithProvider] ${type} execution error:`, error);
+      throw new Error(`${type} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // Fallback for any unhandled node types (shouldn't happen)
+  const outType = NodePrimaryOutputType[type];
   if (type === "openrouter" && outType === "text") {
     const inputData = input as {
       prompt?: string;
@@ -410,58 +489,114 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
     }
   }
 
-  // For other text nodes, return placeholder
-  if (outType === "text") {
-    const prompt = (input as any)?.prompt ?? "";
-    const ctx = (input as any)?.context ? `\n\nContext: ${(input as any).context}` : "";
-    return { type: "text", text: `[${type}] Processing: ${prompt}${ctx}` };
-  }
-
-  if (outType === "image") {
-    return { type: "image", image: AssetRefSchema.parse({ url: fakeAssetUrl("image") }) };
-  }
-
-  if (outType === "video") {
-    return { type: "video", video: AssetRefSchema.parse({ url: fakeAssetUrl("video") }) };
-  }
-
-  return { type: "audio", audio: AssetRefSchema.parse({ url: fakeAssetUrl("audio") }) };
+  // Unsupported node type - throw error instead of returning mock data
+  throw new Error(`Node type "${type}" is not supported for execution. Please check your workflow configuration.`);
 }
 
+/**
+ * PARALLEL WORKFLOW EXECUTION
+ * 
+ * Execution order is determined by dependencies:
+ * 1. Nodes with no incoming edges (root nodes) start immediately IN PARALLEL
+ * 2. When a node completes, all nodes that only depended on it become ready
+ * 3. Ready nodes start immediately IN PARALLEL
+ * 4. This continues until all nodes are complete
+ * 
+ * Example with two independent pipelines:
+ *   Pipeline A: LLM1 → Image1 → Video1
+ *   Pipeline B: LLM2 → Image2 → Video2
+ * 
+ * Execution:
+ *   - LLM1 and LLM2 start simultaneously (both are roots)
+ *   - When LLM1 finishes, Image1 starts immediately
+ *   - When LLM2 finishes, Image2 starts immediately
+ *   - Both Image nodes run in parallel
+ *   - And so on...
+ */
 export async function runWorkflow(
   nodes: Node[],
   edges: Edge[],
   callbacks: RunCallbacks = {}
 ): Promise<void> {
-  console.log("[RunWorkflow] Starting workflow execution");
+  console.log("[RunWorkflow] Starting PARALLEL workflow execution");
   console.log("[RunWorkflow] Nodes:", nodes.map(n => ({ id: n.id, type: n.type })));
   console.log("[RunWorkflow] Edges:", edges.map(e => ({ source: e.source, target: e.target })));
   
   const outputs: OutputByNode = new Map();
-  const ordered = topoSort(nodes, edges);
+  const allNodes = topoSort(nodes, edges); // Still need topo sort for validation
   
-  console.log("[RunWorkflow] Execution order:", ordered.map(n => n.id));
-
-  for (const n of ordered) {
-    const type = n.type as AINodeType;
-    if (!NodeInputSchemas[type] || !NodeOutputSchemas[type]) {
-      callbacks.onNodeStatus?.(n.id, "failed", { error: `Missing schemas for node type: ${type}` });
-      continue;
-    }
-
-    callbacks.onNodeStatus?.(n.id, "queued");
+  // Build dependency graph
+  const nodeById = new Map<string, Node>(allNodes.map(n => [n.id, n]));
+  const dependencies = new Map<string, Set<string>>(); // node -> set of nodes it depends on
+  const dependents = new Map<string, Set<string>>();   // node -> set of nodes that depend on it
+  
+  // Initialize dependency structures
+  for (const node of allNodes) {
+    dependencies.set(node.id, new Set());
+    dependents.set(node.id, new Set());
   }
-
-  for (const node of ordered) {
+  
+  // Populate dependencies from edges
+  for (const edge of edges) {
+    const source = edge.source;
+    const target = edge.target;
+    if (nodeById.has(source) && nodeById.has(target)) {
+      dependencies.get(target)!.add(source);
+      dependents.get(source)!.add(target);
+    }
+  }
+  
+  // Track node states
+  const completed = new Set<string>();
+  const failed = new Set<string>();
+  const running = new Set<string>();
+  
+  // Find nodes that can run (no pending dependencies)
+  const getReadyNodes = (): Node[] => {
+    const ready: Node[] = [];
+    for (const node of allNodes) {
+      if (completed.has(node.id) || failed.has(node.id) || running.has(node.id)) {
+        continue;
+      }
+      const deps = dependencies.get(node.id)!;
+      const allDepsComplete = [...deps].every(d => completed.has(d));
+      const anyDepFailed = [...deps].some(d => failed.has(d));
+      
+      if (anyDepFailed) {
+        // Skip this node - a dependency failed
+        failed.add(node.id);
+        callbacks.onNodeStatus?.(node.id, "failed", { 
+          error: "Dependency failed",
+          progress: 0 
+        });
+        continue;
+      }
+      
+      if (allDepsComplete) {
+        ready.push(node);
+      }
+    }
+    return ready;
+  };
+  
+  // Execute a single node
+  const executeNode = async (node: Node): Promise<void> => {
     const type = node.type as AINodeType;
     const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny;
     const outputSchema = NodeOutputSchemas[type] as z.ZodTypeAny;
     const data = (node.data ?? {}) as any;
 
+    if (!inputSchema || !outputSchema) {
+      callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
+      failed.add(node.id);
+      return;
+    }
+
+    running.add(node.id);
     callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
-    const rawInput = buildNodeInput(node, edges, outputs, ordered);
-    console.log(`[RunWorkflow] Node ${node.id} (${type}) - Built input:`, {
+    const rawInput = buildNodeInput(node, edges, outputs, allNodes);
+    console.log(`[RunWorkflow] Node ${node.id} (${type}) starting - Built input:`, {
       prompt: (rawInput as any)?.prompt?.slice(0, 100),
       context: (rawInput as any)?.context?.slice(0, 200),
       hasContext: !!(rawInput as any)?.context,
@@ -473,17 +608,16 @@ export async function runWorkflow(
         error: parsed.error.issues.map((i) => i.message).join("; "),
         progress: 0,
       });
-      continue;
+      running.delete(node.id);
+      failed.add(node.id);
+      return;
     }
 
-    // Provider fallback chain (node-configurable)
-    // node.data.providers: string[] (ordered)
-    // node.data.retryPerProvider: number
-    // node.data.timeout: e.g. "2m" | "30s" | 60000
+    // Provider fallback chain
     const nodeProvidersRaw = Array.isArray(data.providers) ? data.providers : undefined;
     const providers = (nodeProvidersRaw?.filter((p: unknown) => typeof p === "string" && p.trim()) as string[] | undefined)
       ?? (NodeProviders[type] as unknown as string[] | undefined)
-      ?? ["mock"];
+      ?? ["fal"];
 
     const retryPerProvider =
       typeof data.retryPerProvider === "number" && Number.isFinite(data.retryPerProvider) && data.retryPerProvider > 0
@@ -507,7 +641,7 @@ export async function runWorkflow(
 
       for (let attempt = 1; attempt <= retryPerProvider; attempt++) {
         callbacks.onNodeStatus?.(node.id, "running", {
-          progress: 20,
+          progress: 20 + (attempt * 10),
           providerTrying: p,
           providerAttempt: attempt,
         });
@@ -527,11 +661,14 @@ export async function runWorkflow(
           break;
         } catch (e) {
           lastError = e instanceof Error ? e.message : String(e);
+          console.log(`[RunWorkflow] Node ${node.id} attempt ${attempt} failed: ${lastError}`);
         }
       }
 
       if (finalOut) break;
     }
+
+    running.delete(node.id);
 
     if (!finalOut) {
       callbacks.onNodeStatus?.(node.id, "failed", {
@@ -539,15 +676,14 @@ export async function runWorkflow(
         attemptedProviders,
         progress: 0,
       });
-      continue;
+      failed.add(node.id);
+      return;
     }
 
     outputs.set(node.id, finalOut);
-    console.log(`[RunWorkflow] Node ${node.id} completed. Output stored:`, {
-      type: finalOut.type,
-      textPreview: finalOut.type === "text" ? finalOut.text?.slice(0, 100) : undefined,
-    });
-    console.log(`[RunWorkflow] Current outputs map size: ${outputs.size}`);
+    completed.add(node.id);
+    
+    console.log(`[RunWorkflow] Node ${node.id} completed. Output stored.`);
     
     const resultText =
       finalOut.type === "text"
@@ -564,9 +700,54 @@ export async function runWorkflow(
       providerUsed,
       attemptedProviders,
     });
+  };
+  
+  // Mark all nodes as queued initially
+  for (const node of allNodes) {
+    const type = node.type as AINodeType;
+    if (!NodeInputSchemas[type] || !NodeOutputSchemas[type]) {
+      callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
+      failed.add(node.id);
+      continue;
+    }
+    callbacks.onNodeStatus?.(node.id, "queued");
   }
   
-  console.log("[RunWorkflow] Workflow execution completed");
+  // Identify independent pipelines for logging
+  const rootNodes = allNodes.filter(n => dependencies.get(n.id)!.size === 0);
+  console.log(`[RunWorkflow] Found ${rootNodes.length} root node(s) - these will start in PARALLEL:`, rootNodes.map(n => n.id));
+  
+  // Main execution loop - run nodes in parallel waves
+  while (completed.size + failed.size < allNodes.length) {
+    const readyNodes = getReadyNodes();
+    
+    if (readyNodes.length === 0) {
+      // No nodes ready and not all complete - might be stuck
+      if (running.size === 0) {
+        console.error("[RunWorkflow] No nodes ready and none running - possible cycle or all failed");
+        break;
+      }
+      // Wait a bit for running nodes to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      continue;
+    }
+    
+    console.log(`[RunWorkflow] Starting ${readyNodes.length} node(s) in PARALLEL:`, readyNodes.map(n => `${n.id} (${n.type})`));
+    
+    // Start all ready nodes in parallel
+    const promises = readyNodes.map(node => executeNode(node));
+    
+    // Wait for at least one to complete before checking for new ready nodes
+    await Promise.race(promises);
+    
+    // Also wait for all current batch to settle before next iteration
+    // This prevents starting too many concurrent operations
+    await Promise.allSettled(promises);
+  }
+  
+  const successCount = completed.size;
+  const failCount = failed.size;
+  console.log(`[RunWorkflow] Workflow execution completed: ${successCount} succeeded, ${failCount} failed`);
 }
 
 // Nodes that require server-side execution via Trigger.dev (async/webhook-based)

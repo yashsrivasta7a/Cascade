@@ -235,7 +235,7 @@ export const creditsRouter = router({
         amount: z.number().positive(),
         type: z.enum(["PURCHASE", "BONUS", "REFUND", "ADJUSTMENT"]),
         description: z.string().optional(),
-        metadata: z.record(z.unknown()).optional(),
+        metadata: z.record(z.string(), z.any()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

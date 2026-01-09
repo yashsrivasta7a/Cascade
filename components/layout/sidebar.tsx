@@ -13,6 +13,7 @@ import {
   CreditCard,
   Settings,
   Plus,
+  BookOpen,
 } from "lucide-react";
 
 // =============================================================================
@@ -28,6 +29,7 @@ const navItems = [
 
 const bottomItems = [
   { label: "Billing", href: "/billing", icon: CreditCard },
+  { label: "Pricing", href: "/ledger", icon: BookOpen },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

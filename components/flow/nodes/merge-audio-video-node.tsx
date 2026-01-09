@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { Combine, Settings, Play, Loader2, Upload, X, Film, Volume2, Lock } from "lucide-react";
+import { Combine, Play, Loader2, Upload, X, Film, Volume2, Lock, ChevronDown } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -23,6 +23,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const workflowId = useFlowStore((s) => s.workflowId);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
@@ -90,6 +91,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           nodeType: "merge-audio-video",
           nodeId: id,
           nodeLabel: data.label || nodeDef.label,
+          workflowId: workflowId ?? undefined,
           input: {
             video: { url: data.inputVideo },
             audio: { url: data.inputAudio },
@@ -195,14 +197,14 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           >
             {data.inputVideo ? (
               <div className="relative p-1">
-                <video src={data.inputVideo} className="w-full h-10 object-cover rounded" muted />
+                <video src={data.inputVideo} className="w-full aspect-video object-cover rounded" muted />
                 <button
                   onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined }); }}
-                  className="absolute top-1 right-1 p-1 bg-black/60 rounded-full hover:bg-black/80"
+                  className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
                 >
                   <X className="w-2.5 h-2.5 text-white" />
                 </button>
-                <div className="absolute bottom-1 left-1 text-[8px] text-violet-400 bg-black/60 px-1 py-0.5 rounded flex items-center gap-0.5">
+                <div className="absolute bottom-2 left-2 text-[8px] text-violet-400 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <Film className="w-2 h-2" />Video
                 </div>
               </div>
@@ -249,18 +251,6 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const next = !showSettings;
-                setShowSettings(next);
-                updateNode(id, { advancedOpen: next });
-              }}
-              className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
-                showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-            <button
               onClick={runMerge}
               disabled={!hasInputs}
               className={`nodrag nowheel flex-1 h-7 px-3 rounded-lg border text-[10px] font-semibold flex items-center justify-center gap-1.5 ${
@@ -275,6 +265,33 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
             </button>
           </div>
 
+          {/* Additional Settings Toggle */}
+          <button
+            onClick={() => {
+              const next = !showSettings;
+              setShowSettings(next);
+              updateNode(id, { advancedOpen: next });
+            }}
+            disabled={isProcessing}
+            className="nodrag nowheel w-full mt-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="text-left">
+                <div className="text-[11px] font-medium text-zinc-300">Additional Settings</div>
+                <div className="text-[9px] text-zinc-500">Audio replacement options.</div>
+              </div>
+              <div className="flex items-center gap-1 text-zinc-400">
+                <span className="text-[10px]">{showSettings ? "Less" : "More"}</span>
+                <motion.div
+                  animate={{ rotate: showSettings ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </motion.div>
+              </div>
+            </div>
+          </button>
+
           {/* Collapsible Settings */}
           <AnimatePresence>
             {showSettings && (
@@ -284,7 +301,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="pt-2 border-t border-white/5">
+                <div className="pt-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -315,11 +332,13 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Merging..." : data.result ? "Combined" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[60px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
             {data.result ? (
-              <video src={data.result} controls className="w-full h-auto max-h-[100px]" />
+              <video src={data.result} controls className="w-full aspect-video" />
             ) : (
-              <span className="text-zinc-600 text-[10px]">—</span>
+              <div className="py-8">
+                <span className="text-zinc-600 text-[10px]">—</span>
+              </div>
             )}
           </div>
         </div>

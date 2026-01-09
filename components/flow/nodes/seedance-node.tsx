@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef } from "react";
 import { NodeProps } from "reactflow";
-import { Film, Play, Loader2, Settings, Upload, X, Lock } from "lucide-react";
+import { Film, Play, Loader2, Settings, Upload, X, Lock, Link2 } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -24,6 +24,10 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
+  const isHandleConnected = useFlowStore((s) => s.isHandleConnected);
+  
+  // Check if prompt handle is connected (receiving from another node)
+  const isPromptConnected = isHandleConnected(id, "prompt");
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -166,13 +170,26 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
           />
 
           {/* Prompt Input */}
-          <textarea
-            value={data.prompt || ""}
-            onChange={(e) => updateNode(id, { prompt: e.target.value })}
-            placeholder={data.context ? "Override prompt..." : "Describe the video..."}
-            rows={2}
-            className="nodrag nowheel w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
-          />
+          <div className="relative">
+            {isPromptConnected && (
+              <div className="absolute top-1 right-1 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/20 border border-violet-500/30">
+                <Link2 className="w-2.5 h-2.5 text-violet-400" />
+                <span className="text-[8px] text-violet-400 font-medium">LINKED</span>
+              </div>
+            )}
+            <textarea
+              value={data.prompt || ""}
+              onChange={(e) => !isPromptConnected && updateNode(id, { prompt: e.target.value })}
+              placeholder={isPromptConnected ? "Waiting for response from connected node..." : data.context ? "Override prompt..." : "Describe the video..."}
+              rows={2}
+              readOnly={isPromptConnected}
+              className={`nodrag nowheel w-full px-3 py-2 rounded-lg border text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none ${
+                isPromptConnected
+                  ? "bg-violet-500/5 border-violet-500/20"
+                  : "bg-zinc-900/60 border-white/10 focus:border-white/20"
+              }`}
+            />
+          </div>
 
           {/* Start Frame Upload */}
           <div
@@ -285,11 +302,13 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Generating..." : data.result ? "Output" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[80px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
             {data.result ? (
-              <video src={data.result} controls className="w-full h-auto max-h-[150px]" />
+              <video src={data.result} controls className="w-full aspect-video" />
             ) : (
-              <span className="text-zinc-600 text-[10px]">—</span>
+              <div className="py-8">
+                <span className="text-zinc-600 text-[10px]">—</span>
+              </div>
             )}
           </div>
         </div>

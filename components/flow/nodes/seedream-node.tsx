@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeProps } from "reactflow";
-import { ImageIcon, Play, Loader2, Square, ChevronDown, Upload, X, Settings, Lock } from "lucide-react";
+import { ImageIcon, Play, Loader2, Square, ChevronDown, Upload, X, Settings, Lock, Link2 } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -32,6 +32,10 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
   const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
+  const isHandleConnected = useFlowStore((s) => s.isHandleConnected);
+  
+  // Check if prompt handle is connected (receiving from another node)
+  const isPromptConnected = isHandleConnected(id, "prompt");
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
@@ -267,7 +271,12 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           <div className="relative">
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] font-medium text-zinc-400">Prompt</label>
-              {isSettingInherited(data, "prompt") && (
+              {isPromptConnected ? (
+                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30">
+                  <Link2 className="w-2.5 h-2.5 text-emerald-400" />
+                  <span className="text-[8px] text-emerald-400 font-medium">LINKED</span>
+                </div>
+              ) : isSettingInherited(data, "prompt") && (
                 <div className="flex items-center gap-1 text-[9px] text-violet-400">
                   <Lock className="w-2.5 h-2.5" />
                   <span>Inherited</span>
@@ -276,12 +285,17 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             </div>
             <textarea
               value={data.prompt || ""}
-              onChange={(e) => !isSettingInherited(data, "prompt") && updateNode(id, { prompt: e.target.value })}
-              placeholder={data.context ? "Override prompt..." : "Describe the image..."}
+              onChange={(e) => !isPromptConnected && !isSettingInherited(data, "prompt") && updateNode(id, { prompt: e.target.value })}
+              placeholder={isPromptConnected ? "Waiting for response from connected node..." : data.context ? "Override prompt..." : "Describe the image..."}
               rows={3}
+              readOnly={isPromptConnected}
               disabled={isSettingInherited(data, "prompt")}
-              className={`nodrag nowheel w-full px-3 py-2 rounded-xl bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none ${
-                isSettingInherited(data, "prompt") ? "opacity-60 cursor-not-allowed border-violet-500/30 bg-violet-500/5" : ""
+              className={`nodrag nowheel w-full px-3 py-2 rounded-xl border text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none ${
+                isPromptConnected
+                  ? "bg-emerald-500/5 border-emerald-500/20"
+                  : isSettingInherited(data, "prompt") 
+                    ? "opacity-60 cursor-not-allowed border-violet-500/30 bg-violet-500/5" 
+                    : "bg-zinc-900/60 border-white/10 focus:border-white/20"
               }`}
             />
           </div>

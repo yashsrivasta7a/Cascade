@@ -10,19 +10,12 @@ import { TextOutSchema } from "@/lib/workflow/node-schemas";
 export const OpenRouterInputSchema = z.object({
   prompt: z.string().min(1).max(128000),
   systemPrompt: z.string().optional(),
-  model: z.enum([
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3-opus",
-    "google/gemini-1.5-pro",
-    "google/gemini-1.5-flash",
-  ]).default("openai/gpt-4o-mini"),
+  model: z.string().default("openai/gpt-4o-mini"), // Accept any model string
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().min(1).max(128000).default(4096),
   // Context from previous nodes (could be text or image URL)
   context: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().optional(), // Can be URL or base64 data URL
 });
 
 export type OpenRouterInput = z.infer<typeof OpenRouterInputSchema>;

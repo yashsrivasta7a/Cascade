@@ -228,23 +228,36 @@ function CustomEdge({
       {isHovered && !isWorkflowRunning && (
         <g
           transform={`translate(${labelX}, ${labelY})`}
-          onClick={handleDelete}
           style={{ cursor: "pointer", overflow: "visible" }}
         >
+          {/* Invisible larger hit area for easier clicking */}
+          <circle
+            cx={0}
+            cy={0}
+            r={20}
+            fill="transparent"
+            onClick={handleDelete}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{ cursor: "pointer" }}
+          />
           {/* Outer glow ring */}
           <circle
             cx={0}
             cy={0}
-            r={12}
+            r={14}
             fill={typeColors.stroke}
             fillOpacity={0.2}
+            onClick={handleDelete}
+            style={{ pointerEvents: "none" }}
           />
           {/* Inner solid circle */}
           <circle
             cx={0}
             cy={0}
-            r={6}
+            r={8}
             fill={typeColors.stroke}
+            onClick={handleDelete}
+            style={{ pointerEvents: "none" }}
           />
           {/* X Icon */}
           <path
@@ -638,6 +651,33 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         const src = nodes.find((n) => n.id === params.source);
         const targetHandle = params.targetHandle ?? "context";
         const sourceHandle = params.sourceHandle ?? null;
+
+        // IMPORTANT: When connecting "response" to "prompt", we should NOT copy any preview value.
+        // The prompt should only be populated when the LLM actually generates a response.
+        // This prevents the source's prompt from being copied to the target's prompt.
+        const isResponseToPrompt = sourceHandle === "response" && targetHandle === "prompt";
+        
+        if (isResponseToPrompt) {
+          // Don't copy anything yet - wait for actual LLM response
+          // Just set up the connection metadata
+          setNodes(
+            nodes.map((n) =>
+              n.id === params.target
+                ? {
+                    ...n,
+                    data: {
+                      ...(n.data as any),
+                      incomingFrom: {
+                        ...(n.data as any)?.incomingFrom,
+                        [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
+                      },
+                    },
+                  }
+                : n
+            )
+          );
+          return;
+        }
 
         const preview = src ? getNodeOutputPreview(src) : undefined;
         const srcData = (src?.data ?? {}) as any;

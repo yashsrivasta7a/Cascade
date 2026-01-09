@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     // If workflowId is specified, fetch directly from database instead of Trigger.dev
     // This is more efficient and accurate for per-workflow filtering
     if (workflowId && workflowId !== "new") {
+      // Fetch workflow executions (full workflow runs)
       const dbExecutions = await db.workflowExecution.findMany({
         where: {
           workflowId,
@@ -54,40 +55,89 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      const executions = dbExecutions.map((exec) => {
+      // Also fetch QuickExecution records for this workflow (individual node runs)
+      const quickExecutions = await db.quickExecution.findMany({
+        where: {
+          workflowId,
+          ...(userId ? { userId } : {}),
+        },
+        orderBy: { startedAt: "desc" },
+        take: limit,
+      });
+
+      // Transform workflow executions
+      const workflowExecs = dbExecutions.map((exec) => ({
+        id: exec.id,
+        triggerRunId: exec.triggerRunId,
+        status: exec.status,
+        createdAt: exec.createdAt.toISOString(),
+        startedAt: exec.startedAt?.toISOString(),
+        completedAt: exec.completedAt?.toISOString(),
+        taskIdentifier: "workflow-execution",
+        workflowName: exec.workflow?.name,
+        workflowId: exec.workflowId,
+        durationMs: exec.startedAt && exec.completedAt 
+          ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
+          : undefined,
+        nodeExecutions: exec.nodeExecutions.map((ne) => ({
+          id: ne.id,
+          nodeId: ne.nodeId,
+          nodeLabel: ne.nodeLabel || ne.nodeType,
+          nodeType: ne.nodeType,
+          status: ne.status,
+          providerUsed: ne.providerUsed,
+          error: ne.error,
+          startedAt: ne.startedAt?.toISOString(),
+          completedAt: ne.completedAt?.toISOString(),
+          actualCost: ne.actualCost || 0,
+        })),
+        error: exec.error,
+      }));
+
+      // Transform quick executions (individual node runs via Play button)
+      const quickExecs = quickExecutions.map((exec) => {
+        const nodeDef = NODE_DEFINITIONS[exec.nodeType as AINodeType];
         return {
           id: exec.id,
-          triggerRunId: exec.triggerRunId,
-          status: exec.status,
+          triggerRunId: null,
+          status: exec.status.toUpperCase(),
           createdAt: exec.createdAt.toISOString(),
           startedAt: exec.startedAt?.toISOString(),
           completedAt: exec.completedAt?.toISOString(),
-          taskIdentifier: "workflow-execution",
-          workflowName: exec.workflow?.name,
+          taskIdentifier: `quick-${exec.nodeType}`,
+          workflowName: exec.nodeLabel || nodeDef?.label || exec.nodeType,
           workflowId: exec.workflowId,
-          durationMs: exec.startedAt && exec.completedAt 
-            ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
-            : undefined,
-          nodeExecutions: exec.nodeExecutions.map((ne) => ({
-            id: ne.id,
-            nodeId: ne.nodeId,
-            nodeLabel: ne.nodeLabel || ne.nodeType,
-            nodeType: ne.nodeType,
-            status: ne.status,
-            providerUsed: ne.providerUsed,
-            error: ne.error,
-            startedAt: ne.startedAt?.toISOString(),
-            completedAt: ne.completedAt?.toISOString(),
-            actualCost: ne.actualCost || 0,
-          })),
+          durationMs: exec.durationMs,
+          nodeExecutions: [{
+            id: exec.id,
+            nodeId: exec.nodeId || exec.id,
+            nodeLabel: exec.nodeLabel || nodeDef?.label || exec.nodeType,
+            nodeType: exec.nodeType,
+            status: exec.status.toUpperCase(),
+            providerUsed: exec.provider || "internal",
+            error: exec.error,
+            startedAt: exec.startedAt?.toISOString(),
+            completedAt: exec.completedAt?.toISOString(),
+            actualCost: exec.actualCost || 0,
+          }],
           error: exec.error,
+          isQuickExecution: true,
         };
       });
 
+      // Merge and sort by start time
+      const allExecutions = [...workflowExecs, ...quickExecs]
+        .sort((a, b) => {
+          const aTime = new Date(a.startedAt || a.createdAt).getTime();
+          const bTime = new Date(b.startedAt || b.createdAt).getTime();
+          return bTime - aTime;
+        })
+        .slice(0, limit);
+
       return NextResponse.json({
-        executions,
+        executions: allExecutions,
         pagination: {
-          hasMore: dbExecutions.length === limit,
+          hasMore: dbExecutions.length === limit || quickExecutions.length === limit,
         },
         source: "db-workflow-filtered",
       });

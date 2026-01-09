@@ -214,7 +214,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
           >
             {data.inputVideo ? (
               <div className="relative p-1">
-                <video src={data.inputVideo} className="w-full h-12 object-cover rounded" muted />
+                <video src={data.inputVideo} className="w-full aspect-video object-cover rounded" muted />
                 <button
                   onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined }); }}
                   className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
@@ -331,11 +331,13 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Syncing..." : data.result ? "Synced Output" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[80px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
             {data.result ? (
-              <video src={data.result} controls className="w-full h-auto max-h-[150px]" />
+              <video src={data.result} controls className="w-full aspect-video" />
             ) : (
-              <span className="text-zinc-600 text-[10px]">—</span>
+              <div className="py-8">
+                <span className="text-zinc-600 text-[10px]">—</span>
+              </div>
             )}
           </div>
         </div>

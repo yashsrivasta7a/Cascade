@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
 import { executeNode } from "@/app/trigger/node-executor";
@@ -9,10 +10,21 @@ import { executeNode } from "@/app/trigger/node-executor";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { nodeType?: string; input?: Record<string, unknown> };
+    // Get the authenticated user
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: "Unauthorized - please sign in" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json() as { nodeType?: string; input?: Record<string, unknown>; workflowId?: string };
     
     const nodeType = body?.nodeType;
     const input = body?.input ?? {};
+    const workflowId = body?.workflowId;
 
     if (!nodeType || typeof nodeType !== "string") {
       return NextResponse.json(
@@ -27,35 +39,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create a test user if not exists
-    const testUserId = "test-user-node-execute";
-    await db.user.upsert({
-      where: { id: testUserId },
-      create: {
-        id: testUserId,
-        email: "test-node@flowsmith.dev",
-        credits: 10000,
-      },
-      update: {},
-    });
+    // Get or create the user in our database
+    let user = await db.user.findUnique({ where: { id: clerkUserId } });
+    if (!user) {
+      // User might not exist yet - create with default credits
+      user = await db.user.create({
+        data: {
+          id: clerkUserId,
+          email: `user-${clerkUserId}@flowsmith.dev`,
+          credits: 1_000_000, // Default 1M credits for new users
+        },
+      });
+    }
 
-    // Create a mock workflow execution for tracking
-    const mockWorkflow = await db.workflow.upsert({
-      where: { id: "test-node-execute-workflow" },
-      create: {
-        id: "test-node-execute-workflow",
-        userId: testUserId,
-        name: "Node Test Workflow",
-        nodesJson: [],
-        edgesJson: [],
-      },
-      update: {},
-    });
+    // Get or create a workflow for this execution
+    let workflow;
+    if (workflowId) {
+      workflow = await db.workflow.findUnique({ where: { id: workflowId } });
+    }
+    
+    if (!workflow) {
+      // Create a default workflow for ad-hoc node executions
+      workflow = await db.workflow.upsert({
+        where: { id: `adhoc-${clerkUserId}` },
+        create: {
+          id: `adhoc-${clerkUserId}`,
+          userId: clerkUserId,
+          name: "Ad-hoc Executions",
+          nodesJson: [],
+          edgesJson: [],
+        },
+        update: {},
+      });
+    }
 
     const workflowExecution = await db.workflowExecution.create({
       data: {
-        workflowId: mockWorkflow.id,
-        userId: testUserId,
+        workflowId: workflow.id,
+        userId: clerkUserId,
         status: "RUNNING",
         workflowSnapshot: {},
         estimatedCost: 5,

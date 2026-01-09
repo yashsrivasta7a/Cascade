@@ -2,11 +2,12 @@
 
 import { memo, useState, useCallback, useRef, useEffect, KeyboardEvent } from "react";
 import { NodeProps } from "reactflow";
-import { Brain, Play, Loader2, Square, Plus, X, ExternalLink, Settings, Upload, Image as ImageIcon, Lock } from "lucide-react";
+import { Brain, Play, Loader2, Square, Plus, X, ExternalLink, Settings, Upload, Image as ImageIcon, Lock, Link2, ChevronDown, Check } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 export interface OpenRouterNodeData extends BaseNodeData {
   prompt?: string;
@@ -53,30 +54,54 @@ function RenderWithLinks({ text }: { text: string }) {
   );
 }
 
+// Grouped by provider for better organization
+// Available models - curated list of best value models
 const MODELS = [
-  { id: "openai/gpt-4o", name: "GPT-4o" },
-  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini" },
-  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-  { id: "anthropic/claude-3-opus", name: "Claude 3 Opus" },
-  { id: "google/gemini-1.5-pro", name: "Gemini 1.5 Pro" },
-  { id: "google/gemini-1.5-flash", name: "Gemini 1.5 Flash" },
+  // OpenAI - Best value
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI" },
+  // Google - Latest and fastest
+  { id: "google/gemini-2.5-flash-preview", name: "Gemini 2.5 Flash", provider: "Google" },
+  // Anthropic - Latest Claude
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4.5", provider: "Anthropic" },
 ];
 
 function OpenRouterNodeComponent(props: NodeProps<OpenRouterNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const isHandleConnected = useFlowStore((s) => s.isHandleConnected);
+  const workflowId = useFlowStore((s) => s.workflowId);
+  
+  // Check which handles are connected
+  const isPromptConnected = isHandleConnected(id, "prompt");
+  const isContextConnected = isHandleConnected(id, "context");
+  const isImageConnected = isHandleConnected(id, "inputImage");
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [showNegative, setShowNegative] = useState(Boolean(data.negativePrompt));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastResultRef = useRef<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    console.log(`[OpenRouterNode useEffect] data.result changed: hasResult=${!!data.result}, isNew=${data.result !== lastResultRef.current}`);
     if (data.result && data.result !== lastResultRef.current) {
+      console.log(`[OpenRouterNode useEffect] Propagating result: "${data.result.slice(0, 100)}..."`);
       lastResultRef.current = data.result;
       propagateOutput(id, data.result);
     }
@@ -140,7 +165,11 @@ ${data.prompt}`;
           temperature: data.temperature ?? 0.7,
           maxTokens: data.maxTokens ?? 4096,
           context: data.context,
-          image: data.inputImage,
+          imageUrl: data.inputImage, // Can be URL or base64 data URL
+          // For Activity tracking
+          workflowId: workflowId ?? undefined,
+          nodeId: id,
+          nodeLabel: data.label || "OpenRouter LLM",
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -239,8 +268,8 @@ ${data.prompt}`;
       inputs={[
         { id: "prompt", type: "text", label: "Prompt", required: true },
         { id: "context", type: "text", label: "Context" },
-        // Use actual node.data fields so edges can override behavior.
-        { id: "inputImage", type: "image", label: "Image", hidden: !showSettings },
+        // Show Image handle if connected OR if settings is open
+        { id: "inputImage", type: "image", label: "Image", hidden: !showSettings && !isImageConnected },
         { id: "systemPrompt", type: "text", label: "System", hidden: !showSettings },
         { id: "model", type: "text", label: "Model", hidden: !showSettings },
         { id: "temperature", type: "number", label: "Temp", hidden: !showSettings },
@@ -249,7 +278,6 @@ ${data.prompt}`;
       ]}
       outputs={[
         { id: "response", type: "text", label: "Response" },
-        { id: "out", type: "any", label: "Out" },
       ]}
       left={
         <div className="space-y-2">
@@ -266,73 +294,133 @@ ${data.prompt}`;
           />
 
           {/* Prompt Input */}
-          <textarea
-            value={data.prompt || ""}
-            onChange={(e) => updateNode(id, { prompt: e.target.value })}
-            onKeyDown={handleKeyDown}
-            placeholder="Write your prompt... (Ctrl+Enter to run)"
-            rows={3}
-            className="nodrag nowheel w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-white/10 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-white/20 resize-none"
-          />
+          <div className="relative">
+            {isPromptConnected && (
+              <div className="absolute top-1 right-1 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-500/30">
+                <Link2 className="w-2.5 h-2.5 text-blue-400" />
+                <span className="text-[8px] text-blue-400 font-medium">LINKED</span>
+              </div>
+            )}
+            <textarea
+              value={data.prompt || ""}
+              onChange={(e) => !isPromptConnected && updateNode(id, { prompt: e.target.value })}
+              onKeyDown={handleKeyDown}
+              placeholder={isPromptConnected ? "Receiving from connected node..." : "Write your prompt... (Ctrl+Enter to run)"}
+              rows={3}
+              readOnly={isPromptConnected}
+              className={`nodrag nowheel w-full px-3 py-2 rounded-lg border text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none ${
+                isPromptConnected 
+                  ? "bg-blue-500/5 border-blue-500/20 cursor-not-allowed" 
+                  : "bg-zinc-900/60 border-white/10 focus:border-white/20"
+              }`}
+            />
+          </div>
+
+          {/* Incoming Context Indicator - Only show when context handle is connected */}
+          {isContextConnected && data.context && (
+            <div className="px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Link2 className="w-3 h-3 text-cyan-400" />
+                <span className="text-[9px] text-cyan-400 font-medium uppercase tracking-wider">Context from connected node</span>
+              </div>
+              <p className="text-[10px] text-cyan-300/80 line-clamp-2 italic">
+                {data.context.length > 150 ? data.context.slice(0, 150) + "..." : data.context}
+              </p>
+            </div>
+          )}
 
           {/* Image Upload for Vision */}
           <div
-            onDrop={handleDrop}
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onClick={() => !data.inputImage && fileInputRef.current?.click()}
-            className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all cursor-pointer ${
-              isDragOver
-                ? "border-blue-500 bg-blue-500/10"
+            onDrop={isImageConnected ? undefined : handleDrop}
+            onDragOver={isImageConnected ? undefined : (e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragLeave={isImageConnected ? undefined : () => setIsDragOver(false)}
+            onClick={() => !isImageConnected && !data.inputImage && fileInputRef.current?.click()}
+            className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all ${
+              isImageConnected
+                ? "border-emerald-500/30 bg-emerald-500/5 cursor-default"
+                : isDragOver
+                ? "border-blue-500 bg-blue-500/10 cursor-pointer"
                 : data.inputImage
-                ? "border-blue-500/30 bg-blue-500/5"
-                : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                ? "border-blue-500/30 bg-blue-500/5 cursor-pointer"
+                : "border-white/10 bg-white/[0.02] hover:border-white/20 cursor-pointer"
             }`}
           >
+            {isImageConnected && (
+              <div className="absolute top-1 right-1 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30">
+                <Link2 className="w-2.5 h-2.5 text-emerald-400" />
+                <span className="text-[8px] text-emerald-400 font-medium">LINKED</span>
+              </div>
+            )}
             {data.inputImage ? (
               <div className="relative p-1">
                 <img src={data.inputImage} alt="Vision input" className="w-full h-12 object-cover rounded" />
-                <button
-                  onClick={(e) => { e.stopPropagation(); updateNode(id, { inputImage: undefined }); }}
-                  className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
-                <div className="absolute bottom-2 left-2 text-[9px] text-blue-400 bg-black/60 px-1.5 py-0.5 rounded">
-                  Vision
+                {!isImageConnected && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); updateNode(id, { inputImage: undefined }); }}
+                    className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                )}
+                <div className={`absolute bottom-2 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded ${isImageConnected ? "text-emerald-400" : "text-blue-400"}`}>
+                  {isImageConnected ? "From connected node" : "Vision"}
                 </div>
               </div>
             ) : (
               <div className="flex items-center justify-center gap-2 py-2 text-zinc-500">
                 <ImageIcon className="w-3 h-3" />
-                <span className="text-[9px]">Add image for vision (optional)</span>
+                <span className="text-[9px]">{isImageConnected ? "Waiting for image..." : "Add image for vision (optional)"}</span>
               </div>
             )}
           </div>
 
           {/* Controls Row */}
           <div className="flex items-center gap-2">
-            <select
-              value={data.model || "openai/gpt-4o-mini"}
-              onChange={(e) => updateNode(id, { model: e.target.value })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
-            >
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={() => {
-                const next = !showSettings;
-                setShowSettings(next);
-                updateNode(id, { advancedOpen: next });
-              }}
-              className={`nodrag nowheel h-7 w-7 rounded-lg border flex items-center justify-center ${
-                showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400"
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
+            {/* Custom Model Dropdown */}
+            <div ref={modelDropdownRef} className="relative flex-1">
+              <button
+                onClick={() => setShowModelDropdown(!showModelDropdown)}
+                className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900 border border-white/10 text-[10px] text-zinc-300 flex items-center justify-between hover:border-white/20 transition-colors"
+              >
+                <span className="truncate">
+                  {MODELS.find(m => m.id === (data.model || "openai/gpt-4o-mini"))?.name || "GPT-4o Mini"}
+                </span>
+                <ChevronDown className={cn("w-3 h-3 text-zinc-500 transition-transform", showModelDropdown && "rotate-180")} />
+              </button>
+              
+              <AnimatePresence>
+                {showModelDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.15 }}
+                    className="nodrag nowheel absolute z-50 top-full left-0 right-0 mt-1 py-1 bg-zinc-900 border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto"
+                  >
+                    {/* Simple list of models */}
+                    {MODELS.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          updateNode(id, { model: m.id });
+                          setShowModelDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full px-3 py-2 text-left text-[11px] flex items-center justify-between hover:bg-white/5 transition-colors",
+                          (data.model || "openai/gpt-4o-mini") === m.id ? "text-blue-400 bg-blue-500/10" : "text-zinc-300"
+                        )}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{m.name}</span>
+                          <span className="text-[9px] text-zinc-500">{m.provider}</span>
+                        </div>
+                        {(data.model || "openai/gpt-4o-mini") === m.id && <Check className="w-3 h-3" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <button
               onClick={runLLM}
               disabled={!data.prompt?.trim()}
@@ -348,7 +436,33 @@ ${data.prompt}`;
             </button>
           </div>
 
-          {/* Collapsible Settings */}
+          {/* Additional Settings Toggle */}
+          <button
+            onClick={() => {
+              const next = !showSettings;
+              setShowSettings(next);
+              updateNode(id, { advancedOpen: next });
+            }}
+            className="nodrag nowheel w-full mt-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="text-left">
+                <div className="text-[11px] font-medium text-zinc-300">Additional Settings</div>
+                <div className="text-[9px] text-zinc-500">Customize your input with more control.</div>
+              </div>
+              <div className="flex items-center gap-1 text-zinc-400">
+                <span className="text-[10px]">{showSettings ? "Less" : "More"}</span>
+                <motion.div
+                  animate={{ rotate: showSettings ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </motion.div>
+              </div>
+            </div>
+          </button>
+
+          {/* Collapsible Settings Content */}
           <AnimatePresence>
             {showSettings && (
               <motion.div
@@ -357,7 +471,7 @@ ${data.prompt}`;
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-2 pt-2 border-t border-white/5">
+                <div className="space-y-2 pt-2">
                   {/* System Prompt */}
                   <div>
                     <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">System Prompt</label>

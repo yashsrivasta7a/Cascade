@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -28,8 +28,9 @@ import { useFlowStore } from "@/store";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
-import { runWorkflow } from "@/lib/workflow/run-workflow";
 import { trpc } from "@/lib/trpc/react";
+import { estimateNodeCost } from "@/lib/credits";
+import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
 
 // Sanitize node data for storage - removes large base64 content
 function sanitizeNodesForStorage(nodes: unknown[]): unknown[] {
@@ -91,7 +92,7 @@ export default function WorkflowEditorPage() {
   const router = useRouter();
   const workflowId = params?.id ?? "unknown";
   const focusParam = searchParams?.get("focus");
-  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, focusNode, focusNodeId, selectedNode } = useFlowStore();
+  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode } = useFlowStore();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -101,9 +102,10 @@ export default function WorkflowEditorPage() {
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   
-  // Fetch real credit balance from API
+  // Fetch real credit balance from API with real-time updates
   const { data: creditsData, refetch: refetchCredits } = trpc.credits.getBalance.useQuery(undefined, {
-    staleTime: 30_000, // Cache for 30 seconds
+    staleTime: 5_000, // Cache for 5 seconds
+    refetchInterval: 10_000, // Auto-refetch every 10 seconds
   });
   const creditBalance = creditsData?.credits ?? 0;
   const [workflowName, setWorkflowName] = useState("My Workflow");
@@ -237,19 +239,21 @@ export default function WorkflowEditorPage() {
   useEffect(() => {
     if (workflowId === "new" || workflowId === "unknown") {
       loadFlow([], []);
+      setWorkflowId(null);
       return;
     }
 
     if (workflowData?.workflow) {
       const workflow = workflowData.workflow;
       setDbWorkflowId(workflow.id);
+      setWorkflowId(workflow.id); // Set in store for Activity tracking
       setWorkflowName(workflow.name);
       loadFlow(
         (workflow.nodesJson as unknown[]) || [],
         (workflow.edgesJson as unknown[]) || []
       );
     }
-  }, [workflowId, workflowData, loadFlow]);
+  }, [workflowId, workflowData, loadFlow, setWorkflowId]);
 
   // Handle focus parameter from URL (e.g., when navigating from executions page)
   useEffect(() => {
@@ -448,6 +452,16 @@ export default function WorkflowEditorPage() {
                 return s === "COMPLETED" || s === "FAILED";
               }
             );
+            
+            // Check if any node just completed (for real-time balance update)
+            const anyCompleted = matchedUpdates.some(
+              (m) => m.dbStatus.status?.toUpperCase?.() === "COMPLETED"
+            );
+            if (anyCompleted) {
+              // Refetch credits after each node completes
+              void refetchCredits();
+            }
+            
             if (allDone) {
               console.log("[Polling] All matched nodes done, stopping polling");
               setWorkflowRunning(false);
@@ -589,23 +603,179 @@ export default function WorkflowEditorPage() {
       const providers = NodeProviders[n.type as AINodeType] ?? ["mock"];
       const primary = def?.provider ?? "Unknown";
       const fallbacks = providers.slice(1).map((p) => p.toUpperCase());
+      const nodeData = (n.data ?? {}) as Record<string, unknown>;
+
+      // Use dynamic cost estimation based on node input data
+      const dynamicCost = estimateNodeCost(n.type as string, nodeData);
 
       return {
         id: n.id,
-        label: (n.data as { label?: string })?.label ?? def?.label ?? n.type,
+        label: (nodeData.label as string) ?? def?.label ?? n.type,
         type: n.type as string,
-        estimatedCost: def?.estimatedCost ?? 0,
+        estimatedCost: dynamicCost,
         provider: primary,
         fallbackProviders: fallbacks.length ? fallbacks : undefined,
       };
     });
   }, [nodes]);
 
+  // SSE workflow stream callbacks
+  const streamCallbacks: WorkflowStreamCallbacks = useMemo(() => ({
+    onWorkflowStarted: ({ workflowExecutionId: id, estimatedCost }) => {
+      console.log(`[SSE] Workflow started: ${id}, estimated cost: ${estimatedCost}`);
+    },
+    onNodeQueued: (nodeId, nodeType) => {
+      console.log(`[SSE] Node queued: ${nodeId} (${nodeType})`);
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "queued", progress: 0 } }
+            : n
+        )
+      );
+    },
+    onNodeStarted: (nodeId, nodeType) => {
+      console.log(`[SSE] Node started: ${nodeId} (${nodeType})`);
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "running", progress: 25 } }
+            : n
+        )
+      );
+    },
+    onNodeProgress: (nodeId, progress) => {
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...(n.data as Record<string, unknown>), progress } }
+            : n
+        )
+      );
+    },
+    onNodeCompleted: (nodeId, nodeType, output) => {
+      console.log(`[SSE] Node completed: ${nodeId} (${nodeType})`, output);
+      
+      // Update node status and store output preview
+      const outputData = output as { 
+        type?: string; 
+        text?: string; 
+        image?: { url: string }; 
+        video?: { url: string }; 
+        audio?: { url: string };
+      };
+      
+      // Extract result text (for text nodes) or URL (for media nodes)
+      // Note: Large base64 data is sanitized server-side, so we may get placeholders
+      let resultPreview = "";
+      if (outputData?.type === "text" && outputData.text) {
+        // For text outputs, check if it's not a truncation placeholder
+        if (!outputData.text.startsWith("[base64-data:") && !outputData.text.includes("[truncated:")) {
+          resultPreview = outputData.text;
+        }
+      } else {
+        // For media, get the URL (which should be a real URL, not base64)
+        resultPreview = outputData?.image?.url || outputData?.video?.url || outputData?.audio?.url || "";
+        // Skip if it's a sanitized placeholder
+        if (resultPreview.startsWith("[base64-data:")) {
+          resultPreview = "";
+        }
+      }
+      
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { 
+                ...n, 
+                data: { 
+                  ...(n.data as Record<string, unknown>), 
+                  status: "completed", 
+                  progress: 100,
+                  // Store the output type for display purposes
+                  outputType: outputData?.type,
+                } 
+              }
+            : n
+        )
+      );
+      
+      // Propagate text results for connected nodes (only for text outputs)
+      // Node-to-node data propagation happens server-side, but we update UI here
+      if (resultPreview && outputData?.type === "text") {
+        const { updateNode } = useFlowStore.getState();
+        updateNode(nodeId, { result: resultPreview });
+      }
+      
+      // Refetch credits after each node completes
+      void refetchCredits();
+    },
+    onNodeFailed: (nodeId, nodeType, error) => {
+      console.log(`[SSE] Node failed: ${nodeId} (${nodeType}): ${error}`);
+      
+      // Update node status
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "failed", error, progress: 0 } }
+            : n
+        )
+      );
+      
+      // Add to error list
+      const node = nodes.find(n => n.id === nodeId);
+      const nodeDef = NODE_DEFINITIONS[node?.type as AINodeType];
+      const nodeData = node?.data as Record<string, unknown>;
+      
+      const newError: WorkflowError = {
+        id: `${nodeId}-${Date.now()}`,
+        nodeId,
+        nodeName: (nodeData?.label as string) ?? nodeDef?.label ?? node?.type ?? "Unknown Node",
+        nodeType: node?.type ?? "unknown",
+        severity: "critical",
+        message: error,
+        timestamp: new Date(),
+        inputs: nodeData,
+        canRetry: true,
+      };
+      
+      setWorkflowErrors(prev => [newError, ...prev]);
+      setErrorsOpen(true);
+    },
+    onWorkflowCompleted: ({ successCount, failCount, status }) => {
+      console.log(`[SSE] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}`);
+      setWorkflowRunning(false);
+      void refetchCredits();
+    },
+    onError: (message) => {
+      console.error(`[SSE] Error: ${message}`);
+      
+      const newError: WorkflowError = {
+        id: `workflow-${Date.now()}`,
+        nodeId: "workflow",
+        nodeName: "Workflow Execution",
+        nodeType: "workflow",
+        severity: "critical",
+        message,
+        timestamp: new Date(),
+        canRetry: true,
+      };
+      setWorkflowErrors(prev => [newError, ...prev]);
+      setErrorsOpen(true);
+      setWorkflowRunning(false);
+    },
+  }), [nodes, setNodes, refetchCredits, setWorkflowRunning]);
+
+  // SSE workflow stream hook
+  const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning } = useWorkflowStream({
+    workflowId: dbWorkflowId ?? workflowId,
+    callbacks: streamCallbacks,
+  });
+
   const handleRunWorkflow = useCallback(async () => {
-    // Calculate estimated cost
+    // Calculate estimated cost using dynamic estimation
     const estimatedCost = nodes.reduce((sum, n) => {
-      const def = NODE_DEFINITIONS[n.type as AINodeType];
-      return sum + (def?.estimatedCost ?? 0);
+      const nodeData = (n.data ?? {}) as Record<string, unknown>;
+      return sum + estimateNodeCost(n.type as string, nodeData);
     }, 0);
     
     // Check if user has enough credits
@@ -632,20 +802,6 @@ export default function WorkflowEditorPage() {
       await handleSave();
     }
     
-    // Create workflow execution record
-    let executionId: string | null = null;
-    if (dbWorkflowId) {
-      try {
-        const result = await createExecutionMutation.mutateAsync({
-          workflowId: dbWorkflowId,
-          inputsJson: { nodes, edges },
-        });
-        executionId = result.execution?.id ?? null;
-      } catch (error) {
-        console.error("Failed to create execution record:", error);
-      }
-    }
-    
     // Reset statuses
     setNodes(
       nodes.map((n) => ({
@@ -659,88 +815,13 @@ export default function WorkflowEditorPage() {
       }))
     );
 
-    try {
-      await runWorkflow(nodes as Parameters<typeof runWorkflow>[0], edges as Parameters<typeof runWorkflow>[1], {
-        onNodeStatus: (nodeId, status, patch) => {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === nodeId
-                ? { ...n, data: { ...(n.data as Record<string, unknown>), status, ...(patch ?? {}) } }
-                : n
-            )
-          );
-          
-          // Collect errors when a node fails
-          if (status === "failed" && patch?.error) {
-            const node = nodes.find(n => n.id === nodeId);
-            const nodeDef = NODE_DEFINITIONS[node?.type as AINodeType];
-            const nodeData = node?.data as Record<string, unknown>;
-            
-            const newError: WorkflowError = {
-              id: `${nodeId}-${Date.now()}`,
-              nodeId,
-              nodeName: (nodeData?.label as string) ?? nodeDef?.label ?? node?.type ?? "Unknown Node",
-              nodeType: node?.type ?? "unknown",
-              severity: "critical",
-              message: patch.error as string,
-              timestamp: new Date(),
-              inputs: nodeData,
-              canRetry: true,
-            };
-            
-            setWorkflowErrors(prev => [newError, ...prev]);
-            setErrorsOpen(true); // Auto-open error panel when error occurs
-          }
-        },
-        onNodeResult: (nodeId, resultText) => {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === nodeId
-                ? { ...n, data: { ...(n.data as Record<string, unknown>), result: resultText } }
-                : n
-            )
-          );
-        },
-      });
-      
-      // Mark execution as completed
-      if (executionId) {
-        updateExecutionMutation.mutate({
-          id: executionId,
-          status: "COMPLETED",
-        });
-      }
-    } catch (error) {
-      // Add workflow-level error
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      const newError: WorkflowError = {
-        id: `workflow-${Date.now()}`,
-        nodeId: "workflow",
-        nodeName: "Workflow Execution",
-        nodeType: "workflow",
-        severity: "critical",
-        message: errorMessage,
-        details: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date(),
-        canRetry: true,
-      };
-      setWorkflowErrors(prev => [newError, ...prev]);
-      setErrorsOpen(true);
-      
-      // Mark execution as failed
-      if (executionId) {
-        updateExecutionMutation.mutate({
-          id: executionId,
-          status: "FAILED",
-          error: errorMessage,
-        });
-      }
-    } finally {
-      setWorkflowRunning(false);
-      // Refetch credit balance after execution
-      void refetchCredits();
-    }
-  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, createExecutionMutation, updateExecutionMutation, creditBalance, refetchCredits]);
+    // Use SSE streaming for real-time updates
+    // The SSE stream will handle all status updates and completion
+    await runWorkflowSSE(
+      nodes as Parameters<typeof runWorkflowSSE>[0], 
+      edges as Parameters<typeof runWorkflowSSE>[1]
+    );
+  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowSSE]);
 
   // Calculate dynamic button color based on selected node
   const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;

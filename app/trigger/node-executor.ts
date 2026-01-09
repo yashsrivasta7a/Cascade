@@ -15,7 +15,14 @@ import {
   parseLipsyncResult,
 } from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
-import { getNodeCost } from "@/lib/credits";
+import { 
+  getNodeCost, 
+  estimateNodeCost,
+  calculateElevenlabsCost,
+  calculateLipsyncCost,
+  calculateSeedanceCost,
+  calculateSeedvrCost,
+} from "@/lib/credits";
 
 // Register all node executors at module load
 registerAllNodeExecutors();
@@ -54,6 +61,28 @@ export const executeNode = task({
     if (currentExec?.status === "FAILED") {
       console.log(`[NodeExecutor] ${nodeType} already FAILED, skipping retry`);
       throw new Error("Node already failed - not retrying");
+    }
+
+    // Check if user has enough credits before execution (use dynamic estimate)
+    const estimatedCreditCost = estimateNodeCost(nodeType, input);
+    if (estimatedCreditCost > 0) {
+      const workflowExec = await db.workflowExecution.findUnique({
+        where: { id: workflowExecutionId },
+        select: { userId: true },
+      });
+
+      if (workflowExec?.userId) {
+        const user = await db.user.findUnique({
+          where: { id: workflowExec.userId },
+          select: { credits: true },
+        });
+
+        if (!user || user.credits < estimatedCreditCost) {
+          const errorMsg = `Insufficient credits. Required: ${estimatedCreditCost.toLocaleString()}, Available: ${(user?.credits ?? 0).toLocaleString()}`;
+          await markNodeFailed(nodeExecutionId, errorMsg);
+          throw new Error(errorMsg);
+        }
+      }
     }
 
     // Update status to RUNNING
@@ -162,7 +191,7 @@ export const executeNode = task({
       });
 
       // Deduct credits after successful execution
-      await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType);
+      await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input);
 
       return {
         success: true,
@@ -197,7 +226,7 @@ export const executeNode = task({
     });
 
     // Deduct credits after successful execution
-    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, result.actualCost);
+    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, result.actualCost);
 
     return {
       success: true,
@@ -212,13 +241,77 @@ export const executeNode = task({
 // =============================================================================
 
 /**
+ * Calculate actual cost based on node type and input data
+ */
+function calculateActualCost(
+  nodeType: AINodeType,
+  input: Record<string, unknown>
+): number {
+  switch (nodeType) {
+    case "seedream":
+      // Fixed cost: $0.04 per image = 40,000 credits
+      return 40_000;
+
+    case "seedvr": {
+      // $0.001 per megapixel
+      const width = (input.width as number) || 1024;
+      const height = (input.height as number) || 1024;
+      return calculateSeedvrCost(width, height);
+    }
+
+    case "seedance": {
+      // Token-based pricing
+      const width = (input.width as number) || 1280;
+      const height = (input.height as number) || 720;
+      const fps = (input.fps as number) || 24;
+      const duration = (input.duration as number) || 5;
+      const hasAudio = input.audio !== false;
+      return calculateSeedanceCost(width, height, fps, duration, hasAudio);
+    }
+
+    case "elevenlabs": {
+      // $0.1 per 1000 characters
+      const text = (input.text as string) || "";
+      if (text.length > 0) {
+        return calculateElevenlabsCost(text.length);
+      }
+      return getNodeCost(nodeType);
+    }
+
+    case "lipsync": {
+      // $0.7 per minute - estimate from video duration if available
+      const duration = (input.duration as number) || 30;
+      return calculateLipsyncCost(duration);
+    }
+
+    case "openrouter":
+      // LLM costs - use base estimate (actual token costs vary)
+      return getNodeCost(nodeType);
+
+    // Utility nodes have minimal cost
+    case "crop-image":
+      return 1_000;  // $0.001
+    case "merge-audio-video":
+      return 3_000;  // $0.003
+    case "merge-videos":
+      return 5_000;  // $0.005
+    case "extract-audio":
+      return 2_000;  // $0.002
+
+    default:
+      return getNodeCost(nodeType);
+  }
+}
+
+/**
  * Deduct credits from user's balance after successful node execution
  */
 async function deductCreditsForNode(
   nodeExecutionId: string,
   workflowExecutionId: string,
   nodeType: AINodeType,
-  actualCost?: number
+  input: Record<string, unknown>,
+  providerActualCost?: number
 ): Promise<void> {
   try {
     // Get the workflow execution to find the user
@@ -232,8 +325,8 @@ async function deductCreditsForNode(
       return;
     }
 
-    // Determine cost: use actual cost if provided, otherwise use estimated cost
-    const cost = actualCost ?? getNodeCost(nodeType);
+    // Calculate cost: provider actual > dynamic calculation > base estimate
+    const cost = providerActualCost ?? calculateActualCost(nodeType, input);
     
     // Skip if no cost (free utility nodes)
     if (cost <= 0) {
@@ -330,6 +423,12 @@ function parseProviderResult(nodeType: AINodeType, result: unknown): unknown {
       return parseOpenrouterResult(result);
     case "lipsync":
       return parseLipsyncResult(result);
+    // Utility nodes return output directly (no webhook parsing needed)
+    case "crop-image":
+    case "merge-audio-video":
+    case "merge-videos":
+    case "extract-audio":
+      return result;
     default:
       // For other nodes, return result as-is
       return result;

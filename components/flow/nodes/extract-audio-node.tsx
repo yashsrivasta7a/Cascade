@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { AudioLines, Settings, Play, Loader2, Upload, X, Film, Download, Volume2, Lock } from "lucide-react";
+import { AudioLines, Play, Loader2, Upload, X, Film, Download, Volume2, Lock, ChevronDown } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -40,6 +40,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
   const { data, id } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const workflowId = useFlowStore((s) => s.workflowId);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
@@ -92,6 +93,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
           nodeType: "extract-audio",
           nodeId: id,
           nodeLabel: data.label || nodeDef.label,
+          workflowId: workflowId ?? undefined,
           input: {
             video: { url: data.inputVideo },
             format: data.format || "mp3",
@@ -248,18 +250,6 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
           {/* Controls Row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const next = !showSettings;
-                setShowSettings(next);
-                updateNode(id, { advancedOpen: next });
-              }}
-              className={`nodrag nowheel h-8 w-8 rounded-lg border flex items-center justify-center transition-all ${
-                showSettings ? "bg-white/10 border-white/20 text-white" : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white"
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
               onClick={runExtract}
               disabled={!data.inputVideo || isProcessing}
               className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
@@ -278,6 +268,33 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
             </button>
           </div>
 
+          {/* Additional Settings Toggle */}
+          <button
+            onClick={() => {
+              const next = !showSettings;
+              setShowSettings(next);
+              updateNode(id, { advancedOpen: next });
+            }}
+            disabled={isProcessing}
+            className="nodrag nowheel w-full mt-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="text-left">
+                <div className="text-[11px] font-medium text-zinc-300">Additional Settings</div>
+                <div className="text-[9px] text-zinc-500">Format, bitrate, and more.</div>
+              </div>
+              <div className="flex items-center gap-1 text-zinc-400">
+                <span className="text-[10px]">{showSettings ? "Less" : "More"}</span>
+                <motion.div
+                  animate={{ rotate: showSettings ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </motion.div>
+              </div>
+            </div>
+          </button>
+
           {/* Collapsible Advanced Settings */}
           <AnimatePresence>
             {showSettings && (
@@ -287,7 +304,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="space-y-3 pt-3 border-t border-white/5">
+                <div className="space-y-3 pt-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-[9px] text-zinc-500 mb-1 block">Sample Rate</label>
