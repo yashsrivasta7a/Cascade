@@ -1,23 +1,216 @@
 import { z } from "zod";
 import type { NodeExecutor, NodeExecutionContext, NodeExecutionResult } from "../types";
 import { AssetRefSchema, VideoOutSchema } from "@/lib/workflow/node-schemas";
-import { spawn } from "child_process";
-import { promises as fs } from "fs";
+import { spawn, spawnSync } from "child_process";
+import { promises as fs, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 // Use static binaries for serverless environments (Trigger.dev)
 import ffmpegPath from "ffmpeg-static";
 import ffprobePath from "@ffprobe-installer/ffprobe";
+// Transloadit for cloud video processing fallback
+import { Transloadit } from "transloadit";
 
 // =============================================================================
-// MERGE VIDEOS - Internal Utility Node (via FFmpeg)
-// Runs on Trigger.dev using static ffmpeg/ffprobe binaries
+// MERGE VIDEOS - Internal Utility Node (via FFmpeg or Transloadit)
+// Local: Uses FFmpeg for video processing
+// Cloud: Falls back to Transloadit when FFmpeg unavailable
 // =============================================================================
 
-// Get the correct binary paths (static or system)
-const getFFmpegPath = (): string => ffmpegPath || "ffmpeg";
-const getFFprobePath = (): string => ffprobePath.path || "ffprobe";
+// Cache for resolved FFmpeg path
+let resolvedFFmpegPath: string | null = null;
+let resolvedFFprobePath: string | null = null;
+
+// Find WinGet FFmpeg installations dynamically
+function findWinGetFFmpeg(): string | null {
+  if (process.platform !== "win32") return null;
+  
+  const wingetPackagesDir = join(
+    process.env.LOCALAPPDATA || "",
+    "Microsoft", "WinGet", "Packages"
+  );
+  
+  try {
+    if (!existsSync(wingetPackagesDir)) return null;
+    
+    // Look for Gyan.FFmpeg packages
+    const { readdirSync } = require("fs");
+    const packages = readdirSync(wingetPackagesDir) as string[];
+    const ffmpegPkg = packages.find((p: string) => p.startsWith("Gyan.FFmpeg"));
+    
+    if (!ffmpegPkg) return null;
+    
+    const pkgDir = join(wingetPackagesDir, ffmpegPkg);
+    const builds = readdirSync(pkgDir) as string[];
+    const ffmpegBuild = builds.find((b: string) => b.includes("full_build"));
+    
+    if (!ffmpegBuild) return null;
+    
+    const ffmpegExe = join(pkgDir, ffmpegBuild, "bin", "ffmpeg.exe");
+    if (existsSync(ffmpegExe)) {
+      return ffmpegExe;
+    }
+  } catch (err) {
+    console.log("[FFmpeg] Error searching WinGet packages:", err);
+  }
+  
+  return null;
+}
+
+// Get the correct binary paths with robust fallbacks
+function getFFmpegPath(): string {
+  if (resolvedFFmpegPath) return resolvedFFmpegPath;
+  
+  const candidates: string[] = [];
+  
+  // 1. Environment variable (highest priority)
+  if (process.env.FFMPEG_PATH) {
+    candidates.push(process.env.FFMPEG_PATH);
+  }
+  
+  // 2. ffmpeg-static package
+  if (ffmpegPath) {
+    candidates.push(ffmpegPath);
+  }
+  
+  // 3. WinGet installation (dynamic search)
+  const wingetPath = findWinGetFFmpeg();
+  if (wingetPath) {
+    candidates.push(wingetPath);
+  }
+  
+  // 4. Common Windows paths
+  if (process.platform === "win32") {
+    candidates.push(
+      "C:\\ffmpeg\\bin\\ffmpeg.exe",
+      "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+      "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+      join(process.env.USERPROFILE || "", "ffmpeg", "bin", "ffmpeg.exe"),
+    );
+  }
+  
+  // 5. System PATH fallback
+  candidates.push("ffmpeg");
+  
+  // Test each candidate
+  for (const candidate of candidates) {
+    if (candidate && testBinary(candidate)) {
+      console.log(`[FFmpeg] Found working binary at: ${candidate}`);
+      resolvedFFmpegPath = candidate;
+      return candidate;
+    }
+  }
+  
+  console.warn("[FFmpeg] No working FFmpeg binary found. Candidates tested:", candidates.filter(Boolean));
+  resolvedFFmpegPath = "ffmpeg"; // Fallback, will fail but with clear error
+  return resolvedFFmpegPath;
+}
+
+// Find WinGet FFprobe installations dynamically
+function findWinGetFFprobe(): string | null {
+  if (process.platform !== "win32") return null;
+  
+  const wingetPackagesDir = join(
+    process.env.LOCALAPPDATA || "",
+    "Microsoft", "WinGet", "Packages"
+  );
+  
+  try {
+    if (!existsSync(wingetPackagesDir)) return null;
+    
+    const { readdirSync } = require("fs");
+    const packages = readdirSync(wingetPackagesDir) as string[];
+    const ffmpegPkg = packages.find((p: string) => p.startsWith("Gyan.FFmpeg"));
+    
+    if (!ffmpegPkg) return null;
+    
+    const pkgDir = join(wingetPackagesDir, ffmpegPkg);
+    const builds = readdirSync(pkgDir) as string[];
+    const ffmpegBuild = builds.find((b: string) => b.includes("full_build"));
+    
+    if (!ffmpegBuild) return null;
+    
+    const ffprobeExe = join(pkgDir, ffmpegBuild, "bin", "ffprobe.exe");
+    if (existsSync(ffprobeExe)) {
+      return ffprobeExe;
+    }
+  } catch (err) {
+    console.log("[FFprobe] Error searching WinGet packages:", err);
+  }
+  
+  return null;
+}
+
+function getFFprobePath(): string {
+  if (resolvedFFprobePath) return resolvedFFprobePath;
+  
+  const candidates: string[] = [];
+  
+  // 1. Environment variable
+  if (process.env.FFPROBE_PATH) {
+    candidates.push(process.env.FFPROBE_PATH);
+  }
+  
+  // 2. @ffprobe-installer package
+  if (ffprobePath?.path) {
+    candidates.push(ffprobePath.path);
+  }
+  
+  // 3. WinGet installation (dynamic search)
+  const wingetPath = findWinGetFFprobe();
+  if (wingetPath) {
+    candidates.push(wingetPath);
+  }
+  
+  // 4. Common Windows paths
+  if (process.platform === "win32") {
+    candidates.push(
+      "C:\\ffmpeg\\bin\\ffprobe.exe",
+      "C:\\Program Files\\ffmpeg\\bin\\ffprobe.exe",
+      "C:\\Program Files (x86)\\ffmpeg\\bin\\ffprobe.exe",
+      join(process.env.USERPROFILE || "", "ffmpeg", "bin", "ffprobe.exe"),
+    );
+  }
+  
+  // 5. System PATH fallback
+  candidates.push("ffprobe");
+  
+  // Test each candidate
+  for (const candidate of candidates) {
+    if (candidate && testBinary(candidate)) {
+      console.log(`[FFprobe] Found working binary at: ${candidate}`);
+      resolvedFFprobePath = candidate;
+      return candidate;
+    }
+  }
+  
+  console.warn("[FFprobe] No working FFprobe binary found. Candidates tested:", candidates.filter(Boolean));
+  resolvedFFprobePath = "ffprobe";
+  return resolvedFFprobePath;
+}
+
+// Test if a binary is executable
+function testBinary(binaryPath: string): boolean {
+  try {
+    // First check if file exists (for absolute paths)
+    if (binaryPath.includes("/") || binaryPath.includes("\\")) {
+      if (!existsSync(binaryPath)) {
+        return false;
+      }
+    }
+    
+    // Try to run with -version
+    const result = spawnSync(binaryPath, ["-version"], { 
+      timeout: 5000,
+      windowsHide: true,
+      stdio: "pipe"
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
 
 export const MergeVideosInputSchema = z.object({
   video1: AssetRefSchema,
@@ -32,20 +225,135 @@ export type MergeVideosInput = z.infer<typeof MergeVideosInputSchema>;
 export const MergeVideosOutputSchema = VideoOutSchema;
 export type MergeVideosOutput = z.infer<typeof MergeVideosOutputSchema>;
 
+// =============================================================================
+// TRANSLOADIT CLOUD FALLBACK
+// =============================================================================
+
+function isTransloaditConfigured(): boolean {
+  return Boolean(process.env.TRANSLOADIT_AUTH_KEY && process.env.TRANSLOADIT_AUTH_SECRET);
+}
+
+async function mergeVideosWithTransloadit(
+  input: MergeVideosInput
+): Promise<NodeExecutionResult | null> {
+  if (!isTransloaditConfigured()) {
+    console.log("[MergeVideos] Transloadit not configured, skipping cloud fallback");
+    return null;
+  }
+
+  try {
+    console.log("[MergeVideos] Using Transloadit cloud processing");
+    
+    const client = new Transloadit({
+      authKey: process.env.TRANSLOADIT_AUTH_KEY!,
+      authSecret: process.env.TRANSLOADIT_AUTH_SECRET!,
+    });
+
+    // Get video URLs
+    const video1Url = input.video1.url;
+    const video2Url = input.video2.url;
+
+    // Handle base64 data URLs - we need to convert them to files first
+    // For now, skip if videos are base64 (Transloadit needs URLs)
+    if (video1Url.startsWith("data:") || video2Url.startsWith("data:")) {
+      console.log("[MergeVideos] Base64 videos not supported for Transloadit fallback");
+      return null;
+    }
+
+    // Create assembly to concatenate videos
+    const assembly = await client.createAssembly({
+      params: {
+        steps: {
+          // Import first video
+          video1: {
+            robot: "/http/import",
+            url: video1Url,
+            ignore_errors: ["meta"],
+          },
+          // Import second video
+          video2: {
+            robot: "/http/import",
+            url: video2Url,
+            ignore_errors: ["meta"],
+          },
+          // Concatenate videos
+          concatenated: {
+            robot: "/video/concat",
+            use: {
+              steps: [
+                { name: "video1", as: "video" },
+                { name: "video2", as: "video" },
+              ],
+            },
+            preset: "iphone-high",
+            // Add transition if specified
+            ...(input.transition !== "none" && {
+              ffmpeg_stack: "v6.0.0",
+            }),
+          },
+        },
+      },
+      waitForCompletion: true,
+    });
+
+    console.log(`[MergeVideos] Transloadit assembly: ${assembly.ok}`);
+
+    // Get result URL
+    if (assembly.results?.concatenated?.[0]?.ssl_url) {
+      const resultUrl = assembly.results.concatenated[0].ssl_url;
+      console.log(`[MergeVideos] Transloadit result: ${resultUrl.slice(0, 80)}...`);
+      
+      return {
+        success: true,
+        output: {
+          type: "video",
+          video: {
+            url: resultUrl,
+            mimeType: assembly.results.concatenated[0].mime || "video/mp4",
+          },
+        },
+        providerUsed: "transloadit",
+        actualCost: 0, // Transloadit billing is separate
+      };
+    }
+
+    console.warn("[MergeVideos] Transloadit: No result URL in assembly");
+    return null;
+  } catch (error) {
+    console.error("[MergeVideos] Transloadit error:", error);
+    return null;
+  }
+}
+
+// =============================================================================
+// FFMPEG LOCAL PROCESSING
+// =============================================================================
+
 async function isFFmpegAvailable(): Promise<boolean> {
+  const ffmpegBin = getFFmpegPath();
+  console.log(`[FFmpeg] Checking availability at: ${ffmpegBin}`);
+  
   return new Promise((resolve) => {
-    const ffmpeg = spawn(getFFmpegPath(), ["-version"]);
-    ffmpeg.on("close", (code) => resolve(code === 0));
-    ffmpeg.on("error", () => resolve(false));
+    const ffmpeg = spawn(ffmpegBin, ["-version"], { windowsHide: true });
+    
+    ffmpeg.on("close", (code) => {
+      console.log(`[FFmpeg] Version check exit code: ${code}`);
+      resolve(code === 0);
+    });
+    
+    ffmpeg.on("error", (err) => {
+      console.log(`[FFmpeg] Version check error: ${err.message}`);
+      resolve(false);
+    });
   });
 }
 
 async function runFFmpeg(args: string[]): Promise<void> {
   const ffmpegBin = getFFmpegPath();
-  console.log(`[FFmpeg] Running: ${ffmpegBin} ${args.join(" ")}`);
-  
+  console.log(`[FFmpeg] Running: ${ffmpegBin} ${args.slice(0, 5).join(" ")}...`);
+
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn(ffmpegBin, args);
+    const ffmpeg = spawn(ffmpegBin, args, { windowsHide: true });
     let stderr = "";
 
     ffmpeg.stderr.on("data", (data) => {
@@ -240,6 +548,14 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
     // Check if FFmpeg is available
     const ffmpegAvailable = await isFFmpegAvailable();
     if (!ffmpegAvailable) {
+      // Try Transloadit cloud processing as fallback
+      const transloaditResult = await mergeVideosWithTransloadit(input);
+      if (transloaditResult) {
+        console.log("[MergeVideos] Used Transloadit cloud processing");
+        return transloaditResult;
+      }
+      
+      // No Transloadit - use mock in development
       if (process.env.NODE_ENV === "development") {
         console.log("[MergeVideos] FFmpeg not found, using mock for development");
         return {
@@ -257,7 +573,7 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
       }
       return {
         success: false,
-        error: "FFmpeg is not installed. Please install FFmpeg: https://ffmpeg.org/download.html",
+        error: "FFmpeg is not installed and Transloadit is not configured. Please install FFmpeg or configure Transloadit.",
         providerUsed: "internal",
       };
     }

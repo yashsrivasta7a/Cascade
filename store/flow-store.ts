@@ -323,58 +323,122 @@ export const useFlowStore = create<FlowState>()(
         const oldData = node.data as Record<string, unknown>;
         const newData = { ...oldData, ...data };
 
-        // Update the node
-        set({
-          nodes: state.nodes.map((n) =>
-            n.id === id
-              ? { ...n, data: newData }
-              : n
-          ),
+        // Find all outgoing edges from this node for real-time propagation
+        const outgoingEdges = state.edges.filter(e => e.source === id);
+        
+        // Build list of target nodes that need updates
+        const targetUpdates: Map<string, Record<string, unknown>> = new Map();
+        
+        // Mapping from output handle names to actual data field names
+        // This handles cases where the handle name differs from the stored data field
+        const handleToDataField: Record<string, string> = {
+          "response": "result",      // OpenRouter's "response" output is stored in data.result
+          "audio": "result",         // ElevenLabs audio output
+          "video": "result",         // Seedance video output  
+          "image": "result",         // Seedream image output
+          "upscaled": "result",      // SeedVR upscaled output
+          "synced": "result",        // Lipsync synced output
+          "merged": "result",        // Merge videos output
+          "combined": "result",      // Merge audio-video output
+          "extracted": "result",     // Extract audio output
+          "cropped": "result",       // Crop image output
+        };
+        
+        // Check each changed field and propagate to connected nodes
+        const changedKeys = Object.keys(data).filter(key => data[key as keyof typeof data] !== oldData[key]);
+        
+        for (const edge of outgoingEdges) {
+          const sourceHandle = edge.sourceHandle;
+          const targetHandle = edge.targetHandle;
+          const targetNodeId = edge.target;
+          
+          if (!targetHandle) continue;
+          
+          // Get the actual data field for this source handle
+          const dataField = handleToDataField[sourceHandle || ""] || sourceHandle;
+          
+          // Settings that should be shared in real-time
+          const realtimeSettings = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens", "duration", "text"];
+          
+          // Check if this edge should propagate data
+          const shouldPropagate = 
+            // Direct field match (source handle maps to changed data)
+            changedKeys.includes(dataField || "") ||
+            (sourceHandle && changedKeys.includes(sourceHandle)) ||
+            // "out" bundle: propagate when any bundled setting changes
+            (sourceHandle === "out" && changedKeys.some(k => [...realtimeSettings, "result", "out"].includes(k))) ||
+            // Settings connection: propagate when the target handle's value changes on source
+            (changedKeys.includes(targetHandle));
+          
+          if (shouldPropagate) {
+            const existingUpdates = targetUpdates.get(targetNodeId) || {};
+            
+            // Determine what value to pass
+            let valueToPass: unknown;
+            
+            // First try the mapped data field
+            if (dataField && newData[dataField] !== undefined) {
+              valueToPass = newData[dataField];
+            }
+            // Then try the source handle directly
+            else if (sourceHandle && newData[sourceHandle] !== undefined) {
+              valueToPass = newData[sourceHandle];
+            }
+            // Handle "out" bundle output - for real-time settings sharing
+            else if (sourceHandle === "out") {
+              // Try to get value from the "out" bundle if it exists
+              if (typeof newData.out === "object" && newData.out !== null) {
+                const bundleValue = (newData.out as Record<string, unknown>)[targetHandle];
+                if (bundleValue !== undefined) {
+                  valueToPass = bundleValue;
+                }
+              }
+              // If no bundle or bundle doesn't have the field, use direct field value
+              // This enables real-time sharing before generation
+              if (valueToPass === undefined && newData[targetHandle] !== undefined) {
+                valueToPass = newData[targetHandle];
+              }
+            }
+            // Direct settings sharing: if target handle matches a changed setting on source
+            if (valueToPass === undefined && changedKeys.includes(targetHandle)) {
+              valueToPass = newData[targetHandle];
+            }
+            
+            if (valueToPass !== undefined) {
+              existingUpdates[targetHandle] = valueToPass;
+              targetUpdates.set(targetNodeId, existingUpdates);
+            }
+          }
+        }
+        
+        // Apply all updates in a single set call
+        const updatedNodes = state.nodes.map((n) => {
+          if (n.id === id) {
+            return { ...n, data: newData };
+          }
+          
+          const updates = targetUpdates.get(n.id);
+          if (updates && Object.keys(updates).length > 0) {
+            return {
+              ...n,
+              data: {
+                ...(n.data as Record<string, unknown>),
+                ...updates,
+              },
+            };
+          }
+          
+          return n;
         });
+        
+        set({ nodes: updatedNodes });
 
-        // Real-time propagation: if result/output changes, propagate to connected nodes
+        // Also handle result propagation for completed outputs (for backwards compatibility)
         const resultChanged = data.result !== undefined && data.result !== oldData.result;
-        console.log(`[updateNode] Node ${id}: resultChanged=${resultChanged}, hasResult=${!!data.result}`);
         if (resultChanged && data.result) {
-          // Debounce propagation slightly to batch rapid updates
-          console.log(`[updateNode] Scheduling propagation for node ${id}`);
           setTimeout(() => {
-            console.log(`[updateNode] Executing propagation for node ${id}`);
             get().propagateOutput(id, data.result as string);
           }, 50);
-        }
-
-        // Also propagate settings changes to connected nodes in real-time
-        const settingsKeys = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens"];
-        const changedSettings = settingsKeys.filter(key => 
-          data[key as keyof typeof data] !== undefined && 
-          data[key as keyof typeof data] !== oldData[key]
-        );
-
-        if (changedSettings.length > 0) {
-          // Find edges where this node is the source and propagate settings
-          const outgoingEdges = state.edges.filter(e => e.source === id);
-          if (outgoingEdges.length > 0) {
-            const updatedNodes = state.nodes.map((targetNode) => {
-              const edge = outgoingEdges.find(e => e.target === targetNode.id);
-              if (!edge) return targetNode;
-
-              const targetHandle = edge.targetHandle;
-              const edgeData = edge.data as Record<string, unknown> | undefined;
-              const isSettingsConnection = edgeData?.isSettingsConnection === true;
-
-              // If it's a settings connection and the target handle matches a changed setting
-              if (isSettingsConnection && targetHandle && changedSettings.includes(targetHandle)) {
-                const nodeData = { ...(targetNode.data as Record<string, unknown>) };
-                nodeData[targetHandle] = newData[targetHandle];
-                return { ...targetNode, data: nodeData };
-              }
-
-              return targetNode;
-            });
-
-            set({ nodes: updatedNodes });
-          }
         }
       },
 

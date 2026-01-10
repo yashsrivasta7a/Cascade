@@ -386,19 +386,9 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Filter to only connected nodes for cost estimation
-        const connectedNodeIdsForCost = new Set<string>();
-        for (const edge of edges) {
-          connectedNodeIdsForCost.add(edge.source);
-          connectedNodeIdsForCost.add(edge.target);
-        }
-        const nodesForExecution = edges.length === 0 
-          ? nodes 
-          : nodes.filter(n => connectedNodeIdsForCost.has(n.id));
-        
-        // Estimate total cost (only for connected nodes)
+        // Estimate total cost for ALL nodes (including standalone)
         let totalEstimatedCost = 0;
-        for (const node of nodesForExecution) {
+        for (const node of nodes) {
           const nodeData = (node.data ?? {}) as Record<string, unknown>;
           totalEstimatedCost += estimateNodeCost(node.type as string, nodeData);
         }
@@ -453,24 +443,24 @@ export async function POST(request: NextRequest) {
         // Build dependency graph
         console.log(`[WorkflowStream] Edges:`, edges.map(e => `${e.source} → ${e.target} (${e.sourceHandle} → ${e.targetHandle})`));
         
-        // Filter to only include connected nodes (nodes that are part of the workflow graph)
-        // A node is "connected" if it has edges (either incoming or outgoing)
+        // Include ALL nodes - disconnected single nodes run in parallel with chains
+        // This allows workflows with multiple independent chains + standalone nodes
+        const workflowNodes = nodes;
+        
+        // Log which nodes are connected vs standalone
         const connectedNodeIds = new Set<string>();
         for (const edge of edges) {
           connectedNodeIds.add(edge.source);
           connectedNodeIds.add(edge.target);
         }
+        const standaloneNodes = nodes.filter(n => !connectedNodeIds.has(n.id));
+        const chainNodes = nodes.filter(n => connectedNodeIds.has(n.id));
         
-        // If no edges exist (single node workflow), include all nodes
-        // Otherwise, only include nodes that are part of the connected graph
-        const workflowNodes = edges.length === 0 
-          ? nodes 
-          : nodes.filter(n => connectedNodeIds.has(n.id));
-        
-        console.log(`[WorkflowStream] Total nodes: ${nodes.length}, Connected nodes: ${workflowNodes.length}`);
-        if (nodes.length > workflowNodes.length) {
-          const disconnected = nodes.filter(n => !connectedNodeIds.has(n.id)).map(n => `${n.id} (${n.type})`);
-          console.log(`[WorkflowStream] Skipping disconnected nodes: ${disconnected.join(", ")}`);
+        console.log(`[WorkflowStream] Total nodes: ${nodes.length}`);
+        console.log(`[WorkflowStream]   - Chain nodes (connected): ${chainNodes.length}`);
+        console.log(`[WorkflowStream]   - Standalone nodes: ${standaloneNodes.length}`);
+        if (standaloneNodes.length > 0) {
+          console.log(`[WorkflowStream]   Standalone: ${standaloneNodes.map(n => `${n.id} (${n.type})`).join(", ")}`);
         }
         
         const sortedNodes = topoSort(workflowNodes, edges);
@@ -671,6 +661,9 @@ export async function POST(request: NextRequest) {
         }
         
         // Main execution loop - process nodes as they become ready
+        console.log(`[WorkflowStream] === Starting concurrent execution ===`);
+        console.log(`[WorkflowStream] Pending: ${pending.size}, Completed: ${completed.size}, Failed: ${failed.size}`);
+        
         while (pending.size > 0) {
           // Find all ready nodes (dependencies completed, not failed, not in progress)
           const readyNodes: Node[] = [];
@@ -706,18 +699,46 @@ export async function POST(request: NextRequest) {
             }
           }
           
-          // If no ready nodes and nothing in progress, we're stuck (shouldn't happen)
+          // If no ready nodes and nothing in progress, check why
           if (readyNodes.length === 0 && inProgress.size === 0) {
-            console.error("[WorkflowStream] No ready nodes and nothing in progress - breaking");
+            if (pending.size > 0) {
+              // Remaining nodes have unfulfilled dependencies or are part of a cycle
+              console.error(`[WorkflowStream] ${pending.size} nodes stuck - possible cycle or all dependencies failed`);
+              
+              // Mark remaining pending nodes as failed
+              for (const nodeId of pending) {
+                const node = sortedNodes.find(n => n.id === nodeId);
+                failed.add(nodeId);
+                await db.nodeExecution.update({
+                  where: { id: nodeExecutionIds.get(nodeId)! },
+                  data: { 
+                    status: "FAILED", 
+                    error: "Could not execute - dependencies unavailable or circular dependency detected",
+                    completedAt: new Date() 
+                  },
+                });
+                sendEvent(controller, "node-failed", { 
+                  nodeId, 
+                  nodeType: node?.type,
+                  error: "Could not execute - dependencies unavailable or circular dependency" 
+                });
+              }
+              pending.clear();
+            }
             break;
           }
           
           // Start all ready nodes in parallel
+          if (readyNodes.length > 0) {
+            const nodeList = readyNodes.map(n => `${n.id}(${n.type})`).join(", ");
+            console.log(`[WorkflowStream] 🚀 Starting ${readyNodes.length} nodes in PARALLEL: [${nodeList}]`);
+          }
+          
           for (const node of readyNodes) {
-            console.log(`[WorkflowStream] Starting node ${node.id} (${node.type}) - ${readyNodes.length} nodes ready`);
             const promise = executeOneNode(node).finally(() => {
               pending.delete(node.id);
               inProgress.delete(node.id);
+              console.log(`[WorkflowStream] Node ${node.id} finished. Pending: ${pending.size}, InProgress: ${inProgress.size - 1}`);
             });
             inProgress.set(node.id, promise);
           }

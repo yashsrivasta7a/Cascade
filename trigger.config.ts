@@ -52,6 +52,14 @@ export default defineConfig({
   // Directories containing your tasks
   dirs: ["./app/trigger"],
 
+  // Build configuration - don't bundle native binaries
+  build: {
+    external: [
+      "ffmpeg-static",
+      "@ffprobe-installer/ffprobe",
+    ],
+  },
+
   // Retry configuration
   retries: {
     enabledInDev: true,

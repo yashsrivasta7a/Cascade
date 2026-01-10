@@ -1,21 +1,127 @@
 import { z } from "zod";
 import type { NodeExecutor, NodeExecutionContext, NodeExecutionResult } from "../types";
 import { AssetRefSchema, AudioOutSchema } from "@/lib/workflow/node-schemas";
-import { spawn } from "child_process";
-import { promises as fs } from "fs";
+import { spawn, spawnSync } from "child_process";
+import { promises as fs, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 // Use static binary for serverless environments (Trigger.dev)
 import ffmpegPath from "ffmpeg-static";
+// Transloadit for cloud processing fallback
+import { Transloadit } from "transloadit";
 
 // =============================================================================
-// EXTRACT AUDIO - Internal Utility Node (via FFmpeg)
-// Runs on Trigger.dev using static ffmpeg binary
+// EXTRACT AUDIO - Internal Utility Node (via FFmpeg or Transloadit)
+// Local: Uses FFmpeg for audio extraction
+// Cloud: Falls back to Transloadit when FFmpeg unavailable
 // =============================================================================
 
-// Get the correct binary path (static or system)
-const getFFmpegPath = (): string => ffmpegPath || "ffmpeg";
+// Cache for resolved FFmpeg path
+let resolvedFFmpegPath: string | null = null;
+
+// Find WinGet FFmpeg installations dynamically
+function findWinGetFFmpeg(): string | null {
+  if (process.platform !== "win32") return null;
+  
+  const wingetPackagesDir = join(
+    process.env.LOCALAPPDATA || "",
+    "Microsoft", "WinGet", "Packages"
+  );
+  
+  try {
+    if (!existsSync(wingetPackagesDir)) return null;
+    
+    const { readdirSync } = require("fs");
+    const packages = readdirSync(wingetPackagesDir) as string[];
+    const ffmpegPkg = packages.find((p: string) => p.startsWith("Gyan.FFmpeg"));
+    
+    if (!ffmpegPkg) return null;
+    
+    const pkgDir = join(wingetPackagesDir, ffmpegPkg);
+    const builds = readdirSync(pkgDir) as string[];
+    const ffmpegBuild = builds.find((b: string) => b.includes("full_build"));
+    
+    if (!ffmpegBuild) return null;
+    
+    const ffmpegExe = join(pkgDir, ffmpegBuild, "bin", "ffmpeg.exe");
+    if (existsSync(ffmpegExe)) {
+      return ffmpegExe;
+    }
+  } catch (err) {
+    console.log("[FFmpeg] Error searching WinGet packages:", err);
+  }
+  
+  return null;
+}
+
+// Get the correct binary path with robust fallbacks
+function getFFmpegPath(): string {
+  if (resolvedFFmpegPath) return resolvedFFmpegPath;
+  
+  const candidates: string[] = [];
+  
+  // 1. Environment variable (highest priority)
+  if (process.env.FFMPEG_PATH) {
+    candidates.push(process.env.FFMPEG_PATH);
+  }
+  
+  // 2. ffmpeg-static package
+  if (ffmpegPath) {
+    candidates.push(ffmpegPath);
+  }
+  
+  // 3. WinGet installation (dynamic search)
+  const wingetPath = findWinGetFFmpeg();
+  if (wingetPath) {
+    candidates.push(wingetPath);
+  }
+  
+  // 4. Common Windows paths
+  if (process.platform === "win32") {
+    candidates.push(
+      "C:\\ffmpeg\\bin\\ffmpeg.exe",
+      "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+      "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+      join(process.env.USERPROFILE || "", "ffmpeg", "bin", "ffmpeg.exe"),
+    );
+  }
+  
+  // 5. System PATH fallback
+  candidates.push("ffmpeg");
+  
+  // Test each candidate
+  for (const candidate of candidates) {
+    if (candidate && testBinary(candidate)) {
+      console.log(`[FFmpeg] Found working binary at: ${candidate}`);
+      resolvedFFmpegPath = candidate;
+      return candidate;
+    }
+  }
+  
+  console.warn("[FFmpeg] No working FFmpeg binary found. Candidates tested:", candidates.filter(Boolean));
+  resolvedFFmpegPath = "ffmpeg";
+  return resolvedFFmpegPath;
+}
+
+// Test if a binary is executable
+function testBinary(binaryPath: string): boolean {
+  try {
+    if (binaryPath.includes("/") || binaryPath.includes("\\")) {
+      if (!existsSync(binaryPath)) {
+        return false;
+      }
+    }
+    const result = spawnSync(binaryPath, ["-version"], { 
+      timeout: 5000,
+      windowsHide: true,
+      stdio: "pipe"
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
 
 export const ExtractAudioInputSchema = z.object({
   video: AssetRefSchema,
@@ -46,17 +152,128 @@ const FORMAT_MIMETYPES: Record<string, string> = {
   ogg: "audio/ogg",
 };
 
+// =============================================================================
+// TRANSLOADIT CLOUD FALLBACK
+// =============================================================================
+
+function isTransloaditConfigured(): boolean {
+  return Boolean(process.env.TRANSLOADIT_AUTH_KEY && process.env.TRANSLOADIT_AUTH_SECRET);
+}
+
+async function extractAudioWithTransloadit(
+  input: ExtractAudioInput
+): Promise<NodeExecutionResult | null> {
+  if (!isTransloaditConfigured()) {
+    console.log("[ExtractAudio] Transloadit not configured, skipping cloud fallback");
+    return null;
+  }
+
+  try {
+    console.log("[ExtractAudio] Using Transloadit cloud processing");
+    
+    const client = new Transloadit({
+      authKey: process.env.TRANSLOADIT_AUTH_KEY!,
+      authSecret: process.env.TRANSLOADIT_AUTH_SECRET!,
+    });
+
+    const videoUrl = input.video.url;
+
+    // Handle base64 data URLs - skip for now
+    if (videoUrl.startsWith("data:")) {
+      console.log("[ExtractAudio] Base64 video not supported for Transloadit fallback");
+      return null;
+    }
+
+    // Map format to Transloadit preset
+    const presetMap: Record<string, string> = {
+      mp3: "mp3",
+      wav: "wav",
+      aac: "aac",
+      ogg: "ogg",
+    };
+
+    // Create assembly to extract audio
+    const assembly = await client.createAssembly({
+      params: {
+        steps: {
+          // Import video
+          imported: {
+            robot: "/http/import",
+            url: videoUrl,
+            ignore_errors: ["meta"],
+          },
+          // Extract and encode audio
+          extracted: {
+            robot: "/audio/encode",
+            use: "imported",
+            preset: presetMap[input.format] || "mp3",
+            bitrate: parseInt(input.bitrate) || 192,
+            sample_rate: parseInt(input.sampleRate) || 44100,
+            channels: parseInt(input.channels) || 2,
+            ffmpeg_stack: "v6.0.0",
+          },
+        },
+      },
+      waitForCompletion: true,
+    });
+
+    console.log(`[ExtractAudio] Transloadit assembly: ${assembly.ok}`);
+
+    if (assembly.results?.extracted?.[0]?.ssl_url) {
+      const resultUrl = assembly.results.extracted[0].ssl_url;
+      console.log(`[ExtractAudio] Transloadit result: ${resultUrl.slice(0, 80)}...`);
+      
+      return {
+        success: true,
+        output: {
+          type: "audio",
+          audio: {
+            url: resultUrl,
+            mimeType: FORMAT_MIMETYPES[input.format] || "audio/mpeg",
+          },
+        },
+        providerUsed: "transloadit",
+        actualCost: 0,
+      };
+    }
+
+    console.warn("[ExtractAudio] Transloadit: No result URL in assembly");
+    return null;
+  } catch (error) {
+    console.error("[ExtractAudio] Transloadit error:", error);
+    return null;
+  }
+}
+
+// =============================================================================
+// FFMPEG LOCAL PROCESSING
+// =============================================================================
+
 async function isFFmpegAvailable(): Promise<boolean> {
+  const ffmpegBin = getFFmpegPath();
+  console.log(`[FFmpeg] Checking availability at: ${ffmpegBin}`);
+  
   return new Promise((resolve) => {
-    const ffmpeg = spawn(getFFmpegPath(), ["-version"]);
-    ffmpeg.on("close", (code) => resolve(code === 0));
-    ffmpeg.on("error", () => resolve(false));
+    const ffmpeg = spawn(ffmpegBin, ["-version"], { windowsHide: true });
+    
+    ffmpeg.on("close", (code) => {
+      console.log(`[FFmpeg] Version check exit code: ${code}`);
+      resolve(code === 0);
+    });
+    
+    ffmpeg.on("error", (err) => {
+      console.log(`[FFmpeg] Version check error: ${err.message}`);
+      resolve(false);
+    });
   });
 }
 
 async function runFFmpeg(args: string[]): Promise<void> {
+  const ffmpegBin = getFFmpegPath();
+  console.log(`[FFmpeg] Running: ${ffmpegBin} ${args.slice(0, 5).join(" ")}...`);
+  
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn(getFFmpegPath(), args);
+    const ffmpeg = spawn(ffmpegBin, args, { windowsHide: true });
     let stderr = "";
 
     ffmpeg.stderr.on("data", (data) => {
@@ -96,10 +313,16 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
     // Check if FFmpeg is available
     const ffmpegAvailable = await isFFmpegAvailable();
     if (!ffmpegAvailable) {
-      // In development, return a mock audio if FFmpeg isn't available
+      // Try Transloadit cloud processing as fallback
+      const transloaditResult = await extractAudioWithTransloadit(input);
+      if (transloaditResult) {
+        console.log("[ExtractAudio] Used Transloadit cloud processing");
+        return transloaditResult;
+      }
+      
+      // No Transloadit - use mock in development
       if (process.env.NODE_ENV === "development") {
         console.log("[ExtractAudio] FFmpeg not found, using mock audio for development");
-        // Return a simple silent audio as mock
         const mockMimeType = FORMAT_MIMETYPES[input.format] ?? "audio/mpeg";
         return {
           success: true,
@@ -116,7 +339,7 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
       }
       return {
         success: false,
-        error: "FFmpeg is not installed or not in PATH. Please install FFmpeg to use audio extraction. Download from: https://ffmpeg.org/download.html",
+        error: "FFmpeg is not installed and Transloadit is not configured. Please install FFmpeg or configure Transloadit.",
         providerUsed: "internal",
       };
     }
