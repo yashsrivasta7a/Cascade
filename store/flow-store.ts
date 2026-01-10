@@ -22,6 +22,11 @@ export interface FlowState {
   focusNodeId: string | null;
   workflowId: string | null; // Current workflow ID for Activity tracking
   
+  // Execution tracking for cancel functionality
+  currentWorkflowExecutionId: string | null;
+  currentTriggerRunId: string | null;
+  runningNodeIds: Map<string, { executionId: string; triggerRunId?: string }>; // node ID -> execution info
+  
   // Connection dragging state for highlighting compatible nodes
   connectingFrom: {
     nodeId: string;
@@ -36,6 +41,14 @@ export interface FlowState {
   setWorkflowRunning: (running: boolean) => void;
   setWorkflowId: (workflowId: string | null) => void;
   setConnectingFrom: (info: FlowState["connectingFrom"]) => void;
+  
+  // Execution tracking actions
+  setWorkflowExecution: (executionId: string | null, triggerRunId?: string | null) => void;
+  setNodeRunning: (nodeId: string, executionId: string, triggerRunId?: string) => void;
+  clearNodeRunning: (nodeId: string) => void;
+  cancelWorkflow: () => Promise<boolean>;
+  cancelNode: (nodeId: string) => Promise<boolean>;
+  
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
@@ -76,10 +89,128 @@ export const useFlowStore = create<FlowState>()(
       focusNodeId: null,
       workflowId: null,
       connectingFrom: null,
+      
+      // Execution tracking
+      currentWorkflowExecutionId: null,
+      currentTriggerRunId: null,
+      runningNodeIds: new Map(),
 
       setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
       setWorkflowId: (workflowId) => set({ workflowId }),
       setConnectingFrom: (info) => set({ connectingFrom: info }),
+      
+      // Execution tracking actions
+      setWorkflowExecution: (executionId, triggerRunId) => set({ 
+        currentWorkflowExecutionId: executionId,
+        currentTriggerRunId: triggerRunId ?? null,
+      }),
+      
+      setNodeRunning: (nodeId, executionId, triggerRunId) => {
+        const state = get();
+        const newMap = new Map(state.runningNodeIds);
+        newMap.set(nodeId, { executionId, triggerRunId });
+        set({ runningNodeIds: newMap });
+      },
+      
+      clearNodeRunning: (nodeId) => {
+        const state = get();
+        const newMap = new Map(state.runningNodeIds);
+        newMap.delete(nodeId);
+        set({ runningNodeIds: newMap });
+      },
+      
+      cancelWorkflow: async () => {
+        const state = get();
+        const { currentWorkflowExecutionId, currentTriggerRunId } = state;
+        
+        if (!currentWorkflowExecutionId) {
+          console.log("[cancelWorkflow] No active workflow execution");
+          return false;
+        }
+        
+        try {
+          const response = await fetch(`/api/executions/${currentWorkflowExecutionId}/cancel`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              triggerRunId: currentTriggerRunId,
+              type: "workflow" 
+            }),
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("[cancelWorkflow] Failed:", error);
+            return false;
+          }
+          
+          // Update all running nodes to cancelled
+          set((prev) => ({
+            isWorkflowRunning: false,
+            currentWorkflowExecutionId: null,
+            currentTriggerRunId: null,
+            nodes: prev.nodes.map((n) => {
+              const nodeData = n.data as Record<string, unknown>;
+              if (nodeData.status === "running" || nodeData.status === "queued") {
+                return { ...n, data: { ...nodeData, status: "cancelled" } };
+              }
+              return n;
+            }),
+          }));
+          
+          console.log("[cancelWorkflow] Workflow cancelled successfully");
+          return true;
+        } catch (error) {
+          console.error("[cancelWorkflow] Error:", error);
+          return false;
+        }
+      },
+      
+      cancelNode: async (nodeId) => {
+        const state = get();
+        const runInfo = state.runningNodeIds.get(nodeId);
+        
+        if (!runInfo) {
+          console.log("[cancelNode] No active execution for node", nodeId);
+          return false;
+        }
+        
+        try {
+          const response = await fetch(`/api/executions/${runInfo.executionId}/cancel`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              triggerRunId: runInfo.triggerRunId,
+              type: "quick" 
+            }),
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            console.error("[cancelNode] Failed:", error);
+            return false;
+          }
+          
+          // Update node status
+          const newMap = new Map(state.runningNodeIds);
+          newMap.delete(nodeId);
+          
+          set((prev) => ({
+            runningNodeIds: newMap,
+            nodes: prev.nodes.map((n) =>
+              n.id === nodeId
+                ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "cancelled" } }
+                : n
+            ),
+          }));
+          
+          console.log("[cancelNode] Node cancelled successfully");
+          return true;
+        } catch (error) {
+          console.error("[cancelNode] Error:", error);
+          return false;
+        }
+      },
 
       setNodes: (nodes) =>
         set((state) => ({

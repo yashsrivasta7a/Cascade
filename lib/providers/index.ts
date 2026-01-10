@@ -9,6 +9,13 @@ export {
   type FallbackExecutionResult,
   type FallbackExecutionOptions,
 } from "./fallback";
+export {
+  isTransloaditConfigured,
+  uploadFromUrl,
+  uploadFromBase64,
+  uploadMedia,
+  persistNodeOutput,
+} from "./transloadit";
 
 import { falProvider } from "./fal";
 import { openRouterProvider } from "./openrouter";

@@ -31,27 +31,56 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = useCallback((file: File) => {
+  const handleImageUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     
-    // Check file size - limit to 5MB for base64 JSON transport
+    // Check file size - limit to 10MB
+    // Check file size - limit to 10MB (API body limit is ~4MB, base64 adds ~33%)
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 5) {
-      updateNode(id, { error: `Image too large (${sizeMB.toFixed(1)}MB). Max 5MB.` });
+    if (sizeMB > 10) {
+      updateNode(id, { error: `Image too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
       return;
     }
     
+    setIsUploadingImage(true);
     updateNode(id, { error: undefined });
     
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "image",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputImage: url, result: undefined, error: undefined });
+          setIsUploadingImage(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[CropImage] CDN upload failed, using base64:", err);
+      }
+      
+      // Fallback to base64 if CDN upload fails
       updateNode(id, { inputImage: base64, result: undefined, error: undefined });
+      setIsUploadingImage(false);
     };
     reader.onerror = () => {
       updateNode(id, { error: "Failed to read image file" });
+      setIsUploadingImage(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -170,7 +199,12 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
                     : "border-2 border-dashed border-white/10 hover:border-white/20 cursor-pointer"
                 }`}
               >
-                {data.inputImage ? (
+                {isUploadingImage ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-emerald-400">
+                    <Loader2 className="w-5 h-5 mb-2 animate-spin" />
+                    <span className="text-[10px]">Uploading image...</span>
+                  </div>
+                ) : data.inputImage ? (
                   <div className="relative">
                     {/* Image with crop overlay */}
                     <div className="relative">
@@ -224,9 +258,9 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
             <div className="flex items-center gap-2">
               <button
                 onClick={runCrop}
-                disabled={!data.inputImage || isProcessing}
+                disabled={!data.inputImage || isProcessing || isUploadingImage}
                 className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
-                  isProcessing
+                  isProcessing || isUploadingImage
                     ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                     : data.inputImage
                     ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30"

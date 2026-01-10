@@ -132,8 +132,8 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "text", type: "text", label: "Script", required: true },
-        { id: "voiceId", type: "text", label: "Voice", hidden: !showSettings },
+        { id: "text", type: "prompt", label: "Script", required: true },
+        { id: "voiceId", type: "model", label: "Voice", hidden: !showSettings },
         { id: "stability", type: "number", label: "Stability", hidden: !showSettings },
         { id: "clarity", type: "number", label: "Clarity", hidden: !showSettings },
       ]}

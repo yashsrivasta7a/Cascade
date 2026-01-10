@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getNodeExecutor,
-  validateNodeInput,
-  registerAllNodeExecutors,
-  type NodeExecutionContext,
-} from "@/lib/engine";
+import { validateNodeInput, registerAllNodeExecutors } from "@/lib/engine";
 import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
+import { executeNode } from "@/app/trigger/node-executor";
+import { runs } from "@trigger.dev/sdk/v3";
 
-// Register all node executors at module load
+// Register all node executors at module load (needed for validation)
 registerAllNodeExecutors();
 
-// Internal node types that should be executed synchronously
+// Internal node types - these now run on Trigger.dev too
 const SYNC_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
 
 // Route segment config to increase body size limit for large media files
@@ -68,30 +65,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only allow sync execution for internal nodes
+    // Only allow execution for supported node types
     if (!SYNC_NODE_TYPES.includes(nodeType)) {
       return NextResponse.json(
         { 
           success: false,
-          error: `Node type "${nodeType}" cannot be executed synchronously. Use /api/nodes/execute instead.`,
+          error: `Node type "${nodeType}" is not supported by this endpoint. Use /api/nodes/execute instead.`,
         },
         { status: 400 }
       );
     }
 
-    // Get the executor for this node type
-    const executor = getNodeExecutor(nodeType);
-    if (!executor) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: `Unknown node type: ${nodeType}`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate input
+    // Validate input using the node's schema
     const inputValidation = validateNodeInput(nodeType, input);
     if (!inputValidation.success) {
       return NextResponse.json(
@@ -128,21 +113,49 @@ export async function POST(request: NextRequest) {
       console.warn("[Sync Execute] Failed to create execution record:", dbError);
     }
 
-    // Build execution context
-    const context: NodeExecutionContext = {
+    console.log(`[Sync Execute] Starting ${nodeType} execution via Trigger.dev`);
+
+    // Execute via Trigger.dev
+    const payload = {
       nodeExecutionId: executionId || `sync-${Date.now()}`,
       workflowExecutionId: `sync-workflow-${Date.now()}`,
       nodeId: nodeId || `sync-node-${Date.now()}`,
-      nodeType,
-      webhookBaseUrl: process.env.WEBHOOK_BASE_URL ?? "http://localhost:3000",
-      attempt: 1,
+      nodeType: nodeType as AINodeType,
+      input: inputValidation.data as Record<string, unknown>,
     };
 
-    console.log(`[Sync Execute] Starting ${nodeType} execution`);
+    // Start the Trigger.dev task
+    const handle = await executeNode.trigger(payload);
+    console.log(`[Sync Execute] Trigger.dev task started: ${handle.id}`);
 
-    // Execute the node synchronously
-    const result = await executor.execute(inputValidation.data, context);
+    // Wait for completion using SSE subscription
+    let finalRun: Awaited<ReturnType<typeof runs.retrieve>> | null = null;
+    for await (const run of runs.subscribeToRun(handle.id)) {
+      console.log(`[Sync Execute] Run ${handle.id} status: ${run.status}`);
+      if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
+        finalRun = run;
+        break;
+      }
+    }
+
     const durationMs = Date.now() - startTime;
+
+    // Extract result from Trigger.dev run
+    let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
+    if (finalRun?.status === "COMPLETED" && finalRun.output) {
+      const output = finalRun.output as { output?: unknown; providerUsed?: string; actualCost?: number };
+      result = { 
+        success: true, 
+        output: output.output,
+        providerUsed: output.providerUsed,
+        actualCost: output.actualCost,
+      };
+    } else {
+      result = { 
+        success: false, 
+        error: finalRun?.status === "FAILED" ? "Task execution failed on Trigger.dev" : "Task was canceled",
+      };
+    }
 
     console.log(`[Sync Execute] ${nodeType} completed:`, result.success ? "success" : "failed", `(${durationMs}ms)`);
 
@@ -261,9 +274,10 @@ function sanitizeOutputForStorage(output: unknown): unknown {
 
 export async function GET() {
   return NextResponse.json({
-    message: "Synchronous Node Execution",
-    description: "This endpoint executes internal utility nodes synchronously",
+    message: "Node Execution via Trigger.dev",
+    description: "This endpoint executes utility nodes via Trigger.dev and waits for completion",
     supportedNodes: SYNC_NODE_TYPES,
+    execution: "Trigger.dev (serverless)",
     usage: {
       method: "POST",
       body: {

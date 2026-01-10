@@ -39,6 +39,29 @@ export interface NodeExecutorPayload {
   input: Record<string, unknown>;
 }
 
+// Helper to safely update nodeExecution (may not exist for single node runs)
+async function safeUpdateNodeExecution(
+  nodeExecutionId: string,
+  data: Parameters<typeof db.nodeExecution.update>[0]["data"]
+): Promise<boolean> {
+  // Skip if this is a single-node run (IDs starting with "sync-")
+  if (nodeExecutionId.startsWith("sync-")) {
+    return false;
+  }
+  
+  try {
+    await db.nodeExecution.update({
+      where: { id: nodeExecutionId },
+      data,
+    });
+    return true;
+  } catch (error) {
+    // Record doesn't exist - this is OK for single node runs
+    console.log(`[NodeExecutor] nodeExecution ${nodeExecutionId} not found (single node run?)`);
+    return false;
+  }
+}
+
 export const executeNode = task({
   id: "execute-node",
   retry: {
@@ -85,13 +108,10 @@ export const executeNode = task({
       }
     }
 
-    // Update status to RUNNING
-    await db.nodeExecution.update({
-      where: { id: nodeExecutionId },
-      data: {
-        status: "RUNNING",
-        startedAt: new Date(),
-      },
+    // Update status to RUNNING (may not exist for single node runs)
+    await safeUpdateNodeExecution(nodeExecutionId, {
+      status: "RUNNING",
+      startedAt: new Date(),
     });
 
     // Get the executor for this node type
@@ -137,14 +157,11 @@ export const executeNode = task({
       const waitToken = `node-${nodeExecutionId}`;
 
       // Update node execution with wait token and provider job ID
-      await db.nodeExecution.update({
-        where: { id: nodeExecutionId },
-        data: {
-          status: "WAITING",
-          waitToken,
-          providerUsed: result.providerUsed,
-          providerJobId: result.providerJobId,
-        },
+      await safeUpdateNodeExecution(nodeExecutionId, {
+        status: "WAITING",
+        waitToken,
+        providerUsed: result.providerUsed,
+        providerJobId: result.providerJobId,
       });
 
       // Wait for the webhook to complete this token
@@ -181,13 +198,10 @@ export const executeNode = task({
       }
 
       // Mark as completed
-      await db.nodeExecution.update({
-        where: { id: nodeExecutionId },
-        data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          outputJson: outputValidation.data as Record<string, unknown>,
-        },
+      await safeUpdateNodeExecution(nodeExecutionId, {
+        status: "COMPLETED",
+        completedAt: new Date(),
+        outputJson: outputValidation.data as Record<string, unknown>,
       });
 
       // Deduct credits after successful execution
@@ -214,15 +228,12 @@ export const executeNode = task({
     }
 
     // Mark as completed
-    await db.nodeExecution.update({
-      where: { id: nodeExecutionId },
-      data: {
-        status: "COMPLETED",
-        completedAt: new Date(),
-        outputJson: outputValidation.data as Record<string, unknown>,
-        providerUsed: result.providerUsed,
-        actualCost: result.actualCost ?? 0,
-      },
+    await safeUpdateNodeExecution(nodeExecutionId, {
+      status: "COMPLETED",
+      completedAt: new Date(),
+      outputJson: outputValidation.data as Record<string, unknown>,
+      providerUsed: result.providerUsed,
+      actualCost: result.actualCost ?? 0,
     });
 
     // Deduct credits after successful execution
@@ -384,28 +395,39 @@ async function deductCreditsForNode(
 async function markNodeFailed(nodeExecutionId: string, error: string): Promise<void> {
   console.log(`[NodeExecutor] Marking node ${nodeExecutionId} as FAILED: ${error}`);
   
-  const nodeExec = await db.nodeExecution.update({
-    where: { id: nodeExecutionId },
-    data: {
-      status: "FAILED",
-      completedAt: new Date(),
-      error,
-    },
-    select: { workflowExecutionId: true, nodeId: true, nodeType: true },
-  });
-
-  console.log(`[NodeExecutor] Node ${nodeExec.nodeId} (${nodeExec.nodeType}) marked FAILED in DB`);
-
-  // Also update the workflow execution status
-  if (nodeExec.workflowExecutionId) {
-    await db.workflowExecution.update({
-      where: { id: nodeExec.workflowExecutionId },
+  // Skip DB update for single node runs (IDs starting with "sync-")
+  if (nodeExecutionId.startsWith("sync-")) {
+    console.log(`[NodeExecutor] Single node run - skipping DB update`);
+    return;
+  }
+  
+  try {
+    const nodeExec = await db.nodeExecution.update({
+      where: { id: nodeExecutionId },
       data: {
         status: "FAILED",
         completedAt: new Date(),
+        error,
       },
+      select: { workflowExecutionId: true, nodeId: true, nodeType: true },
     });
-    console.log(`[NodeExecutor] Workflow ${nodeExec.workflowExecutionId} marked FAILED`);
+
+    console.log(`[NodeExecutor] Node ${nodeExec.nodeId} (${nodeExec.nodeType}) marked FAILED in DB`);
+
+    // Also update the workflow execution status
+    if (nodeExec.workflowExecutionId) {
+      await db.workflowExecution.update({
+        where: { id: nodeExec.workflowExecutionId },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+        },
+      });
+      console.log(`[NodeExecutor] Workflow ${nodeExec.workflowExecutionId} marked FAILED`);
+    }
+  } catch (dbError) {
+    // Record doesn't exist - this is OK for single node runs
+    console.log(`[NodeExecutor] nodeExecution ${nodeExecutionId} not found (single node run?)`);
   }
 }
 

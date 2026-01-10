@@ -7,6 +7,7 @@ import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { MediaLoader, MediaSkeleton } from "@/components/ui";
 
 export interface SeedreamNodeData extends BaseNodeData {
   prompt?: string;
@@ -40,6 +41,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,13 +52,48 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
     }
   }, [data.result, id, propagateOutput]);
 
-  const handleImageUpload = useCallback((file: File) => {
+  const handleImageUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     
+    // Check file size - limit to 10MB (API body limit is ~4MB, base64 adds ~33%)
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { status: "failed" });
+      alert(`Image too large (${sizeMB.toFixed(1)}MB). Max 10MB.`);
+      return;
+    }
+    
+    setIsUploadingImage(true);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "image",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputImage: url });
+          setIsUploadingImage(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Seedream] CDN upload failed, using base64:", err);
+      }
+      
+      // Fallback to base64 if CDN upload fails
       updateNode(id, { inputImage: base64 });
+      setIsUploadingImage(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -235,15 +272,15 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        // Always-visible ports
-        { id: "prompt", type: "text", label: "Prompt", required: true },
+        // Always-visible ports - using unified color types
+        { id: "prompt", type: "prompt", label: "Prompt", required: true },
         { id: "image", type: "image", label: "Image" },
 
         // Advanced ports (only show when settings panel is expanded)
         { id: "numInferenceSteps", type: "number", label: "Steps", hidden: !showSettings },
         { id: "guidanceScale", type: "number", label: "Guidance", hidden: !showSettings },
-        { id: "seed", type: "number", label: "Seed", hidden: !showSettings },
-        { id: "aspectRatio", type: "text", label: "Aspect", hidden: !showSettings },
+        { id: "seed", type: "seed", label: "Seed", hidden: !showSettings },
+        { id: "aspectRatio", type: "aspectRatio", label: "Aspect", hidden: !showSettings },
         { id: "negativePrompt", type: "negative", label: "Negative", hidden: !showSettings },
         { id: "truncatePrompt", type: "boolean", label: "Truncate", hidden: !showSettings },
         { id: "promptEnhancer", type: "boolean", label: "Enhancer", hidden: !showSettings },
@@ -310,7 +347,12 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
               isDragOver ? "border-emerald-500/40 bg-emerald-500/10" : "hover:border-white/20"
             }`}
           >
-            {data.inputImage ? (
+            {isUploadingImage ? (
+              <div className="flex items-center justify-center gap-2 px-3 py-4 text-emerald-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-[10px]">Uploading image...</span>
+              </div>
+            ) : data.inputImage ? (
               <div className="relative p-2">
                 <img src={data.inputImage} alt="Reference" className="w-full h-20 object-cover rounded-lg" />
                 <button
@@ -551,11 +593,17 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
               "—"
             )}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden min-h-[120px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden min-h-[120px]">
             {data.result ? (
-              <img src={data.result} alt="Generated" className="w-full h-auto max-h-[220px] object-contain" />
+              <MediaLoader
+                src={data.result}
+                type="image"
+                alt="Generated"
+                className="w-full h-auto max-h-[220px] object-contain"
+                containerClassName="min-h-[120px] flex items-center justify-center"
+              />
             ) : (
-              <div className="text-zinc-600 text-[10px]">No output yet</div>
+              <MediaSkeleton type="image" className="min-h-[120px]" />
             )}
           </div>
           <div className="text-[9px] text-zinc-600 leading-relaxed">

@@ -6,10 +6,16 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
+// Use static binary for serverless environments (Trigger.dev)
+import ffmpegPath from "ffmpeg-static";
 
 // =============================================================================
 // EXTRACT AUDIO - Internal Utility Node (via FFmpeg)
+// Runs on Trigger.dev using static ffmpeg binary
 // =============================================================================
+
+// Get the correct binary path (static or system)
+const getFFmpegPath = (): string => ffmpegPath || "ffmpeg";
 
 export const ExtractAudioInputSchema = z.object({
   video: AssetRefSchema,
@@ -42,7 +48,7 @@ const FORMAT_MIMETYPES: Record<string, string> = {
 
 async function isFFmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
-    const ffmpeg = spawn("ffmpeg", ["-version"]);
+    const ffmpeg = spawn(getFFmpegPath(), ["-version"]);
     ffmpeg.on("close", (code) => resolve(code === 0));
     ffmpeg.on("error", () => resolve(false));
   });
@@ -50,7 +56,7 @@ async function isFFmpegAvailable(): Promise<boolean> {
 
 async function runFFmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", args);
+    const ffmpeg = spawn(getFFmpegPath(), args);
     let stderr = "";
 
     ffmpeg.stderr.on("data", (data) => {

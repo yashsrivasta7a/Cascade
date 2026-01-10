@@ -7,6 +7,7 @@ import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { MediaLoader, MediaSkeleton } from "@/components/ui";
 
 export interface LipsyncNodeData extends BaseNodeData {
   model?: "sync-1.5" | "sync-1.6-beta";
@@ -27,37 +28,91 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOverVideo, setIsDragOverVideo] = useState(false);
   const [isDragOverAudio, setIsDragOverAudio] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
-  const handleVideoUpload = useCallback((file: File) => {
+  const handleVideoUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("video/")) return;
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 10) {
-      updateNode(id, { error: `Video too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+    if (sizeMB > 25) {
+      updateNode(id, { error: `Video too large (${sizeMB.toFixed(1)}MB). Max 25MB.` });
       return;
     }
-    // Convert to base64 data URL so it can be sent to the server
+    
+    setIsUploadingVideo(true);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "video",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputVideo: url, error: undefined });
+          setIsUploadingVideo(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Lipsync] CDN video upload failed, using base64:", err);
+      }
+      
       updateNode(id, { inputVideo: base64, error: undefined });
+      setIsUploadingVideo(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
 
-  const handleAudioUpload = useCallback((file: File) => {
+  const handleAudioUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("audio/")) return;
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 10) {
-      updateNode(id, { error: `Audio too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+    if (sizeMB > 25) {
+      updateNode(id, { error: `Audio too large (${sizeMB.toFixed(1)}MB). Max 25MB.` });
       return;
     }
-    // Convert to base64 data URL so it can be sent to the server
+    
+    setIsUploadingAudio(true);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "audio",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputAudio: url, error: undefined });
+          setIsUploadingAudio(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Lipsync] CDN audio upload failed, using base64:", err);
+      }
+      
       updateNode(id, { inputAudio: base64, error: undefined });
+      setIsUploadingAudio(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -171,7 +226,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
         // Align port ids with node.data fields used by UI so edges override correctly
         { id: "inputVideo", type: "video", label: "Video", required: true },
         { id: "inputAudio", type: "audio", label: "Audio", required: true },
-        { id: "model", type: "text", label: "Model", hidden: !showSettings },
+        { id: "model", type: "model", label: "Model", hidden: !showSettings },
       ]}
       outputs={[{ id: "synced", type: "video", label: "Synced" }]}
       left={
@@ -212,7 +267,12 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
             }`}
           >
-            {data.inputVideo ? (
+            {isUploadingVideo ? (
+              <div className="flex flex-col items-center justify-center py-3 text-violet-400">
+                <Loader2 className="w-4 h-4 mb-1 animate-spin" />
+                <span className="text-[9px]">Uploading video...</span>
+              </div>
+            ) : data.inputVideo ? (
               <div className="relative p-1">
                 <video src={data.inputVideo} className="w-full aspect-video object-cover rounded" muted />
                 <button
@@ -247,7 +307,12 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
             }`}
           >
-            {data.inputAudio ? (
+            {isUploadingAudio ? (
+              <div className="flex flex-col items-center justify-center py-3 text-amber-400">
+                <Loader2 className="w-4 h-4 mb-1 animate-spin" />
+                <span className="text-[9px]">Uploading audio...</span>
+              </div>
+            ) : data.inputAudio ? (
               <div className="relative p-2">
                 <audio src={data.inputAudio} controls className="w-full h-6" />
                 <button
@@ -331,13 +396,16 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Syncing..." : data.result ? "Synced Output" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden">
             {data.result ? (
-              <video src={data.result} controls className="w-full aspect-video" />
+              <MediaLoader
+                src={data.result}
+                type="video"
+                className="w-full aspect-video"
+                containerClassName="aspect-video"
+              />
             ) : (
-              <div className="py-8">
-                <span className="text-zinc-600 text-[10px]">—</span>
-              </div>
+              <MediaSkeleton type="video" className="aspect-video" />
             )}
           </div>
         </div>

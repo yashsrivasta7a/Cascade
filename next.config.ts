@@ -7,8 +7,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
-  // Suppress punycode deprecation warning
-  serverExternalPackages: ["punycode"],
+  // External packages - don't bundle these (they have native binaries or unsupported file types)
+  serverExternalPackages: [
+    "punycode",
+    "ffmpeg-static",
+    "@ffprobe-installer/ffprobe",
+  ],
 };
 
 export default nextConfig;

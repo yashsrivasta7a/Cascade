@@ -17,6 +17,7 @@ import {
   Layers,
   Wand2,
   Monitor,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -141,14 +142,22 @@ const categoryColors: Record<NodeCategory, {
 
 const categoryOrder: NodeCategory[] = ["llm", "image", "video", "audio", "utility"];
 
-// Output type badge colors
+// Output type badge colors - includes all data types (media + settings)
 const outputTypeBadge: Record<DataType, { bg: string; text: string }> = {
+  // Media types
   text: { bg: "bg-blue-500/20", text: "text-blue-400" },
   image: { bg: "bg-emerald-500/20", text: "text-emerald-400" },
   video: { bg: "bg-violet-500/20", text: "text-violet-400" },
   audio: { bg: "bg-amber-500/20", text: "text-amber-400" },
   any: { bg: "bg-zinc-500/20", text: "text-zinc-400" },
+  // Settings types
+  prompt: { bg: "bg-sky-500/20", text: "text-sky-400" },
   negative: { bg: "bg-red-500/20", text: "text-red-400" },
+  seed: { bg: "bg-lime-500/20", text: "text-lime-400" },
+  aspectRatio: { bg: "bg-indigo-500/20", text: "text-indigo-400" },
+  duration: { bg: "bg-teal-500/20", text: "text-teal-400" },
+  model: { bg: "bg-rose-500/20", text: "text-rose-400" },
+  temperature: { bg: "bg-orange-500/20", text: "text-orange-400" },
   number: { bg: "bg-pink-500/20", text: "text-pink-400" },
   boolean: { bg: "bg-cyan-500/20", text: "text-cyan-400" },
 };
@@ -166,6 +175,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<NodeCategory | null>(null);
   const [hoveredNode, setHoveredNode] = useState<AINodeType | null>(null);
+  const [showColorHelp, setShowColorHelp] = useState(false);
 
   const filteredNodes = Object.values(NODE_DEFINITIONS).filter((node) => {
     const matchesSearch = !search || 
@@ -211,14 +221,178 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
               </div>
               <span className="text-sm font-semibold text-white">Nodes</span>
             </div>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5 transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {/* Color Help Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowColorHelp(!showColorHelp)}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    showColorHelp 
+                      ? "text-white bg-white/10" 
+                      : "text-zinc-600 hover:text-zinc-400 hover:bg-white/5"
+                  )}
+                  title="Color scheme guide"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                
+                {/* Color Help Popup */}
+                <AnimatePresence>
+                  {showColorHelp && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                      transition={{ type: "spring", damping: 25, stiffness: 400 }}
+                      className="absolute right-0 top-full mt-2 w-72 bg-[#0d0d0d] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 z-50 overflow-hidden max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10"
+                    >
+                      <div className="p-3 border-b border-white/[0.04]">
+                        <h4 className="text-xs font-semibold text-white flex items-center gap-2">
+                          <span className="w-4 h-4 rounded bg-gradient-to-br from-white/20 to-white/5 flex items-center justify-center">
+                            🎨
+                          </span>
+                          Color Guide
+                        </h4>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                          Colors aren't random — they show what each node does!
+                        </p>
+                      </div>
+                      
+                      {/* Layer 1: Node Categories */}
+                      <div className="p-3 border-b border-white/[0.04]">
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 1: Node Types</p>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center">
+                              <Brain className="w-3 h-3 text-blue-400" />
+                            </div>
+                            <span className="text-[11px] text-zinc-300">LLM / AI</span>
+                            <span className="text-[10px] text-blue-400 ml-auto">Blue</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center">
+                              <Image className="w-3 h-3 text-emerald-400" />
+                            </div>
+                            <span className="text-[11px] text-zinc-300">Image</span>
+                            <span className="text-[10px] text-emerald-400 ml-auto">Emerald</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-violet-500/20 flex items-center justify-center">
+                              <Film className="w-3 h-3 text-violet-400" />
+                            </div>
+                            <span className="text-[11px] text-zinc-300">Video</span>
+                            <span className="text-[10px] text-violet-400 ml-auto">Violet</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-amber-500/20 flex items-center justify-center">
+                              <Volume2 className="w-3 h-3 text-amber-400" />
+                            </div>
+                            <span className="text-[11px] text-zinc-300">Audio</span>
+                            <span className="text-[10px] text-amber-400 ml-auto">Amber</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded bg-zinc-500/20 flex items-center justify-center">
+                              <Wrench className="w-3 h-3 text-zinc-400" />
+                            </div>
+                            <span className="text-[11px] text-zinc-300">Utility</span>
+                            <span className="text-[10px] text-zinc-400 ml-auto">Gray</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Layer 2: Media Data Types */}
+                      <div className="p-3 border-b border-white/[0.04]">
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 2: Media Data</p>
+                        <p className="text-[10px] text-zinc-600 mb-2">Main content flowing between nodes</p>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                            <div className="flex-1 h-[2px] bg-gradient-to-r from-blue-500 to-blue-500/30 rounded-full" />
+                            <span className="text-[10px] text-blue-400">Text</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                            <div className="flex-1 h-[2px] bg-gradient-to-r from-emerald-500 to-emerald-500/30 rounded-full" />
+                            <span className="text-[10px] text-emerald-400">Image</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                            <div className="flex-1 h-[2px] bg-gradient-to-r from-violet-500 to-violet-500/30 rounded-full" />
+                            <span className="text-[10px] text-violet-400">Video</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                            <div className="flex-1 h-[2px] bg-gradient-to-r from-amber-500 to-amber-500/30 rounded-full" />
+                            <span className="text-[10px] text-amber-400">Audio</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Layer 3: Settings Types */}
+                      <div className="p-3 border-b border-white/[0.04]">
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 3: Settings</p>
+                        <p className="text-[10px] text-zinc-600 mb-2">Parameters shared across nodes</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#0ea5e9" }} />
+                            <span className="text-[9px] text-sky-400">Prompt</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#84cc16" }} />
+                            <span className="text-[9px] text-lime-400">Seed</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#ef4444" }} />
+                            <span className="text-[9px] text-red-400">Negative</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#6366f1" }} />
+                            <span className="text-[9px] text-indigo-400">Aspect</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#14b8a6" }} />
+                            <span className="text-[9px] text-teal-400">Duration</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f43f5e" }} />
+                            <span className="text-[9px] text-rose-400">Model</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f97316" }} />
+                            <span className="text-[9px] text-orange-400">Temp</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#ec4899" }} />
+                            <span className="text-[9px] text-pink-400">Number</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Animation hint */}
+                      <div className="p-3">
+                        <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">When Running</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex-1 h-[3px] rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-emerald-500 animate-pulse" />
+                        </div>
+                        <p className="text-[9px] text-zinc-600 italic">
+                          Edges animate with flowing dots to show data movement
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Search */}

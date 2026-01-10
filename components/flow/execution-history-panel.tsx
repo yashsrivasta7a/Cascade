@@ -21,6 +21,7 @@ import {
   Coins,
   AlertCircle,
   Pause,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -343,14 +344,23 @@ export function ExecutionHistoryPanel({
     }
   }, [storeNodes, onNodeClick]);
 
-  // Flatten all node executions from all runs for display
-  const allNodeExecutions = executions.flatMap(exec => 
-    exec.nodeExecutions.map(node => ({
-      ...node,
-      executionTime: exec.createdAt,
-      workflowStatus: exec.status,
-    }))
-  );
+  // Track which workflow sections are expanded
+  const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set());
+  
+  const toggleWorkflow = (id: string) => {
+    setExpandedWorkflows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+  
+  // Determine if an execution is a workflow run (multiple nodes) or individual node run
+  const isWorkflowRun = (exec: ExecutionRecord) => exec.nodeExecutions.length > 1;
 
   // Get the node's actual label from the store if available
   const getNodeDisplayName = (node: NodeExecutionRecord) => {
@@ -414,14 +424,14 @@ export function ExecutionHistoryPanel({
             </div>
           </div>
 
-          {/* Content - Direct list of nodes with status */}
+          {/* Content - All executions in chronological order */}
           <div className="max-h-[55vh] overflow-y-auto p-2">
-            {isLoading && allNodeExecutions.length === 0 ? (
+            {isLoading && executions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
                 <p className="text-xs text-zinc-500 mt-2">Loading...</p>
               </div>
-            ) : allNodeExecutions.length === 0 ? (
+            ) : executions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center px-4">
                 <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center mb-3">
                   <Inbox className="w-5 h-5 text-zinc-600" />
@@ -430,93 +440,228 @@ export function ExecutionHistoryPanel({
                 <p className="text-xs text-zinc-600 mt-1">Run a workflow to see history</p>
               </div>
             ) : (
-              <div className="space-y-1.5">
-                {allNodeExecutions.map((node, index) => {
-                  const status = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
-                  const nodeColor = getNodeColor(node.nodeType);
-                  const displayName = getNodeDisplayName(node);
-                  const def = NODE_DEFINITIONS[node.nodeType as AINodeType];
-                  const provider = node.providerUsed || def?.provider || "—";
+              <div className="space-y-2">
+                {executions.map((exec, execIndex) => {
+                  const status = statusStyles[exec.status as keyof typeof statusStyles] || statusStyles.PENDING;
+                  const isMultiNode = isWorkflowRun(exec);
+                  const isExpanded = expandedWorkflows.has(exec.id);
+                  const nodeCount = exec.nodeExecutions.length;
+                  const completedNodes = exec.nodeExecutions.filter(n => n.status === "COMPLETED").length;
+                  const failedNodes = exec.nodeExecutions.filter(n => n.status === "FAILED").length;
+                  
+                  // For single node runs, get the node info
+                  const singleNode = !isMultiNode ? exec.nodeExecutions[0] : null;
+                  const singleNodeColor = singleNode ? getNodeColor(singleNode.nodeType) : "";
+                  const singleNodeName = singleNode ? getNodeDisplayName(singleNode) : "";
+                  const singleNodeDef = singleNode ? NODE_DEFINITIONS[singleNode.nodeType as AINodeType] : null;
+                  const singleNodeProvider = singleNode?.providerUsed || singleNodeDef?.provider || "—";
                   
                   return (
-                    <motion.button
-                      key={`${node.id}-${index}`}
-                      onClick={() => handleNodeClick(node.nodeType, node.nodeId)}
+                    <motion.div
+                      key={exec.id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.03 }}
+                      transition={{ delay: execIndex * 0.03 }}
                       className={cn(
-                        "w-full text-left p-3 rounded-xl transition-all group",
-                        "bg-zinc-900/60 hover:bg-zinc-800/80",
-                        "border hover:border-zinc-700/60",
+                        "rounded-xl border transition-all overflow-hidden",
+                        "bg-zinc-900/60",
                         status.border
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        {/* Status Icon with Glow */}
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-shadow",
-                          status.bg,
-                          status.glow
-                        )}>
-                          <div className={status.color}>{status.icon}</div>
-                        </div>
+                      {isMultiNode ? (
+                        /* Workflow Run - Multiple connected nodes, expandable */
+                        <>
+                          <button
+                            onClick={() => toggleWorkflow(exec.id)}
+                            className="w-full text-left p-3 hover:bg-zinc-800/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              {/* Status Icon */}
+                              <div className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-shadow",
+                                status.bg,
+                                status.glow
+                              )}>
+                                <div className={status.color}>{status.icon}</div>
+                              </div>
 
-                        {/* Node Info */}
-                        <div className="flex-1 min-w-0">
-                          {/* Node Name - PRIMARY */}
-                          <div className="flex items-center gap-2">
-                            <div className={cn("w-4 h-4 rounded flex items-center justify-center", nodeColor)}>
-                              {getNodeIcon(node.nodeType)}
+                              {/* Workflow Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/15 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                    Pipeline
+                                  </span>
+                                  <span className="text-sm font-medium text-zinc-100 truncate">
+                                    Workflow Run
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                                    {nodeCount} node{nodeCount !== 1 ? "s" : ""}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-600">•</span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    {formatTimeAgo(exec.createdAt)}
+                                  </span>
+                                  {completedNodes > 0 && (
+                                    <span className="text-[10px] text-emerald-400">
+                                      ✓{completedNodes}
+                                    </span>
+                                  )}
+                                  {failedNodes > 0 && (
+                                    <span className="text-[10px] text-red-400">
+                                      ✗{failedNodes}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Expand/Collapse Icon */}
+                              <motion.div
+                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                className="text-zinc-500"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </motion.div>
                             </div>
-                            <span className="text-sm font-medium text-zinc-100 truncate">
-                              {displayName}
-                            </span>
-                          </div>
-                          
-                          {/* Provider + Duration */}
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-violet-400 font-medium bg-violet-500/10 px-1.5 py-0.5 rounded">
-                              {provider}
-                            </span>
-                            {node.startedAt && (
-                              <span className="text-[10px] text-zinc-500">
-                                {formatDuration(node.startedAt, node.completedAt)}
-                              </span>
-                            )}
-                            {node.actualCost !== undefined && node.actualCost > 0 && (
-                              <span className="text-[10px] text-amber-400/70 flex items-center gap-0.5">
-                                <Coins className="w-2.5 h-2.5" />
-                                {node.actualCost}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                          </button>
 
-                        {/* Status Label with Glow */}
-                        <div className="shrink-0 text-right">
-                          <div className={cn(
-                            "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                            status.bg,
-                            status.glow
-                          )}>
-                            <span className={cn("w-1.5 h-1.5 rounded-full", status.dotColor)} />
-                            <span className={status.color}>{status.label}</span>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                            <Target className="w-3 h-3 text-zinc-500" />
-                            <span className="text-[9px] text-zinc-500">Focus</span>
-                          </div>
-                        </div>
-                      </div>
+                          {/* Node Executions - Expandable */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="border-t border-zinc-800/50"
+                              >
+                                <div className="p-2 space-y-1">
+                                  {exec.nodeExecutions.map((node, nodeIndex) => {
+                                    const nodeStatus = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
+                                    const nodeColor = getNodeColor(node.nodeType);
+                                    const displayName = getNodeDisplayName(node);
+                                    
+                                    return (
+                                      <button
+                                        key={`${node.id}-${nodeIndex}`}
+                                        onClick={() => handleNodeClick(node.nodeType, node.nodeId)}
+                                        className={cn(
+                                          "w-full text-left p-2 rounded-lg transition-all group",
+                                          "bg-zinc-800/30 hover:bg-zinc-800/60",
+                                          "border border-transparent hover:border-zinc-700/50"
+                                        )}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {/* Node Icon */}
+                                          <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0", nodeColor)}>
+                                            {getNodeIcon(node.nodeType)}
+                                          </div>
+                                          
+                                          {/* Node Info */}
+                                          <div className="flex-1 min-w-0">
+                                            <span className="text-xs font-medium text-zinc-200 truncate block">
+                                              {displayName}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Status & Duration */}
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            {node.startedAt && (
+                                              <span className="text-[9px] text-zinc-500">
+                                                {formatDuration(node.startedAt, node.completedAt)}
+                                              </span>
+                                            )}
+                                            <div className={cn(
+                                              "w-5 h-5 rounded flex items-center justify-center",
+                                              nodeStatus.bg
+                                            )}>
+                                              <div className={cn("scale-75", nodeStatus.color)}>{nodeStatus.icon}</div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Error */}
+                                        {node.error && (
+                                          <div className="mt-1.5 p-1.5 rounded bg-red-500/10 border border-red-500/20">
+                                            <p className="text-[9px] text-red-400 line-clamp-1">{node.error}</p>
+                                          </div>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </>
+                      ) : (
+                        /* Individual Node Run - Single node (Play button) */
+                        <button
+                          onClick={() => singleNode && handleNodeClick(singleNode.nodeType, singleNode.nodeId)}
+                          className="w-full text-left p-3 hover:bg-zinc-800/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* Status Icon */}
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-shadow",
+                              status.bg,
+                              status.glow
+                            )}>
+                              <div className={status.color}>{status.icon}</div>
+                            </div>
 
-                      {/* Error */}
-                      {node.error && (
-                        <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                          <p className="text-[10px] text-red-400 line-clamp-2">{node.error}</p>
-                        </div>
+                            {/* Node Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  Single
+                                </span>
+                                <div className={cn("w-4 h-4 rounded flex items-center justify-center", singleNodeColor)}>
+                                  {singleNode && getNodeIcon(singleNode.nodeType)}
+                                </div>
+                                <span className="text-sm font-medium text-zinc-100 truncate">
+                                  {singleNodeName}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-violet-400 font-medium bg-violet-500/10 px-1.5 py-0.5 rounded">
+                                  {singleNodeProvider}
+                                </span>
+                                <span className="text-[10px] text-zinc-600">•</span>
+                                <span className="text-[10px] text-zinc-500">
+                                  {formatTimeAgo(exec.createdAt)}
+                                </span>
+                                {singleNode?.startedAt && (
+                                  <>
+                                    <span className="text-[10px] text-zinc-600">•</span>
+                                    <span className="text-[10px] text-zinc-500">
+                                      {formatDuration(singleNode.startedAt, singleNode.completedAt)}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Status */}
+                            <div className={cn(
+                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
+                              status.bg
+                            )}>
+                              <span className={cn("w-1.5 h-1.5 rounded-full", status.dotColor)} />
+                              <span className={status.color}>{status.label}</span>
+                            </div>
+                          </div>
+
+                          {/* Error */}
+                          {singleNode?.error && (
+                            <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                              <p className="text-[10px] text-red-400 line-clamp-2">{singleNode.error}</p>
+                            </div>
+                          )}
+                        </button>
                       )}
-                    </motion.button>
+                    </motion.div>
                   );
                 })}
               </div>

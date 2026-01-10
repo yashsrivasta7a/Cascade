@@ -5,6 +5,50 @@ import type { Node, Edge } from "reactflow";
 // WORKFLOW STREAM HOOK - Real-time execution via SSE
 // =============================================================================
 
+// Sanitize nodes before sending to API - removes large base64 data
+function sanitizeNodesForRequest(nodes: Node[]): Node[] {
+  const isHttpUrl = (url: string) => url.startsWith("http://") || url.startsWith("https://");
+  
+  return nodes.map((node) => {
+    const data = (node.data ?? {}) as Record<string, unknown>;
+    const sanitized: Record<string, unknown> = {};
+    
+    for (const [key, value] of Object.entries(data)) {
+      // Skip runtime state that shouldn't be sent
+      if (key === "status" || key === "progress" || key === "error") {
+        continue;
+      }
+      
+      // Handle string values - keep HTTP URLs, truncate large base64
+      if (typeof value === "string") {
+        if (isHttpUrl(value)) {
+          sanitized[key] = value;
+        } else if (value.startsWith("data:") && value.length > 50000) {
+          // Skip large base64 data (>50KB) - it will be fetched from source nodes
+          continue;
+        } else {
+          sanitized[key] = value;
+        }
+        continue;
+      }
+      
+      // Handle objects with url property
+      if (typeof value === "object" && value !== null && "url" in value) {
+        const obj = value as { url?: string };
+        if (typeof obj.url === "string") {
+          if (obj.url.startsWith("data:") && obj.url.length > 50000) {
+            continue; // Skip objects with large base64 URLs
+          }
+        }
+      }
+      
+      sanitized[key] = value;
+    }
+    
+    return { ...node, data: sanitized };
+  });
+}
+
 export type NodeStatus = "queued" | "running" | "completed" | "failed";
 
 export interface NodeStatusUpdate {
@@ -62,10 +106,13 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
     abortControllerRef.current = new AbortController();
 
     try {
+      // Sanitize nodes to remove large base64 data before sending
+      const sanitizedNodes = sanitizeNodesForRequest(nodes);
+      
       const response = await fetch("/api/workflow/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflowId, nodes, edges }),
+        body: JSON.stringify({ workflowId, nodes: sanitizedNodes, edges }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -208,12 +255,33 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
     }
   }, [workflowId, isRunning, callbacks, updateNodeStatus]);
 
-  const cancelWorkflow = useCallback(() => {
+  const cancelWorkflow = useCallback(async () => {
+    // Abort the SSE stream
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      setIsRunning(false);
     }
-  }, []);
+    
+    // Cancel on the server side (including Trigger.dev runs)
+    if (workflowExecutionId) {
+      try {
+        const response = await fetch(`/api/executions/${workflowExecutionId}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "workflow" }),
+        });
+        
+        if (!response.ok) {
+          console.error("[useWorkflowStream] Failed to cancel on server");
+        } else {
+          console.log("[useWorkflowStream] Workflow cancelled on server");
+        }
+      } catch (error) {
+        console.error("[useWorkflowStream] Error cancelling workflow:", error);
+      }
+    }
+    
+    setIsRunning(false);
+  }, [workflowExecutionId]);
 
   const getNodeStatus = useCallback((nodeId: string): NodeStatusUpdate | undefined => {
     return nodeStatuses.get(nodeId);

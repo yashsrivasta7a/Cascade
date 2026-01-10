@@ -6,10 +6,18 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
+// Use static binaries for serverless environments (Trigger.dev)
+import ffmpegPath from "ffmpeg-static";
+import ffprobePath from "@ffprobe-installer/ffprobe";
 
 // =============================================================================
 // MERGE VIDEOS - Internal Utility Node (via FFmpeg)
+// Runs on Trigger.dev using static ffmpeg/ffprobe binaries
 // =============================================================================
+
+// Get the correct binary paths (static or system)
+const getFFmpegPath = (): string => ffmpegPath || "ffmpeg";
+const getFFprobePath = (): string => ffprobePath.path || "ffprobe";
 
 export const MergeVideosInputSchema = z.object({
   video1: AssetRefSchema,
@@ -26,17 +34,18 @@ export type MergeVideosOutput = z.infer<typeof MergeVideosOutputSchema>;
 
 async function isFFmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
-    const ffmpeg = spawn("ffmpeg", ["-version"]);
+    const ffmpeg = spawn(getFFmpegPath(), ["-version"]);
     ffmpeg.on("close", (code) => resolve(code === 0));
     ffmpeg.on("error", () => resolve(false));
   });
 }
 
 async function runFFmpeg(args: string[]): Promise<void> {
-  console.log(`[FFmpeg] Running: ffmpeg ${args.join(" ")}`);
+  const ffmpegBin = getFFmpegPath();
+  console.log(`[FFmpeg] Running: ${ffmpegBin} ${args.join(" ")}`);
   
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", args);
+    const ffmpeg = spawn(ffmpegBin, args);
     let stderr = "";
 
     ffmpeg.stderr.on("data", (data) => {
@@ -64,7 +73,7 @@ async function runFFmpeg(args: string[]): Promise<void> {
 // Check if a video file has an audio stream
 async function hasAudioStream(videoPath: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const ffprobe = spawn("ffprobe", [
+    const ffprobe = spawn(getFFprobePath(), [
       "-v", "error",
       "-select_streams", "a",
       "-show_entries", "stream=codec_type",
@@ -91,7 +100,7 @@ async function hasAudioStream(videoPath: string): Promise<boolean> {
 // Get video duration in seconds
 async function getVideoDuration(videoPath: string): Promise<number> {
   return new Promise((resolve) => {
-    const ffprobe = spawn("ffprobe", [
+    const ffprobe = spawn(getFFprobePath(), [
       "-v", "error",
       "-show_entries", "format=duration",
       "-of", "csv=p=0",
@@ -123,7 +132,7 @@ interface VideoInfo {
 
 async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
   return new Promise((resolve) => {
-    const ffprobe = spawn("ffprobe", [
+    const ffprobe = spawn(getFFprobePath(), [
       "-v", "error",
       "-select_streams", "v:0",
       "-show_entries", "stream=width,height,r_frame_rate",

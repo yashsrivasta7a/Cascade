@@ -7,6 +7,7 @@ import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { MediaLoader, MediaSkeleton } from "@/components/ui";
 
 export interface MergeVideosNodeData extends BaseNodeData {
   transition?: "none" | "fade" | "dissolve";
@@ -31,43 +32,116 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
   const workflowId = useFlowStore((s) => s.workflowId);
+  const edges = useFlowStore((s) => s.edges);
+  const nodes = useFlowStore((s) => s.nodes);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
   const [isDragOver1, setIsDragOver1] = useState(false);
   const [isDragOver2, setIsDragOver2] = useState(false);
+  const [isUploadingVideo1, setIsUploadingVideo1] = useState(false);
+  const [isUploadingVideo2, setIsUploadingVideo2] = useState(false);
   const video1Ref = useRef<HTMLInputElement>(null);
   const video2Ref = useRef<HTMLInputElement>(null);
 
-  const handleVideoUpload = useCallback((file: File, which: 1 | 2) => {
+  // Check for incoming connections and get their source data
+  const getConnectedVideo = useCallback((handleId: string): string | null => {
+    const edge = edges.find(e => e.target === id && e.targetHandle === handleId);
+    if (!edge) return null;
+    
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (!sourceNode) return null;
+    
+    const sourceData = sourceNode.data as Record<string, unknown>;
+    // Check for result (output) or direct video fields
+    if (sourceData.result && typeof sourceData.result === "string") {
+      return sourceData.result;
+    }
+    if (sourceData.outputVideo && typeof sourceData.outputVideo === "string") {
+      return sourceData.outputVideo;
+    }
+    return null;
+  }, [edges, nodes, id]);
+
+  // Get connected videos (from edges) or use direct data
+  const connectedVideo1 = useMemo(() => getConnectedVideo("inputVideo1"), [getConnectedVideo]);
+  const connectedVideo2 = useMemo(() => getConnectedVideo("inputVideo2"), [getConnectedVideo]);
+  
+  // Effective videos: use connected if available, otherwise use direct data
+  const effectiveVideo1 = data.inputVideo1 || connectedVideo1;
+  const effectiveVideo2 = data.inputVideo2 || connectedVideo2;
+
+  const handleVideoUpload = useCallback(async (file: File, which: 1 | 2) => {
     if (!file.type.startsWith("video/")) return;
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 10) {
-      updateNode(id, { error: `Video ${which} too large (${sizeMB.toFixed(1)}MB). Max 10MB.` });
+    if (sizeMB > 25) {
+      updateNode(id, { error: `Video ${which} too large (${sizeMB.toFixed(1)}MB). Max 25MB.` });
       return;
     }
+    
+    // Show loading state
+    if (which === 1) setIsUploadingVideo1(true);
+    else setIsUploadingVideo2(true);
+    updateNode(id, { error: undefined });
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "video",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { 
+            [which === 1 ? "inputVideo1" : "inputVideo2"]: url, 
+            error: undefined,
+            result: undefined 
+          });
+          if (which === 1) setIsUploadingVideo1(false);
+          else setIsUploadingVideo2(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[MergeVideos] CDN upload failed, using base64:", err);
+      }
+      
+      // Fallback to base64 if CDN upload fails
       updateNode(id, { 
         [which === 1 ? "inputVideo1" : "inputVideo2"]: base64, 
         error: undefined,
         result: undefined 
       });
+      if (which === 1) setIsUploadingVideo1(false);
+      else setIsUploadingVideo2(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
 
   const swapVideos = useCallback(() => {
+    // Only swap if both videos are direct data (not connected)
+    if (!data.inputVideo1 || !data.inputVideo2) return;
     updateNode(id, { 
       inputVideo1: data.inputVideo2, 
       inputVideo2: data.inputVideo1,
       result: undefined 
     });
   }, [id, data.inputVideo1, data.inputVideo2, updateNode]);
+  
+  // Only show swap button if both videos are directly uploaded (not connected)
+  const canSwap = Boolean(data.inputVideo1 && data.inputVideo2);
 
   const runMerge = useCallback(async () => {
-    if (!data.inputVideo1 || !data.inputVideo2) return;
+    if (!effectiveVideo1 || !effectiveVideo2) return;
     
     setIsProcessing(true);
     updateNode(id, { status: "running", error: undefined });
@@ -82,8 +156,8 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
           nodeLabel: data.label || nodeDef.label,
           workflowId: workflowId ?? undefined,
           input: {
-            video1: { url: data.inputVideo1 },
-            video2: { url: data.inputVideo2 },
+            video1: { url: effectiveVideo1 },
+            video2: { url: effectiveVideo2 },
             transition: data.transition || "none",
             transitionDuration: data.transitionDuration || 0.5,
           },
@@ -102,7 +176,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputVideo1, data.inputVideo2, data.transition, data.transitionDuration, id, updateNode, propagateOutput]);
+  }, [effectiveVideo1, effectiveVideo2, data.transition, data.transitionDuration, data.label, id, updateNode, propagateOutput, workflowId]);
 
   const handleDownload = useCallback(() => {
     if (!data.result) return;
@@ -112,8 +186,8 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     link.click();
   }, [data.result]);
 
-  const hasInputs = Boolean(data.inputVideo1 && data.inputVideo2);
-  const hasBothVideos = Boolean(data.inputVideo1 && data.inputVideo2);
+  const hasInputs = Boolean(effectiveVideo1 && effectiveVideo2);
+  const hasBothVideos = Boolean(effectiveVideo1 && effectiveVideo2);
 
   const inputs = useMemo(() => [
     { id: "inputVideo1", type: "video" as const, label: "Video 1", required: true },
@@ -173,21 +247,26 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                 onDrop={isProcessing ? undefined : (e) => { e.preventDefault(); setIsDragOver1(false); const file = e.dataTransfer.files[0]; if (file) handleVideoUpload(file, 1); }}
                 onDragOver={isProcessing ? undefined : (e) => { e.preventDefault(); setIsDragOver1(true); }}
                 onDragLeave={isProcessing ? undefined : () => setIsDragOver1(false)}
-                onClick={() => !data.inputVideo1 && !isProcessing && video1Ref.current?.click()}
+                onClick={() => !effectiveVideo1 && !isProcessing && video1Ref.current?.click()}
                 className={`nodrag nowheel relative rounded-xl overflow-hidden transition-all ${
                   isProcessing
                     ? "ring-1 ring-white/10 cursor-not-allowed opacity-70"
                     : isDragOver1
                     ? "ring-2 ring-violet-500 bg-violet-500/10 cursor-pointer"
-                    : data.inputVideo1
-                    ? "ring-1 ring-violet-500/30 bg-violet-500/5 cursor-pointer"
+                    : effectiveVideo1
+                    ? "ring-1 ring-violet-500/30 bg-violet-500/5"
                     : "border-2 border-dashed border-white/10 hover:border-violet-500/50 cursor-pointer"
                 }`}
               >
-                {data.inputVideo1 ? (
+                {isUploadingVideo1 ? (
+                  <div className="flex flex-col items-center justify-center py-4 text-violet-400">
+                    <Loader2 className="w-4 h-4 mb-1.5 animate-spin" />
+                    <span className="text-[10px] font-medium">Uploading...</span>
+                  </div>
+                ) : effectiveVideo1 ? (
                   <div className="relative">
-                    <video src={data.inputVideo1} className="w-full aspect-video object-cover" muted />
-                    {!isProcessing && (
+                    <video src={effectiveVideo1} className="w-full aspect-video object-cover" muted />
+                    {!isProcessing && data.inputVideo1 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo1: undefined, result: undefined }); }}
                         className="absolute top-1.5 right-1.5 p-1 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
@@ -197,7 +276,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                     )}
                     <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[9px] text-violet-300 bg-black/70 px-2 py-0.5 rounded-md">
                       <span className="font-semibold">1</span>
-                      <span className="text-violet-400/70">First clip</span>
+                      <span className="text-violet-400/70">{connectedVideo1 ? "← Connected" : "First clip"}</span>
                     </div>
                   </div>
                 ) : (
@@ -219,7 +298,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                   >
                     <ArrowDown className="w-3 h-3 text-zinc-500" />
                   </motion.div>
-                  {hasBothVideos && !isProcessing && (
+                  {canSwap && !isProcessing && (
                     <button
                       onClick={swapVideos}
                       className="nodrag nowheel p-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all group"
@@ -237,21 +316,26 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                 onDrop={isProcessing ? undefined : (e) => { e.preventDefault(); setIsDragOver2(false); const file = e.dataTransfer.files[0]; if (file) handleVideoUpload(file, 2); }}
                 onDragOver={isProcessing ? undefined : (e) => { e.preventDefault(); setIsDragOver2(true); }}
                 onDragLeave={isProcessing ? undefined : () => setIsDragOver2(false)}
-                onClick={() => !data.inputVideo2 && !isProcessing && video2Ref.current?.click()}
+                onClick={() => !effectiveVideo2 && !isProcessing && video2Ref.current?.click()}
                 className={`nodrag nowheel relative rounded-xl overflow-hidden transition-all ${
                   isProcessing
                     ? "ring-1 ring-white/10 cursor-not-allowed opacity-70"
                     : isDragOver2
                     ? "ring-2 ring-amber-500 bg-amber-500/10 cursor-pointer"
-                    : data.inputVideo2
-                    ? "ring-1 ring-amber-500/30 bg-amber-500/5 cursor-pointer"
+                    : effectiveVideo2
+                    ? "ring-1 ring-amber-500/30 bg-amber-500/5"
                     : "border-2 border-dashed border-white/10 hover:border-amber-500/50 cursor-pointer"
                 }`}
               >
-                {data.inputVideo2 ? (
+                {isUploadingVideo2 ? (
+                  <div className="flex flex-col items-center justify-center py-4 text-amber-400">
+                    <Loader2 className="w-4 h-4 mb-1.5 animate-spin" />
+                    <span className="text-[10px] font-medium">Uploading...</span>
+                  </div>
+                ) : effectiveVideo2 ? (
                   <div className="relative">
-                    <video src={data.inputVideo2} className="w-full aspect-video object-cover" muted />
-                    {!isProcessing && (
+                    <video src={effectiveVideo2} className="w-full aspect-video object-cover" muted />
+                    {!isProcessing && data.inputVideo2 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo2: undefined, result: undefined }); }}
                         className="absolute top-1.5 right-1.5 p-1 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
@@ -261,7 +345,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                     )}
                     <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 text-[9px] text-amber-300 bg-black/70 px-2 py-0.5 rounded-md">
                       <span className="font-semibold">2</span>
-                      <span className="text-amber-400/70">Second clip</span>
+                      <span className="text-amber-400/70">{connectedVideo2 ? "← Connected" : "Second clip"}</span>
                     </div>
                   </div>
                 ) : (
@@ -420,13 +504,14 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
             }`}>
               {data.result ? (
                 <div className="relative group">
-                  <video 
-                    src={data.result} 
-                    controls 
-                    className="w-full aspect-video" 
+                  <MediaLoader
+                    src={data.result}
+                    type="video"
+                    className="w-full aspect-video"
+                    containerClassName="aspect-video"
                   />
                   {/* Hover download button */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                     <button
                       onClick={handleDownload}
                       className="nodrag nowheel p-1.5 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
@@ -436,17 +521,17 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                     </button>
                   </div>
                   {/* Success indicator */}
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[9px] text-violet-300 bg-black/70 px-2 py-1 rounded-md">
+                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[9px] text-violet-300 bg-black/70 px-2 py-1 rounded-md z-20">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     Merged successfully
                   </div>
                 </div>
               ) : (
-                <div className="py-8 text-center">
-                  <span className="text-zinc-600 text-[10px]">
-                    {hasInputs ? "Click 'Merge Videos' to combine" : "Add both videos to merge"}
-                  </span>
-                </div>
+                <MediaSkeleton 
+                  type="video" 
+                  className="aspect-video" 
+                  message={hasInputs ? "Click 'Merge Videos' to combine" : "Add both videos to merge"} 
+                />
               )}
             </div>
           </div>

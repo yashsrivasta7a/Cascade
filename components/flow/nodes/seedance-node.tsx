@@ -7,6 +7,7 @@ import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { MediaLoader, MediaSkeleton } from "@/components/ui";
 
 export interface SeedanceNodeData extends BaseNodeData {
   prompt?: string;
@@ -32,15 +33,51 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploadingFrame, setIsUploadingFrame] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = useCallback((file: File) => {
+  const handleImageUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     
+    // Check file size - limit to 10MB (API body limit is ~4MB, base64 adds ~33%)
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { status: "failed" });
+      alert(`Image too large (${sizeMB.toFixed(1)}MB). Max 10MB.`);
+      return;
+    }
+    
+    setIsUploadingFrame(true);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "image",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputFrame: url });
+          setIsUploadingFrame(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Seedance] CDN upload failed, using base64:", err);
+      }
+      
+      // Fallback to base64 if CDN upload fails
       updateNode(id, { inputFrame: base64 });
+      setIsUploadingFrame(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -147,12 +184,12 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "prompt", type: "text", label: "Prompt", required: true },
+        { id: "prompt", type: "prompt", label: "Prompt", required: true },
         // Align port id with node.data field used by UI so edges override correctly
         { id: "inputFrame", type: "image", label: "Start Frame" },
-        { id: "duration", type: "text", label: "Duration", hidden: !showSettings },
-        { id: "aspectRatio", type: "text", label: "Aspect", hidden: !showSettings },
-        { id: "seed", type: "number", label: "Seed", hidden: !showSettings },
+        { id: "duration", type: "duration", label: "Duration", hidden: !showSettings },
+        { id: "aspectRatio", type: "aspectRatio", label: "Aspect", hidden: !showSettings },
+        { id: "seed", type: "seed", label: "Seed", hidden: !showSettings },
       ]}
       outputs={[{ id: "video", type: "video", label: "Video" }]}
       left={
@@ -205,7 +242,12 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
             }`}
           >
-            {data.inputFrame ? (
+            {isUploadingFrame ? (
+              <div className="flex flex-col items-center justify-center py-3 text-violet-400">
+                <Loader2 className="w-4 h-4 mb-1 animate-spin" />
+                <span className="text-[9px]">Uploading frame...</span>
+              </div>
+            ) : data.inputFrame ? (
               <div className="relative p-1">
                 <img src={data.inputFrame} alt="Start Frame" className="w-full h-14 object-cover rounded" />
                 <button
@@ -302,13 +344,16 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Generating..." : data.result ? "Output" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden">
             {data.result ? (
-              <video src={data.result} controls className="w-full aspect-video" />
+              <MediaLoader
+                src={data.result}
+                type="video"
+                className="w-full aspect-video"
+                containerClassName="aspect-video"
+              />
             ) : (
-              <div className="py-8">
-                <span className="text-zinc-600 text-[10px]">—</span>
-              </div>
+              <MediaSkeleton type="video" className="aspect-video" />
             )}
           </div>
         </div>

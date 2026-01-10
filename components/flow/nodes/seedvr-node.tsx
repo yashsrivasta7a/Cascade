@@ -7,6 +7,7 @@ import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
 import { motion, AnimatePresence } from "framer-motion";
+import { MediaLoader, MediaSkeleton } from "@/components/ui";
 
 export interface SeedVRNodeData extends BaseNodeData {
   scale?: "2x" | "4x";
@@ -25,15 +26,51 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean((data as any)?.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = useCallback((file: File) => {
+  const handleImageUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     
+    // Check file size - limit to 10MB (API body limit is ~4MB, base64 adds ~33%)
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 10) {
+      updateNode(id, { status: "failed" });
+      alert(`Image too large (${sizeMB.toFixed(1)}MB). Max 10MB.`);
+      return;
+    }
+    
+    setIsUploadingImage(true);
+    
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "image",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputImage: url });
+          setIsUploadingImage(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[SeedVR] CDN upload failed, using base64:", err);
+      }
+      
+      // Fallback to base64 if CDN upload fails
       updateNode(id, { inputImage: base64 });
+      setIsUploadingImage(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -180,11 +217,16 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
                 : "border-white/10 bg-white/[0.02] hover:border-white/20"
             }`}
           >
-            {data.inputImage ? (
+            {isUploadingImage ? (
+              <div className="flex flex-col items-center justify-center py-4 text-teal-400">
+                <Loader2 className="w-4 h-4 mb-1 animate-spin" />
+                <span className="text-[9px]">Uploading image...</span>
+              </div>
+            ) : data.inputImage ? (
               <div className="relative p-1">
-                <img 
-                  src={data.inputImage} 
-                  alt="Input" 
+                <img
+                  src={data.inputImage}
+                  alt="Input"
                   className="w-full h-20 object-cover rounded"
                 />
                 <button
@@ -284,11 +326,17 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
           <div className="text-[10px] text-zinc-500">
             {isProcessing ? "Processing..." : data.result ? "Upscaled" : "No output"}
           </div>
-          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[80px] flex items-center justify-center">
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden min-h-[80px]">
             {data.result ? (
-              <img src={data.result} alt="Upscaled" className="w-full h-auto max-h-[150px] object-contain" />
+              <MediaLoader
+                src={data.result}
+                type="image"
+                alt="Upscaled"
+                className="w-full h-auto max-h-[150px] object-contain"
+                containerClassName="min-h-[80px] flex items-center justify-center"
+              />
             ) : (
-              <span className="text-zinc-600">—</span>
+              <MediaSkeleton type="image" className="min-h-[80px]" />
             )}
           </div>
         </div>

@@ -16,6 +16,7 @@ import {
   GitBranch,
   Bug,
   LayoutGrid,
+  Square,
 } from "lucide-react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
@@ -32,38 +33,128 @@ import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
 import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
 
-// Sanitize node data for storage - removes large base64 content
+// Fields that contain media URLs that should be persisted
+const MEDIA_FIELDS = [
+  "result", "outputVideo", "outputAudio", "outputImage",
+  "croppedImage", "mergedVideo", "extractedAudio",
+  "generatedImage", "generatedVideo", "generatedAudio",
+  "inputVideo1", "inputVideo2", "inputImage", "inputAudio",
+  "inputVideo", "inputFrame", "image", "video", "audio", "frame"
+];
+
+// Helper to check if a URL is a CDN/HTTP URL (not base64)
+const isHttpUrl = (url: string) => url.startsWith("http://") || url.startsWith("https://");
+
+// Upload base64 media to CDN and return HTTP URL
+async function uploadMediaToCDN(dataUrl: string, type: "image" | "video" | "audio"): Promise<string | null> {
+  try {
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl, type }),
+    });
+    
+    if (!response.ok) {
+      console.warn("[uploadMediaToCDN] Failed to upload media:", response.status);
+      return null;
+    }
+    
+    const result = await response.json();
+    return result.url || null;
+  } catch (error) {
+    console.error("[uploadMediaToCDN] Error:", error);
+    return null;
+  }
+}
+
+// Detect media type from data URL
+function getMediaTypeFromDataUrl(dataUrl: string): "image" | "video" | "audio" | null {
+  if (dataUrl.startsWith("data:image/")) return "image";
+  if (dataUrl.startsWith("data:video/")) return "video";
+  if (dataUrl.startsWith("data:audio/")) return "audio";
+  return null;
+}
+
+// Persist all base64 media in nodes to CDN before saving
+async function persistMediaToCDN(nodes: unknown[]): Promise<unknown[]> {
+  const persistedNodes = await Promise.all(
+    nodes.map(async (node) => {
+      const n = node as Record<string, unknown>;
+      const data = (n.data ?? {}) as Record<string, unknown>;
+      const updatedData: Record<string, unknown> = { ...data };
+      let hasChanges = false;
+      
+      // Check each media field for base64 data that needs uploading
+      for (const field of MEDIA_FIELDS) {
+        const value = data[field];
+        
+        if (typeof value === "string" && value.startsWith("data:") && value.length > 5000) {
+          // This is base64 data - upload to CDN
+          const mediaType = getMediaTypeFromDataUrl(value);
+          if (mediaType) {
+            console.log(`[persistMediaToCDN] Uploading ${field} (${mediaType}) for node ${n.id}`);
+            const httpUrl = await uploadMediaToCDN(value, mediaType);
+            if (httpUrl) {
+              updatedData[field] = httpUrl;
+              hasChanges = true;
+              console.log(`[persistMediaToCDN] Uploaded ${field} -> ${httpUrl.slice(0, 50)}...`);
+            }
+          }
+        }
+      }
+      
+      return hasChanges ? { ...n, data: updatedData } : n;
+    })
+  );
+  
+  return persistedNodes;
+}
+
+// Sanitize node data for storage - removes large base64 content (after CDN upload)
 function sanitizeNodesForStorage(nodes: unknown[]): unknown[] {
   return nodes.map((node) => {
     const n = node as Record<string, unknown>;
     const data = (n.data ?? {}) as Record<string, unknown>;
     
-    // Create sanitized data - remove large base64 content
+    // Create sanitized data - remove large base64 content but keep HTTP URLs
     const sanitizedData: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data)) {
-      // Skip output fields that contain base64 data
-      if (key === "outputVideo" || key === "outputAudio" || key === "outputImage" || 
-          key === "croppedImage" || key === "mergedVideo" || key === "extractedAudio" ||
-          key === "generatedImage" || key === "generatedVideo" || key === "generatedAudio") {
-        continue;
-      }
-      
-      // Skip result field (contains output data)
-      if (key === "result") continue;
-      
-      // Skip status/progress (runtime state)
+      // Skip runtime state
       if (key === "status" || key === "progress" || key === "error") continue;
       
-      // Check for base64 strings
+      // Handle media fields - keep HTTP URLs, skip large base64
+      if (MEDIA_FIELDS.includes(key)) {
+        if (typeof value === "string") {
+          if (isHttpUrl(value)) {
+            sanitizedData[key] = value; // Keep HTTP URLs
+            continue;
+          }
+          if (value.startsWith("data:") && value.length > 10000) {
+            continue; // Skip large base64 (should have been uploaded)
+          }
+          // Keep small base64 (thumbnails etc)
+          sanitizedData[key] = value;
+          continue;
+        }
+        // Skip undefined/null
+        if (value === undefined || value === null) continue;
+      }
+      
+      // Check for base64 strings in any field
       if (typeof value === "string" && value.startsWith("data:") && value.length > 10000) {
         continue; // Skip large base64 data
       }
       
-      // Check for objects with base64 url
+      // Check for objects with url property
       if (typeof value === "object" && value !== null && "url" in value) {
         const obj = value as { url?: string };
-        if (typeof obj.url === "string" && obj.url.startsWith("data:") && obj.url.length > 10000) {
-          continue; // Skip objects with large base64 URLs
+        if (typeof obj.url === "string") {
+          if (obj.url.startsWith("data:") && obj.url.length > 10000) {
+            continue; // Skip objects with large base64 URLs
+          }
+          // Keep objects with HTTP URLs or small base64
+          sanitizedData[key] = value;
+          continue;
         }
       }
       
@@ -123,6 +214,9 @@ export default function WorkflowEditorPage() {
   
   const dbWorkflowIdRef = useRef(dbWorkflowId);
   useEffect(() => { dbWorkflowIdRef.current = dbWorkflowId; }, [dbWorkflowId]);
+  
+  // Ref for stop workflow function (used in keyboard handler)
+  const stopWorkflowRef = useRef<(() => void) | null>(null);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -172,13 +266,22 @@ export default function WorkflowEditorPage() {
           setErrorsOpen(prev => !prev);
           break;
         case "escape":
-          setPaletteOpen(false);
-          setHistoryOpen(false);
-          setVersionsOpen(false);
-          setWorkflowSidebarOpen(false);
-          setErrorsOpen(false);
-          setIsAddModalOpen(false);
-          setIsRunModalOpen(false);
+          // If workflow is running, stop it
+          if (isWorkflowRunning) {
+            e.preventDefault();
+            e.stopPropagation();
+            // We'll call handleStopWorkflow via a ref since this is in an effect
+            stopWorkflowRef.current?.();
+          } else {
+            // Otherwise, close all panels and modals
+            setPaletteOpen(false);
+            setHistoryOpen(false);
+            setVersionsOpen(false);
+            setWorkflowSidebarOpen(false);
+            setErrorsOpen(false);
+            setIsAddModalOpen(false);
+            setIsRunModalOpen(false);
+          }
           break;
       }
     };
@@ -550,28 +653,41 @@ export default function WorkflowEditorPage() {
   // Save workflow to database (manual only)
   const handleSave = useCallback(async () => {
     setSaveStatus("saving");
-    
-    // Sanitize nodes to remove large base64 content before saving
-    const sanitizedNodes = sanitizeNodesForStorage(nodes as unknown[]);
-    
-    const workflowData = {
-      name: workflowName,
-      nodesJson: sanitizedNodes,
-      edgesJson: edges as unknown[],
-      viewportJson: viewport,
-    };
 
-    if (dbWorkflowId) {
-      // Update existing workflow
-      updateMutation.mutate({
-        id: dbWorkflowId,
-        ...workflowData,
-      });
-    } else {
-      // Create new workflow
-      createMutation.mutate(workflowData);
+    try {
+      // First, upload any base64 media to CDN (Transloadit)
+      console.log("[handleSave] Persisting media to CDN...");
+      const persistedNodes = await persistMediaToCDN(nodes as unknown[]);
+      
+      // Update nodes in store with persisted URLs so they show after save
+      const nodesWithUrls = persistedNodes as typeof nodes;
+      setNodes(nodesWithUrls);
+      
+      // Then sanitize (removes any remaining large base64)
+      const sanitizedNodes = sanitizeNodesForStorage(persistedNodes);
+
+      const workflowData = {
+        name: workflowName,
+        nodesJson: sanitizedNodes,
+        edgesJson: edges as unknown[],
+        viewportJson: viewport,
+      };
+
+      if (dbWorkflowId) {
+        // Update existing workflow
+        updateMutation.mutate({
+          id: dbWorkflowId,
+          ...workflowData,
+        });
+      } else {
+        // Create new workflow
+        createMutation.mutate(workflowData);
+      }
+    } catch (error) {
+      console.error("[handleSave] Error saving workflow:", error);
+      setSaveStatus("idle");
     }
-  }, [nodes, edges, viewport, workflowName, dbWorkflowId, updateMutation, createMutation]);
+  }, [nodes, edges, viewport, workflowName, dbWorkflowId, updateMutation, createMutation, setNodes]);
 
   const handleAddNode = useCallback((nodeType: AINodeType) => {
     const nodeDef = NODE_DEFINITIONS[nodeType];
@@ -598,7 +714,19 @@ export default function WorkflowEditorPage() {
   }, [nodes, setNodes]);
 
   const runNodesEstimate = useCallback(() => {
-    return nodes.map((n) => {
+    // Only include connected nodes (nodes that are part of the workflow graph)
+    const connectedNodeIds = new Set<string>();
+    for (const edge of edges) {
+      connectedNodeIds.add(edge.source);
+      connectedNodeIds.add(edge.target);
+    }
+    
+    // If no edges, include all nodes; otherwise only connected ones
+    const workflowNodes = edges.length === 0 
+      ? nodes 
+      : nodes.filter(n => connectedNodeIds.has(n.id));
+    
+    return workflowNodes.map((n) => {
       const def = NODE_DEFINITIONS[n.type as AINodeType];
       const providers = NodeProviders[n.type as AINodeType] ?? ["mock"];
       const primary = def?.provider ?? "Unknown";
@@ -617,7 +745,7 @@ export default function WorkflowEditorPage() {
         fallbackProviders: fallbacks.length ? fallbacks : undefined,
       };
     });
-  }, [nodes]);
+  }, [nodes, edges]);
 
   // SSE workflow stream callbacks
   const streamCallbacks: WorkflowStreamCallbacks = useMemo(() => ({
@@ -666,22 +794,27 @@ export default function WorkflowEditorPage() {
       };
       
       // Extract result text (for text nodes) or URL (for media nodes)
-      // Note: Large base64 data is sanitized server-side, so we may get placeholders
       let resultPreview = "";
+      let mediaUrl = "";
+      
       if (outputData?.type === "text" && outputData.text) {
         // For text outputs, check if it's not a truncation placeholder
         if (!outputData.text.startsWith("[base64-data:") && !outputData.text.includes("[truncated:")) {
           resultPreview = outputData.text;
         }
       } else {
-        // For media, get the URL (which should be a real URL, not base64)
-        resultPreview = outputData?.image?.url || outputData?.video?.url || outputData?.audio?.url || "";
+        // For media, get the URL (HTTP or base64)
+        mediaUrl = outputData?.image?.url || outputData?.video?.url || outputData?.audio?.url || "";
         // Skip if it's a sanitized placeholder
-        if (resultPreview.startsWith("[base64-data:")) {
-          resultPreview = "";
+        if (mediaUrl.startsWith("[base64-data:") || mediaUrl.startsWith("[base64:")) {
+          mediaUrl = "";
         }
+        resultPreview = mediaUrl;
       }
       
+      // Update node with completed status AND the result URL
+      // Store ALL media URLs (both HTTP and base64) so they show in UI
+      // Only HTTP URLs will persist on save (base64 gets stripped)
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId
@@ -693,15 +826,20 @@ export default function WorkflowEditorPage() {
                   progress: 100,
                   // Store the output type for display purposes
                   outputType: outputData?.type,
+                  // Store the result URL so it shows in UI (HTTP or base64)
+                  ...(mediaUrl ? { result: mediaUrl } : {}),
                 } 
               }
             : n
         )
       );
       
-      // Propagate text results for connected nodes (only for text outputs)
-      // Node-to-node data propagation happens server-side, but we update UI here
-      if (resultPreview && outputData?.type === "text") {
+      // Also update via store for propagation
+      if (mediaUrl) {
+        const { updateNode } = useFlowStore.getState();
+        // Store all URLs for display, but only HTTP URLs will persist
+        updateNode(nodeId, { result: mediaUrl });
+      } else if (resultPreview && outputData?.type === "text") {
         const { updateNode } = useFlowStore.getState();
         updateNode(nodeId, { result: resultPreview });
       }
@@ -766,18 +904,51 @@ export default function WorkflowEditorPage() {
   }), [nodes, setNodes, refetchCredits, setWorkflowRunning]);
 
   // SSE workflow stream hook
-  const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning } = useWorkflowStream({
+  const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning, cancelWorkflow } = useWorkflowStream({
     workflowId: dbWorkflowId ?? workflowId,
     callbacks: streamCallbacks,
   });
+  
+  // Handle stop/cancel workflow
+  const handleStopWorkflow = useCallback(async () => {
+    console.log("[Workflow] Stopping workflow execution");
+    await cancelWorkflow();
+    setWorkflowRunning(false);
+
+    // Update all running/queued nodes to cancelled status
+    setNodes((prev) =>
+      prev.map((n) => {
+        const nodeData = n.data as Record<string, unknown>;
+        if (nodeData.status === "running" || nodeData.status === "queued") {
+          return { ...n, data: { ...nodeData, status: "cancelled" } };
+        }
+        return n;
+      })
+    );
+  }, [cancelWorkflow, setWorkflowRunning, setNodes]);
+  
+  // Update ref for keyboard handler
+  useEffect(() => {
+    stopWorkflowRef.current = handleStopWorkflow;
+  }, [handleStopWorkflow]);
 
   const handleRunWorkflow = useCallback(async () => {
-    // Calculate estimated cost using dynamic estimation
-    const estimatedCost = nodes.reduce((sum, n) => {
+    // Only include connected nodes for cost calculation
+    const connectedNodeIds = new Set<string>();
+    for (const edge of edges) {
+      connectedNodeIds.add(edge.source);
+      connectedNodeIds.add(edge.target);
+    }
+    const workflowNodes = edges.length === 0 
+      ? nodes 
+      : nodes.filter(n => connectedNodeIds.has(n.id));
+    
+    // Calculate estimated cost using dynamic estimation (only connected nodes)
+    const estimatedCost = workflowNodes.reduce((sum, n) => {
       const nodeData = (n.data ?? {}) as Record<string, unknown>;
       return sum + estimateNodeCost(n.type as string, nodeData);
     }, 0);
-    
+
     // Check if user has enough credits
     if (creditBalance < estimatedCost) {
       const newError: WorkflowError = {
@@ -794,15 +965,15 @@ export default function WorkflowEditorPage() {
       setErrorsOpen(true);
       return;
     }
-    
+
     setWorkflowRunning(true);
-    
+
     // Save workflow first if not saved
     if (!dbWorkflowId) {
       await handleSave();
     }
-    
-    // Reset statuses
+
+    // Reset statuses (only for connected nodes that will run)
     setNodes(
       nodes.map((n) => ({
         ...n,
@@ -1167,33 +1338,32 @@ export default function WorkflowEditorPage() {
               {/* Divider */}
               <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
 
-              {/* Run button - Blue glowing gradient */}
+              {/* Run/Stop button */}
               <div className="relative group/runwrap">
                 {/* Outer glow */}
-                <div className={`absolute -inset-1 bg-gradient-to-r ${buttonGradient} rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity`} />
+                <div className={`absolute -inset-1 bg-gradient-to-r ${isWorkflowRunning ? "from-red-600 via-red-500 to-red-600" : buttonGradient} rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity`} />
                 
                 <motion.button
-                  onClick={() => !isWorkflowRunning && setIsRunModalOpen(true)}
+                  onClick={() => isWorkflowRunning ? handleStopWorkflow() : setIsRunModalOpen(true)}
                   onMouseEnter={() => setHoveredAction("run")}
                   onMouseLeave={() => setHoveredAction(null)}
-                  disabled={isWorkflowRunning}
                   whileTap={{ scale: 0.97 }}
                   whileHover={{ scale: 1.02 }}
-                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden disabled:opacity-60 group/run"
+                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden group/run"
                 >
-                  {/* Button gradient background - blue */}
-                  <div className={`absolute inset-0 bg-gradient-to-r ${buttonGradient} bg-[length:200%_100%] group-hover/run:animate-shimmer`} />
+                  {/* Button gradient background */}
+                  <div className={`absolute inset-0 bg-gradient-to-r ${isWorkflowRunning ? "from-red-600 via-red-500 to-red-600" : buttonGradient} bg-[length:200%_100%] group-hover/run:animate-shimmer`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                   
                   {/* Content */}
                   <div className="relative flex items-center gap-2">
                     {isWorkflowRunning ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <Square className="w-4 h-4 text-white fill-white" />
                     ) : (
                       <Play className="w-4 h-4 text-white" />
                     )}
                     <span className="text-sm font-semibold text-white tracking-wide">
-                      {isWorkflowRunning ? "Executing" : "Execute"}
+                      {isWorkflowRunning ? "Stop" : "Execute"}
                     </span>
                   </div>
                   
@@ -1204,7 +1374,7 @@ export default function WorkflowEditorPage() {
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "run" && !isWorkflowRunning && (
+                  {hoveredAction === "run" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1212,8 +1382,8 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">Execute</span>
-                        <Kbd>R</Kbd>
+                        <span className="text-xs text-zinc-300">{isWorkflowRunning ? "Stop" : "Execute"}</span>
+                        <Kbd>{isWorkflowRunning ? "Esc" : "R"}</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
                     </motion.div>

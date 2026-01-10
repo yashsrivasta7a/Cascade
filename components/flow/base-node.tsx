@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Circle,
   Clock,
+  Square,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
 import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings } from "@/types/nodes";
@@ -101,6 +102,12 @@ const statusConfig: Record<NodeStatus, {
     color: "text-red-400", 
     bgColor: "bg-red-500/10",
     label: "Failed" 
+  },
+  cancelled: {
+    icon: Square,
+    color: "text-amber-400",
+    bgColor: "bg-amber-500/10",
+    label: "Cancelled"
   },
 };
 
@@ -192,7 +199,9 @@ function BaseNodeComponent({
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
   const runNode = useFlowStore((s) => s.runNode);
-  const canRun = status !== "running";
+  const cancelNode = useFlowStore((s) => s.cancelNode);
+  const canRun = status !== "running" && status !== "queued";
+  const isRunning = status === "running" || status === "queued";
   
   const connectingFrom = useFlowStore((s) => s.connectingFrom);
   const draggedType = connectingFrom?.handleType;
@@ -353,26 +362,31 @@ function BaseNodeComponent({
             </div>
           </div>
 
-          {/* Run Button - Always Visible */}
+          {/* Run/Stop Button - Always Visible */}
           <button
             type="button"
-            disabled={!canRun}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              void runNode(id);
+              if (isRunning) {
+                void cancelNode(id);
+              } else {
+                void runNode(id);
+              }
             }}
             className={cn(
               "nodrag nowheel h-8 w-8 rounded-lg flex items-center justify-center transition-all",
-              status === "running"
-                ? "bg-white text-black"
+              isRunning
+                ? "bg-red-500/80 text-white hover:bg-red-500"
                 : canRun
                 ? "bg-white/10 text-white hover:bg-white hover:text-black"
                 : "bg-white/5 text-zinc-600 cursor-not-allowed"
             )}
-            title={status === "running" ? "Running..." : "Run Node"}
+            title={isRunning ? "Stop" : "Run Node"}
           >
             {status === "running" ? (
+              <Square className="w-4 h-4 fill-white" />
+            ) : status === "queued" ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Play className="w-4 h-4" />
@@ -497,11 +511,28 @@ function BaseNodeComponent({
         const handleColor = dataTypeColors[input.type];
         const percent = getHandlePercent(index, inputs.length);
         
-        const mediaTypes = ["image", "video", "audio"];
+        // Media types that can be connected
+        const mediaTypes = ["image", "video", "audio", "text"];
+        // Setting types that can be connected (unified color scheme)
+        const settingTypes = ["prompt", "seed", "aspectRatio", "duration", "model", "temperature", "number", "boolean", "negative"];
+        
         const isMediaInput = mediaTypes.includes(input.type);
+        const isSettingInput = settingTypes.includes(input.type);
         const isDraggedMedia = draggedType && mediaTypes.includes(draggedType);
+        const isDraggedSetting = draggedType && settingTypes.includes(draggedType);
+        
+        // Compatible if: same type OR "any" type OR text->prompt conversion
         const isCompatible = isDragging && !isHidden && draggedType && (
-          (isMediaInput && isDraggedMedia && input.type === draggedType)
+          // Exact type match
+          input.type === draggedType ||
+          // Any type accepts anything
+          input.type === "any" || draggedType === "any" ||
+          // Media type matches
+          (isMediaInput && isDraggedMedia && input.type === draggedType) ||
+          // Setting type matches
+          (isSettingInput && isDraggedSetting && input.type === draggedType) ||
+          // Text can connect to prompt
+          (input.type === "prompt" && draggedType === "text")
         );
         
         return (

@@ -152,7 +152,7 @@ export const workflowRouter = router({
       return { workflow };
     }),
 
-  // Update an existing workflow
+  // Update an existing workflow (auto-creates version on save)
   update: protectedProcedure
     .input(WorkflowUpdateSchema)
     .mutation(async ({ ctx, input }) => {
@@ -178,9 +178,35 @@ export const workflowRouter = router({
       if (updateData.viewportJson !== undefined) data.viewportJson = updateData.viewportJson;
       if (updateData.isPublished !== undefined) data.isPublished = updateData.isPublished;
 
-      // Increment version if nodes or edges changed
+      // Auto-create version snapshot when nodes or edges change
       if (updateData.nodesJson || updateData.edgesJson) {
-        data.version = existing.version + 1;
+        // Get the latest version number
+        const latestVersion = await ctx.db.workflowVersion.findFirst({
+          where: { workflowId: id },
+          orderBy: { version: "desc" },
+          select: { version: true },
+        });
+
+        const newVersion = (latestVersion?.version ?? 0) + 1;
+        data.version = newVersion;
+
+        // Count nodes for display
+        const nodesJson = (updateData.nodesJson ?? existing.nodesJson) as unknown[];
+        const nodeCount = Array.isArray(nodesJson) ? nodesJson.length : 0;
+
+        // Create version snapshot
+        await ctx.db.workflowVersion.create({
+          data: {
+            workflowId: id,
+            version: newVersion,
+            name: (updateData.name ?? existing.name) as string,
+            nodesJson: updateData.nodesJson ?? existing.nodesJson,
+            edgesJson: updateData.edgesJson ?? existing.edgesJson,
+            viewportJson: updateData.viewportJson ?? existing.viewportJson,
+            message: `Auto-saved`,
+            nodeCount,
+          },
+        });
       }
 
       const workflow = await ctx.db.workflow.update({

@@ -221,22 +221,39 @@ body {
   right: -7px !important;
 }
 
-/* Handle type colors */
+/* Handle type colors - MEDIA TYPES */
 .react-flow__handle[data-handletype="text"] { color: #3b82f6 !important; }
 .react-flow__handle[data-handletype="image"] { color: #10b981 !important; }
 .react-flow__handle[data-handletype="video"] { color: #8b5cf6 !important; }
 .react-flow__handle[data-handletype="audio"] { color: #f59e0b !important; }
 .react-flow__handle[data-handletype="any"] { color: #a1a1aa !important; }
+
+/* Handle type colors - SETTINGS TYPES */
+.react-flow__handle[data-handletype="prompt"] { color: #0ea5e9 !important; }
 .react-flow__handle[data-handletype="negative"] { color: #ef4444 !important; }
+.react-flow__handle[data-handletype="seed"] { color: #84cc16 !important; }
+.react-flow__handle[data-handletype="aspectRatio"] { color: #6366f1 !important; }
+.react-flow__handle[data-handletype="duration"] { color: #14b8a6 !important; }
+.react-flow__handle[data-handletype="model"] { color: #f43f5e !important; }
+.react-flow__handle[data-handletype="temperature"] { color: #f97316 !important; }
 .react-flow__handle[data-handletype="number"] { color: #ec4899 !important; }
 .react-flow__handle[data-handletype="boolean"] { color: #06b6d4 !important; }
 
+/* Handle hover glow - MEDIA TYPES */
 .react-flow__handle[data-handletype="text"]:hover { box-shadow: 0 0 16px rgba(59, 130, 246, 0.7) !important; }
 .react-flow__handle[data-handletype="image"]:hover { box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important; }
 .react-flow__handle[data-handletype="video"]:hover { box-shadow: 0 0 16px rgba(139, 92, 246, 0.7) !important; }
 .react-flow__handle[data-handletype="audio"]:hover { box-shadow: 0 0 16px rgba(245, 158, 11, 0.7) !important; }
 .react-flow__handle[data-handletype="any"]:hover { box-shadow: 0 0 16px rgba(161, 161, 170, 0.6) !important; }
+
+/* Handle hover glow - SETTINGS TYPES */
+.react-flow__handle[data-handletype="prompt"]:hover { box-shadow: 0 0 16px rgba(14, 165, 233, 0.7) !important; }
 .react-flow__handle[data-handletype="negative"]:hover { box-shadow: 0 0 16px rgba(239, 68, 68, 0.7) !important; }
+.react-flow__handle[data-handletype="seed"]:hover { box-shadow: 0 0 16px rgba(132, 204, 22, 0.7) !important; }
+.react-flow__handle[data-handletype="aspectRatio"]:hover { box-shadow: 0 0 16px rgba(99, 102, 241, 0.7) !important; }
+.react-flow__handle[data-handletype="duration"]:hover { box-shadow: 0 0 16px rgba(20, 184, 166, 0.7) !important; }
+.react-flow__handle[data-handletype="model"]:hover { box-shadow: 0 0 16px rgba(244, 63, 94, 0.7) !important; }
+.react-flow__handle[data-handletype="temperature"]:hover { box-shadow: 0 0 16px rgba(249, 115, 22, 0.7) !important; }
 .react-flow__handle[data-handletype="number"]:hover { box-shadow: 0 0 16px rgba(236, 72, 153, 0.7) !important; }
 .react-flow__handle[data-handletype="boolean"]:hover { box-shadow: 0 0 16px rgba(6, 182, 212, 0.7) !important; }
 
@@ -352,12 +369,11 @@ body {
   stroke: none !important;
 }
 
+/* Connection line is now styled via CustomConnectionLine component */
+/* This provides fallback styling if custom component isn't used */
 .react-flow__connection-line {
-  stroke: #ffffff !important;
+  stroke: currentColor !important;
   stroke-width: 2px !important;
-  stroke-dasharray: 6 4;
-  animation: dash 0.4s linear infinite;
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
 }
 
 @keyframes dash {
@@ -470,7 +486,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   EDGE GLOW EFFECTS
+   EDGE GLOW EFFECTS & ANIMATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Ensure edge elements aren't clipped */
@@ -496,4 +512,90 @@ body {
 
 .react-flow__edge:hover path[id$="-glow-outer"] {
   opacity: 0.25 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EDGE RUNNING STATE ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Pulsing glow effect for running edges */
+@keyframes pulseGlow {
+  0%, 100% { 
+    opacity: 0.25;
+    stroke-width: 12px;
+  }
+  50% { 
+    opacity: 0.5;
+    stroke-width: 16px;
+  }
+}
+
+/* Marching ants effect for data flow indication */
+@keyframes marchingAnts {
+  to { 
+    stroke-dashoffset: -12; 
+  }
+}
+
+/* Flowing dots travel animation (used with animateMotion) */
+@keyframes flowingDots {
+  0% { offset-distance: 0%; }
+  100% { offset-distance: 100%; }
+}
+
+/* Edge completion flash */
+@keyframes edgeFlash {
+  0% { 
+    opacity: 1;
+    stroke-width: 4px;
+  }
+  50% { 
+    opacity: 1;
+    stroke-width: 8px;
+  }
+  100% { 
+    opacity: 0;
+    stroke-width: 4px;
+  }
+}
+
+/* Dot pulse effect */
+@keyframes dotPulse {
+  0%, 100% { 
+    r: 3;
+    opacity: 0.8;
+  }
+  50% { 
+    r: 5;
+    opacity: 1;
+  }
+}
+
+/* Connection line animations */
+@keyframes connectionFlow {
+  0% { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes connectionPulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 0.2;
+  }
+  50% { 
+    transform: scale(1.8);
+    opacity: 0.05;
+  }
+}
+
+/* Sparkle effect for lightning connection */
+@keyframes sparkle {
+  0%, 100% { 
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1.5);
+  }
 }

@@ -2,12 +2,14 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { executeNode } from "@/app/trigger/node-executor";
+import { runs } from "@trigger.dev/sdk/v3";
 import { 
   getNodeExecutor, 
   validateNodeInput, 
   registerAllNodeExecutors,
   type NodeExecutionContext 
 } from "@/lib/engine";
+import { persistNodeOutput, isTransloaditConfigured } from "@/lib/providers";
 import type { Edge, Node } from "reactflow";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { estimateNodeCost } from "@/lib/credits";
@@ -20,16 +22,20 @@ registerAllNodeExecutors();
 // =============================================================================
 // 
 // Execution strategy:
-// - AI nodes (seedream, seedvr, seedance, elevenlabs, lipsync, openrouter): Trigger.dev
-// - Utility nodes (crop-image, merge-videos, etc.): Run locally in this API route
-//
-// This avoids sending large base64 data over the network for utility operations.
+// ALL nodes now run on Trigger.dev for consistent execution environment
+// - AI nodes: External API calls (fal.ai, OpenRouter, ElevenLabs)
+// - Utility nodes: FFmpeg processing (using ffmpeg-static in serverless)
 
-// Node types that run through Trigger.dev (external APIs)
-const TRIGGER_NODE_TYPES = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync", "openrouter"];
+// All node types run through Trigger.dev
+const TRIGGER_NODE_TYPES = [
+  // AI nodes
+  "seedream", "seedvr", "seedance", "elevenlabs", "lipsync", "openrouter",
+  // Utility nodes (now on Trigger.dev with ffmpeg-static)
+  "crop-image", "merge-videos", "merge-audio-video", "extract-audio"
+];
 
-// Node types that run locally (internal processing)
-const LOCAL_NODE_TYPES = ["crop-image", "merge-videos", "merge-audio-video", "extract-audio"];
+// No nodes run locally anymore - all on Trigger.dev
+const LOCAL_NODE_TYPES: string[] = [];
 
 // Sanitize data for SSE - remove large base64 data
 function sanitizeForSSE(data: unknown): unknown {
@@ -128,66 +134,175 @@ function buildNodeInput(
   const data = (node.data ?? {}) as Record<string, unknown>;
   const incomingEdges = edges.filter(e => e.target === node.id);
   
+  console.log(`[buildNodeInput] Node ${node.id} (${node.type})`);
+  console.log(`[buildNodeInput] - Incoming edges: ${incomingEdges.length}`);
+  console.log(`[buildNodeInput] - Available outputs: ${[...outputs.keys()].join(", ")}`);
+  
   let context: string | undefined;
   let prompt: string | undefined;
   
+  // Normalize any output to extract usable data
+  const normalizeOutput = (output: unknown): {
+    type?: string;
+    text?: string;
+    image?: { url: string };
+    video?: { url: string };
+    audio?: { url: string };
+  } | undefined => {
+    if (!output) return undefined;
+    if (typeof output !== "object") return undefined;
+    return output as any;
+  };
+  
   for (const edge of incomingEdges) {
-    const sourceOutput = outputs.get(edge.source) as { type?: string; text?: string } | undefined;
+    const rawOutput = outputs.get(edge.source);
+    const sourceOutput = normalizeOutput(rawOutput);
     
+    console.log(`[buildNodeInput] - Edge from ${edge.source} (handle: ${edge.sourceHandle}) -> ${edge.targetHandle}`);
+    console.log(`[buildNodeInput]   Raw output type: ${rawOutput ? typeof rawOutput : 'undefined'}`);
+    console.log(`[buildNodeInput]   Output type field: ${sourceOutput?.type || 'none'}`);
+    
+    // Handle text outputs (for prompt/context connections)
     if (sourceOutput?.type === "text" && sourceOutput.text) {
       if (edge.targetHandle === "prompt") {
         prompt = sourceOutput.text;
+        console.log(`[buildNodeInput]   -> Mapped text to prompt (${prompt.slice(0, 50)}...)`);
       } else if (edge.targetHandle === "context") {
         const sourceNode = nodes.find(n => n.id === edge.source);
         const sourcePrompt = (sourceNode?.data as { prompt?: string })?.prompt;
         context = sourcePrompt 
           ? `[Previous: "${sourcePrompt}"]\n[Response: "${sourceOutput.text}"]`
           : sourceOutput.text;
+        console.log(`[buildNodeInput]   -> Mapped text to context`);
       }
     }
   }
   
-  const getMediaFromEdge = (handleId: string) => {
+  // Helper to get media from a connected edge
+  const getMediaFromEdge = (handleId: string): { url: string } | undefined => {
     const edge = incomingEdges.find(e => e.targetHandle === handleId);
     if (!edge) return undefined;
     
-    const output = outputs.get(edge.source) as { 
-      type?: string; 
-      image?: { url: string };
-      video?: { url: string };
-      audio?: { url: string };
-    } | undefined;
+    const rawOutput = outputs.get(edge.source);
+    const output = normalizeOutput(rawOutput);
     
-    if (output?.type === "image" && output.image?.url) return { url: output.image.url };
-    if (output?.type === "video" && output.video?.url) return { url: output.video.url };
-    if (output?.type === "audio" && output.audio?.url) return { url: output.audio.url };
+    console.log(`[buildNodeInput] getMediaFromEdge(${handleId}): source=${edge.source}, sourceHandle=${edge.sourceHandle}, outputType=${output?.type}`);
+    
+    // Check standard output formats
+    if (output?.type === "image" && output.image?.url) {
+      console.log(`[buildNodeInput]   -> Found image URL (${output.image.url.slice(0, 80)}...)`);
+      return { url: output.image.url };
+    }
+    if (output?.type === "video" && output.video?.url) {
+      console.log(`[buildNodeInput]   -> Found video URL (${output.video.url.slice(0, 80)}...)`);
+      return { url: output.video.url };
+    }
+    if (output?.type === "audio" && output.audio?.url) {
+      console.log(`[buildNodeInput]   -> Found audio URL`);
+      return { url: output.audio.url };
+    }
+    
+    // Check if output itself is a URL string (direct pass-through)
+    if (typeof rawOutput === "string" && (rawOutput.startsWith("http") || rawOutput.startsWith("data:"))) {
+      console.log(`[buildNodeInput]   -> Found direct URL string`);
+      return { url: rawOutput };
+    }
+    
+    // Check if output has a direct url property (some nodes output { url: "..." })
+    if (output && typeof output === "object" && "url" in output) {
+      const urlValue = (output as any).url;
+      if (typeof urlValue === "string") {
+        console.log(`[buildNodeInput]   -> Found direct url property`);
+        return { url: urlValue };
+      }
+    }
+    
+    console.log(`[buildNodeInput]   -> No media found for handle ${handleId}`);
+    return undefined;
+  };
+  
+  // Helper to get ANY media from connected edges (regardless of handle name)
+  // This is a fallback when specific handle matching fails
+  const getAnyMediaFromEdges = (mediaType: "image" | "video" | "audio"): { url: string } | undefined => {
+    for (const edge of incomingEdges) {
+      const rawOutput = outputs.get(edge.source);
+      const output = normalizeOutput(rawOutput);
+      
+      if (output?.type === mediaType) {
+        const mediaObj = output[mediaType] as { url?: string } | undefined;
+        if (mediaObj?.url) {
+          console.log(`[buildNodeInput] getAnyMediaFromEdges(${mediaType}): found from ${edge.source}`);
+          return { url: mediaObj.url };
+        }
+      }
+    }
     return undefined;
   };
 
   // Map frontend field names to schema field names
-  // Frontend uses inputVideo1/inputVideo2, schema expects video1/video2 as { url: string }
   const normalizeAsset = (value: unknown): { url: string } | undefined => {
     if (!value) return undefined;
-    if (typeof value === "string") return { url: value };
+    if (typeof value === "string" && (value.startsWith("http") || value.startsWith("data:"))) {
+      return { url: value };
+    }
     if (typeof value === "object" && value !== null && "url" in value) {
       return value as { url: string };
     }
     return undefined;
   };
 
-  return {
+  // Helper to get video from edge by checking both handles and falling back to any video output
+  const getVideoFromEdgeOrFallback = (handleIds: string[]): { url: string } | undefined => {
+    // First try exact handle matches
+    for (const handleId of handleIds) {
+      const result = getMediaFromEdge(handleId);
+      if (result) return result;
+    }
+    // Then try to find any connected video output for those handles
+    for (const handleId of handleIds) {
+      const edge = incomingEdges.find(e => e.targetHandle === handleId);
+      if (edge) {
+        const rawOutput = outputs.get(edge.source);
+        const output = normalizeOutput(rawOutput);
+        // Check if output has video
+        if (output?.type === "video" && output.video?.url) {
+          console.log(`[buildNodeInput] getVideoFromEdgeOrFallback found video from ${edge.source} for handle ${handleId}`);
+          return { url: output.video.url };
+        }
+        // Check if output is directly a URL
+        if (typeof rawOutput === "string" && (rawOutput.startsWith("http") || rawOutput.startsWith("data:"))) {
+          return { url: rawOutput };
+        }
+      }
+    }
+    return undefined;
+  };
+
+  // Build the final input object
+  const input = {
     ...data,
     prompt: prompt || data.prompt,
     context: context || data.context,
-    // Single media inputs
-    image: getMediaFromEdge("image") || getMediaFromEdge("inputImage") || normalizeAsset(data.image) || normalizeAsset(data.inputImage),
-    video: getMediaFromEdge("video") || getMediaFromEdge("inputVideo") || normalizeAsset(data.video) || normalizeAsset(data.inputVideo),
-    audio: getMediaFromEdge("audio") || getMediaFromEdge("inputAudio") || normalizeAsset(data.audio) || normalizeAsset(data.inputAudio),
+    // Single media inputs - check multiple handle names + fallback to any connected media
+    image: getMediaFromEdge("image") || getMediaFromEdge("inputImage") || getAnyMediaFromEdges("image") || normalizeAsset(data.image) || normalizeAsset(data.inputImage) || normalizeAsset(data.result),
+    video: getMediaFromEdge("video") || getMediaFromEdge("inputVideo") || getMediaFromEdge("merged") || getAnyMediaFromEdges("video") || normalizeAsset(data.video) || normalizeAsset(data.inputVideo) || normalizeAsset(data.result),
+    audio: getMediaFromEdge("audio") || getMediaFromEdge("inputAudio") || getAnyMediaFromEdges("audio") || normalizeAsset(data.audio) || normalizeAsset(data.inputAudio),
     frame: getMediaFromEdge("frame") || normalizeAsset(data.frame),
-    // Merge-videos specific: map inputVideo1/inputVideo2 to video1/video2
-    video1: getMediaFromEdge("inputVideo1") || normalizeAsset(data.video1) || normalizeAsset(data.inputVideo1),
-    video2: getMediaFromEdge("inputVideo2") || normalizeAsset(data.video2) || normalizeAsset(data.inputVideo2),
+    // Merge-videos specific - check multiple handles and data fields
+    video1: getVideoFromEdgeOrFallback(["inputVideo1", "video1", "Video 1 *"]) || normalizeAsset(data.video1) || normalizeAsset(data.inputVideo1),
+    video2: getVideoFromEdgeOrFallback(["inputVideo2", "video2", "Video 2 *"]) || normalizeAsset(data.video2) || normalizeAsset(data.inputVideo2),
+    // Text input for TTS nodes
+    text: prompt || (data.text as string) || undefined,
   };
+  
+  console.log(`[buildNodeInput] Final input keys: ${Object.keys(input).filter(k => input[k as keyof typeof input] !== undefined).join(", ")}`);
+  console.log(`[buildNodeInput] - image: ${input.image ? "present" : "missing"}`);
+  console.log(`[buildNodeInput] - video: ${input.video ? "present" : "missing"}`);
+  console.log(`[buildNodeInput] - video1: ${input.video1 ? `present (${(input.video1 as any)?.url?.slice(0, 50)}...)` : "missing"}`);
+  console.log(`[buildNodeInput] - video2: ${input.video2 ? `present (${(input.video2 as any)?.url?.slice(0, 50)}...)` : "missing"}`);
+  console.log(`[buildNodeInput] - prompt: ${input.prompt ? "present" : "missing"}`);
+  
+  return input;
 }
 
 // Execute a utility node locally
@@ -271,9 +386,19 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Estimate total cost
+        // Filter to only connected nodes for cost estimation
+        const connectedNodeIdsForCost = new Set<string>();
+        for (const edge of edges) {
+          connectedNodeIdsForCost.add(edge.source);
+          connectedNodeIdsForCost.add(edge.target);
+        }
+        const nodesForExecution = edges.length === 0 
+          ? nodes 
+          : nodes.filter(n => connectedNodeIdsForCost.has(n.id));
+        
+        // Estimate total cost (only for connected nodes)
         let totalEstimatedCost = 0;
-        for (const node of nodes) {
+        for (const node of nodesForExecution) {
           const nodeData = (node.data ?? {}) as Record<string, unknown>;
           totalEstimatedCost += estimateNodeCost(node.type as string, nodeData);
         }
@@ -328,7 +453,27 @@ export async function POST(request: NextRequest) {
         // Build dependency graph
         console.log(`[WorkflowStream] Edges:`, edges.map(e => `${e.source} → ${e.target} (${e.sourceHandle} → ${e.targetHandle})`));
         
-        const sortedNodes = topoSort(nodes, edges);
+        // Filter to only include connected nodes (nodes that are part of the workflow graph)
+        // A node is "connected" if it has edges (either incoming or outgoing)
+        const connectedNodeIds = new Set<string>();
+        for (const edge of edges) {
+          connectedNodeIds.add(edge.source);
+          connectedNodeIds.add(edge.target);
+        }
+        
+        // If no edges exist (single node workflow), include all nodes
+        // Otherwise, only include nodes that are part of the connected graph
+        const workflowNodes = edges.length === 0 
+          ? nodes 
+          : nodes.filter(n => connectedNodeIds.has(n.id));
+        
+        console.log(`[WorkflowStream] Total nodes: ${nodes.length}, Connected nodes: ${workflowNodes.length}`);
+        if (nodes.length > workflowNodes.length) {
+          const disconnected = nodes.filter(n => !connectedNodeIds.has(n.id)).map(n => `${n.id} (${n.type})`);
+          console.log(`[WorkflowStream] Skipping disconnected nodes: ${disconnected.join(", ")}`);
+        }
+        
+        const sortedNodes = topoSort(workflowNodes, edges);
         const { dependencies } = buildDependencyGraph(sortedNodes, edges);
         
         console.log(`[WorkflowStream] Topological order:`);
@@ -362,40 +507,21 @@ export async function POST(request: NextRequest) {
           sendEvent(controller, "node-queued", { nodeId: node.id, nodeType: node.type, nodeLabel });
         }
 
-        // Execute nodes SEQUENTIALLY in topological order
-        // Each node waits for ALL its dependencies to complete before starting
-        for (const node of sortedNodes) {
-          // Check if any dependency failed
-          const deps = dependencies.get(node.id) || new Set();
-          const anyDepFailed = [...deps].some(d => failed.has(d));
+        // =======================================================================
+        // CONCURRENT EXECUTION WITH DEPENDENCY AWARENESS
+        // =======================================================================
+        // - Nodes with no dependencies (roots) start immediately in parallel
+        // - Child nodes wait for their parent(s) to complete
+        // - Independent pipelines run concurrently
+        // - Within a pipeline, nodes run sequentially (parent → child)
+        
+        const pending = new Set(sortedNodes.map(n => n.id));
+        const inProgress = new Map<string, Promise<void>>();
+        
+        // Helper to execute a single node
+        async function executeOneNode(node: Node): Promise<void> {
+          const nodeType = node.type as string;
           
-          if (anyDepFailed) {
-            failed.add(node.id);
-            await db.nodeExecution.update({
-              where: { id: nodeExecutionIds.get(node.id)! },
-              data: { status: "FAILED", error: "Dependency failed", completedAt: new Date() },
-            });
-            sendEvent(controller, "node-failed", { 
-              nodeId: node.id, 
-              nodeType: node.type,
-              error: "Dependency failed - a required upstream node failed" 
-            });
-            continue;
-          }
-
-          // All dependencies must be complete (topological order ensures this)
-          const allDepsComplete = [...deps].every(d => completed.has(d));
-          if (!allDepsComplete) {
-            console.error(`[WorkflowStream] Node ${node.id} has incomplete deps - this shouldn't happen!`);
-            failed.add(node.id);
-            sendEvent(controller, "node-failed", { 
-              nodeId: node.id, 
-              nodeType: node.type,
-              error: "Internal error: dependencies not complete" 
-            });
-            continue;
-          }
-
           // Mark as started
           await db.nodeExecution.update({
             where: { id: nodeExecutionIds.get(node.id)! },
@@ -406,7 +532,6 @@ export async function POST(request: NextRequest) {
 
           // Build input from completed dependency outputs
           const input = buildNodeInput(node, edges, outputs, sortedNodes);
-          const nodeType = node.type as string;
 
           try {
             let result: { success: boolean; output?: unknown; error?: string };
@@ -423,26 +548,38 @@ export async function POST(request: NextRequest) {
               };
               result = await executeLocalNode(nodeType, input as Record<string, unknown>, context);
             } else if (TRIGGER_NODE_TYPES.includes(nodeType)) {
-              // Execute via Trigger.dev (one at a time for sequential execution)
+              // Execute via Trigger.dev - use trigger() + subscribeToRun() (no polling!)
               const payload = {
-                payload: {
-                  nodeExecutionId: nodeExecutionIds.get(node.id)!,
-                  workflowExecutionId: workflowExecution.id,
-                  nodeId: node.id,
-                  nodeType: nodeType as AINodeType,
-                  input: input as Record<string, unknown>,
-                },
+                nodeExecutionId: nodeExecutionIds.get(node.id)!,
+                workflowExecutionId: workflowExecution.id,
+                nodeId: node.id,
+                nodeType: nodeType as AINodeType,
+                input: input as Record<string, unknown>,
               };
 
               console.log(`[WorkflowStream] Triggering ${nodeType} via Trigger.dev...`);
-              const triggerResult = await executeNode.triggerAndWait(payload.payload);
+              
+              // Start the task
+              const handle = await executeNode.trigger(payload);
+              console.log(`[WorkflowStream] Task started with run ID: ${handle.id}`);
+              
+              // Subscribe to run updates (SSE-based, no polling!)
+              let finalRun: Awaited<ReturnType<typeof runs.retrieve>> | null = null;
+              for await (const run of runs.subscribeToRun(handle.id)) {
+                console.log(`[WorkflowStream] Run ${handle.id} status: ${run.status}`);
+                if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
+                  finalRun = run;
+                  break;
+                }
+              }
 
-              if (triggerResult.ok && triggerResult.output) {
-                result = { success: true, output: triggerResult.output.output };
+              if (finalRun?.status === "COMPLETED" && finalRun.output) {
+                const output = finalRun.output as { output?: unknown };
+                result = { success: true, output: output.output };
               } else {
                 result = { 
                   success: false, 
-                  error: triggerResult.error?.message || "Trigger.dev execution failed" 
+                  error: finalRun?.status === "FAILED" ? "Task execution failed" : "Task was canceled" 
                 };
               }
             } else {
@@ -451,8 +588,38 @@ export async function POST(request: NextRequest) {
 
             // Process result
             if (result.success && result.output) {
+              // Persist media to Transloadit CDN if configured
+              let persistedOutput = result.output;
+              try {
+                if (isTransloaditConfigured()) {
+                  console.log(`[WorkflowStream] Persisting output to Transloadit...`);
+                  persistedOutput = await persistNodeOutput(result.output);
+                }
+              } catch (persistError) {
+                console.warn(`[WorkflowStream] Failed to persist to Transloadit:`, persistError);
+                // Continue with original output
+              }
+              
               completed.add(node.id);
-              outputs.set(node.id, result.output);
+              outputs.set(node.id, persistedOutput);
+              
+              // Log what we're storing
+              const outputType = typeof persistedOutput === "object" && persistedOutput !== null 
+                ? (persistedOutput as any).type || "unknown"
+                : typeof persistedOutput;
+              console.log(`[WorkflowStream] Storing output for ${node.id}: type=${outputType}`);
+              if (typeof persistedOutput === "object" && persistedOutput !== null) {
+                const keys = Object.keys(persistedOutput as object);
+                console.log(`[WorkflowStream]   Output keys: ${keys.join(", ")}`);
+                // Log URL if present
+                const outputObj = persistedOutput as Record<string, any>;
+                if (outputObj.image?.url) {
+                  console.log(`[WorkflowStream]   Image URL: ${outputObj.image.url.slice(0, 80)}...`);
+                }
+                if (outputObj.video?.url) {
+                  console.log(`[WorkflowStream]   Video URL: ${outputObj.video.url.slice(0, 80)}...`);
+                }
+              }
               
               await db.nodeExecution.update({
                 where: { id: nodeExecutionIds.get(node.id)! },
@@ -460,13 +627,15 @@ export async function POST(request: NextRequest) {
                   status: "COMPLETED", 
                   completedAt: new Date(),
                   providerUsed: LOCAL_NODE_TYPES.includes(nodeType) ? "internal" : "trigger.dev",
+                  // Store persisted output in database
+                  outputJson: persistedOutput as any,
                 },
               });
 
               sendEvent(controller, "node-completed", {
                 nodeId: node.id,
                 nodeType: node.type,
-                output: result.output,
+                output: persistedOutput,
               });
               
               console.log(`[WorkflowStream] ✓ Node ${node.id} completed successfully`);
@@ -499,6 +668,69 @@ export async function POST(request: NextRequest) {
             
             console.error(`[WorkflowStream] ✗ Node ${node.id} threw error:`, error);
           }
+        }
+        
+        // Main execution loop - process nodes as they become ready
+        while (pending.size > 0) {
+          // Find all ready nodes (dependencies completed, not failed, not in progress)
+          const readyNodes: Node[] = [];
+          
+          for (const nodeId of pending) {
+            const node = sortedNodes.find(n => n.id === nodeId)!;
+            const deps = dependencies.get(nodeId) || new Set();
+            
+            // Skip if already in progress
+            if (inProgress.has(nodeId)) continue;
+            
+            // Check if any dependency failed - if so, mark this node as failed too
+            const anyDepFailed = [...deps].some(d => failed.has(d));
+            if (anyDepFailed) {
+              pending.delete(nodeId);
+              failed.add(nodeId);
+              await db.nodeExecution.update({
+                where: { id: nodeExecutionIds.get(nodeId)! },
+                data: { status: "FAILED", error: "Dependency failed", completedAt: new Date() },
+              });
+              sendEvent(controller, "node-failed", { 
+                nodeId, 
+                nodeType: node.type,
+                error: "Dependency failed - a required upstream node failed" 
+              });
+              continue;
+            }
+            
+            // Check if all dependencies are completed
+            const allDepsComplete = [...deps].every(d => completed.has(d));
+            if (allDepsComplete) {
+              readyNodes.push(node);
+            }
+          }
+          
+          // If no ready nodes and nothing in progress, we're stuck (shouldn't happen)
+          if (readyNodes.length === 0 && inProgress.size === 0) {
+            console.error("[WorkflowStream] No ready nodes and nothing in progress - breaking");
+            break;
+          }
+          
+          // Start all ready nodes in parallel
+          for (const node of readyNodes) {
+            console.log(`[WorkflowStream] Starting node ${node.id} (${node.type}) - ${readyNodes.length} nodes ready`);
+            const promise = executeOneNode(node).finally(() => {
+              pending.delete(node.id);
+              inProgress.delete(node.id);
+            });
+            inProgress.set(node.id, promise);
+          }
+          
+          // Wait for at least one node to complete before checking for new ready nodes
+          if (inProgress.size > 0) {
+            await Promise.race(inProgress.values());
+          }
+        }
+        
+        // Wait for any remaining in-progress nodes
+        if (inProgress.size > 0) {
+          await Promise.all(inProgress.values());
         }
 
         // Update workflow execution status

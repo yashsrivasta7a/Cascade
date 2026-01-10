@@ -17,6 +17,8 @@ import ReactFlow, {
   EdgeProps,
   getBezierPath,
   getSmoothStepPath,
+  ConnectionLineComponentProps,
+  getStraightPath,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useFlowStore } from "@/store";
@@ -38,19 +40,35 @@ interface FlowCanvasProps {
 let nodeIdCounter = 1;
 const getNewNodeId = () => `node-${Date.now()}-${nodeIdCounter++}`;
 
-// Data type colors for edges - bright neon colors
+// Data type colors for edges - organized by category
+// MEDIA TYPES: Bold colors for main data flowing between nodes
+// SETTINGS TYPES: Distinct colors for parameters shared across nodes
 const edgeColors: Record<string, { stroke: string; glow: string; dash: string }> = {
-  text: { stroke: "#3b82f6", glow: "#3b82f6", dash: "#60a5fa" },      // Bright Blue
-  image: { stroke: "#10b981", glow: "#10b981", dash: "#34d399" },     // Bright Green
-  video: { stroke: "#8b5cf6", glow: "#8b5cf6", dash: "#a78bfa" },     // Bright Purple
-  audio: { stroke: "#f59e0b", glow: "#f59e0b", dash: "#fbbf24" },     // Bright Orange
-  any: { stroke: "#6b7280", glow: "#6b7280", dash: "#9ca3af" },       // Gray
-  negative: { stroke: "#ef4444", glow: "#ef4444", dash: "#f87171" },  // Bright Red
-  number: { stroke: "#ec4899", glow: "#ec4899", dash: "#f472b6" },    // Bright Pink
-  boolean: { stroke: "#06b6d4", glow: "#06b6d4", dash: "#22d3ee" },   // Bright Cyan
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MEDIA TYPES - Primary data flow
+  // ═══════════════════════════════════════════════════════════════════════════
+  text: { stroke: "#3b82f6", glow: "#3b82f6", dash: "#60a5fa" },           // Blue
+  image: { stroke: "#10b981", glow: "#10b981", dash: "#34d399" },          // Emerald
+  video: { stroke: "#8b5cf6", glow: "#8b5cf6", dash: "#a78bfa" },          // Violet
+  audio: { stroke: "#f59e0b", glow: "#f59e0b", dash: "#fbbf24" },          // Amber
+  any: { stroke: "#a1a1aa", glow: "#a1a1aa", dash: "#d4d4d8" },            // Zinc
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SETTINGS TYPES - Parameters & configuration
+  // ═══════════════════════════════════════════════════════════════════════════
+  prompt: { stroke: "#0ea5e9", glow: "#0ea5e9", dash: "#38bdf8" },         // Sky - instruction text
+  negative: { stroke: "#ef4444", glow: "#ef4444", dash: "#f87171" },       // Red - exclusion
+  seed: { stroke: "#84cc16", glow: "#84cc16", dash: "#a3e635" },           // Lime - reproducibility
+  aspectRatio: { stroke: "#6366f1", glow: "#6366f1", dash: "#818cf8" },    // Indigo - dimensions
+  duration: { stroke: "#14b8a6", glow: "#14b8a6", dash: "#2dd4bf" },       // Teal - time
+  model: { stroke: "#f43f5e", glow: "#f43f5e", dash: "#fb7185" },          // Rose - AI model
+  temperature: { stroke: "#f97316", glow: "#f97316", dash: "#fb923c" },    // Orange - randomness
+  number: { stroke: "#ec4899", glow: "#ec4899", dash: "#f472b6" },         // Pink - generic number
+  boolean: { stroke: "#06b6d4", glow: "#06b6d4", dash: "#22d3ee" },        // Cyan - on/off
 };
 
 // Custom edge component that changes color based on connection type with delete button
+// Features: Type-based coloring, flowing dots animation when running, "break" style delete button
 function CustomEdge({
   id,
   sourceX,
@@ -66,26 +84,27 @@ function CustomEdge({
   const isNegative = data?.isNegative === true || dataType === "negative";
   const [isHovered, setIsHovered] = useState(false);
   const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
-  const [colorPhase, setColorPhase] = useState(0);
+  const [animationPhase, setAnimationPhase] = useState(0);
   
-  // Get colors based on data type
+  // Get colors based on data type - uses the unified color palette
   const typeColors = edgeColors[dataType] || edgeColors.any;
   
-  // Animate color phase when workflow is running
+  // Animate phase for flowing dots when workflow is running
   useEffect(() => {
     if (!isWorkflowRunning) {
-      setColorPhase(0);
+      setAnimationPhase(0);
       return;
     }
     
     const interval = setInterval(() => {
-      setColorPhase((prev) => (prev + 1) % 360);
-    }, 20); // Fast smooth animation
+      setAnimationPhase((prev) => (prev + 2) % 100);
+    }, 30); // Smooth animation
     
     return () => clearInterval(interval);
   }, [isWorkflowRunning]);
   
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  // Use bezier path for smooth flowing curves (matching connection line style)
+  const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -129,36 +148,12 @@ function CustomEdge({
     return Boolean(set?.has(targetHandle));
   });
 
+  // Early return AFTER all hooks
   if (shouldHideAdvanced) return null;
 
-  const handleDelete = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const edges = useFlowStore.getState().edges;
-    useFlowStore.getState().setEdges(edges.filter((edge) => edge.id !== id));
-  }, [id]);
-
-  // Calculate colors - use data type color, animate when running
-  const getEdgeColor = () => {
-    if (isWorkflowRunning) {
-      return `hsl(${colorPhase}, 80%, 55%)`;
-    }
-    return typeColors.stroke;
-  };
-  
-  const getGlowColor = () => {
-    if (isWorkflowRunning) {
-      return `hsla(${colorPhase}, 80%, 55%, 0.4)`;
-    }
-    return typeColors.glow;
-  };
-  
-  const getDashColor = () => {
-    if (isWorkflowRunning) {
-      return `hsl(${(colorPhase + 60) % 360}, 80%, 70%)`;
-    }
-    return typeColors.dash;
-  };
+  // Unique IDs for this edge's mask
+  const maskId = `edge-mask-${id}`;
+  const breakRadius = 14; // Size of the "break" in the line
 
   return (
     <g
@@ -166,7 +161,18 @@ function CustomEdge({
       onMouseLeave={() => setIsHovered(false)}
       style={{ overflow: "visible" }}
     >
-      {/* Invisible wider path for easier interaction */}
+      {/* Definitions for masks */}
+      <defs>
+        {/* Mask to create a "break" in the edge when hovered */}
+        <mask id={maskId}>
+          <rect x="-10000" y="-10000" width="20000" height="20000" fill="white" />
+          {isHovered && !isWorkflowRunning && (
+            <circle cx={labelX} cy={labelY} r={breakRadius} fill="black" />
+          )}
+        </mask>
+      </defs>
+
+      {/* Invisible wider path for easier hover detection */}
       <path
         d={edgePath}
         fill="none"
@@ -174,98 +180,133 @@ function CustomEdge({
         strokeWidth={24}
         style={{ cursor: "pointer" }}
       />
-      {/* Glow layer 1 - outermost, most transparent */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke={getGlowColor()}
-        strokeWidth={12}
-        strokeLinecap="round"
-        opacity={0.15}
-      />
-      {/* Glow layer 2 */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke={getGlowColor()}
-        strokeWidth={8}
-        strokeLinecap="round"
-        opacity={0.25}
-      />
-      {/* Glow layer 3 - inner glow */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke={getGlowColor()}
-        strokeWidth={5}
-        strokeLinecap="round"
-        opacity={0.4}
-      />
-      {/* Main edge - thick solid bright line */}
-      <path
-        id={id}
-        d={edgePath}
-        fill="none"
-        stroke={getEdgeColor()}
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        markerEnd={markerEnd}
-      />
-      {/* Animated dash overlay */}
+      
+      {/* Edge with break effect - all layers use the mask when hovered */}
+      <g mask={isHovered && !isWorkflowRunning ? `url(#${maskId})` : undefined}>
+        {/* Outer soft glow */}
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={typeColors.stroke}
+          strokeWidth={isWorkflowRunning ? 20 : 16}
+          strokeLinecap="round"
+          opacity={isWorkflowRunning ? 0.15 : 0.08}
+          style={{ filter: "blur(8px)" }}
+        />
+        
+        {/* Middle glow layer */}
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={typeColors.stroke}
+          strokeWidth={isWorkflowRunning ? 10 : 8}
+          strokeLinecap="round"
+          opacity={isWorkflowRunning ? 0.25 : 0.15}
+          style={{ filter: "blur(4px)" }}
+        />
+        
+        {/* Main colored line */}
+        <path
+          id={id}
+          d={edgePath}
+          fill="none"
+          stroke={typeColors.stroke}
+          strokeWidth={3}
+          strokeLinecap="round"
+          markerEnd={markerEnd}
+          style={{
+            filter: `drop-shadow(0 0 4px ${typeColors.stroke})`,
+          }}
+        />
+      </g>
+      
+      {/* Animated flowing dash when running */}
       {isWorkflowRunning && (
         <path
           d={edgePath}
           fill="none"
-          stroke={getDashColor()}
-          strokeWidth={3}
-          strokeDasharray="8 4"
+          stroke="white"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeDasharray="8 16"
+          opacity={0.6}
           style={{
-            animation: "dash 0.3s linear infinite",
+            animation: "connectionFlow 0.8s linear infinite",
           }}
         />
       )}
-      {/* Edge Handle / Delete Button */}
+      
+      {/* Delete button in the "break" - styled like a cut wire */}
       {isHovered && !isWorkflowRunning && (
-        <g
-          transform={`translate(${labelX}, ${labelY})`}
-          style={{ cursor: "pointer", overflow: "visible" }}
-        >
-          {/* Invisible larger hit area for easier clicking */}
+        <g>
+          {/* Outer ring - shows the break boundary */}
           <circle
-            cx={0}
-            cy={0}
-            r={20}
-            fill="transparent"
-            onClick={handleDelete}
-            onMouseDown={(e) => e.stopPropagation()}
+            cx={labelX}
+            cy={labelY}
+            r={breakRadius}
+            fill="#1a1a1a"
+            stroke={typeColors.stroke}
+            strokeWidth={2}
+            strokeDasharray="4 3"
             style={{ cursor: "pointer" }}
           />
-          {/* Outer glow ring */}
-          <circle
-            cx={0}
-            cy={0}
-            r={14}
-            fill={typeColors.stroke}
-            fillOpacity={0.2}
-            onClick={handleDelete}
-            style={{ pointerEvents: "none" }}
-          />
-          {/* Inner solid circle */}
-          <circle
-            cx={0}
-            cy={0}
-            r={8}
-            fill={typeColors.stroke}
-            onClick={handleDelete}
-            style={{ pointerEvents: "none" }}
-          />
-          {/* X Icon */}
-          <path
-            d="M-2.5 -2.5 L2.5 2.5 M2.5 -2.5 L-2.5 2.5"
-            stroke="white"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-          />
+          
+          {/* Inner delete button */}
+          <foreignObject
+            x={labelX - 12}
+            y={labelY - 12}
+            width={24}
+            height={24}
+            style={{ overflow: "visible" }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  useFlowStore.getState().onEdgesChange([{ type: "remove", id }]);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "transform 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+                title="Delete connection"
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M3 3L11 11M11 3L3 11"
+                    stroke={typeColors.stroke}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            </div>
+          </foreignObject>
         </g>
       )}
     </g>
@@ -275,6 +316,80 @@ function CustomEdge({
 const edgeTypes = {
   custom: CustomEdge,
 };
+
+// Custom connection line with smooth flowing curve
+function CustomConnectionLine({
+  fromX,
+  fromY,
+  toX,
+  toY,
+  connectionLineStyle,
+}: ConnectionLineComponentProps) {
+  // Get the connecting handle type from the store
+  const connectingFrom = useFlowStore((s) => s.connectingFrom);
+  const handleType = connectingFrom?.handleType || "any";
+  const typeColors = edgeColors[handleType] || edgeColors.any;
+  
+  // Create a smooth bezier curve path
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const controlOffset = Math.min(Math.abs(dx) * 0.5, 150);
+  
+  // Bezier control points for a smooth S-curve
+  const path = `M ${fromX} ${fromY} C ${fromX + controlOffset} ${fromY}, ${toX - controlOffset} ${toY}, ${toX} ${toY}`;
+
+  return (
+    <g className="react-flow__connection">
+      {/* Outer soft glow */}
+      <path
+        d={path}
+        fill="none"
+        stroke={typeColors.stroke}
+        strokeWidth={20}
+        strokeLinecap="round"
+        opacity={0.1}
+        style={{ filter: "blur(8px)" }}
+      />
+      
+      {/* Middle glow layer */}
+      <path
+        d={path}
+        fill="none"
+        stroke={typeColors.stroke}
+        strokeWidth={10}
+        strokeLinecap="round"
+        opacity={0.2}
+        style={{ filter: "blur(4px)" }}
+      />
+      
+      {/* Main colored line */}
+      <path
+        d={path}
+        fill="none"
+        stroke={typeColors.stroke}
+        strokeWidth={3}
+        strokeLinecap="round"
+        style={{
+          filter: `drop-shadow(0 0 4px ${typeColors.stroke})`,
+        }}
+      />
+      
+      {/* Animated flowing dash on top */}
+      <path
+        d={path}
+        fill="none"
+        stroke="white"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeDasharray="8 16"
+        opacity={0.6}
+        style={{
+          animation: "connectionFlow 0.8s linear infinite",
+        }}
+      />
+    </g>
+  );
+}
 
 function getNodeOutputPreview(node: Node): string | undefined {
   const d = (node.data ?? {}) as any;
@@ -296,13 +411,14 @@ function getNodeOutputPreview(node: Node): string | undefined {
   return undefined;
 }
 
+// Handle type definitions - using specific setting types for consistent colors
 const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
   seedream: {
     inputs: {
-      prompt: "text",
+      prompt: "prompt",
       numInferenceSteps: "number",
-      seed: "number",
-      aspectRatio: "text",
+      seed: "seed",
+      aspectRatio: "aspectRatio",
       negativePrompt: "negative",
       guidanceScale: "number",
       truncatePrompt: "boolean",
@@ -314,26 +430,35 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
       out: "any",
     },
   },
-  seedvr: { inputs: { inputImage: "image", scale: "text", enhanceFaces: "boolean" }, outputs: { upscaled: "image" } },
+  seedvr: { 
+    inputs: { inputImage: "image", scale: "number", enhanceFaces: "boolean" }, 
+    outputs: { upscaled: "image" } 
+  },
   seedance: {
-    inputs: { prompt: "text", inputFrame: "image", duration: "text", aspectRatio: "text", seed: "number" },
+    inputs: { prompt: "prompt", inputFrame: "image", duration: "duration", aspectRatio: "aspectRatio", seed: "seed" },
     outputs: { video: "video" },
   },
-  elevenlabs: { inputs: { text: "text", voiceId: "text", stability: "number", clarity: "number" }, outputs: { audio: "audio" } },
+  elevenlabs: { 
+    inputs: { text: "prompt", voiceId: "model", stability: "number", clarity: "number" }, 
+    outputs: { audio: "audio" } 
+  },
   openrouter: {
     inputs: {
-      prompt: "text",
+      prompt: "prompt",
       context: "text",
       inputImage: "image",
-      systemPrompt: "text",
-      model: "text",
-      temperature: "number",
+      systemPrompt: "prompt",
+      model: "model",
+      temperature: "temperature",
       maxTokens: "number",
       negativePrompt: "negative",
     },
     outputs: { response: "text", out: "any" },
   },
-  lipsync: { inputs: { inputVideo: "video", inputAudio: "audio", model: "text" }, outputs: { synced: "video" } },
+  lipsync: { 
+    inputs: { inputVideo: "video", inputAudio: "audio", model: "model" }, 
+    outputs: { synced: "video" } 
+  },
   "crop-image": { 
     inputs: { inputImage: "image", xPercent: "number", yPercent: "number", widthPercent: "number", heightPercent: "number" }, 
     outputs: { cropped: "image" } 
@@ -343,7 +468,7 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
     outputs: { combined: "video" } 
   },
   "merge-videos": { 
-    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text" }, 
+    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text", transitionDuration: "duration" }, 
     outputs: { merged: "video" } 
   },
   "extract-audio": { 
@@ -444,6 +569,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     setViewport: setViewportState,
     focusNodeId,
     focusNode,
+    setConnectingFrom,
   } = useFlowStore();
 
   // Focus on node when focusNodeId changes - pan so the NODE is at screen center
@@ -506,15 +632,31 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     }
   }, [getViewport, setViewportState, storageKey]);
 
-  // Keyboard shortcuts: Delete/Backspace to delete, Ctrl/Cmd+D to duplicate
+  // Keyboard shortcuts: Delete/Backspace to delete, Ctrl/Cmd+D to duplicate, Escape to cancel
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!selectedNode) return;
-
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       const isTyping = tag === "input" || tag === "textarea" || el?.isContentEditable === true;
+
+      // Escape key: cancel connections and close modals
+      if (e.key === "Escape") {
+        e.preventDefault();
+        // Clear connecting state
+        connectingFromRef.current = null;
+        setConnectingFrom(null);
+        // Close modal if open
+        if (isModalOpen) {
+          setIsModalOpen(false);
+          setPendingConnection(null);
+        }
+        // Deselect node
+        selectNode(null);
+        return;
+      }
+
       if (isTyping) return;
+      if (!selectedNode) return;
 
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
@@ -531,7 +673,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteNode, duplicateNode, selectNode, selectedNode]);
+  }, [deleteNode, duplicateNode, selectNode, selectedNode, setConnectingFrom, isModalOpen]);
 
   const isValidConnection = useCallback(
     (conn: Connection) => {
@@ -755,7 +897,6 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   );
 
   // Track the source node/handle reliably (React Flow's onConnectEnd state can be inconsistent).
-  const setConnectingFrom = useFlowStore((s) => s.setConnectingFrom);
   
   const onConnectStart: OnConnectStart = useCallback((event, params) => {
     const nodeId = params.nodeId ?? "";
@@ -909,7 +1050,10 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
   const onPaneClick = useCallback(() => {
     selectNode(null);
-  }, [selectNode]);
+    // Clear any lingering connection state
+    connectingFromRef.current = null;
+    setConnectingFrom(null);
+  }, [selectNode, setConnectingFrom]);
 
   const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -965,6 +1109,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           type: "custom",
           animated: false,
         }}
+        connectionLineComponent={CustomConnectionLine}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={null}
         selectionKeyCode={null}
@@ -996,7 +1141,6 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         isOpen={isModalOpen}
         onClose={handleModalClose}
         onSelect={handleNodeTypeSelect}
-        intent={pendingConnection?.sourceNodeId ? "connect" : "add"}
       />
     </div>
   );

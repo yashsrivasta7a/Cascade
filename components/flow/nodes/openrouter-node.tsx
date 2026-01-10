@@ -266,13 +266,13 @@ ${data.prompt}`;
         estimatedCost: nodeDef.estimatedCost,
       }}
       inputs={[
-        { id: "prompt", type: "text", label: "Prompt", required: true },
+        { id: "prompt", type: "prompt", label: "Prompt", required: true },
         { id: "context", type: "text", label: "Context" },
         // Show Image handle if connected OR if settings is open
         { id: "inputImage", type: "image", label: "Image", hidden: !showSettings && !isImageConnected },
-        { id: "systemPrompt", type: "text", label: "System", hidden: !showSettings },
-        { id: "model", type: "text", label: "Model", hidden: !showSettings },
-        { id: "temperature", type: "number", label: "Temp", hidden: !showSettings },
+        { id: "systemPrompt", type: "prompt", label: "System", hidden: !showSettings },
+        { id: "model", type: "model", label: "Model", hidden: !showSettings },
+        { id: "temperature", type: "temperature", label: "Temp", hidden: !showSettings },
         { id: "maxTokens", type: "number", label: "MaxTok", hidden: !showSettings },
         { id: "negativePrompt", type: "negative", label: "Negative", hidden: !showSettings },
       ]}

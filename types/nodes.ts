@@ -28,17 +28,152 @@ export type AINodeType =
 // DATA TYPES (What flows between nodes)
 // ============================================================================
 
-export type DataType = "text" | "image" | "video" | "audio" | "any" | "negative" | "number" | "boolean";
+// Media types: Core data that flows between nodes
+// Settings types: Parameters/configuration that can be shared across nodes
+export type DataType = 
+  // Media types (primary data)
+  | "text" 
+  | "image" 
+  | "video" 
+  | "audio" 
+  | "any"
+  // Settings types (parameters)
+  | "prompt"       // Main instruction text
+  | "negative"     // Negative/exclusion prompts
+  | "seed"         // Random seed for reproducibility
+  | "aspectRatio"  // Dimension settings
+  | "duration"     // Time-related settings
+  | "model"        // AI model selection
+  | "temperature"  // Randomness/creativity control
+  | "number"       // Generic numeric values
+  | "boolean";     // On/off toggles
+
+// Category for color legend grouping
+export type DataTypeCategory = "media" | "settings";
+
+export const dataTypeCategory: Record<DataType, DataTypeCategory> = {
+  text: "media",
+  image: "media",
+  video: "media",
+  audio: "media",
+  any: "media",
+  prompt: "settings",
+  negative: "settings",
+  seed: "settings",
+  aspectRatio: "settings",
+  duration: "settings",
+  model: "settings",
+  temperature: "settings",
+  number: "settings",
+  boolean: "settings",
+};
 
 export const dataTypeColors: Record<DataType, { bg: string; border: string; text: string; solid: string; glow: string }> = {
-  text: { bg: "bg-blue-500", border: "border-blue-400", text: "text-blue-400", solid: "#3b82f6", glow: "0 0 12px rgba(59, 130, 246, 0.6)" },
-  image: { bg: "bg-emerald-500", border: "border-emerald-400", text: "text-emerald-400", solid: "#10b981", glow: "0 0 12px rgba(16, 185, 129, 0.6)" },
-  video: { bg: "bg-violet-500", border: "border-violet-400", text: "text-violet-400", solid: "#8b5cf6", glow: "0 0 12px rgba(139, 92, 246, 0.6)" },
-  audio: { bg: "bg-amber-500", border: "border-amber-400", text: "text-amber-400", solid: "#f59e0b", glow: "0 0 12px rgba(245, 158, 11, 0.6)" },
-  any: { bg: "bg-zinc-400", border: "border-zinc-400", text: "text-zinc-400", solid: "#a1a1aa", glow: "0 0 12px rgba(161, 161, 170, 0.5)" },
-  negative: { bg: "bg-red-500", border: "border-red-400", text: "text-red-400", solid: "#ef4444", glow: "0 0 12px rgba(239, 68, 68, 0.6)" },
-  number: { bg: "bg-pink-500", border: "border-pink-400", text: "text-pink-400", solid: "#ec4899", glow: "0 0 12px rgba(236, 72, 153, 0.6)" },
-  boolean: { bg: "bg-cyan-500", border: "border-cyan-400", text: "text-cyan-400", solid: "#06b6d4", glow: "0 0 12px rgba(6, 182, 212, 0.6)" },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MEDIA TYPES - Bold, saturated colors for main data flowing between nodes
+  // ═══════════════════════════════════════════════════════════════════════════
+  text: { 
+    bg: "bg-blue-500", 
+    border: "border-blue-400", 
+    text: "text-blue-400", 
+    solid: "#3b82f6", 
+    glow: "0 0 12px rgba(59, 130, 246, 0.6)" 
+  },
+  image: { 
+    bg: "bg-emerald-500", 
+    border: "border-emerald-400", 
+    text: "text-emerald-400", 
+    solid: "#10b981", 
+    glow: "0 0 12px rgba(16, 185, 129, 0.6)" 
+  },
+  video: { 
+    bg: "bg-violet-500", 
+    border: "border-violet-400", 
+    text: "text-violet-400", 
+    solid: "#8b5cf6", 
+    glow: "0 0 12px rgba(139, 92, 246, 0.6)" 
+  },
+  audio: { 
+    bg: "bg-amber-500", 
+    border: "border-amber-400", 
+    text: "text-amber-400", 
+    solid: "#f59e0b", 
+    glow: "0 0 12px rgba(245, 158, 11, 0.6)" 
+  },
+  any: { 
+    bg: "bg-zinc-400", 
+    border: "border-zinc-400", 
+    text: "text-zinc-400", 
+    solid: "#a1a1aa", 
+    glow: "0 0 12px rgba(161, 161, 170, 0.5)" 
+  },
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SETTINGS TYPES - Distinct colors for parameters shared across nodes
+  // ═══════════════════════════════════════════════════════════════════════════
+  prompt: { 
+    bg: "bg-sky-500", 
+    border: "border-sky-400", 
+    text: "text-sky-400", 
+    solid: "#0ea5e9", 
+    glow: "0 0 12px rgba(14, 165, 233, 0.6)" 
+  },
+  negative: { 
+    bg: "bg-red-500", 
+    border: "border-red-400", 
+    text: "text-red-400", 
+    solid: "#ef4444", 
+    glow: "0 0 12px rgba(239, 68, 68, 0.6)" 
+  },
+  seed: { 
+    bg: "bg-lime-500", 
+    border: "border-lime-400", 
+    text: "text-lime-400", 
+    solid: "#84cc16", 
+    glow: "0 0 12px rgba(132, 204, 22, 0.6)" 
+  },
+  aspectRatio: { 
+    bg: "bg-indigo-500", 
+    border: "border-indigo-400", 
+    text: "text-indigo-400", 
+    solid: "#6366f1", 
+    glow: "0 0 12px rgba(99, 102, 241, 0.6)" 
+  },
+  duration: { 
+    bg: "bg-teal-500", 
+    border: "border-teal-400", 
+    text: "text-teal-400", 
+    solid: "#14b8a6", 
+    glow: "0 0 12px rgba(20, 184, 166, 0.6)" 
+  },
+  model: { 
+    bg: "bg-rose-500", 
+    border: "border-rose-400", 
+    text: "text-rose-400", 
+    solid: "#f43f5e", 
+    glow: "0 0 12px rgba(244, 63, 94, 0.6)" 
+  },
+  temperature: { 
+    bg: "bg-orange-500", 
+    border: "border-orange-400", 
+    text: "text-orange-400", 
+    solid: "#f97316", 
+    glow: "0 0 12px rgba(249, 115, 22, 0.6)" 
+  },
+  number: { 
+    bg: "bg-pink-500", 
+    border: "border-pink-400", 
+    text: "text-pink-400", 
+    solid: "#ec4899", 
+    glow: "0 0 12px rgba(236, 72, 153, 0.6)" 
+  },
+  boolean: { 
+    bg: "bg-cyan-500", 
+    border: "border-cyan-400", 
+    text: "text-cyan-400", 
+    solid: "#06b6d4", 
+    glow: "0 0 12px rgba(6, 182, 212, 0.6)" 
+  },
 };
 
 // ============================================================================
@@ -354,7 +489,7 @@ export const ExtractAudioConfigSchema = z.object({
 // NODE STATUS TYPES
 // ============================================================================
 
-export type NodeStatus = "idle" | "queued" | "running" | "completed" | "failed";
+export type NodeStatus = "idle" | "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface NodeExecutionState {
   status: NodeStatus;
@@ -429,10 +564,10 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "image", type: "image", label: "Image", isMedia: true },
     ],
     settings: [
-      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
+      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
       { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
-      { id: "aspectRatio", type: "text", label: "Aspect", isSettings: true },
-      { id: "seed", type: "number", label: "Seed", isSettings: true },
+      { id: "aspectRatio", type: "aspectRatio", label: "Aspect", isSettings: true },
+      { id: "seed", type: "seed", label: "Seed", isSettings: true },
       { id: "numInferenceSteps", type: "number", label: "Steps", isSettings: true },
       { id: "guidanceScale", type: "number", label: "Guidance", isSettings: true },
       { id: "truncatePrompt", type: "boolean", label: "Truncate", isSettings: true },
@@ -447,7 +582,7 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "inputImage", type: "image", label: "Image", isMedia: true, required: true },
     ],
     settings: [
-      { id: "scale", type: "text", label: "Scale", isSettings: true },
+      { id: "scale", type: "number", label: "Scale", isSettings: true },
       { id: "enhanceFaces", type: "boolean", label: "Faces", isSettings: true },
     ],
   },
@@ -458,10 +593,10 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "inputFrame", type: "image", label: "Start Frame", isMedia: true },
     ],
     settings: [
-      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
-      { id: "duration", type: "text", label: "Duration", isSettings: true },
-      { id: "aspectRatio", type: "text", label: "Aspect", isSettings: true },
-      { id: "seed", type: "number", label: "Seed", isSettings: true },
+      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
+      { id: "duration", type: "duration", label: "Duration", isSettings: true },
+      { id: "aspectRatio", type: "aspectRatio", label: "Aspect", isSettings: true },
+      { id: "seed", type: "seed", label: "Seed", isSettings: true },
     ],
   },
   elevenlabs: {
@@ -469,8 +604,8 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     primaryOutputId: "audio",
     mediaInputs: [],
     settings: [
-      { id: "text", type: "text", label: "Script", isSettings: true, required: true },
-      { id: "voiceId", type: "text", label: "Voice", isSettings: true },
+      { id: "text", type: "prompt", label: "Script", isSettings: true, required: true },
+      { id: "voiceId", type: "model", label: "Voice", isSettings: true },
       { id: "stability", type: "number", label: "Stability", isSettings: true },
       { id: "clarity", type: "number", label: "Clarity", isSettings: true },
     ],
@@ -483,10 +618,10 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "context", type: "text", label: "Context", isMedia: true },
     ],
     settings: [
-      { id: "prompt", type: "text", label: "Prompt", isSettings: true, required: true },
-      { id: "systemPrompt", type: "text", label: "System", isSettings: true },
-      { id: "model", type: "text", label: "Model", isSettings: true },
-      { id: "temperature", type: "number", label: "Temp", isSettings: true },
+      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
+      { id: "systemPrompt", type: "prompt", label: "System", isSettings: true },
+      { id: "model", type: "model", label: "Model", isSettings: true },
+      { id: "temperature", type: "temperature", label: "Temp", isSettings: true },
       { id: "maxTokens", type: "number", label: "MaxTok", isSettings: true },
       { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
     ],
@@ -499,7 +634,7 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "inputAudio", type: "audio", label: "Audio", isMedia: true, required: true },
     ],
     settings: [
-      { id: "model", type: "text", label: "Model", isSettings: true },
+      { id: "model", type: "model", label: "Model", isSettings: true },
     ],
   },
   "crop-image": {
@@ -535,7 +670,7 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     ],
     settings: [
       { id: "transition", type: "text", label: "Transition", isSettings: true },
-      { id: "transitionDuration", type: "number", label: "Duration", isSettings: true },
+      { id: "transitionDuration", type: "duration", label: "Duration", isSettings: true },
     ],
   },
   "extract-audio": {

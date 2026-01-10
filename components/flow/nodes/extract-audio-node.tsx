@@ -41,32 +41,76 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
   const workflowId = useFlowStore((s) => s.workflowId);
+  const edges = useFlowStore((s) => s.edges);
+  const nodes = useFlowStore((s) => s.nodes);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleVideoUpload = useCallback((file: File) => {
+  // Check for incoming video connection
+  const connectedVideo = useMemo(() => {
+    const edge = edges.find(e => e.target === id && e.targetHandle === "inputVideo");
+    if (!edge) return null;
+    
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (!sourceNode) return null;
+    
+    const sourceData = sourceNode.data as Record<string, unknown>;
+    if (sourceData.result && typeof sourceData.result === "string") return sourceData.result;
+    if (sourceData.outputVideo && typeof sourceData.outputVideo === "string") return sourceData.outputVideo;
+    return null;
+  }, [edges, nodes, id]);
+
+  // Effective video: use connected if available, otherwise use direct data
+  const effectiveVideo = data.inputVideo || connectedVideo;
+
+  const handleVideoUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("video/")) return;
     
-    // Check file size - limit to 10MB for base64 JSON transport
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 10) {
-      updateNode(id, { error: `File too large (${sizeMB.toFixed(1)}MB). Max 10MB for video processing. Try a shorter or lower resolution video.` });
+    if (sizeMB > 25) {
+      updateNode(id, { error: `File too large (${sizeMB.toFixed(1)}MB). Max 25MB.` });
       return;
     }
 
+    setIsUploadingVideo(true);
     updateNode(id, { error: undefined, status: "idle" });
 
-    // Convert to base64 data URL so it can be sent to the server
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const base64 = e.target?.result as string;
+      
+      // Try to upload to CDN for persistence
+      try {
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dataUrl: base64,
+            type: "video",
+            filename: file.name,
+          }),
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          updateNode(id, { inputVideo: url, result: undefined, error: undefined });
+          setIsUploadingVideo(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("[ExtractAudio] CDN upload failed, using base64:", err);
+      }
+      
       updateNode(id, { inputVideo: base64, result: undefined, error: undefined });
+      setIsUploadingVideo(false);
     };
     reader.onerror = () => {
       updateNode(id, { error: "Failed to read file" });
+      setIsUploadingVideo(false);
     };
     reader.readAsDataURL(file);
   }, [id, updateNode]);
@@ -80,7 +124,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
   }, [handleVideoUpload]);
 
   const runExtract = useCallback(async () => {
-    if (!data.inputVideo) return;
+    if (!effectiveVideo) return;
     
     setIsProcessing(true);
     updateNode(id, { status: "running", error: undefined });
@@ -95,7 +139,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
           nodeLabel: data.label || nodeDef.label,
           workflowId: workflowId ?? undefined,
           input: {
-            video: { url: data.inputVideo },
+            video: { url: effectiveVideo },
             format: data.format || "mp3",
             bitrate: data.bitrate || "192k",
             sampleRate: data.sampleRate || "44100",
@@ -118,7 +162,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputVideo, data.format, data.bitrate, data.sampleRate, data.channels, data.normalize, id, updateNode, propagateOutput]);
+  }, [effectiveVideo, data.format, data.bitrate, data.sampleRate, data.channels, data.normalize, data.label, id, updateNode, propagateOutput, workflowId]);
 
   // Memoize inputs
   const inputs = useMemo(() => [
@@ -177,37 +221,44 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
               onDrop={handleDrop}
               onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
               onDragLeave={() => setIsDragOver(false)}
-              onClick={() => !data.inputVideo && videoInputRef.current?.click()}
-              className={`nodrag nowheel relative rounded-xl overflow-hidden transition-all cursor-pointer ${
+              onClick={() => !effectiveVideo && videoInputRef.current?.click()}
+              className={`nodrag nowheel relative rounded-xl overflow-hidden transition-all ${
                 isDragOver
-                  ? "ring-2 ring-violet-500"
-                  : data.inputVideo
+                  ? "ring-2 ring-violet-500 cursor-pointer"
+                  : effectiveVideo
                   ? "ring-1 ring-white/10"
-                  : "border-2 border-dashed border-white/10 hover:border-white/20"
+                  : "border-2 border-dashed border-white/10 hover:border-white/20 cursor-pointer"
               }`}
             >
-              {data.inputVideo ? (
+              {isUploadingVideo ? (
+                <div className="flex flex-col items-center justify-center py-6 text-violet-400">
+                  <Loader2 className="w-5 h-5 mb-2 animate-spin" />
+                  <span className="text-[10px]">Uploading video...</span>
+                </div>
+              ) : effectiveVideo ? (
                 <div className="relative">
-                  <video 
-                    src={data.inputVideo} 
-                    className="w-full h-auto max-h-[100px] object-contain bg-black/20" 
-                    muted 
+                  <video
+                    src={effectiveVideo}
+                    className="w-full h-auto max-h-[100px] object-contain bg-black/20"
+                    muted
                   />
-                  <button
-                    onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined, result: undefined }); }}
-                    className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
-                  >
-                    <X className="w-3 h-3 text-white" />
-                  </button>
+                  {data.inputVideo && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined, result: undefined }); }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  )}
                   <div className="absolute bottom-2 left-2 text-[9px] text-violet-400 bg-black/70 px-2 py-1 rounded-lg flex items-center gap-1">
-                    <Film className="w-3 h-3" />Video loaded
+                    <Film className="w-3 h-3" />{connectedVideo ? "← Connected" : "Video loaded"}
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-6 text-zinc-500">
                   <Film className="w-5 h-5 mb-2" />
                   <span className="text-[10px]">Drop video or click to upload</span>
-                  <span className="text-[9px] text-zinc-600 mt-1">Max 10MB</span>
+                  <span className="text-[9px] text-zinc-600 mt-1">Max 50MB</span>
                 </div>
               )}
             </div>
