@@ -336,14 +336,19 @@ async function deductCreditsForNode(
       return;
     }
 
-    // Calculate cost: provider actual > dynamic calculation > base estimate
-    const cost = providerActualCost ?? calculateActualCost(nodeType, input);
-    
-    // Skip if no cost (free utility nodes)
+    // Calculate cost: provider actual (if > 0) > dynamic calculation > base estimate
+    // Use || instead of ?? so that 0 falls through to calculateActualCost
+    const cost = (providerActualCost && providerActualCost > 0) 
+      ? providerActualCost 
+      : calculateActualCost(nodeType, input);
+
+    // Skip if no cost (truly free nodes only)
     if (cost <= 0) {
-      console.log(`[NodeExecutor] Node ${nodeType} is free, no credit deduction`);
+      console.log(`[NodeExecutor] Node ${nodeType} has no cost, skipping credit deduction`);
       return;
     }
+    
+    console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits`);
 
     // Deduct credits in a transaction
     await db.$transaction(async (tx) => {

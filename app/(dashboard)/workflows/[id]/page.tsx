@@ -812,36 +812,34 @@ export default function WorkflowEditorPage() {
         resultPreview = mediaUrl;
       }
       
-      // Update node with completed status AND the result URL
-      // Store ALL media URLs (both HTTP and base64) so they show in UI
-      // Only HTTP URLs will persist on save (base64 gets stripped)
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === nodeId
-            ? { 
-                ...n, 
-                data: { 
-                  ...(n.data as Record<string, unknown>), 
-                  status: "completed", 
-                  progress: 100,
-                  // Store the output type for display purposes
-                  outputType: outputData?.type,
-                  // Store the result URL so it shows in UI (HTTP or base64)
-                  ...(mediaUrl ? { result: mediaUrl } : {}),
-                } 
-              }
-            : n
-        )
-      );
+      // Use updateNode ONLY to both update the source node AND propagate to connected nodes
+      // Don't use setNodes separately as that prevents change detection in updateNode
+      const { updateNode, propagateOutput } = useFlowStore.getState();
       
-      // Also update via store for propagation
+      // Build the update data
+      const updateData: Record<string, unknown> = {
+        status: "completed",
+        progress: 100,
+        outputType: outputData?.type,
+      };
+      
       if (mediaUrl) {
-        const { updateNode } = useFlowStore.getState();
-        // Store all URLs for display, but only HTTP URLs will persist
-        updateNode(nodeId, { result: mediaUrl });
-      } else if (resultPreview && outputData?.type === "text") {
-        const { updateNode } = useFlowStore.getState();
-        updateNode(nodeId, { result: resultPreview });
+        updateData.result = mediaUrl;
+      } else if (resultPreview) {
+        updateData.result = resultPreview;
+      }
+      
+      // Update the node - this will also trigger propagation via updateNode's logic
+      updateNode(nodeId, updateData);
+      
+      // Also explicitly call propagateOutput to ensure downstream nodes get the output
+      // This handles the result -> inputVideo1/inputVideo2 mapping correctly
+      const resultUrl = mediaUrl || resultPreview;
+      if (resultUrl) {
+        // Small delay to ensure node update is complete before propagation
+        setTimeout(() => {
+          propagateOutput(nodeId, resultUrl);
+        }, 10);
       }
       
       // Refetch credits after each node completes

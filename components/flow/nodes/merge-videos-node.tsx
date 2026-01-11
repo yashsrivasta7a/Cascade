@@ -195,7 +195,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     { id: "transition", type: "text" as const, label: "Transition", hidden: !showSettings },
   ], [showSettings]);
 
-  const transitionInfo = TRANSITION_INFO[data.transition || "none"];
+  const transitionInfo = TRANSITION_INFO[data.transition as keyof typeof TRANSITION_INFO] || TRANSITION_INFO.none;
 
   return (
     <BaseNode

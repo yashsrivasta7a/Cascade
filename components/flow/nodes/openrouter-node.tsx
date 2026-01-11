@@ -512,23 +512,17 @@ ${data.prompt}`;
                     />
                   </div>
 
-                  {/* Negative Prompt Toggle */}
-                  <button
-                    onClick={toggleNegative}
-                    className="nodrag nowheel w-full h-6 rounded-lg border border-white/10 bg-white/[0.02] text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center justify-center gap-1"
-                  >
-                    {showNegative ? <><X className="w-3 h-3" />Remove Negative</> : <><Plus className="w-3 h-3" />Add Negative Prompt</>}
-                  </button>
-
-                  {showNegative && (
+                  {/* Negative Prompt - always visible, optional */}
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">Negative Prompt (optional)</label>
                     <textarea
                       value={data.negativePrompt || ""}
                       onChange={(e) => updateNode(id, { negativePrompt: e.target.value })}
-                      placeholder="Things to avoid..."
+                      placeholder="Things to avoid... (leave empty if not needed)"
                       rows={2}
                       className="nodrag nowheel w-full px-2 py-1.5 rounded-lg bg-red-500/5 border border-red-500/20 text-[10px] text-zinc-100 placeholder-zinc-600 resize-none"
                     />
-                  )}
+                  </div>
                 </div>
               </motion.div>
             )}

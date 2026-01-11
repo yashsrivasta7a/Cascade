@@ -347,6 +347,11 @@ export const useFlowStore = create<FlowState>()(
         // Check each changed field and propagate to connected nodes
         const changedKeys = Object.keys(data).filter(key => data[key as keyof typeof data] !== oldData[key]);
         
+        // Output handles - these should ONLY propagate the "result" field, NOT input fields
+        const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response"];
+        // Settings that should be shared in real-time (NOT media inputs)
+        const realtimeSettings = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens", "duration", "text", "transition", "transitionDuration"];
+        
         for (const edge of outgoingEdges) {
           const sourceHandle = edge.sourceHandle;
           const targetHandle = edge.targetHandle;
@@ -354,38 +359,24 @@ export const useFlowStore = create<FlowState>()(
           
           if (!targetHandle) continue;
           
+          // Check if this is an OUTPUT connection (media output -> media input)
+          const isOutputConnection = outputHandles.includes(sourceHandle || "");
+          
           // Get the actual data field for this source handle
           const dataField = handleToDataField[sourceHandle || ""] || sourceHandle;
           
-          // Settings that should be shared in real-time
-          const realtimeSettings = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens", "duration", "text"];
+          // Determine what value to pass based on connection type
+          let valueToPass: unknown;
           
-          // Check if this edge should propagate data
-          const shouldPropagate = 
-            // Direct field match (source handle maps to changed data)
-            changedKeys.includes(dataField || "") ||
-            (sourceHandle && changedKeys.includes(sourceHandle)) ||
-            // "out" bundle: propagate when any bundled setting changes
-            (sourceHandle === "out" && changedKeys.some(k => [...realtimeSettings, "result", "out"].includes(k))) ||
-            // Settings connection: propagate when the target handle's value changes on source
-            (changedKeys.includes(targetHandle));
-          
-          if (shouldPropagate) {
-            const existingUpdates = targetUpdates.get(targetNodeId) || {};
-            
-            // Determine what value to pass
-            let valueToPass: unknown;
-            
-            // First try the mapped data field
-            if (dataField && newData[dataField] !== undefined) {
-              valueToPass = newData[dataField];
+          if (isOutputConnection) {
+            // For OUTPUT connections, ONLY pass the "result" field (the actual output)
+            // Do NOT pass fields that happen to match the target handle name
+            if (changedKeys.includes("result") && newData.result !== undefined) {
+              valueToPass = newData.result;
             }
-            // Then try the source handle directly
-            else if (sourceHandle && newData[sourceHandle] !== undefined) {
-              valueToPass = newData[sourceHandle];
-            }
-            // Handle "out" bundle output - for real-time settings sharing
-            else if (sourceHandle === "out") {
+          } else if (sourceHandle === "out") {
+            // For "out" bundle (settings sharing), propagate settings
+            if (changedKeys.some(k => [...realtimeSettings, "result", "out"].includes(k))) {
               // Try to get value from the "out" bundle if it exists
               if (typeof newData.out === "object" && newData.out !== null) {
                 const bundleValue = (newData.out as Record<string, unknown>)[targetHandle];
@@ -393,21 +384,25 @@ export const useFlowStore = create<FlowState>()(
                   valueToPass = bundleValue;
                 }
               }
-              // If no bundle or bundle doesn't have the field, use direct field value
-              // This enables real-time sharing before generation
-              if (valueToPass === undefined && newData[targetHandle] !== undefined) {
+              // If no bundle, check if target handle is a setting we should share
+              if (valueToPass === undefined && realtimeSettings.includes(targetHandle) && newData[targetHandle] !== undefined) {
                 valueToPass = newData[targetHandle];
               }
             }
-            // Direct settings sharing: if target handle matches a changed setting on source
-            if (valueToPass === undefined && changedKeys.includes(targetHandle)) {
-              valueToPass = newData[targetHandle];
-            }
+          } else {
+            // For other connections (settings connections from radial handles)
+            // Handle the -setting suffix from radial handles (e.g., "prompt-setting" -> "prompt")
+            const actualSourceHandle = (sourceHandle || "").replace("-setting", "");
             
-            if (valueToPass !== undefined) {
-              existingUpdates[targetHandle] = valueToPass;
-              targetUpdates.set(targetNodeId, existingUpdates);
+            if (realtimeSettings.includes(actualSourceHandle) && changedKeys.includes(actualSourceHandle)) {
+              valueToPass = newData[actualSourceHandle];
             }
+          }
+          
+          if (valueToPass !== undefined) {
+            const existingUpdates = targetUpdates.get(targetNodeId) || {};
+            existingUpdates[targetHandle] = valueToPass;
+            targetUpdates.set(targetNodeId, existingUpdates);
           }
         }
         
@@ -651,25 +646,37 @@ export const useFlowStore = create<FlowState>()(
             return { ...node, data: nodeData };
           }
           
-          // Handle specific settings connections: out -> specific setting
-          if (isSettingsConnection && sourceBundle[targetHandle ?? ""] !== undefined) {
-            const key = targetHandle ?? "";
-            nodeData[key] = sourceBundle[key];
+          // Handle specific settings connections: source setting -> target setting
+          // settingId is the SOURCE setting (e.g., "prompt"), targetHandle is the TARGET field (e.g., "negativePrompt")
+          const sourceSettingId = edgeData?.settingId as string | undefined;
+          const actualSourceHandle = sourceHandle?.replace("-setting", "") ?? "";
+          const settingSource = sourceSettingId || actualSourceHandle;
+          
+          if (isSettingsConnection && settingSource) {
+            const sourceValue = sourceBundle[settingSource];
+            const targetField = targetHandle ?? settingSource;
             
-            // Update inheritance metadata for this specific setting
-            const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
-            const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
-            nodeData._inheritedFrom = {
-              sourceNodeId,
-              sourceNodeType,
-              settings: {
-                ...existingSettings,
-                [key]: sourceBundle[key],
-              },
-              fullInheritance: false,
-            };
+            console.log(`[propagateOutput] Settings connection: ${settingSource} -> ${targetField}, value="${String(sourceValue).slice(0, 50)}..."`);
             
-            return { ...node, data: nodeData };
+            if (sourceValue !== undefined) {
+              // Pass the SOURCE setting value to the TARGET field
+              nodeData[targetField] = sourceValue;
+              
+              // Update inheritance metadata for this specific setting
+              const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
+              const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
+              nodeData._inheritedFrom = {
+                sourceNodeId,
+                sourceNodeType,
+                settings: {
+                  ...existingSettings,
+                  [targetField]: sourceValue,
+                },
+                fullInheritance: false,
+              };
+              
+              return { ...node, data: nodeData };
+            }
           }
           
           // Determine the type of output based on source handle
@@ -681,10 +688,14 @@ export const useFlowStore = create<FlowState>()(
           // Map to appropriate field based on target handle and output type
           if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
             nodeData.inputImage = output;
-          } else if (targetHandle === "video" || targetHandle === "inputVideo" || targetHandle === "inputVideo1") {
-            nodeData.inputVideo = output;
+          } else if (targetHandle === "inputVideo1") {
+            // Specifically for merge-videos Video 1 input
+            nodeData.inputVideo1 = output;
           } else if (targetHandle === "inputVideo2") {
+            // Specifically for merge-videos Video 2 input
             nodeData.inputVideo2 = output;
+          } else if (targetHandle === "video" || targetHandle === "inputVideo") {
+            nodeData.inputVideo = output;
           } else if (targetHandle === "audio" || targetHandle === "inputAudio") {
             nodeData.inputAudio = output;
           } else if (targetHandle === "prompt") {

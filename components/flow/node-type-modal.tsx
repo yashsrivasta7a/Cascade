@@ -163,14 +163,10 @@ export function NodeTypeModal({
                       </div>
 
                       {/* Cost */}
-                      {node.estimatedCost > 0 ? (
-                        <div className="flex items-center gap-1 text-[11px] text-zinc-500">
-                          <Zap className="w-3 h-3" />
-                          {formatCredits(node.estimatedCost)}
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-zinc-600">Free</span>
-                      )}
+                      <div className="flex items-center gap-1 text-[11px] text-zinc-500">
+                        <Zap className="w-3 h-3" />
+                        {formatCredits(node.estimatedCost)}
+                      </div>
                     </button>
                   ))}
                 </div>

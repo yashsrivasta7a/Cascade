@@ -342,7 +342,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     action: "Image Editor",
     inputs: [{ type: "image", label: "Input Image" }],
     outputs: [{ type: "image", label: "Cropped Image" }],
-    estimatedCost: 0,
+    estimatedCost: 1_000, // $0.001 - basic image processing
     isUtility: true,
     color: "zinc",
     estimatedTime: "<1s",
@@ -360,7 +360,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
       { type: "audio", label: "Audio" },
     ],
     outputs: [{ type: "video", label: "Combined Video" }],
-    estimatedCost: 0,
+    estimatedCost: 3_000, // $0.003 - FFmpeg processing
     isUtility: true,
     color: "zinc",
     estimatedTime: "~5s",
@@ -378,7 +378,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
       { type: "video", label: "Video 2" },
     ],
     outputs: [{ type: "video", label: "Merged Video" }],
-    estimatedCost: 0,
+    estimatedCost: 5_000, // $0.005 - FFmpeg processing
     isUtility: true,
     color: "zinc",
     estimatedTime: "~5s",
@@ -393,7 +393,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     action: "Video → Audio",
     inputs: [{ type: "video", label: "Video" }],
     outputs: [{ type: "audio", label: "Audio Track" }],
-    estimatedCost: 0,
+    estimatedCost: 2_000, // $0.002 - FFmpeg processing
     isUtility: true,
     color: "zinc",
     estimatedTime: "~3s",

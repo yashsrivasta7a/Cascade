@@ -288,6 +288,7 @@ export function hasEnoughCredits(balance: number, estimatedCost: number): boolea
  * Format credits for display (e.g., "5,000" or "1.2M")
  */
 export function formatCredits(credits: number): string {
+  if (credits === 0) return "0";
   if (credits >= 1_000_000) {
     // Show up to 2 decimal places for millions (e.g., "2.45M")
     const millions = credits / 1_000_000;
@@ -297,6 +298,10 @@ export function formatCredits(credits: number): string {
     return `${millions.toFixed(2)}M`;
   }
   if (credits >= 10_000) {
+    return `${(credits / 1_000).toFixed(0)}K`;
+  }
+  if (credits >= 1_000) {
+    // Show K format for thousands (e.g., "1K", "3K", "5K")
     return `${(credits / 1_000).toFixed(0)}K`;
   }
   return credits.toLocaleString();

@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState } from "react";
+import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState, useCallback } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   Copy,
@@ -15,9 +15,32 @@ import {
   Circle,
   Clock,
   Square,
+  Settings2,
+  ChevronRight,
+  Type,
+  Hash,
+  Palette,
+  Thermometer,
+  Bot,
+  Zap,
+  X,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
-import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings } from "@/types/nodes";
+import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType } from "@/types/nodes";
+
+// Icons for different setting types
+const settingIcons: Record<string, typeof Type> = {
+  prompt: Type,
+  negative: X,
+  aspectRatio: Palette,
+  seed: Hash,
+  number: Hash,
+  duration: Clock,
+  model: Bot,
+  temperature: Thermometer,
+  boolean: Zap,
+  text: Type,
+};
 
 export interface BaseNodeData {
   label: string;
@@ -192,6 +215,7 @@ function BaseNodeComponent({
   isUtility = false,
   layout = "horizontal",
   id,
+  type: nodeTypeFromProps,
 }: BaseNodeProps) {
   const status = data.status || "idle";
   const selectedNodeId = useFlowStore((s) => s.selectedNode?.id ?? null);
@@ -218,6 +242,44 @@ function BaseNodeComponent({
   // Node dimensions for SVG border
   const nodeRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 320, height: 200 });
+  
+  // Radial settings expansion state
+  const [settingsExpanded, setSettingsExpanded] = useState<string | null>(null);
+  const [hoveredSetting, setHoveredSetting] = useState<string | null>(null);
+  const settingsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const setConnectingFrom = useFlowStore((s) => s.setConnectingFrom);
+  
+  // Get node type from the props - nodeTypeFromProps is the React Flow node type
+  // This is passed from the parent node component (e.g., SeedreamNode → BaseNode)
+  const nodeType = nodeTypeFromProps || (data as any).nodeType || id?.split("-")[0] as AINodeType;
+  const contract = nodeType ? NODE_CONTRACTS[nodeType as AINodeType] : undefined;
+  const nodeSettings = contract?.settings || [];
+  
+  // Calculate radial positions for settings handles
+  // Spreads N items across a semi-circle arc with good spacing
+  const getRadialPosition = useCallback((index: number, total: number, baseRadius: number = 80) => {
+    if (total === 1) {
+      return { x: baseRadius, y: 0 };
+    }
+    
+    // Adjust radius based on number of items to prevent overlap
+    // More items = larger radius
+    const radius = baseRadius + Math.max(0, (total - 5) * 8);
+    
+    // Spread angle based on number of items
+    // More items = wider spread (up to 140 degrees)
+    const maxSpread = Math.min(Math.PI * 0.78, Math.PI / 3 + (total * 0.08)); // -70° to +70° max
+    const startAngle = -maxSpread;
+    const endAngle = maxSpread;
+    const angleStep = (endAngle - startAngle) / (total - 1);
+    const angle = startAngle + (index * angleStep);
+
+    return {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    };
+  }, []);
+  
 
   useEffect(() => {
     if (nodeRef.current) {
@@ -233,6 +295,84 @@ function BaseNodeComponent({
       return () => resizeObserver.disconnect();
     }
   }, []);
+  
+  // Track if mouse is inside settings area (anchor + radial handles)
+  const isMouseInSettingsRef = useRef(false);
+  
+  // Handle expanding settings on hover
+  const handleSettingsHover = useCallback((outputId: string) => {
+    // Only expand if there are settings to show
+    if (nodeSettings.length === 0) return;
+    
+    isMouseInSettingsRef.current = true;
+    
+    // Clear any pending timeout
+    if (settingsTimeoutRef.current) {
+      clearTimeout(settingsTimeoutRef.current);
+      settingsTimeoutRef.current = null;
+    }
+    
+    // Expand immediately if already expanded for another output, otherwise short delay
+    if (settingsExpanded) {
+      setSettingsExpanded(outputId);
+    } else {
+      settingsTimeoutRef.current = setTimeout(() => {
+        if (isMouseInSettingsRef.current) {
+          setSettingsExpanded(outputId);
+        }
+      }, 150);
+    }
+  }, [nodeSettings.length, settingsExpanded]);
+  
+  // Toggle settings on click
+  const handleSettingsClick = useCallback((outputId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (settingsTimeoutRef.current) {
+      clearTimeout(settingsTimeoutRef.current);
+      settingsTimeoutRef.current = null;
+    }
+    setSettingsExpanded(prev => prev === outputId ? null : outputId);
+  }, []);
+  
+  const collapseSettings = useCallback(() => {
+    // Only collapse if mouse is not in the area
+    if (isMouseInSettingsRef.current) return;
+    setSettingsExpanded(null);
+    setHoveredSetting(null);
+  }, []);
+  
+  const handleSettingsLeave = useCallback(() => {
+    isMouseInSettingsRef.current = false;
+    
+    // Clear timeout if leaving before it fires
+    if (settingsTimeoutRef.current) {
+      clearTimeout(settingsTimeoutRef.current);
+      settingsTimeoutRef.current = null;
+    }
+    // Longer delay for user-friendliness
+    settingsTimeoutRef.current = setTimeout(() => {
+      collapseSettings();
+    }, 400);
+  }, [collapseSettings]);
+  
+  // Keep expanded when hovering on radial handles
+  const handleRadialHandleEnter = useCallback(() => {
+    isMouseInSettingsRef.current = true;
+    if (settingsTimeoutRef.current) {
+      clearTimeout(settingsTimeoutRef.current);
+      settingsTimeoutRef.current = null;
+    }
+  }, []);
+  
+  // Handle starting a connection from a setting
+  const handleSettingDragStart = useCallback((settingId: string, settingType: DataType) => {
+    isMouseInSettingsRef.current = true; // Keep expanded while dragging
+    setConnectingFrom({
+      nodeId: id,
+      handleId: settingId,
+      handleType: settingType,
+    });
+  }, [id, setConnectingFrom]);
 
   // Calculate handle positions as percentages
   const getHandlePercent = (index: number, total: number): number => {
@@ -510,37 +650,46 @@ function BaseNodeComponent({
         const isHidden = Boolean(input.hidden);
         const handleColor = dataTypeColors[input.type];
         const percent = getHandlePercent(index, inputs.length);
+
+        // Type compatibility groups (matching flow-canvas.tsx)
+        const TYPE_COMPAT: Record<string, string[]> = {
+          number: ["number", "seed", "duration"],
+          seed: ["number", "seed", "duration"],
+          duration: ["number", "seed", "duration"],
+          text: ["text", "prompt", "negative"],
+          prompt: ["text", "prompt", "negative"],
+          negative: ["text", "prompt", "negative"],
+          boolean: ["boolean"],
+          aspectRatio: ["aspectRatio"],
+          image: ["image"],
+          video: ["video"],
+          audio: ["audio"],
+          model: ["model"],
+          temperature: ["temperature", "number"],
+        };
+
+        // Check if types are compatible
+        const checkTypeCompat = (from: string, to: string) => {
+          if (from === to) return true;
+          if (from === "any" || to === "any") return true;
+          const compatTypes = TYPE_COMPAT[from];
+          return compatTypes ? compatTypes.includes(to) : false;
+        };
+
+        // Compatible if types match using compatibility groups
+        const isCompatible = isDragging && !isHidden && draggedType && 
+          checkTypeCompat(draggedType, input.type);
         
-        // Media types that can be connected
-        const mediaTypes = ["image", "video", "audio", "text"];
-        // Setting types that can be connected (unified color scheme)
-        const settingTypes = ["prompt", "seed", "aspectRatio", "duration", "model", "temperature", "number", "boolean", "negative"];
-        
-        const isMediaInput = mediaTypes.includes(input.type);
-        const isSettingInput = settingTypes.includes(input.type);
-        const isDraggedMedia = draggedType && mediaTypes.includes(draggedType);
-        const isDraggedSetting = draggedType && settingTypes.includes(draggedType);
-        
-        // Compatible if: same type OR "any" type OR text->prompt conversion
-        const isCompatible = isDragging && !isHidden && draggedType && (
-          // Exact type match
-          input.type === draggedType ||
-          // Any type accepts anything
-          input.type === "any" || draggedType === "any" ||
-          // Media type matches
-          (isMediaInput && isDraggedMedia && input.type === draggedType) ||
-          // Setting type matches
-          (isSettingInput && isDraggedSetting && input.type === draggedType) ||
-          // Text can connect to prompt
-          (input.type === "prompt" && draggedType === "text")
-        );
+        // Dim incompatible handles when dragging
+        const isIncompatible = isDragging && !isHidden && draggedType && !isCompatible;
         
         return (
           <div
             key={`input-${input.id}`}
             className={cn(
-              "absolute left-0 z-30",
-              isHidden && "opacity-0 pointer-events-none"
+              "absolute left-0 z-30 transition-opacity duration-200",
+              isHidden && "opacity-0 pointer-events-none",
+              isIncompatible && "opacity-30"
             )}
             style={{ top: `${percent}%`, transform: "translate(-50%, -50%)" }}
             data-handletype={input.type}
@@ -569,12 +718,12 @@ function BaseNodeComponent({
                   left: 0,
                   top: 0,
                   transform: "none",
-                  borderColor: handleColor.solid,
+                  borderColor: isIncompatible ? "#555" : handleColor.solid,
                   boxShadow: isCompatible ? `0 0 12px ${handleColor.solid}, 0 0 24px ${handleColor.solid}` : undefined,
-                  backgroundColor: isCompatible ? handleColor.solid : undefined,
+                  backgroundColor: isCompatible ? handleColor.solid : isIncompatible ? "#333" : undefined,
                 }}
                 className={cn(
-                  "!relative !left-0 !top-0 !transform-none",
+                  "!relative !left-0 !top-0 !transform-none transition-all duration-200",
                   isCompatible && "!scale-125"
                 )}
               />
@@ -602,53 +751,256 @@ function BaseNodeComponent({
         );
       })}
 
-      {/* Output Handles */}
+      {/* Output Handles - Two separate handles stacked vertically: Media Output + Settings */}
       {outputs.map((output, index) => {
         const isHidden = Boolean(output.hidden);
         const handleColor = dataTypeColors[output.type];
-        const percent = getHandlePercent(index, outputs.length);
+        const hasSettings = nodeSettings.length > 0;
+        const isSettingsExpanded = settingsExpanded === output.id;
+        
+        // Calculate positions - if we have settings, we need 2 handles
+        // Media output at 40%, Settings at 60% (or just media at 50% if no settings)
+        const mediaPercent = hasSettings ? 35 : getHandlePercent(index, outputs.length);
+        const settingsPercent = 65;
         
         return (
-          <div
-            key={`output-${output.id}`}
-            className={cn(
-              "absolute right-0 z-30",
-              isHidden && "opacity-0 pointer-events-none"
-            )}
-            style={{ top: `${percent}%`, transform: "translate(50%, -50%)" }}
-            data-handletype={output.type}
-          >
-            <div className="handle-wrapper" data-handletype={output.type}>
-              <Handle
-                id={output.id}
-                type="source"
-                position={Position.Right}
+          <div key={`output-${output.id}`}>
+            {/* 1. MEDIA OUTPUT HANDLE - for sharing actual output */}
+            <div
+              className={cn(
+                "absolute right-0 z-30",
+                isHidden && "opacity-0 pointer-events-none"
+              )}
+              style={{ top: `${mediaPercent}%`, transform: "translate(50%, -50%)" }}
+            >
+              <div 
+                className="handle-wrapper relative group" 
                 data-handletype={output.type}
-                style={{ 
-                  position: "relative",
-                  right: 0,
-                  top: 0,
-                  transform: "none",
-                  borderColor: handleColor.solid,
-                }}
-                className="!relative !right-0 !top-0 !transform-none"
-              />
+              >
+                <Handle
+                  id={output.id}
+                  type="source"
+                  position={Position.Right}
+                  data-handletype={output.type}
+                  style={{ 
+                    position: "relative",
+                    right: 0,
+                    top: 0,
+                    transform: "none",
+                    borderColor: handleColor.solid,
+                  }}
+                  className="!relative !right-0 !top-0 !transform-none"
+                />
+              </div>
+              
+              {/* Media output label */}
+              <span
+                className={cn(
+                  "absolute left-full ml-2 top-1/2 -translate-y-1/2",
+                  "text-[10px] font-medium whitespace-nowrap",
+                  "px-2 py-1 rounded-md",
+                  "bg-[#0d0d0d] border border-white/10",
+                  handleColor.text
+                )}
+              >
+                {output.label}
+              </span>
             </div>
             
-            <span
-              className={cn(
-                "absolute left-full ml-2 top-1/2 -translate-y-1/2",
-                "text-[10px] font-medium whitespace-nowrap",
-                "px-2 py-1 rounded-md",
-                "bg-[#0d0d0d] border border-white/10",
-                handleColor.text
-              )}
-            >
-              {output.label}
-            </span>
+            {/* 2. SETTINGS ANCHOR HANDLE - hover/click to expand radial settings */}
+            {hasSettings && (
+              <div
+                className="absolute right-0 z-40"
+                style={{ top: `${settingsPercent}%`, transform: "translate(50%, -50%)" }}
+                onMouseEnter={() => handleSettingsHover(output.id)}
+                onMouseLeave={handleSettingsLeave}
+                onClick={(e) => handleSettingsClick(output.id, e)}
+              >
+                <div 
+                  className={cn(
+                    "relative p-2 -m-2 rounded-lg cursor-pointer",
+                    "hover:bg-violet-500/10 transition-colors",
+                    isSettingsExpanded && "bg-violet-500/20"
+                  )}
+                >
+                  {/* Anchor handle (square) */}
+                  <div
+                    className={cn(
+                      "w-3 h-3 rounded-sm border-2 transition-all duration-150",
+                      "border-violet-500 bg-[#1a1a2e]",
+                      "hover:scale-125 hover:bg-violet-500/50",
+                      isSettingsExpanded && "scale-110 bg-violet-500"
+                    )}
+                  />
+                </div>
+                
+                {/* Settings label - hidden when expanded */}
+                <AnimatePresence>
+                  {!isSettingsExpanded && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className={cn(
+                        "absolute left-full ml-2 top-1/2 -translate-y-1/2",
+                        "text-[10px] font-medium whitespace-nowrap",
+                        "px-2 py-1 rounded-md flex items-center gap-1",
+                        "bg-violet-500/10 border border-violet-500/30",
+                        "text-violet-400 cursor-pointer"
+                      )}
+                    >
+                      <Settings2 className="w-2.5 h-2.5" />
+                      Settings
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                
+                {/* Radial Settings Handles - ALWAYS RENDERED for React Flow, but visually hidden */}
+                <div 
+                  className={cn(
+                    "absolute left-0 top-0",
+                    isSettingsExpanded ? "pointer-events-auto" : "pointer-events-none"
+                  )}
+                  onMouseEnter={handleRadialHandleEnter}
+                  onMouseLeave={handleSettingsLeave}
+                >
+                  {nodeSettings.map((setting, settingIndex) => {
+                    const pos = getRadialPosition(settingIndex, nodeSettings.length, 85);
+                    const Icon = settingIcons[setting.type] || Hash;
+                    const color = dataTypeColors[setting.type as DataType] || dataTypeColors.text;
+                    const isHovered = hoveredSetting === setting.id;
+                    
+                    // Calculate bezier curve control points
+                    return (
+                      <div
+                        key={setting.id}
+                        className="absolute"
+                        style={{ 
+                          left: isSettingsExpanded ? pos.x : 0, 
+                          top: isSettingsExpanded ? pos.y : 0,
+                          opacity: isSettingsExpanded ? 1 : 0,
+                          transform: `translate(-50%, -50%) scale(${isSettingsExpanded ? 1 : 0})`,
+                          transition: `all 0.2s ease-out ${settingIndex * 0.03}s`,
+                        }}
+                        onMouseEnter={() => setHoveredSetting(setting.id)}
+                        onMouseLeave={() => setHoveredSetting(null)}
+                      >
+                        {/* Setting Handle - ALWAYS RENDERED */}
+                        <div className="relative">
+                          {/* Glow ring on hover */}
+                          {isHovered && (
+                            <div 
+                              className="absolute inset-0 rounded-full animate-pulse"
+                              style={{
+                                backgroundColor: color.solid,
+                                opacity: 0.3,
+                                transform: "scale(2)",
+                              }}
+                            />
+                          )}
+                          <Handle
+                            id={`${setting.id}-setting`}
+                            type="source"
+                            position={Position.Right}
+                            data-handletype={setting.type}
+                            style={{ 
+                              position: "relative",
+                              right: 0,
+                              top: 0,
+                              transform: "none",
+                              borderColor: color.solid,
+                              backgroundColor: isHovered ? color.solid : `${color.solid}40`,
+                              width: "12px",
+                              height: "12px",
+                              boxShadow: isHovered ? `0 0 8px ${color.solid}` : "none",
+                            }}
+                            className={cn(
+                              "!relative !right-0 !top-0 !transform-none !rounded-full !border-2",
+                              "transition-all duration-150 cursor-grab",
+                              isHovered && "!scale-110"
+                            )}
+                            onMouseDown={() => handleSettingDragStart(setting.id, setting.type as DataType)}
+                          />
+                          
+                          {/* Curved bezier line from handle to anchor */}
+                          {isSettingsExpanded && (
+                            <svg
+                              className="absolute"
+                              style={{
+                                left: 5,
+                                top: 5,
+                                width: 1,
+                                height: 1,
+                                overflow: "visible",
+                                pointerEvents: "stroke",
+                              }}
+                              onMouseEnter={handleRadialHandleEnter}
+                              onMouseLeave={handleSettingsLeave}
+                            >
+                              {/* Glow effect */}
+                              <path
+                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
+                                fill="none"
+                                stroke={color.solid}
+                                strokeWidth="6"
+                                strokeOpacity="0.1"
+                                strokeLinecap="round"
+                              />
+                              {/* Main curve */}
+                              <path
+                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
+                                fill="none"
+                                stroke={color.solid}
+                                strokeWidth="2"
+                                strokeOpacity={isHovered ? "0.8" : "0.4"}
+                                strokeLinecap="round"
+                                className="transition-all duration-150"
+                              />
+                              {/* Invisible wider stroke for easier hover */}
+                              <path
+                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
+                                fill="none"
+                                stroke="transparent"
+                                strokeWidth="12"
+                                style={{ cursor: "pointer" }}
+                              />
+                            </svg>
+                          )}
+                          
+                          {/* Label - always visible when expanded */}
+                          {isSettingsExpanded && (
+                            <div
+                              className={cn(
+                                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                                "text-[9px] font-medium whitespace-nowrap",
+                                "px-2 py-1 rounded-md",
+                                "bg-zinc-900/95 backdrop-blur-sm border z-50",
+                                "flex items-center gap-1.5",
+                                "shadow-xl transition-all duration-150",
+                                isHovered && "scale-105"
+                              )}
+                              style={{
+                                borderColor: isHovered ? color.solid : `${color.solid}40`,
+                                color: color.solid,
+                                boxShadow: isHovered ? `0 0 12px ${color.solid}30` : undefined,
+                              }}
+                            >
+                              <Icon className="w-3 h-3" />
+                              {setting.label}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
+      
     </motion.div>
   );
 }

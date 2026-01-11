@@ -22,6 +22,10 @@ import {
   AlertCircle,
   Pause,
   ChevronDown,
+  Calendar,
+  TrendingUp,
+  Activity,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -42,6 +46,7 @@ interface NodeExecutionRecord {
   startedAt?: string;
   completedAt?: string;
   actualCost?: number;
+  durationMs?: number;
 }
 
 interface ExecutionRecord {
@@ -49,9 +54,12 @@ interface ExecutionRecord {
   workflowName?: string;
   status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
   createdAt: string;
+  startedAt?: string;
   completedAt?: string;
   nodeExecutions: NodeExecutionRecord[];
   totalCost?: number;
+  estimatedCost?: number;
+  durationMs?: number;
 }
 
 // =============================================================================
@@ -69,6 +77,37 @@ function formatTimeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function formatExactTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString("en-US", { 
+    hour: "2-digit", 
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false 
+  });
+}
+
+function formatExactDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const isToday = date.toDateString() === today.toDateString();
+  
+  if (isToday) {
+    return "Today";
+  }
+  
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  
+  return date.toLocaleDateString("en-US", { 
+    month: "short", 
+    day: "numeric" 
+  });
+}
+
 function formatDuration(startedAt?: string, completedAt?: string): string {
   if (!startedAt) return "—";
   const start = new Date(startedAt).getTime();
@@ -78,6 +117,34 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
   if (diff < 1000) return `${diff}ms`;
   if (diff < 60000) return `${(diff / 1000).toFixed(1)}s`;
   return `${(diff / 60000).toFixed(1)}m`;
+}
+
+function formatDurationMs(ms?: number): string {
+  if (!ms) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / 60000).toFixed(1)}m`;
+}
+
+function formatCredits(credits?: number): string {
+  if (!credits || credits === 0) return "-";
+  if (credits >= 1_000_000) {
+    return `${(credits / 1_000_000).toFixed(2)}M`;
+  }
+  if (credits >= 1_000) {
+    return `${(credits / 1_000).toFixed(1)}K`;
+  }
+  return credits.toString();
+}
+
+function formatCost(credits?: number): string {
+  if (!credits || credits === 0) return "$0.00";
+  // 1 credit = $0.000001 (1M credits = $1)
+  const dollars = credits / 1_000_000;
+  if (dollars < 0.01) {
+    return `$${dollars.toFixed(4)}`;
+  }
+  return `$${dollars.toFixed(2)}`;
 }
 
 // Get node category icon
@@ -120,79 +187,95 @@ function getNodeColor(nodeType: string): string {
   }
 }
 
-// Status config with icons, labels, and glow effects
+// Status config with icons, labels, and enhanced visual effects
 const statusStyles = {
   PENDING: { 
     icon: <Clock className="w-3.5 h-3.5" />, 
     color: "text-zinc-400", 
     bg: "bg-zinc-500/20",
-    border: "border-zinc-500/30",
+    border: "border-zinc-500/40",
     label: "Pending",
     glow: "",
     dotColor: "bg-zinc-400",
+    cardBg: "bg-zinc-900/60",
+    accentBar: "bg-zinc-500",
   },
   QUEUED: { 
     icon: <Clock className="w-3.5 h-3.5" />, 
     color: "text-zinc-400", 
     bg: "bg-zinc-500/20",
-    border: "border-zinc-500/30",
+    border: "border-zinc-500/40",
     label: "Queued",
     glow: "",
     dotColor: "bg-zinc-400",
+    cardBg: "bg-zinc-900/60",
+    accentBar: "bg-zinc-500",
   },
   RUNNING: { 
     icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, 
     color: "text-cyan-400", 
-    bg: "bg-cyan-500/20",
-    border: "border-cyan-500/30",
+    bg: "bg-cyan-500/25",
+    border: "border-cyan-500/50",
     label: "Running",
-    glow: "shadow-[0_0_12px_rgba(34,211,238,0.5)]",
+    glow: "shadow-[0_0_15px_rgba(34,211,238,0.4)]",
     dotColor: "bg-cyan-400 animate-pulse",
+    cardBg: "bg-cyan-950/30",
+    accentBar: "bg-gradient-to-b from-cyan-400 to-cyan-600",
   },
   WAITING: { 
     icon: <Pause className="w-3.5 h-3.5" />, 
     color: "text-amber-400", 
-    bg: "bg-amber-500/20",
-    border: "border-amber-500/30",
+    bg: "bg-amber-500/25",
+    border: "border-amber-500/50",
     label: "Waiting",
-    glow: "shadow-[0_0_12px_rgba(251,191,36,0.4)]",
+    glow: "shadow-[0_0_15px_rgba(251,191,36,0.3)]",
     dotColor: "bg-amber-400 animate-pulse",
+    cardBg: "bg-amber-950/20",
+    accentBar: "bg-gradient-to-b from-amber-400 to-amber-600",
   },
   COMPLETED: { 
     icon: <CheckCircle2 className="w-3.5 h-3.5" />, 
     color: "text-emerald-400", 
-    bg: "bg-emerald-500/20",
-    border: "border-emerald-500/30",
-    label: "Completed",
-    glow: "shadow-[0_0_8px_rgba(52,211,153,0.3)]",
+    bg: "bg-emerald-500/25",
+    border: "border-emerald-500/50",
+    label: "Success",
+    glow: "shadow-[0_0_12px_rgba(52,211,153,0.3)]",
     dotColor: "bg-emerald-400",
+    cardBg: "bg-emerald-950/20",
+    accentBar: "bg-gradient-to-b from-emerald-400 to-emerald-600",
   },
   FAILED: { 
     icon: <XCircle className="w-3.5 h-3.5" />, 
     color: "text-red-400", 
-    bg: "bg-red-500/20",
-    border: "border-red-500/30",
+    bg: "bg-red-500/30",
+    border: "border-red-500/60",
     label: "Failed",
-    glow: "shadow-[0_0_12px_rgba(248,113,113,0.4)]",
+    glow: "shadow-[0_0_15px_rgba(248,113,113,0.4)]",
     dotColor: "bg-red-400",
+    cardBg: "bg-red-950/25",
+    accentBar: "bg-gradient-to-b from-red-400 to-red-600",
   },
   CANCELLED: { 
     icon: <XCircle className="w-3.5 h-3.5" />, 
-    color: "text-zinc-500", 
-    bg: "bg-zinc-500/20",
-    border: "border-zinc-500/30",
+    color: "text-orange-400", 
+    bg: "bg-orange-500/20",
+    border: "border-orange-500/40",
     label: "Cancelled",
     glow: "",
-    dotColor: "bg-zinc-500",
+    dotColor: "bg-orange-400",
+    cardBg: "bg-orange-950/15",
+    accentBar: "bg-gradient-to-b from-orange-400 to-orange-600",
   },
   TERMINATED: { 
     icon: <AlertCircle className="w-3.5 h-3.5" />, 
     color: "text-zinc-500", 
     bg: "bg-zinc-500/20",
-    border: "border-zinc-500/30",
+    border: "border-zinc-500/40",
     label: "Terminated",
     glow: "",
     dotColor: "bg-zinc-500",
+    cardBg: "bg-zinc-900/60",
+    accentBar: "bg-zinc-500",
   },
 };
 
@@ -240,26 +323,47 @@ export function ExecutionHistoryPanel({
       if (triggerResponse.ok) {
         const triggerData = await triggerResponse.json();
         
-        const transformed: ExecutionRecord[] = (triggerData.executions || []).map((exec: any) => ({
-          id: exec.id,
-          workflowName: exec.workflowName || "Workflow Run",
-          status: exec.status?.toUpperCase?.() ?? "PENDING",
-          createdAt: exec.createdAt || exec.startedAt || new Date().toISOString(),
-          completedAt: exec.completedAt,
-          totalCost: exec.totalCost || 0,
-          nodeExecutions: (exec.nodeExecutions || []).map((ne: any) => ({
-            id: ne.id || exec.id,
-            nodeId: ne.nodeId || ne.id || exec.id,
-            nodeLabel: ne.nodeLabel || ne.nodeType || "Node",
-            nodeType: ne.nodeType || "unknown",
-            status: ne.status?.toUpperCase?.() ?? exec.status?.toUpperCase?.() ?? "PENDING",
-            providerUsed: ne.providerUsed || ne.provider,
-            error: ne.error || exec.error,
-            startedAt: ne.startedAt,
-            completedAt: ne.completedAt,
-            actualCost: ne.actualCost || 0,
-          })),
-        }));
+        const transformed: ExecutionRecord[] = (triggerData.executions || []).map((exec: any) => {
+          // Calculate duration
+          let durationMs: number | undefined;
+          if (exec.startedAt && exec.completedAt) {
+            durationMs = new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime();
+          } else if (exec.createdAt && exec.completedAt) {
+            durationMs = new Date(exec.completedAt).getTime() - new Date(exec.createdAt).getTime();
+          }
+          
+          return {
+            id: exec.id,
+            workflowName: exec.workflowName || "Workflow Run",
+            status: exec.status?.toUpperCase?.() ?? "PENDING",
+            createdAt: exec.createdAt || exec.startedAt || new Date().toISOString(),
+            startedAt: exec.startedAt,
+            completedAt: exec.completedAt,
+            totalCost: exec.totalCost || exec.actualCost || 0,
+            estimatedCost: exec.estimatedCost || 0,
+            durationMs,
+            nodeExecutions: (exec.nodeExecutions || []).map((ne: any) => {
+              let nodeDuration: number | undefined;
+              if (ne.startedAt && ne.completedAt) {
+                nodeDuration = new Date(ne.completedAt).getTime() - new Date(ne.startedAt).getTime();
+              }
+              
+              return {
+                id: ne.id || exec.id,
+                nodeId: ne.nodeId || ne.id || exec.id,
+                nodeLabel: ne.nodeLabel || ne.nodeType || "Node",
+                nodeType: ne.nodeType || "unknown",
+                status: ne.status?.toUpperCase?.() ?? exec.status?.toUpperCase?.() ?? "PENDING",
+                providerUsed: ne.providerUsed || ne.provider,
+                error: ne.error || exec.error,
+                startedAt: ne.startedAt,
+                completedAt: ne.completedAt,
+                actualCost: ne.actualCost || 0,
+                durationMs: nodeDuration || ne.durationMs,
+              };
+            }),
+          };
+        });
         
         // If no node executions from database, skip this run (it's likely an internal task)
         // Only show runs that have actual node execution records
@@ -278,26 +382,44 @@ export function ExecutionHistoryPanel({
       if (!response.ok) throw new Error("Failed to fetch");
       
       const data = await response.json();
-      const transformed: ExecutionRecord[] = (data.executions || []).map((exec: any) => ({
-        id: exec.id,
-        workflowName: exec.workflowName,
-        status: exec.status?.toUpperCase?.() ?? "PENDING",
-        createdAt: exec.createdAt,
-        completedAt: exec.completedAt,
-        totalCost: exec.totalCost || 0,
-        nodeExecutions: (exec.nodes || exec.nodeExecutions || []).map((ne: any) => ({
-          id: ne.id,
-          nodeId: ne.nodeId || ne.id,
-          nodeLabel: ne.label || ne.nodeLabel || ne.nodeType || "Node",
-          nodeType: ne.nodeType || "openrouter",
-          status: ne.status?.toUpperCase?.() ?? "PENDING",
-          providerUsed: ne.provider || ne.providerUsed,
-          error: ne.error,
-          startedAt: ne.startedAt,
-          completedAt: ne.completedAt,
-          actualCost: ne.actualCost || 0,
-        })),
-      }));
+      const transformed: ExecutionRecord[] = (data.executions || []).map((exec: any) => {
+        let durationMs: number | undefined;
+        if (exec.startedAt && exec.completedAt) {
+          durationMs = new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime();
+        }
+        
+        return {
+          id: exec.id,
+          workflowName: exec.workflowName,
+          status: exec.status?.toUpperCase?.() ?? "PENDING",
+          createdAt: exec.createdAt,
+          startedAt: exec.startedAt,
+          completedAt: exec.completedAt,
+          totalCost: exec.totalCost || exec.actualCost || 0,
+          estimatedCost: exec.estimatedCost || 0,
+          durationMs,
+          nodeExecutions: (exec.nodes || exec.nodeExecutions || []).map((ne: any) => {
+            let nodeDuration: number | undefined;
+            if (ne.startedAt && ne.completedAt) {
+              nodeDuration = new Date(ne.completedAt).getTime() - new Date(ne.startedAt).getTime();
+            }
+            
+            return {
+              id: ne.id,
+              nodeId: ne.nodeId || ne.id,
+              nodeLabel: ne.label || ne.nodeLabel || ne.nodeType || "Node",
+              nodeType: ne.nodeType || "openrouter",
+              status: ne.status?.toUpperCase?.() ?? "PENDING",
+              providerUsed: ne.provider || ne.providerUsed,
+              error: ne.error,
+              startedAt: ne.startedAt,
+              completedAt: ne.completedAt,
+              actualCost: ne.actualCost || 0,
+              durationMs: nodeDuration || ne.durationMs,
+            };
+          }),
+        };
+      });
       
       setExecutions(transformed);
     } catch (err) {
@@ -398,12 +520,14 @@ export function ExecutionHistoryPanel({
           <div className="px-4 py-3 border-b border-zinc-800/80 bg-gradient-to-r from-zinc-900 to-zinc-950">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/20 to-violet-500/20 flex items-center justify-center">
-                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 via-violet-500/15 to-emerald-500/20 flex items-center justify-center ring-1 ring-white/5">
+                  <Activity className="w-4 h-4 text-cyan-400" />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-zinc-100">Activity</h3>
-                  <p className="text-[10px] text-zinc-600">Recent runs</p>
+                  <p className="text-[10px] text-zinc-500">
+                    {executions.length > 0 ? `${executions.length} recent runs` : "No runs yet"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -411,6 +535,7 @@ export function ExecutionHistoryPanel({
                   onClick={fetchExecutions}
                   disabled={isLoading}
                   className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all"
+                  title="Refresh"
                 >
                   <RotateCcw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
                 </button>
@@ -422,6 +547,55 @@ export function ExecutionHistoryPanel({
                 </button>
               </div>
             </div>
+            
+            {/* Stats Summary */}
+            {executions.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                {/* Success */}
+                <div className="bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-500/20">
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span className="text-[9px] text-emerald-400/70">Success</span>
+                  </div>
+                  <p className="text-sm font-bold text-emerald-400 mt-0.5">
+                    {executions.filter(e => e.status === "COMPLETED").length}
+                  </p>
+                </div>
+                
+                {/* Failed */}
+                <div className="bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-500/20">
+                  <div className="flex items-center gap-1">
+                    <XCircle className="w-3 h-3 text-red-400" />
+                    <span className="text-[9px] text-red-400/70">Failed</span>
+                  </div>
+                  <p className="text-sm font-bold text-red-400 mt-0.5">
+                    {executions.filter(e => e.status === "FAILED").length}
+                  </p>
+                </div>
+                
+                {/* Running */}
+                <div className="bg-cyan-500/10 rounded-lg px-2 py-1.5 border border-cyan-500/20">
+                  <div className="flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 text-cyan-400" />
+                    <span className="text-[9px] text-cyan-400/70">Running</span>
+                  </div>
+                  <p className="text-sm font-bold text-cyan-400 mt-0.5">
+                    {executions.filter(e => e.status === "RUNNING").length}
+                  </p>
+                </div>
+                
+                {/* Total Cost */}
+                <div className="bg-amber-500/10 rounded-lg px-2 py-1.5 border border-amber-500/20">
+                  <div className="flex items-center gap-1">
+                    <Coins className="w-3 h-3 text-amber-400" />
+                    <span className="text-[9px] text-amber-400/70">Cost</span>
+                  </div>
+                  <p className="text-sm font-bold text-amber-400 mt-0.5">
+                    {formatCost(executions.reduce((sum, e) => sum + (e.totalCost || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Content - All executions in chronological order */}
@@ -463,22 +637,27 @@ export function ExecutionHistoryPanel({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: execIndex * 0.03 }}
                       className={cn(
-                        "rounded-xl border transition-all overflow-hidden",
-                        "bg-zinc-900/60",
+                        "rounded-xl border transition-all overflow-hidden relative",
+                        status.cardBg,
                         status.border
                       )}
                     >
+                      {/* Status accent bar on left */}
+                      <div className={cn(
+                        "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl",
+                        status.accentBar
+                      )} />
                       {isMultiNode ? (
                         /* Workflow Run - Multiple connected nodes, expandable */
                         <>
                           <button
                             onClick={() => toggleWorkflow(exec.id)}
-                            className="w-full text-left p-3 hover:bg-zinc-800/50 transition-colors"
+                            className="w-full text-left p-3 pl-4 hover:bg-white/[0.02] transition-colors"
                           >
                             <div className="flex items-center gap-3">
                               {/* Status Icon */}
                               <div className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-shadow",
+                                "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-shadow",
                                 status.bg,
                                 status.glow
                               )}>
@@ -495,22 +674,49 @@ export function ExecutionHistoryPanel({
                                     Workflow Run
                                   </span>
                                 </div>
+                                
+                                {/* Time and Stats Row */}
+                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                  {/* Exact Time */}
+                                  <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                    <Calendar className="w-2.5 h-2.5" />
+                                    <span>{formatExactDate(exec.createdAt)}</span>
+                                    <span className="text-zinc-600">•</span>
+                                    <span>{formatExactTime(exec.createdAt)}</span>
+                                  </div>
+                                  
+                                  {/* Duration */}
+                                  {exec.durationMs && (
+                                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                      <Timer className="w-2.5 h-2.5" />
+                                      <span>{formatDurationMs(exec.durationMs)}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Cost */}
+                                  {(exec.totalCost ?? 0) > 0 && (
+                                    <div className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                      <Coins className="w-2.5 h-2.5" />
+                                      <span>{formatCost(exec.totalCost)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Node Stats */}
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className="text-[10px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
                                     {nodeCount} node{nodeCount !== 1 ? "s" : ""}
                                   </span>
-                                  <span className="text-[10px] text-zinc-600">•</span>
-                                  <span className="text-[10px] text-zinc-500">
-                                    {formatTimeAgo(exec.createdAt)}
-                                  </span>
                                   {completedNodes > 0 && (
-                                    <span className="text-[10px] text-emerald-400">
-                                      ✓{completedNodes}
+                                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                      <CheckCircle2 className="w-2.5 h-2.5" />
+                                      {completedNodes}
                                     </span>
                                   )}
                                   {failedNodes > 0 && (
-                                    <span className="text-[10px] text-red-400">
-                                      ✗{failedNodes}
+                                    <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                      <XCircle className="w-2.5 h-2.5" />
+                                      {failedNodes}
                                     </span>
                                   )}
                                 </div>
@@ -536,55 +742,101 @@ export function ExecutionHistoryPanel({
                                 transition={{ duration: 0.2 }}
                                 className="border-t border-zinc-800/50"
                               >
-                                <div className="p-2 space-y-1">
+                                <div className="p-2 space-y-1.5">
                                   {exec.nodeExecutions.map((node, nodeIndex) => {
                                     const nodeStatus = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
                                     const nodeColor = getNodeColor(node.nodeType);
                                     const displayName = getNodeDisplayName(node);
+                                    const nodeDef = NODE_DEFINITIONS[node.nodeType as AINodeType];
                                     
                                     return (
                                       <button
                                         key={`${node.id}-${nodeIndex}`}
                                         onClick={() => handleNodeClick(node.nodeType, node.nodeId)}
                                         className={cn(
-                                          "w-full text-left p-2 rounded-lg transition-all group",
-                                          "bg-zinc-800/30 hover:bg-zinc-800/60",
-                                          "border border-transparent hover:border-zinc-700/50"
+                                          "w-full text-left p-2.5 rounded-lg transition-all group",
+                                          "bg-zinc-800/40 hover:bg-zinc-800/70",
+                                          "border border-zinc-700/30 hover:border-zinc-600/50"
                                         )}
                                       >
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2.5">
                                           {/* Node Icon */}
-                                          <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0", nodeColor)}>
+                                          <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0", nodeColor)}>
                                             {getNodeIcon(node.nodeType)}
                                           </div>
                                           
                                           {/* Node Info */}
                                           <div className="flex-1 min-w-0">
-                                            <span className="text-xs font-medium text-zinc-200 truncate block">
-                                              {displayName}
-                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-medium text-zinc-200 truncate">
+                                                {displayName}
+                                              </span>
+                                              {node.providerUsed && (
+                                                <span className="text-[8px] text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded">
+                                                  {node.providerUsed}
+                                                </span>
+                                              )}
+                                            </div>
+                                            
+                                            {/* Node Stats */}
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                              {/* Duration */}
+                                              {(node.durationMs || node.startedAt) && (
+                                                <span className="text-[9px] text-zinc-500 flex items-center gap-0.5">
+                                                  <Timer className="w-2.5 h-2.5" />
+                                                  {node.durationMs 
+                                                    ? formatDurationMs(node.durationMs)
+                                                    : formatDuration(node.startedAt, node.completedAt)
+                                                  }
+                                                </span>
+                                              )}
+                                              
+                                              {/* Cost - show actual or estimated from definition */}
+                                              {(() => {
+                                                const actualCost = node.actualCost ?? 0;
+                                                const estimatedCost = nodeDef?.estimatedCost ?? 0;
+                                                const displayCost = actualCost > 0 ? actualCost : estimatedCost;
+                                                const isEstimate = actualCost <= 0 && estimatedCost > 0;
+                                                
+                                                if (displayCost > 0) {
+                                                  return (
+                                                    <span className={cn(
+                                                      "text-[9px] flex items-center gap-0.5",
+                                                      isEstimate ? "text-zinc-500" : "text-amber-400"
+                                                    )}>
+                                                      <Coins className="w-2.5 h-2.5" />
+                                                      {isEstimate ? "~" : ""}{formatCredits(displayCost)}
+                                                    </span>
+                                                  );
+                                                }
+                                                return null;
+                                              })()}
+                                              
+                                              {/* Exact Time */}
+                                              {node.startedAt && (
+                                                <span className="text-[9px] text-zinc-600">
+                                                  {formatExactTime(node.startedAt)}
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                           
-                                          {/* Status & Duration */}
-                                          <div className="flex items-center gap-2 shrink-0">
-                                            {node.startedAt && (
-                                              <span className="text-[9px] text-zinc-500">
-                                                {formatDuration(node.startedAt, node.completedAt)}
-                                              </span>
-                                            )}
-                                            <div className={cn(
-                                              "w-5 h-5 rounded flex items-center justify-center",
-                                              nodeStatus.bg
-                                            )}>
-                                              <div className={cn("scale-75", nodeStatus.color)}>{nodeStatus.icon}</div>
-                                            </div>
+                                          {/* Status Badge */}
+                                          <div className={cn(
+                                            "flex items-center gap-1 px-1.5 py-0.5 rounded-md shrink-0",
+                                            nodeStatus.bg
+                                          )}>
+                                            <div className={cn("scale-75", nodeStatus.color)}>{nodeStatus.icon}</div>
+                                            <span className={cn("text-[9px] font-medium", nodeStatus.color)}>
+                                              {nodeStatus.label}
+                                            </span>
                                           </div>
                                         </div>
                                         
                                         {/* Error */}
                                         {node.error && (
-                                          <div className="mt-1.5 p-1.5 rounded bg-red-500/10 border border-red-500/20">
-                                            <p className="text-[9px] text-red-400 line-clamp-1">{node.error}</p>
+                                          <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                                            <p className="text-[9px] text-red-400 line-clamp-2">{node.error}</p>
                                           </div>
                                         )}
                                       </button>
@@ -599,12 +851,12 @@ export function ExecutionHistoryPanel({
                         /* Individual Node Run - Single node (Play button) */
                         <button
                           onClick={() => singleNode && handleNodeClick(singleNode.nodeType, singleNode.nodeId)}
-                          className="w-full text-left p-3 hover:bg-zinc-800/50 transition-colors"
+                          className="w-full text-left p-3 pl-4 hover:bg-white/[0.02] transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             {/* Status Icon */}
                             <div className={cn(
-                              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-shadow",
+                              "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-shadow",
                               status.bg,
                               status.glow
                             )}>
@@ -617,45 +869,85 @@ export function ExecutionHistoryPanel({
                                 <span className="text-[9px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                   Single
                                 </span>
-                                <div className={cn("w-4 h-4 rounded flex items-center justify-center", singleNodeColor)}>
+                                <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center", singleNodeColor)}>
                                   {singleNode && getNodeIcon(singleNode.nodeType)}
                                 </div>
                                 <span className="text-sm font-medium text-zinc-100 truncate">
                                   {singleNodeName}
                                 </span>
                               </div>
+                              
+                              {/* Time and Stats Row */}
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                {/* Exact Time */}
+                                <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  <span>{formatExactDate(exec.createdAt)}</span>
+                                  <span className="text-zinc-600">•</span>
+                                  <span>{formatExactTime(exec.createdAt)}</span>
+                                </div>
+                                
+                                {/* Duration */}
+                                {(singleNode?.durationMs || singleNode?.startedAt) && (
+                                  <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                    <Timer className="w-2.5 h-2.5" />
+                                    <span>
+                                      {singleNode?.durationMs 
+                                        ? formatDurationMs(singleNode.durationMs)
+                                        : formatDuration(singleNode?.startedAt, singleNode?.completedAt)
+                                      }
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {/* Cost - show actual or estimated from definition */}
+                                {(() => {
+                                  const singleNodeDef = singleNode ? NODE_DEFINITIONS[singleNode.nodeType as AINodeType] : undefined;
+                                  const actualCost = singleNode?.actualCost ?? 0;
+                                  const estimatedCost = singleNodeDef?.estimatedCost ?? 0;
+                                  const displayCost = actualCost > 0 ? actualCost : estimatedCost;
+                                  const isEstimate = actualCost <= 0 && estimatedCost > 0;
+                                  
+                                  if (displayCost > 0) {
+                                    return (
+                                      <div className={cn(
+                                        "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded",
+                                        isEstimate 
+                                          ? "text-zinc-400 bg-zinc-800/60" 
+                                          : "text-amber-400 bg-amber-500/10"
+                                      )}>
+                                        <Coins className="w-2.5 h-2.5" />
+                                        <span>{isEstimate ? "~" : ""}{formatCost(displayCost)}</span>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                              
+                              {/* Provider */}
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[10px] text-violet-400 font-medium bg-violet-500/10 px-1.5 py-0.5 rounded">
                                   {singleNodeProvider}
                                 </span>
-                                <span className="text-[10px] text-zinc-600">•</span>
-                                <span className="text-[10px] text-zinc-500">
-                                  {formatTimeAgo(exec.createdAt)}
-                                </span>
-                                {singleNode?.startedAt && (
-                                  <>
-                                    <span className="text-[10px] text-zinc-600">•</span>
-                                    <span className="text-[10px] text-zinc-500">
-                                      {formatDuration(singleNode.startedAt, singleNode.completedAt)}
-                                    </span>
-                                  </>
-                                )}
                               </div>
                             </div>
 
-                            {/* Status */}
+                            {/* Status Badge */}
                             <div className={cn(
-                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0",
-                              status.bg
+                              "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase shrink-0 border",
+                              status.bg,
+                              status.border,
+                              status.glow
                             )}>
-                              <span className={cn("w-1.5 h-1.5 rounded-full", status.dotColor)} />
+                              <div className={status.color}>{status.icon}</div>
                               <span className={status.color}>{status.label}</span>
                             </div>
                           </div>
 
                           {/* Error */}
                           {singleNode?.error && (
-                            <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                            <div className="mt-2.5 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
                               <p className="text-[10px] text-red-400 line-clamp-2">{singleNode.error}</p>
                             </div>
                           )}
@@ -669,11 +961,16 @@ export function ExecutionHistoryPanel({
           </div>
 
           {/* Footer */}
-          <div className="px-3 py-2 border-t border-zinc-800/80 bg-zinc-900/50">
-            <p className="text-[10px] text-zinc-600 flex items-center justify-center gap-1.5">
-              <Target className="w-3 h-3" />
-              Click any node to focus on canvas
-            </p>
+          <div className="px-3 py-2.5 border-t border-zinc-800/80 bg-gradient-to-r from-zinc-900/80 to-zinc-950/80">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+                <Target className="w-3 h-3" />
+                Click to focus node
+              </p>
+              <p className="text-[10px] text-zinc-600">
+                Auto-refresh: 5s
+              </p>
+            </div>
           </div>
         </motion.div>
       )}

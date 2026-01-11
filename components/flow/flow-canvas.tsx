@@ -82,12 +82,16 @@ function CustomEdge({
 }: EdgeProps) {
   const dataType = (data?.dataType as string) || "any";
   const isNegative = data?.isNegative === true || dataType === "negative";
+  const isSettingsConnection = data?.isSettingsConnection === true || data?.fromSettingsPopover === true;
   const [isHovered, setIsHovered] = useState(false);
   const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
   const [animationPhase, setAnimationPhase] = useState(0);
   
   // Get colors based on data type - uses the unified color palette
-  const typeColors = edgeColors[dataType] || edgeColors.any;
+  // Settings connections use a special violet/purple color scheme
+  const typeColors = isSettingsConnection 
+    ? { stroke: "#a855f7", glow: "rgba(168, 85, 247, 0.5)" } // violet for settings
+    : edgeColors[dataType] || edgeColors.any;
   
   // Animate phase for flowing dots when workflow is running
   useEffect(() => {
@@ -211,13 +215,27 @@ function CustomEdge({
           d={edgePath}
           fill="none"
           stroke={typeColors.stroke}
-          strokeWidth={3}
+          strokeWidth={isSettingsConnection ? 2 : 3}
           strokeLinecap="round"
+          strokeDasharray={isSettingsConnection ? "6 4" : undefined}
           markerEnd={markerEnd}
           style={{
             filter: `drop-shadow(0 0 4px ${typeColors.stroke})`,
           }}
         />
+        
+        {/* Settings connection indicator - small dots along the path */}
+        {isSettingsConnection && !isWorkflowRunning && (
+          <path
+            d={edgePath}
+            fill="none"
+            stroke="white"
+            strokeWidth={1}
+            strokeLinecap="round"
+            strokeDasharray="2 10"
+            opacity={0.4}
+          />
+        )}
       </g>
       
       {/* Animated flowing dash when running */}
@@ -534,13 +552,49 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
   return false;
 }
 
+// Type compatibility matrix for settings connections
+// Groups of types that can connect to each other
+const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
+  // Number types can connect to each other
+  number: ["number", "seed", "duration"],
+  seed: ["number", "seed", "duration"],
+  duration: ["number", "seed", "duration"],
+  
+  // Text types can connect to each other
+  text: ["text", "prompt", "negative"],
+  prompt: ["text", "prompt", "negative"],
+  negative: ["text", "prompt", "negative"],
+  
+  // Boolean types
+  boolean: ["boolean"],
+  
+  // Aspect ratio is specific
+  aspectRatio: ["aspectRatio"],
+  
+  // Media types
+  image: ["image"],
+  video: ["video"],
+  audio: ["audio"],
+  
+  // Model types
+  model: ["model"],
+  
+  // Temperature
+  temperature: ["temperature", "number"],
+};
+
 function isTypeCompatible(from: DataType | undefined, to: DataType | undefined): boolean {
   if (!from || !to) return false;
   if (from === to) return true;
   if (to === "any") return true;
   if (from === "any") return true;
-  // Text can connect to negative prompt
-  if (from === "text" && to === "negative") return true;
+  
+  // Check compatibility groups
+  const compatibleTypes = TYPE_COMPATIBILITY_GROUPS[from];
+  if (compatibleTypes && compatibleTypes.includes(to)) {
+    return true;
+  }
+  
   return false;
 }
 
@@ -684,14 +738,36 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const sourceNodeType = sourceNode?.type as AINodeType | undefined;
       const targetNodeType = targetNode?.type as AINodeType | undefined;
 
-      const fromType = getHandleDataType(sourceNode, "outputs", conn.sourceHandle);
-      const toType = getHandleDataType(targetNode, "inputs", conn.targetHandle);
+      // Check if source handle is a radial settings handle (ends with -setting)
+      const sourceHandle = conn.sourceHandle ?? "";
+      const isFromRadialSettings = sourceHandle.endsWith("-setting");
+      const actualSourceHandle = isFromRadialSettings 
+        ? sourceHandle.replace("-setting", "") 
+        : sourceHandle;
+      
       const targetHandle = conn.targetHandle ?? "";
-
-      // Check if target is a settings input - settings can receive from any output
+      
+      // Check if target is a settings input
       const isTargetSettings = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
       
-      // If connecting to a settings input, allow if source node has that setting
+      // If dragging FROM a radial settings handle
+      if (isFromRadialSettings && sourceNodeType) {
+        const sourceContract = NODE_CONTRACTS[sourceNodeType];
+        const sourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) => s.id === actualSourceHandle);
+        
+        if (sourceSetting) {
+          const sourceSettingType = sourceSetting.type as DataType;
+          const toType = getHandleDataType(targetNode, "inputs", targetHandle);
+          
+          // Check type compatibility between source setting and target input
+          if (!isTypeCompatible(sourceSettingType, toType)) return false;
+          if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
+          return true;
+        }
+        return false;
+      }
+      
+      // If connecting to a settings input from a regular output
       if (isTargetSettings && sourceNodeType) {
         // Check if source node has this setting
         const sourceContract = NODE_CONTRACTS[sourceNodeType];
@@ -704,6 +780,8 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       }
 
       // For non-settings connections, check type compatibility
+      const fromType = getHandleDataType(sourceNode, "outputs", actualSourceHandle);
+      const toType = getHandleDataType(targetNode, "inputs", targetHandle);
       if (!isTypeCompatible(fromType, toType)) return false;
       if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
 
@@ -750,7 +828,38 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const targetNode = params.target ? nodes.find((n) => n.id === params.target) : undefined;
       const sourceNodeType = sourceNode?.type as AINodeType | undefined;
       const targetNodeType = targetNode?.type as AINodeType | undefined;
-      const edgeDataType = getHandleDataType(sourceNode, "outputs", params.sourceHandle) ?? "any";
+      
+      // Check if connection is from settings popover or settings bundle handle
+      let actualSourceHandle = params.sourceHandle ?? "";
+      let isFromSettingsPopover = false;
+      let isFromOutputPopover = false;
+      let settingId: string | null = null;
+      
+      if (actualSourceHandle.endsWith("-setting")) {
+        // Connection from individual setting in popover
+        actualSourceHandle = actualSourceHandle.replace("-setting", "");
+        settingId = actualSourceHandle;
+        isFromSettingsPopover = true;
+      } else if (actualSourceHandle.endsWith("-output")) {
+        // Connection from output popover (media output) - legacy
+        actualSourceHandle = actualSourceHandle.replace("-output", "");
+        isFromOutputPopover = true;
+      } else if (actualSourceHandle.endsWith("-settings-bundle")) {
+        // Connection from the settings bundle handle itself - don't allow direct connections
+        // This handle is just for triggering the popover, not for direct connections
+        console.log("Settings bundle handle - use popover to select a specific setting");
+        return;
+      }
+      
+      // For settings connections, keep the original handle ID so React Flow connects from the radial handle
+      // For other connections, use the cleaned handle ID
+      const edgeSourceHandle = isFromSettingsPopover ? params.sourceHandle : actualSourceHandle;
+      const cleanedParams = {
+        ...params,
+        sourceHandle: edgeSourceHandle,
+      };
+      
+      const edgeDataType = getHandleDataType(sourceNode, "outputs", actualSourceHandle) ?? "any";
       const targetHandleType = getHandleDataType(targetNode, "inputs", params.targetHandle);
 
       // Check if connecting to a negative prompt handle
@@ -761,24 +870,40 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const isTargetSettingsInput = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
       const isTargetMediaInput = targetNodeType ? isMediaHandle(targetNodeType, targetHandle) : false;
       
-      // Settings connection: when connecting to a SETTINGS input
+      // Settings connection: when connecting FROM a settings handle OR TO a settings input
       // This should copy the setting value AND lock it on the target node
-      const isSettingsConnection = isTargetSettingsInput;
+      const isSettingsConnection = isFromSettingsPopover || isTargetSettingsInput;
+      
+      // Determine the edge data type for settings connections
+      let finalEdgeDataType = edgeDataType;
+      if (isFromSettingsPopover && sourceNodeType) {
+        // Get the setting type from NODE_CONTRACTS
+        const contract = NODE_CONTRACTS[sourceNodeType];
+        const setting = contract?.settings.find(s => s.id === actualSourceHandle);
+        if (setting) {
+          finalEdgeDataType = setting.type as DataType;
+        }
+      }
 
       const nextEdges = addEdge(
         {
-          ...params,
+          ...cleanedParams,
           type: "custom",
           animated: false,
           data: {
-            dataType: edgeDataType,
+            dataType: finalEdgeDataType,
             isNegative,
             targetHandle: params.targetHandle ?? null,
             targetNodeId: params.target ?? null,
             sourceNodeType,
-            sourceHandle: params.sourceHandle,
+            sourceHandle: actualSourceHandle,
             isSettingsConnection,
-            isMediaConnection: isTargetMediaInput,
+            isMediaConnection: isTargetMediaInput && !isFromSettingsPopover,
+            // Track if this was from the popover
+            fromSettingsPopover: isFromSettingsPopover,
+            fromOutputPopover: isFromOutputPopover,
+            // Store the setting ID for settings connections
+            settingId: settingId || (isFromSettingsPopover ? actualSourceHandle : undefined),
           },
         },
         edges

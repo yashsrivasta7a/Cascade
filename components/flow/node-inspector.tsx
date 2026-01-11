@@ -36,6 +36,13 @@ const categoryColors: Record<string, string> = {
   utility: "text-zinc-200 bg-white/5 border-white/10",
 };
 
+function formatCredits(credits: number): string {
+  if (credits === 0) return "~0";
+  if (credits >= 1_000_000) return `${(credits / 1_000_000).toFixed(2)}M`;
+  if (credits >= 1_000) return `${(credits / 1_000).toFixed(1)}K`;
+  return credits.toString();
+}
+
 export function NodeInspector() {
   const { selectedNode, updateNode, deleteNode, selectNode, duplicateNode } = useFlowStore();
 
@@ -98,17 +105,10 @@ export function NodeInspector() {
               <span>{nodeDef.provider}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              {nodeDef.estimatedCost > 0 ? (
-                <div className="flex items-center gap-1 text-[10px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
-                  <Coins className="w-3 h-3" />
-                  <span>{nodeDef.estimatedCost} credits</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-[10px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
-                  <Zap className="w-3 h-3" />
-                  <span>Free</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1 text-[10px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                <Coins className="w-3 h-3" />
+                <span>{formatCredits(nodeDef.estimatedCost)} credits</span>
+              </div>
             </div>
           </div>
         </div>

@@ -60,20 +60,20 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
     priceNote: "Cost scales with video duration",
   },
   "crop-image": {
-    priceLabel: "Free",
-    priceNote: "Utility node - no cost",
+    priceLabel: "$0.001",
+    priceNote: "Basic image processing",
   },
   "merge-videos": {
-    priceLabel: "Free",
-    priceNote: "Utility node - no cost",
+    priceLabel: "$0.005",
+    priceNote: "FFmpeg video processing",
   },
   "merge-audio-video": {
-    priceLabel: "Free",
-    priceNote: "Utility node - no cost",
+    priceLabel: "$0.003",
+    priceNote: "FFmpeg audio/video merge",
   },
   "extract-audio": {
-    priceLabel: "Free",
-    priceNote: "Utility node - no cost",
+    priceLabel: "$0.002",
+    priceNote: "FFmpeg audio extraction",
   },
 };
 
