@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { AudioLines, Play, Loader2, Upload, X, Film, Download, Volume2, Lock, ChevronDown } from "lucide-react";
+import { AudioLines, Play, Loader2, X, Film, Download, Volume2, Lock, ChevronDown } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -64,8 +64,16 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
     return null;
   }, [edges, nodes, id]);
 
+  // Check if handle has incoming connection (even if no output yet)
+  const hasVideoConnection = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputVideo"), [edges, id]);
+  
   // Effective video: use connected if available, otherwise use direct data
   const effectiveVideo = data.inputVideo || connectedVideo;
+  
+  // hasInput is true if we have the actual data OR if we have a connection (dependencies will run)
+  const hasInput = Boolean(effectiveVideo || hasVideoConnection);
+  // Check if we need to run dependencies (have connection but no data yet)
+  const needsDependencies = hasVideoConnection && !effectiveVideo;
 
   const handleVideoUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("video/")) return;
@@ -123,9 +131,27 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
     if (file) handleVideoUpload(file);
   }, [handleVideoUpload]);
 
+  const runNode = useFlowStore((s) => s.runNode);
+  
   const runExtract = useCallback(async () => {
-    if (!effectiveVideo) return;
+    // If we need dependencies, use the flow store's runNode which handles them
+    if (needsDependencies) {
+      setIsProcessing(true);
+      updateNode(id, { status: "queued", error: undefined });
+      
+      try {
+        await runNode(id);
+      } catch (error) {
+        updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
     
+    // Direct execution when we have input ready
+    if (!effectiveVideo) return;
+
     setIsProcessing(true);
     updateNode(id, { status: "running", error: undefined });
 
@@ -162,7 +188,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [effectiveVideo, data.format, data.bitrate, data.sampleRate, data.channels, data.normalize, data.label, id, updateNode, propagateOutput, workflowId]);
+  }, [needsDependencies, effectiveVideo, data.format, data.bitrate, data.sampleRate, data.channels, data.normalize, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
 
   // Memoize inputs
   const inputs = useMemo(() => [
@@ -302,17 +328,19 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
           <div className="flex items-center gap-2">
             <button
               onClick={runExtract}
-              disabled={!data.inputVideo || isProcessing}
+              disabled={!hasInput || isProcessing}
               className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
                 isProcessing
                   ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
-                  : data.inputVideo
+                  : hasInput
                   ? "bg-violet-500/20 border-violet-500/30 text-violet-300 hover:bg-violet-500/30"
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
               {isProcessing ? (
                 <><Loader2 className="w-3.5 h-3.5 animate-spin" />Extracting...</>
+              ) : needsDependencies ? (
+                <><Play className="w-3.5 h-3.5" />Run Pipeline</>
               ) : (
                 <><AudioLines className="w-3.5 h-3.5" />Extract Audio</>
               )}

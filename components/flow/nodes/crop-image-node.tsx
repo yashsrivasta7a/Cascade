@@ -26,6 +26,30 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
   const workflowId = useFlowStore((s) => s.workflowId);
+  const edges = useFlowStore((s) => s.edges);
+  const nodes = useFlowStore((s) => s.nodes);
+  
+  // Check for incoming image connection
+  const connectedImage = useMemo(() => {
+    const edge = edges.find(e => e.target === id && e.targetHandle === "inputImage");
+    if (!edge) return null;
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (!sourceNode) return null;
+    const sourceData = sourceNode.data as Record<string, unknown>;
+    if (sourceData.result && typeof sourceData.result === "string") return sourceData.result;
+    return null;
+  }, [edges, nodes, id]);
+  
+  // Check if handle has incoming connection (even if no output yet)
+  const hasImageConnection = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputImage"), [edges, id]);
+  
+  // Effective image: use connected if available, otherwise use direct data
+  const effectiveImage = data.inputImage || connectedImage;
+  
+  // hasInput is true if we have the actual data OR if we have a connection (dependencies will run)
+  const hasInput = Boolean(effectiveImage || hasImageConnection);
+  // Check if we need to run dependencies (have connection but no data yet)
+  const needsDependencies = hasImageConnection && !effectiveImage;
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSettings, setShowSettings] = useState(Boolean(data.advancedOpen));
@@ -93,9 +117,28 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
     if (file) handleImageUpload(file);
   }, [handleImageUpload]);
 
+  const runNode = useFlowStore((s) => s.runNode);
+  
   const runCrop = useCallback(async () => {
-    if (!data.inputImage) return;
+    // If we need dependencies, use the flow store's runNode which handles them
+    if (needsDependencies) {
+      setIsProcessing(true);
+      updateNode(id, { status: "queued", error: undefined });
+      
+      try {
+        await runNode(id);
+      } catch (error) {
+        updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
     
+    // Direct execution when we have input ready
+    const imageToUse = effectiveImage;
+    if (!imageToUse) return;
+
     setIsProcessing(true);
     updateNode(id, { status: "running" });
 
@@ -109,7 +152,7 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
           nodeLabel: data.label || nodeDef.label,
           workflowId: workflowId ?? undefined,
           input: {
-            image: { url: data.inputImage },
+            image: { url: imageToUse },
             xPercent: data.xPercent || 0,
             yPercent: data.yPercent || 0,
             widthPercent: data.widthPercent || 100,
@@ -131,7 +174,7 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [data.inputImage, data.xPercent, data.yPercent, data.widthPercent, data.heightPercent, id, updateNode, propagateOutput]);
+  }, [needsDependencies, effectiveImage, data.xPercent, data.yPercent, data.widthPercent, data.heightPercent, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
 
   // Memoize inputs to avoid recreating on every render
   const inputs = useMemo(() => [
@@ -258,17 +301,19 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
             <div className="flex items-center gap-2">
               <button
                 onClick={runCrop}
-                disabled={!data.inputImage || isProcessing || isUploadingImage}
+                disabled={!hasInput || isProcessing || isUploadingImage}
                 className={`nodrag nowheel flex-1 h-8 px-4 rounded-lg border text-[11px] font-semibold flex items-center justify-center gap-2 transition-all ${
                   isProcessing || isUploadingImage
                     ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
-                    : data.inputImage
+                    : hasInput
                     ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30"
                     : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
                 }`}
               >
                 {isProcessing ? (
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" />Cropping...</>
+                ) : needsDependencies ? (
+                  <><Play className="w-3.5 h-3.5" />Run Pipeline</>
                 ) : (
                   <><Crop className="w-3.5 h-3.5" />Crop Image</>
                 )}

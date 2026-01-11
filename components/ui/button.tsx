@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { motion, HTMLMotionProps } from "framer-motion";
 
 interface ButtonProps extends Omit<HTMLMotionProps<"button">, "ref"> {
-  variant?: "primary" | "secondary" | "ghost" | "outline" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "outline" | "danger" | "gradient";
   size?: "sm" | "md" | "lg" | "icon";
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
@@ -36,36 +36,41 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary: `
-        bg-white/10 text-white font-semibold
-        border border-white/15
-        hover:bg-white/15 hover:border-white/25
+        bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
+        shadow-lg shadow-blue-500/25
+        hover:from-blue-500 hover:to-blue-400
+        active:scale-[0.98]
+      `,
+      gradient: `
+        bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold
+        shadow-lg shadow-violet-500/25
+        hover:from-violet-500 hover:to-indigo-500
         active:scale-[0.98]
       `,
       secondary: `
-        bg-white/5 text-white/90 font-semibold
-        border border-white/10
-        hover:bg-white/10 hover:border-white/20
+        bg-zinc-800 text-white font-semibold
+        border border-zinc-700/50
+        hover:bg-zinc-700 hover:border-zinc-600/50
         active:scale-[0.98]
       `,
       ghost: `
         bg-transparent
-        text-white/60
+        text-zinc-400
         hover:text-white
-        hover:bg-white/5
+        hover:bg-zinc-800/50
       `,
       outline: `
         bg-transparent
-        border border-white/10
-        text-white/80
-        hover:border-white/20
-        hover:bg-white/5
+        border border-zinc-700/50
+        text-zinc-300
+        hover:border-zinc-600
+        hover:bg-zinc-800/50
         hover:text-white
       `,
       danger: `
-        bg-white/10
-        text-white
-        border border-white/15
-        hover:bg-white/15 hover:border-white/25
+        bg-red-500/10 text-red-400
+        border border-red-500/20
+        hover:bg-red-500/20 hover:border-red-500/30
       `,
     };
 

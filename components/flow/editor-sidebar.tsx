@@ -206,7 +206,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
         initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
         onClick={onToggle}
-        className="fixed left-3 top-20 z-40 w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-all"
+        className="fixed left-3 top-20 z-40 w-10 h-10 rounded-xl bg-black/40 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:border-white/[0.15] transition-all"
       >
         <Layers className="w-4 h-4" />
       </motion.button>
@@ -218,7 +218,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
       initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -16 }}
-      className="fixed left-3 top-16 bottom-3 z-40 w-72 bg-zinc-950 border border-zinc-800/80 rounded-2xl flex flex-col overflow-hidden shadow-2xl shadow-black/50"
+      className="fixed left-3 top-16 bottom-3 z-40 w-72 bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] rounded-2xl flex flex-col overflow-hidden shadow-2xl shadow-black/40"
     >
       {/* Header with tabs */}
       <div className="flex items-center border-b border-zinc-800/50">

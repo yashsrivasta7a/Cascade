@@ -20,6 +20,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DotPattern } from "@/components/ui";
 import {
   NODE_DEFINITIONS,
   CATEGORY_META,
@@ -210,10 +211,13 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="w-72 h-full bg-[#0a0a0a] rounded-2xl border border-white/[0.06] flex flex-col overflow-hidden shadow-2xl shadow-black/50"
+        className="w-72 h-full bg-black/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/40 relative"
       >
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-white/[0.04]">
+        {/* Dot Pattern */}
+        <DotPattern className="text-white/[0.03] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_100%)]" />
+
+        {/* Header - Glass highlight */}
+        <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center">
@@ -245,7 +249,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 4, scale: 0.95 }}
                       transition={{ type: "spring", damping: 25, stiffness: 400 }}
-                      className="absolute right-0 top-full mt-2 w-72 bg-[#0d0d0d] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 z-50 overflow-hidden max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10"
+                      className="absolute right-0 top-full mt-2 w-72 bg-black/70 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.1] rounded-xl shadow-2xl shadow-black/50 z-50 overflow-hidden max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10"
                     >
                       <div className="p-3 border-b border-white/[0.04]">
                         <h4 className="text-xs font-semibold text-white flex items-center gap-2">
@@ -513,8 +517,8 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-4 py-2.5 border-t border-white/[0.04] bg-white/[0.02]">
+        {/* Footer - Glass highlight */}
+        <div className="px-4 py-2.5 border-t border-white/[0.06] bg-white/[0.03]">
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-zinc-600 flex items-center gap-1.5">
               <GripVertical className="w-3 h-3" />
@@ -533,7 +537,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -10, scale: 0.95 }}
             transition={{ type: "spring", damping: 25, stiffness: 400 }}
-            className="absolute left-[calc(100%+8px)] top-4 w-80 max-h-[calc(100vh-160px)] bg-[#0d0d0d] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 overflow-y-auto z-50 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+            className="absolute left-[calc(100%+8px)] top-4 w-80 max-h-[calc(100vh-160px)] bg-black/60 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/50 overflow-y-auto z-50 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
           >
             <NodeInfoCard node={hoveredNodeData} />
           </motion.div>

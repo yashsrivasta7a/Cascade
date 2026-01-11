@@ -16,6 +16,8 @@ import {
   Search,
   Command,
   ChevronRight,
+  Zap,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -116,33 +118,39 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/70 z-50"
           />
 
           {/* Sidebar */}
           <motion.div
-            initial={{ x: -340, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -340, opacity: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 300, mass: 0.8 }}
-            className="fixed left-0 top-0 bottom-0 w-[340px] bg-zinc-950/95 backdrop-blur-2xl border-r border-zinc-800/50 z-50 flex flex-col shadow-2xl shadow-black/50"
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ 
+              type: "tween",
+              duration: 0.25,
+              ease: [0.32, 0.72, 0, 1]
+            }}
+            style={{ willChange: "transform" }}
+            className="fixed left-0 top-0 bottom-0 w-[340px] bg-zinc-950 border-r border-white/[0.08] z-50 flex flex-col shadow-2xl shadow-black/50"
           >
             {/* Header */}
-            <div className="p-4 border-b border-zinc-800/50">
+            <div className="p-4 border-b border-white/[0.06] bg-white/[0.02]">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/20">
-                    <LayoutGrid className="w-5 h-5 text-indigo-400" />
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25">
+                    <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-zinc-100 tracking-tight">Flowsmith Studio</h2>
+                    <h2 className="text-sm font-bold text-white tracking-tight">Flowsmith Studio</h2>
                     <p className="text-[10px] text-zinc-500 font-medium">Enterprise Edition</p>
                   </div>
                 </div>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+                  className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -153,7 +161,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                 <Link
                   href="/dashboard"
                   onClick={onClose}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all group"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all group"
                 >
                   <Home className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                   <span className="text-sm font-medium">Dashboard</span>
@@ -162,12 +170,12 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                 <Link
                   href="/workflows/new"
                   onClick={onClose}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-all group"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all group"
                 >
                   <Plus className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                   <span className="text-sm font-medium">New Project</span>
                   <div className="ml-auto flex items-center gap-1">
-                    <div className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <div className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
                       NEW
                     </div>
                   </div>
@@ -184,7 +192,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search projects..."
-                  className="w-full pl-9 pr-3 py-2 bg-zinc-900/50 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:bg-zinc-900/80 transition-all"
+                  className="w-full pl-9 pr-3 py-2 bg-white/[0.03] border border-white/[0.06] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] focus:bg-white/[0.05] transition-all"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   <Command className="w-3 h-3 text-zinc-700" />
@@ -194,25 +202,27 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
 
             {/* Section Label */}
             <div className="px-4 pb-2 pt-2">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Recent Projects</h3>
+              <h3 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Recent Projects</h3>
             </div>
 
             {/* Workflows List */}
-            <div className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+            <div className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
                 </div>
               ) : hasError ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                  <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3">
                     <X className="w-5 h-5 text-red-400" />
                   </div>
                   <p className="text-sm text-red-400">Failed to load projects</p>
                 </div>
               ) : filteredWorkflows.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center opacity-60">
-                  <FileText className="w-10 h-10 text-zinc-800 mb-3" />
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-10 h-10 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-3">
+                    <FileText className="w-5 h-5 text-zinc-600" />
+                  </div>
                   <p className="text-sm text-zinc-500">No projects found</p>
                 </div>
               ) : (
@@ -223,16 +233,13 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                     const isDeleting = deleteConfirm === workflow.id;
 
                     return (
-                      <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
+                      <div
                         key={workflow.id}
                         className={cn(
-                          "group relative rounded-xl transition-all duration-200",
+                          "group relative rounded-xl transition-colors duration-150",
                           isActive
-                            ? "bg-zinc-900 border border-zinc-800 shadow-sm"
-                            : "hover:bg-zinc-900/40 border border-transparent hover:border-zinc-800/30"
+                            ? "bg-white/[0.06] border border-blue-500/30"
+                            : "hover:bg-white/[0.04] border border-transparent hover:border-white/[0.08]"
                         )}
                       >
                         {isEditing ? (
@@ -246,11 +253,11 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                                 if (e.key === "Enter") handleSaveRename();
                                 if (e.key === "Escape") setEditingId(null);
                               }}
-                              className="flex-1 px-2 py-1.5 text-sm bg-zinc-950 border border-zinc-700 rounded-md text-zinc-100 focus:outline-none focus:border-indigo-500"
+                              className="flex-1 px-2 py-1.5 text-sm bg-black/30 border border-white/[0.1] rounded-md text-zinc-100 focus:outline-none focus:border-blue-500/50"
                             />
                             <button
                               onClick={handleSaveRename}
-                              className="p-1.5 rounded-md bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30"
+                              className="p-1.5 rounded-md bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
@@ -277,7 +284,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                         ) : (
                           <div className="flex items-center">
                             {isActive && (
-                              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-indigo-500 rounded-r-full" />
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-blue-500 rounded-r-full" />
                             )}
                             <button
                               onClick={() => handleWorkflowClick(workflow.id)}
@@ -285,7 +292,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                             >
                               <div className={cn(
                                 "mt-0.5 p-1.5 rounded-lg transition-colors",
-                                isActive ? "bg-indigo-500/10 text-indigo-400" : "bg-zinc-900 text-zinc-600 group-hover:text-zinc-400"
+                                isActive ? "bg-blue-500/15 text-blue-400" : "bg-white/[0.03] text-zinc-600 group-hover:text-zinc-400"
                               )}>
                                 <LayoutGrid className="w-4 h-4" />
                               </div>
@@ -319,8 +326,8 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                                 className={cn(
                                   "p-1.5 rounded-lg transition-colors",
                                   menuOpen === workflow.id
-                                    ? "bg-zinc-800 text-zinc-300"
-                                    : "text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-zinc-800 hover:text-zinc-300"
+                                    ? "bg-white/[0.08] text-zinc-300"
+                                    : "text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-white/[0.06] hover:text-zinc-300"
                                 )}
                               >
                                 <MoreHorizontal className="w-4 h-4" />
@@ -334,11 +341,11 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="absolute right-0 top-full mt-1 w-36 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-20"
+                                    className="absolute right-0 top-full mt-1 w-36 bg-black/80 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-xl overflow-hidden z-20"
                                   >
                                     <button
                                       onClick={() => handleStartRename(workflow.id, workflow.name)}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] transition-colors"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                       Rename
@@ -359,7 +366,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                             </div>
                           </div>
                         )}
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>
@@ -367,13 +374,13 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
             </div>
 
             {/* User Footer */}
-            <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/30">
+            <div className="p-4 border-t border-white/[0.06] bg-white/[0.02]">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs">
-                  FS
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-zinc-200 truncate">Flowsmith User</p>
+                  <p className="text-xs font-medium text-white truncate">Flowsmith User</p>
                   <p className="text-[10px] text-zinc-500 truncate">Pro Plan</p>
                 </div>
               </div>

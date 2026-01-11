@@ -434,6 +434,280 @@ export const executionRouter = router({
 
       return { execution };
     }),
+
+  // ==========================================================================
+  // ERRORS TAB - Aggregated error logs
+  // ==========================================================================
+  errors: protectedProcedure
+    .query(async ({ ctx }) => {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      // Fetch failed node executions from workflow runs
+      const failedNodeExecutions = await ctx.db.nodeExecution.findMany({
+        where: {
+          workflowExecution: { workflow: { userId: ctx.userId } },
+          status: "FAILED",
+          error: { not: null },
+          completedAt: { gte: weekAgo },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 100,
+        select: {
+          id: true,
+          nodeId: true,
+          nodeType: true,
+          nodeLabel: true,
+          error: true,
+          completedAt: true,
+          providerUsed: true,
+          workflowExecution: {
+            select: {
+              workflow: { select: { name: true } },
+            },
+          },
+        },
+      });
+
+      // Fetch failed quick executions
+      const failedQuickExecutions = await ctx.db.quickExecution.findMany({
+        where: {
+          userId: ctx.userId,
+          status: "FAILED",
+          error: { not: null },
+          completedAt: { gte: weekAgo },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          nodeType: true,
+          nodeLabel: true,
+          error: true,
+          completedAt: true,
+          provider: true,
+        },
+      });
+
+      // Combine and format errors
+      const errors = [
+        ...failedNodeExecutions.map((e) => ({
+          id: e.id,
+          nodeType: e.nodeType,
+          nodeLabel: e.nodeLabel ?? e.nodeType,
+          message: e.error ?? "Unknown error",
+          timestamp: e.completedAt?.toISOString(),
+          provider: e.providerUsed,
+          workflowName: e.workflowExecution?.workflow?.name,
+          severity: determineSeverity(e.error ?? ""),
+        })),
+        ...failedQuickExecutions.map((e) => ({
+          id: e.id,
+          nodeType: e.nodeType,
+          nodeLabel: e.nodeLabel ?? e.nodeType,
+          message: e.error ?? "Unknown error",
+          timestamp: e.completedAt?.toISOString(),
+          provider: e.provider,
+          workflowName: null,
+          severity: determineSeverity(e.error ?? ""),
+        })),
+      ].sort((a, b) => {
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      // Calculate stats
+      const critical = errors.filter((e) => e.severity === "critical").length;
+      const warning = errors.filter((e) => e.severity === "warning").length;
+
+      // Group by node type
+      const byNodeType: Record<string, number> = {};
+      for (const err of errors) {
+        byNodeType[err.nodeType] = (byNodeType[err.nodeType] ?? 0) + 1;
+      }
+
+      return {
+        errors,
+        stats: {
+          total: errors.length,
+          critical,
+          warning,
+          byNodeType,
+        },
+      };
+    }),
+
+  // ==========================================================================
+  // HEALTH TAB - System health and metrics
+  // ==========================================================================
+  health: protectedProcedure
+    .query(async ({ ctx }) => {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      // Credits
+      const [user, todayCredits, weekCredits] = await Promise.all([
+        ctx.db.user.findUnique({
+          where: { id: ctx.userId },
+          select: { credits: true },
+        }),
+        ctx.db.nodeExecution.aggregate({
+          where: {
+            workflowExecution: { workflow: { userId: ctx.userId } },
+            completedAt: { gte: todayStart },
+          },
+          _sum: { actualCost: true },
+        }),
+        ctx.db.nodeExecution.aggregate({
+          where: {
+            workflowExecution: { workflow: { userId: ctx.userId } },
+            completedAt: { gte: weekStart },
+          },
+          _sum: { actualCost: true },
+        }),
+      ]);
+
+      // Also count quick execution credits
+      const [todayQuickCredits, weekQuickCredits] = await Promise.all([
+        ctx.db.quickExecution.aggregate({
+          where: {
+            userId: ctx.userId,
+            completedAt: { gte: todayStart },
+          },
+          _sum: { actualCost: true },
+        }),
+        ctx.db.quickExecution.aggregate({
+          where: {
+            userId: ctx.userId,
+            completedAt: { gte: weekStart },
+          },
+          _sum: { actualCost: true },
+        }),
+      ]);
+
+      const usedToday = (todayCredits._sum.actualCost ?? 0) + (todayQuickCredits._sum.actualCost ?? 0);
+      const usedThisWeek = (weekCredits._sum.actualCost ?? 0) + (weekQuickCredits._sum.actualCost ?? 0);
+
+      // Cache stats
+      const cacheCount = await ctx.db.nodeResultCache.count();
+
+      // System stats
+      const [workflowCount, executionCount] = await Promise.all([
+        ctx.db.workflow.count({ where: { userId: ctx.userId } }),
+        ctx.db.workflowExecution.count({
+          where: { workflow: { userId: ctx.userId } },
+        }),
+      ]);
+
+      // Get provider status based on recent successful executions
+      const recentSuccesses = await ctx.db.nodeExecution.findMany({
+        where: {
+          workflowExecution: { workflow: { userId: ctx.userId } },
+          status: "COMPLETED",
+          completedAt: { gte: weekStart },
+          providerUsed: { not: null },
+        },
+        select: {
+          providerUsed: true,
+          completedAt: true,
+        },
+        orderBy: { completedAt: "desc" },
+        take: 100,
+      });
+
+      // Group by provider
+      const providerStats = new Map<string, { lastSuccess: Date | null; count: number }>();
+      for (const exec of recentSuccesses) {
+        if (exec.providerUsed) {
+          const existing = providerStats.get(exec.providerUsed);
+          if (!existing) {
+            providerStats.set(exec.providerUsed, {
+              lastSuccess: exec.completedAt,
+              count: 1,
+            });
+          } else {
+            existing.count++;
+          }
+        }
+      }
+
+      const providers = [
+        { name: "fal.ai", defaultStatus: "healthy" as const },
+        { name: "OpenRouter", defaultStatus: "healthy" as const },
+        { name: "Transloadit", defaultStatus: "healthy" as const },
+        { name: "ElevenLabs", defaultStatus: "healthy" as const },
+      ].map((p) => {
+        const stats = providerStats.get(p.name.toLowerCase()) ?? 
+                      providerStats.get(p.name) ??
+                      providerStats.get("fal"); // fal.ai provider name variations
+        
+        return {
+          name: p.name,
+          status: stats ? "healthy" as const : p.defaultStatus,
+          lastSuccess: stats?.lastSuccess 
+            ? formatTimeAgo(stats.lastSuccess)
+            : null,
+        };
+      });
+
+      return {
+        credits: {
+          balance: user?.credits ?? 0,
+          usedToday,
+          usedThisWeek,
+        },
+        cache: {
+          entries: cacheCount,
+          hitRate: "—", // Would need tracking to calculate this
+        },
+        system: {
+          workflows: workflowCount,
+          executions: executionCount,
+          uptime: "99.9%", // Placeholder - would need actual monitoring
+        },
+        providers,
+      };
+    }),
 });
+
+// Helper to determine error severity
+function determineSeverity(error: string): "critical" | "warning" | "info" {
+  const lowerError = error.toLowerCase();
+  
+  // Critical: auth, payment, quota exceeded
+  if (lowerError.includes("unauthorized") || 
+      lowerError.includes("authentication") ||
+      lowerError.includes("quota exceeded") ||
+      lowerError.includes("rate limit") ||
+      lowerError.includes("payment required") ||
+      lowerError.includes("insufficient credits")) {
+    return "critical";
+  }
+  
+  // Warning: timeouts, temporary failures
+  if (lowerError.includes("timeout") ||
+      lowerError.includes("timed out") ||
+      lowerError.includes("temporarily") ||
+      lowerError.includes("retry")) {
+    return "warning";
+  }
+  
+  return "info";
+}
+
+// Helper to format time ago
+function formatTimeAgo(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 

@@ -67,9 +67,19 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
   const connectedVideo1 = useMemo(() => getConnectedVideo("inputVideo1"), [getConnectedVideo]);
   const connectedVideo2 = useMemo(() => getConnectedVideo("inputVideo2"), [getConnectedVideo]);
   
+  // Check if handles have incoming connections (even if no output yet)
+  const hasConnection1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputVideo1"), [edges, id]);
+  const hasConnection2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputVideo2"), [edges, id]);
+  
   // Effective videos: use connected if available, otherwise use direct data
   const effectiveVideo1 = data.inputVideo1 || connectedVideo1;
   const effectiveVideo2 = data.inputVideo2 || connectedVideo2;
+  
+  // hasInputs is true if we have the actual data OR if we have a connection (dependencies will run)
+  const hasInputs = Boolean((effectiveVideo1 || hasConnection1) && (effectiveVideo2 || hasConnection2));
+  const hasBothVideos = Boolean(effectiveVideo1 && effectiveVideo2);
+  // Check if we need to run dependencies (have connections but no data yet)
+  const needsDependencies = (hasConnection1 && !effectiveVideo1) || (hasConnection2 && !effectiveVideo2);
 
   const handleVideoUpload = useCallback(async (file: File, which: 1 | 2) => {
     if (!file.type.startsWith("video/")) return;
@@ -140,7 +150,26 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
   // Only show swap button if both videos are directly uploaded (not connected)
   const canSwap = Boolean(data.inputVideo1 && data.inputVideo2);
 
+  const runNode = useFlowStore((s) => s.runNode);
+  
   const runMerge = useCallback(async () => {
+    // If we need dependencies, use the flow store's runNode which handles them
+    if (needsDependencies) {
+      setIsProcessing(true);
+      updateNode(id, { status: "queued", error: undefined });
+      
+      try {
+        // This will automatically run parent nodes first, then this node
+        await runNode(id);
+      } catch (error) {
+        updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+    
+    // Direct execution when we have all inputs ready
     if (!effectiveVideo1 || !effectiveVideo2) return;
     
     setIsProcessing(true);
@@ -176,7 +205,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [effectiveVideo1, effectiveVideo2, data.transition, data.transitionDuration, data.label, id, updateNode, propagateOutput, workflowId]);
+  }, [needsDependencies, effectiveVideo1, effectiveVideo2, data.transition, data.transitionDuration, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
 
   const handleDownload = useCallback(() => {
     if (!data.result) return;
@@ -185,9 +214,6 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     link.download = `merged-${Date.now()}.mp4`;
     link.click();
   }, [data.result]);
-
-  const hasInputs = Boolean(effectiveVideo1 && effectiveVideo2);
-  const hasBothVideos = Boolean(effectiveVideo1 && effectiveVideo2);
 
   const inputs = useMemo(() => [
     { id: "inputVideo1", type: "video" as const, label: "Video 1", required: true },
@@ -382,6 +408,8 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
             >
               {isProcessing ? (
                 <><Loader2 className="w-3.5 h-3.5 animate-spin" />Merging...</>
+              ) : needsDependencies ? (
+                <><Play className="w-3.5 h-3.5" />Run Pipeline</>
               ) : (
                 <><Play className="w-3.5 h-3.5" />Merge Videos</>
               )}

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui";
 import {
   LayoutDashboard,
   Workflow,
@@ -14,6 +15,7 @@ import {
   Settings,
   Plus,
   BookOpen,
+  Activity,
 } from "lucide-react";
 
 // =============================================================================
@@ -23,7 +25,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Workflows", href: "/workflows", icon: Workflow },
-  { label: "Executions", href: "/executions", icon: Zap },
+  { label: "Activity", href: "/executions", icon: Activity },
   { label: "Templates", href: "/templates", icon: Sparkles },
 ];
 
@@ -41,13 +43,13 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 h-screen flex flex-col bg-zinc-950 border-r border-zinc-900">
+    <aside className="w-56 h-screen flex flex-col bg-[#09090b] border-r border-zinc-800/60">
       {/* Logo */}
       <Link 
         href="/dashboard" 
-        className="h-14 px-4 flex items-center gap-2.5 border-b border-zinc-900"
+        className="h-14 px-4 flex items-center gap-2.5 border-b border-zinc-800/60"
       >
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
           <Zap className="w-4 h-4 text-white" />
         </div>
         <span className="font-semibold text-sm text-zinc-100">Flowsmith</span>
@@ -56,10 +58,9 @@ export function Sidebar() {
       {/* New Workflow */}
       <div className="p-3">
         <Link href="/workflows/new">
-          <button className="w-full h-9 flex items-center justify-center gap-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 text-sm font-medium transition-colors">
-            <Plus className="w-4 h-4" />
-            <span>New Workflow</span>
-          </button>
+          <Button variant="primary" size="sm" className="w-full" leftIcon={<Plus className="w-4 h-4" />}>
+            New Workflow
+          </Button>
         </Link>
       </div>
 
@@ -76,12 +77,12 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
                     isActive
-                      ? "bg-zinc-900 text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50"
+                      ? "bg-zinc-800/80 text-white"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
                   )}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className={cn("w-4 h-4", isActive && "text-blue-400")} />
                   <span className="font-medium">{item.label}</span>
                 </motion.div>
               </Link>
@@ -91,7 +92,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Nav */}
-      <div className="px-2 py-2 border-t border-zinc-900">
+      <div className="px-2 py-2 border-t border-zinc-800/60">
         <div className="space-y-0.5">
           {bottomItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -103,8 +104,8 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
                     isActive
-                      ? "bg-zinc-900 text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50"
+                      ? "bg-zinc-800/80 text-white"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
                   )}
                 >
                   <Icon className="w-4 h-4" />
@@ -117,7 +118,7 @@ export function Sidebar() {
       </div>
 
       {/* User */}
-      <div className="p-3 border-t border-zinc-900">
+      <div className="p-3 border-t border-zinc-800/60">
         <div className="flex items-center gap-2.5">
           <UserButton 
             afterSignOutUrl="/sign-in"

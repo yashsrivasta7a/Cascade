@@ -11,7 +11,7 @@ import {
   addEdge,
   Connection,
 } from "reactflow";
-import { runSingleNode } from "@/lib/workflow/run-workflow";
+import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workflow";
 
 export interface FlowState {
   nodes: Node[];
@@ -747,7 +747,7 @@ export const useFlowStore = create<FlowState>()(
         const asyncNodeTypes = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
         const isAsyncNode = asyncNodeTypes.includes(node.type ?? "");
 
-        // Reset status for this node only
+        // Reset status for this node only (dependencies will be marked as queued by the runner)
         set({
           nodes: state.nodes.map((n) =>
             n.id === nodeId
@@ -766,49 +766,96 @@ export const useFlowStore = create<FlowState>()(
           isWorkflowRunning: isAsyncNode ? true : state.isWorkflowRunning,
         });
 
-        const applyStatus = (status: string, patch?: Record<string, unknown>) => {
+        const applyStatus = (id: string, status: string, patch?: Record<string, unknown>) => {
           set((prev) => ({
             nodes: prev.nodes.map((n) =>
-              n.id === nodeId ? { ...n, data: { ...(n.data as any), status, ...(patch ?? {}) } } : n
+              n.id === id ? { ...n, data: { ...(n.data as any), status, ...(patch ?? {}) } } : n
             ),
           }));
         };
 
-        const applyResult = (resultText: string) => {
+        const applyResult = (id: string, resultText: string) => {
           set((prev) => ({
             nodes: prev.nodes.map((n) =>
-              n.id === nodeId ? { ...n, data: { ...(n.data as any), result: resultText } } : n
+              n.id === id ? { ...n, data: { ...(n.data as any), result: resultText } } : n
             ),
           }));
         };
 
-        await runSingleNode(nodeId, get().nodes, get().edges, {
-          onNodeStatus: (id, status, patch) => {
-            if (id !== nodeId) return;
-            applyStatus(status, patch);
-            // If async node finished (completed/failed), stop polling
-            if (isAsyncNode && (status === "completed" || status === "failed")) {
-              set({ isWorkflowRunning: false });
-            }
-          },
-          onNodeResult: (id, resultText) => {
-            if (id !== nodeId) return;
-            applyResult(resultText);
-          },
-        }, get().workflowId || undefined);
+        // Update node data helper - used to propagate outputs through the workflow
+        const updateNodeData = (id: string, data: Record<string, unknown>) => {
+          set((prev) => ({
+            nodes: prev.nodes.map((n) =>
+              n.id === id ? { ...n, data: { ...(n.data as any), ...data } } : n
+            ),
+          }));
+          
+          // If this node completed with a result, propagate to downstream nodes
+          if (data.result && typeof data.result === "string") {
+            setTimeout(() => {
+              get().propagateOutput(id, data.result as string);
+            }, 50);
+          }
+        };
+
+        // Use runNodeWithDependencies to automatically run parent nodes first
+        await runNodeWithDependencies(
+          nodeId, 
+          get().nodes, 
+          get().edges, 
+          {
+            onNodeStatus: (id, status, patch) => {
+              applyStatus(id, status, patch);
+              // If async node finished (completed/failed), stop polling
+              if (id === nodeId && isAsyncNode && (status === "completed" || status === "failed")) {
+                set({ isWorkflowRunning: false });
+              }
+            },
+            onNodeResult: (id, resultText) => {
+              applyResult(id, resultText);
+            },
+          }, 
+          get().workflowId || undefined,
+          updateNodeData
+        );
       },
       }),
       {
         name: "flowsmith-flow",
         storage: createJSONStorage(() => localStorage),
-        // Only persist serializable, essential data - not transient state
-        partialize: (state) => ({
-          nodes: state.nodes,
-          edges: state.edges,
-          viewport: state.viewport,
-          workflowId: state.workflowId,
-          // Don't persist: selectedNode, isWorkflowRunning, runningNodeIds, etc.
-        }),
+        // Only persist serializable, essential data - not transient state or large media
+        partialize: (state) => {
+          // Fields to exclude from node data (large media content)
+          const mediaFields = [
+            "result", "inputVideo", "inputVideo1", "inputVideo2", 
+            "inputAudio", "inputImage", "frame", "video", "audio", "image",
+            "outputVideo", "outputAudio", "outputImage"
+          ];
+          
+          // Clean nodes - remove large media data but keep structure and settings
+          const cleanNodes = state.nodes.map(node => ({
+            ...node,
+            data: Object.fromEntries(
+              Object.entries(node.data as Record<string, unknown>).filter(([key, value]) => {
+                // Exclude media fields
+                if (mediaFields.includes(key)) return false;
+                // Exclude base64 data (starts with "data:")
+                if (typeof value === "string" && value.startsWith("data:")) return false;
+                // Exclude very long strings (likely URLs to large media)
+                if (typeof value === "string" && value.length > 500) return false;
+                return true;
+              })
+            ),
+          }));
+          
+          return {
+            nodes: cleanNodes,
+            edges: state.edges,
+            viewport: state.viewport,
+            workflowId: state.workflowId,
+            // Don't persist: selectedNode, isWorkflowRunning, runningNodeIds, media data, etc.
+          };
+        },
       }
     ),
     { name: "flow-store" }

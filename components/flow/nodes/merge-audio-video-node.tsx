@@ -61,9 +61,18 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
     return null;
   }, [edges, nodes, id]);
 
+  // Check if handles have incoming connections (even if no output yet)
+  const hasVideoConnection = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputVideo"), [edges, id]);
+  const hasAudioConnection = useMemo(() => edges.some(e => e.target === id && e.targetHandle === "inputAudio"), [edges, id]);
+  
   // Effective inputs: use connected if available, otherwise use direct data
   const effectiveVideo = data.inputVideo || connectedVideo;
   const effectiveAudio = data.inputAudio || connectedAudio;
+  
+  // hasInputs is true if we have the actual data OR if we have a connection (dependencies will run)
+  const hasInputs = Boolean((effectiveVideo || hasVideoConnection) && (effectiveAudio || hasAudioConnection));
+  // Check if we need to run dependencies (have connections but no data yet)
+  const needsDependencies = (hasVideoConnection && !effectiveVideo) || (hasAudioConnection && !effectiveAudio);
 
   const handleVideoUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("video/")) return;
@@ -149,7 +158,26 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
     reader.readAsDataURL(file);
   }, [id, updateNode]);
 
+  const runNode = useFlowStore((s) => s.runNode);
+  
   const runMerge = useCallback(async () => {
+    // If we need dependencies, use the flow store's runNode which handles them
+    if (needsDependencies) {
+      setIsProcessing(true);
+      updateNode(id, { status: "queued", error: undefined });
+      
+      try {
+        // This will automatically run parent nodes first, then this node
+        await runNode(id);
+      } catch (error) {
+        updateNode(id, { status: "failed", error: error instanceof Error ? error.message : "Unknown error" });
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+    
+    // Direct execution when we have all inputs ready
     if (!effectiveVideo || !effectiveAudio) return;
     
     // Check combined size before sending (rough estimate from base64 length)
@@ -215,9 +243,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
     } finally {
       setIsProcessing(false);
     }
-  }, [effectiveVideo, effectiveAudio, data.replaceAudio, data.label, id, updateNode, propagateOutput, workflowId]);
-
-  const hasInputs = Boolean(effectiveVideo && effectiveAudio);
+  }, [needsDependencies, effectiveVideo, effectiveAudio, data.replaceAudio, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
 
   // Memoize inputs
   const inputs = useMemo(() => [
@@ -354,7 +380,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
           <div className="flex items-center gap-2">
             <button
               onClick={runMerge}
-              disabled={!hasInputs}
+              disabled={!hasInputs || isProcessing}
               className={`nodrag nowheel flex-1 h-7 px-3 rounded-lg border text-[10px] font-semibold flex items-center justify-center gap-1.5 ${
                 isProcessing
                   ? "bg-red-500/20 border-red-500/30 text-red-300"
@@ -363,7 +389,13 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Play className="w-3 h-3" />Merge</>}
+              {isProcessing ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : needsDependencies ? (
+                <><Play className="w-3 h-3" />Run Pipeline</>
+              ) : (
+                <><Play className="w-3 h-3" />Merge</>
+              )}
             </button>
           </div>
 

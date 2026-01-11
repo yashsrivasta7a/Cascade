@@ -5,41 +5,41 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Clock,
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Play,
-  Filter,
-  Calendar,
   ChevronDown,
-  ChevronRight,
-  Download,
-  Eye,
-  Zap,
-  Coins,
-  Timer,
-  Activity,
-  RefreshCw,
   Search,
   Loader2,
-  Image,
-  Film,
-  Volume2,
-  Brain,
-  Wrench,
-  Target,
   ExternalLink,
-  AlertCircle,
+  Clock,
   Pause,
+  AlertCircle,
+  Play,
+  RotateCcw,
+  Filter,
+  Calendar,
+  Zap,
+  ArrowRight,
+  Circle,
+  Timer,
+  Coins,
+  TrendingUp,
+  Activity,
+  Layers,
+  GitBranch,
+  Box,
 } from "lucide-react";
-import { Button, Card, Badge, Input } from "@/components/ui";
-import { Header } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/react";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 
+// =============================================================================
+// TYPES
+// =============================================================================
+
 type ExecutionStatus = "running" | "completed" | "failed" | "cancelled" | "queued" | "waiting" | "pending" | "terminated";
+type TabType = "runs" | "errors" | "health";
 
 interface NodeExecution {
   id: string;
@@ -47,318 +47,75 @@ interface NodeExecution {
   nodeType: string;
   label: string;
   status: ExecutionStatus;
-  startedAt?: string;
-  completedAt?: string;
   duration?: string;
   provider?: string | null;
   cost?: number;
   error?: string | null;
-  output?: {
-    type: "image" | "video" | "audio" | "text";
-    url?: string;
-    preview?: string;
-  };
 }
+
+const STATUS_MAP = {
+  running: { label: "Running", color: "bg-blue-500", text: "text-blue-400", icon: Loader2, spin: true },
+  completed: { label: "Completed", color: "bg-emerald-500", text: "text-emerald-400", icon: CheckCircle2 },
+  failed: { label: "Failed", color: "bg-red-500", text: "text-red-400", icon: XCircle },
+  cancelled: { label: "Cancelled", color: "bg-zinc-500", text: "text-zinc-400", icon: AlertTriangle },
+  queued: { label: "Queued", color: "bg-zinc-500", text: "text-zinc-400", icon: Clock },
+  pending: { label: "Pending", color: "bg-zinc-500", text: "text-zinc-400", icon: Clock },
+  waiting: { label: "Waiting", color: "bg-amber-500", text: "text-amber-400", icon: Pause },
+  terminated: { label: "Terminated", color: "bg-zinc-500", text: "text-zinc-400", icon: AlertCircle },
+} as const;
 
 // =============================================================================
-// HELPERS
+// BACKGROUND PATTERNS
 // =============================================================================
 
-function formatDuration(startedAt?: string, completedAt?: string): string {
-  if (!startedAt) return "—";
-  const start = new Date(startedAt).getTime();
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const diff = end - start;
-  
-  if (diff < 1000) return `${diff}ms`;
-  if (diff < 60000) return `${(diff / 1000).toFixed(1)}s`;
-  return `${(diff / 60000).toFixed(1)}m`;
-}
-
-function formatTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const secs = Math.floor(diff / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
-
-// Get node category icon
-function getNodeIcon(nodeType: string): React.ReactNode {
-  const def = NODE_DEFINITIONS[nodeType as AINodeType];
-  const category = def?.category;
-  
-  switch (category) {
-    case "image":
-      return <Image className="w-4 h-4" />;
-    case "video":
-      return <Film className="w-4 h-4" />;
-    case "audio":
-      return <Volume2 className="w-4 h-4" />;
-    case "llm":
-      return <Brain className="w-4 h-4" />;
-    case "utility":
-      return <Wrench className="w-4 h-4" />;
-    default:
-      return <Zap className="w-4 h-4" />;
-  }
-}
-
-// Get category color
-function getNodeColorClasses(nodeType: string): string {
-  const def = NODE_DEFINITIONS[nodeType as AINodeType];
-  const color = def?.color;
-  
-  switch (color) {
-    case "emerald":
-      return "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
-    case "violet":
-      return "text-violet-400 bg-violet-500/10 border-violet-500/30";
-    case "amber":
-      return "text-amber-400 bg-amber-500/10 border-amber-500/30";
-    case "blue":
-      return "text-blue-400 bg-blue-500/10 border-blue-500/30";
-    case "zinc":
-      return "text-zinc-400 bg-zinc-500/10 border-zinc-500/30";
-    default:
-      return "text-zinc-400 bg-zinc-500/10 border-zinc-500/30";
-  }
-}
-
-const statusConfig = {
-  running: {
-    icon: <Loader2 className="w-4 h-4 animate-spin" />,
-    color: "text-cyan-400",
-    bg: "bg-cyan-500/10",
-    border: "border-cyan-500/30",
-    label: "Running",
-  },
-  queued: {
-    icon: <Clock className="w-4 h-4" />,
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10",
-    border: "border-zinc-500/30",
-    label: "Queued",
-  },
-  pending: {
-    icon: <Clock className="w-4 h-4" />,
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10",
-    border: "border-zinc-500/30",
-    label: "Pending",
-  },
-  waiting: {
-    icon: <Pause className="w-4 h-4" />,
-    color: "text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
-    label: "Waiting",
-  },
-  completed: {
-    icon: <CheckCircle2 className="w-4 h-4" />,
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/30",
-    label: "Completed",
-  },
-  failed: {
-    icon: <XCircle className="w-4 h-4" />,
-    color: "text-red-400",
-    bg: "bg-red-500/10",
-    border: "border-red-500/30",
-    label: "Failed",
-  },
-  cancelled: {
-    icon: <AlertTriangle className="w-4 h-4" />,
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/10",
-    border: "border-zinc-500/30",
-    label: "Cancelled",
-  },
-  terminated: {
-    icon: <AlertCircle className="w-4 h-4" />,
-    color: "text-zinc-500",
-    bg: "bg-zinc-500/10",
-    border: "border-zinc-500/30",
-    label: "Terminated",
-  },
-};
-
-// =============================================================================
-// NODE TIMELINE COMPONENT
-// =============================================================================
-
-interface ExecutionTimelineProps {
-  nodes: NodeExecution[];
-  workflowId?: string;
-}
-
-function ExecutionTimeline({ nodes, workflowId }: ExecutionTimelineProps) {
-  const router = useRouter();
-
-  const handleNodeClick = (node: NodeExecution, index: number) => {
-    if (workflowId) {
-      // Navigate to workflow and focus on the node
-      router.push(`/workflows/${workflowId}?focus=${node.nodeType}:${index}`);
-    }
-  };
-
+function DotPattern({ className }: { className?: string }) {
   return (
-    <div className="relative pl-8 space-y-3">
-      {/* Timeline line */}
-      <div className="absolute left-3 top-4 bottom-4 w-px bg-gradient-to-b from-cyan-500/40 via-violet-500/40 to-zinc-600/40" />
+    <svg
+      className={cn("pointer-events-none absolute inset-0 h-full w-full", className)}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <pattern
+          id="dot-pattern"
+          x="0"
+          y="0"
+          width="16"
+          height="16"
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx="1" cy="1" r="1" fill="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dot-pattern)" />
+    </svg>
+  );
+}
 
-      {nodes.map((node, index) => {
-        const status = statusConfig[node.status] ?? statusConfig.queued;
-        const nodeDef = NODE_DEFINITIONS[node.nodeType as AINodeType];
-        const nodeColor = getNodeColorClasses(node.nodeType);
-        const providerDisplay = node.provider || nodeDef?.provider || "—";
-        
-        return (
-          <motion.div
-            key={node.id}
-            initial={{ opacity: 0, x: -16 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.08 }}
-            className="relative"
-          >
-            {/* Timeline dot with status icon */}
-            <div
-              className={cn(
-                "absolute -left-5 top-5 w-5 h-5 rounded-full border-2 border-zinc-900 flex items-center justify-center",
-                status.bg.replace("/10", "/80")
-              )}
-            >
-              {node.status === "running" && (
-                <>
-                  <span className="absolute inset-0 rounded-full bg-cyan-500 animate-ping opacity-50" />
-                  <Loader2 className={cn("w-3 h-3 animate-spin", status.color)} />
-                </>
-              )}
-              {node.status === "completed" && (
-                <CheckCircle2 className={cn("w-3 h-3", status.color)} />
-              )}
-              {node.status === "failed" && (
-                <XCircle className={cn("w-3 h-3", status.color)} />
-              )}
-              {node.status !== "running" && node.status !== "completed" && node.status !== "failed" && (
-                <Clock className={cn("w-3 h-3", status.color)} />
-              )}
-            </div>
-
-            <button
-              onClick={() => handleNodeClick(node, index)}
-              className={cn(
-                "w-full text-left p-4 rounded-xl border transition-all group",
-                "bg-zinc-900/50 border-zinc-800/50",
-                "hover:bg-zinc-900/80 hover:border-zinc-700/50"
-              )}
-            >
-              <div className="flex items-start gap-4">
-                {/* LEFT: Status Badge - Completion status */}
-                <div className={cn(
-                  "shrink-0 w-24 flex flex-col items-center justify-center py-2 px-3 rounded-xl",
-                  status.bg.replace("/10", "/20"),
-                  "border",
-                  node.status === "completed" && "border-emerald-500/30",
-                  node.status === "failed" && "border-red-500/30",
-                  node.status === "running" && "border-cyan-500/30",
-                  node.status !== "completed" && node.status !== "failed" && node.status !== "running" && "border-zinc-700/30"
-                )}>
-                  <div className={cn("mb-1", status.color)}>
-                    {status.icon}
-                  </div>
-                  <span className={cn("text-[10px] font-bold uppercase tracking-wide", status.color)}>
-                    {status.label}
-                  </span>
-                </div>
-
-                {/* CENTER: Node info + Provider */}
-                <div className="flex-1 min-w-0">
-                  {/* Node Name with icon */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center border", nodeColor)}>
-                      {getNodeIcon(node.nodeType)}
-                    </div>
-                    <h4 className="font-semibold text-zinc-100 truncate">
-                      {nodeDef?.label || node.label}
-                    </h4>
-                  </div>
-                  
-                  {/* Provider Name - Prominent */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                      <Zap className="w-3.5 h-3.5 text-violet-400" />
-                      <span className="text-xs font-medium text-violet-300">
-                        {providerDisplay}
-                      </span>
-                    </div>
-                    
-                    {node.duration && (
-                      <div className="flex items-center gap-1 text-xs text-zinc-400">
-                        <Timer className="w-3.5 h-3.5" />
-                        {node.duration}
-                      </div>
-                    )}
-                    
-                    {node.cost !== undefined && node.cost > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-amber-400">
-                        <Coins className="w-3.5 h-3.5" />
-                        {node.cost} credits
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* RIGHT: Focus hint */}
-                {workflowId && (
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 flex items-center gap-1.5 text-zinc-500">
-                    <Target className="w-4 h-4" />
-                    <span className="text-xs">Focus</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Error message */}
-              {node.error && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <p className="text-xs text-red-400">{node.error}</p>
-                </div>
-              )}
-
-              {/* Output preview */}
-              {node.output && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-800/50">
-                  {node.output.type === "text" && node.output.preview && (
-                    <p className="text-xs text-zinc-400 truncate flex-1 italic">
-                      "{node.output.preview}"
-                    </p>
-                  )}
-                  {node.output.url && (
-                    <a 
-                      href={node.output.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                        <Download className="w-3 h-3 mr-1" />
-                        Download
-                      </Button>
-                    </a>
-                  )}
-                </div>
-              )}
-            </button>
-          </motion.div>
-        );
-      })}
-    </div>
+function GridPattern({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("pointer-events-none absolute inset-0 h-full w-full", className)}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <pattern
+          id="grid-pattern"
+          x="0"
+          y="0"
+          width="40"
+          height="40"
+          patternUnits="userSpaceOnUse"
+        >
+          <path
+            d="M 40 0 L 0 0 0 40"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.5"
+          />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+    </svg>
   );
 }
 
@@ -366,275 +123,366 @@ function ExecutionTimeline({ nodes, workflowId }: ExecutionTimelineProps) {
 // MAIN PAGE
 // =============================================================================
 
-export default function ExecutionsPage() {
-  const [filter, setFilter] = useState<ExecutionStatus | "all">("all");
-  const [expandedExecution, setExpandedExecution] = useState<string | null>(null);
+export default function ActivityPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("runs");
+  const [statusFilter, setStatusFilter] = useState<"all" | "running" | "completed" | "failed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
 
-  // Debounce search query
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
+    const timeout = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  // Use tRPC query for fetching executions
-  const { data, isLoading, error, refetch, isFetching } = trpc.execution.list.useQuery(
-    {
-      status: filter !== "all" ? filter : undefined,
-      search: debouncedSearch || undefined,
-    },
-    {
-      refetchInterval: 10000, // Refresh every 10 seconds for running executions
-    }
+  const { data, isLoading, refetch, isFetching } = trpc.execution.list.useQuery(
+    { status: statusFilter !== "all" ? statusFilter : undefined, search: debouncedSearch || undefined },
+    { refetchInterval: 8000 }
   );
 
-  // Auto-expand first running execution
-  useEffect(() => {
-    if (data?.executions && !expandedExecution) {
-      const runningExec = data.executions.find((e) => e.status === "running");
-      if (runningExec) {
-        setExpandedExecution(runningExec.id);
-      }
-    }
-  }, [data?.executions, expandedExecution]);
+  const runs = data?.executions ?? [];
+  const stats = data?.stats ?? { totalRuns: 0, successRate: "0%", avgDuration: "—", creditsUsed: 0 };
 
-  const executions = data?.executions ?? [];
-  const stats = data?.stats ?? { totalRuns: 0, successRate: "—", avgDuration: "—", creditsUsed: 0 };
+  // Count by status
+  const runningCount = runs.filter(r => r.status === "running").length;
+  const failedCount = runs.filter(r => r.status === "failed").length;
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
-      <Header
-        title="Execution History"
-        description="View and debug your workflow runs"
-        actions={
-          <Button
-            variant="ghost"
-            leftIcon={<RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />}
+    <div className="h-full flex flex-col bg-[#09090b] relative overflow-hidden">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 overflow-hidden">
+        <DotPattern className="text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-violet-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+      </div>
+
+      {/* Top Bar */}
+      <div className="relative shrink-0 h-14 px-6 flex items-center justify-between border-b border-zinc-800/60">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+            <Activity className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-white">Workflow Runs</h1>
+            <p className="text-[11px] text-zinc-500">{stats.totalRuns} total executions</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {runningCount > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              </span>
+              <span className="text-[11px] font-medium text-blue-400">{runningCount} running</span>
+            </div>
+          )}
+          <button
             onClick={() => refetch()}
             disabled={isFetching}
+            className="h-8 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg flex items-center gap-1.5 transition-all"
           >
+            <RotateCcw className={cn("w-3 h-3", isFetching && "animate-spin")} />
             Refresh
-          </Button>
-        }
-      />
+          </button>
+        </div>
+      </div>
 
-      <div className="flex-1 overflow-auto p-8">
-        <div className="max-w-5xl mx-auto">
-          {/* Stats Row */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
-            {[
-              { label: "Total Runs", value: stats.totalRuns.toLocaleString(), icon: Activity, color: "cyan" },
-              { label: "Success Rate", value: stats.successRate, icon: CheckCircle2, color: "emerald" },
-              { label: "Avg Duration", value: stats.avgDuration, icon: Timer, color: "violet" },
-              { label: "Credits Used", value: stats.creditsUsed.toLocaleString(), icon: Coins, color: "amber" },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
+      {/* Tabs & Stats Bar */}
+      <div className="relative shrink-0 border-b border-zinc-800/60">
+        <div className="px-6 flex items-center justify-between">
+          {/* Tabs */}
+          <div className="flex">
+            {(["runs", "errors", "health"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  "relative px-4 py-3 text-sm font-medium capitalize transition-colors",
+                  activeTab === tab ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+                )}
               >
-                <Card variant="default" className="p-5 bg-zinc-900/50 border-zinc-800/50">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "w-11 h-11 rounded-xl flex items-center justify-center",
-                        stat.color === "cyan" && "bg-cyan-500/10 text-cyan-400",
-                        stat.color === "emerald" && "bg-emerald-500/10 text-emerald-400",
-                        stat.color === "violet" && "bg-violet-500/10 text-violet-400",
-                        stat.color === "amber" && "bg-amber-500/10 text-amber-400"
-                      )}
-                    >
-                      <stat.icon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-zinc-500 font-medium">{stat.label}</p>
-                      <p className="text-2xl font-bold text-zinc-100">{stat.value}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
+                {tab}
+                {tab === "errors" && failedCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/20 text-red-400 rounded">
+                    {failedCount}
+                  </span>
+                )}
+                {activeTab === tab && (
+                  <motion.div
+                    layoutId="active-tab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-white"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+              </button>
             ))}
           </div>
 
+          {/* Quick Stats */}
+          <div className="flex items-center gap-6 py-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-xs text-zinc-400">Success</span>
+              <span className="text-xs font-semibold text-white">{stats.successRate}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Timer className="w-3.5 h-3.5 text-blue-500" />
+              <span className="text-xs text-zinc-400">Avg</span>
+              <span className="text-xs font-semibold text-white">{stats.avgDuration}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Coins className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-xs text-zinc-400">Credits</span>
+              <span className="text-xs font-semibold text-white">{stats.creditsUsed}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="relative flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          {activeTab === "runs" && (
+            <motion.div
+              key="runs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full flex flex-col"
+            >
           {/* Filters */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <div className="shrink-0 px-6 py-4 flex items-center gap-3 border-b border-zinc-800/40">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
-                  type="text"
-                  placeholder="Search workflows..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 h-10 pl-10 pr-4 rounded-xl bg-zinc-900/50 border border-zinc-800/50 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+                    placeholder="Search workflows..."
+                    className="w-full h-9 pl-10 pr-4 text-sm bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700/50 transition-all"
                 />
               </div>
-              <div className="flex items-center gap-1 bg-zinc-900/50 p-1 rounded-xl border border-zinc-800/50">
+
+                <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
                 {(["all", "running", "completed", "failed"] as const).map((status) => (
                   <button
                     key={status}
+                      onClick={() => setStatusFilter(status)}
                     className={cn(
-                      "h-8 px-3.5 text-xs font-medium capitalize rounded-lg transition-all",
-                      filter === status 
-                        ? "bg-white/10 text-white" 
+                        "h-8 px-3 text-xs font-medium rounded-md capitalize transition-all",
+                        statusFilter === status
+                          ? "bg-zinc-800 text-white shadow-sm"
                         : "text-zinc-500 hover:text-zinc-300"
                     )}
-                    onClick={() => setFilter(status)}
                   >
-                    {status === "all" ? "All" : statusConfig[status]?.label ?? status}
+                      {status}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" leftIcon={<Calendar className="w-4 h-4" />}>
-                Date Range
-              </Button>
-              <Button variant="outline" size="sm" leftIcon={<Filter className="w-4 h-4" />}>
-                Filters
-              </Button>
+
+              {/* Runs List */}
+              <div className="flex-1 overflow-auto">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+                      <span className="text-sm text-zinc-600">Loading runs...</span>
+                    </div>
+                  </div>
+                ) : runs.length === 0 ? (
+                  <div className="relative flex items-center justify-center h-64 overflow-hidden">
+                    <DotPattern className="text-zinc-800/60 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
+                    <div className="relative flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50 flex items-center justify-center shadow-xl">
+                        <Layers className="w-7 h-7 text-zinc-500" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-zinc-300">No workflow runs</p>
+                        <p className="text-xs text-zinc-600 mt-1">Execute a workflow to see runs here</p>
+                      </div>
+                      <Link href="/workflows">
+                        <button className="mt-2 h-9 px-5 text-xs font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-lg flex items-center gap-1.5 transition-all shadow-lg shadow-blue-500/25">
+                          <Play className="w-3 h-3" />
+                          Go to Workflows
+                        </button>
+                      </Link>
             </div>
           </div>
-
-          {/* Loading State */}
-          {isLoading && executions.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
-              <p className="text-sm text-zinc-500 mt-4">Loading executions...</p>
+                ) : (
+                  <div className="divide-y divide-zinc-800/50">
+                    {runs.map((run, idx) => (
+                      <WorkflowRun
+                        key={run.id}
+                        run={run}
+                        isExpanded={expandedRun === run.id}
+                        onToggle={() => setExpandedRun(expandedRun === run.id ? null : run.id)}
+                        index={idx}
+                      />
+                    ))}
+                  </div>
+                )}
             </div>
+            </motion.div>
           )}
 
-          {/* Error State */}
-          {error && executions.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <AlertCircle className="w-10 h-10 text-red-400" />
-              <p className="text-zinc-400">{error.message}</p>
-              <Button variant="outline" onClick={() => refetch()}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Retry
-              </Button>
-            </div>
+          {activeTab === "errors" && (
+            <motion.div
+              key="errors"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full overflow-auto"
+            >
+              <ErrorsPanel />
+            </motion.div>
           )}
 
-          {/* Empty State */}
-          {!isLoading && !error && executions.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 flex items-center justify-center">
-                <Activity className="w-8 h-8 text-zinc-600" />
-              </div>
-              <p className="text-zinc-400 font-medium">No executions found</p>
-              <p className="text-zinc-500 text-sm">Run a workflow to see execution history here.</p>
-              <Link href="/workflows">
-                <Button variant="primary" leftIcon={<Play className="w-4 h-4" />}>
-                  Go to Workflows
-                </Button>
-              </Link>
-            </div>
+          {activeTab === "health" && (
+            <motion.div
+              key="health"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full overflow-auto"
+            >
+              <HealthPanel />
+            </motion.div>
           )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
 
-          {/* Executions List */}
-          <div className="space-y-4">
-            {executions.map((execution, i) => {
-              const status = statusConfig[execution.status as keyof typeof statusConfig] ?? statusConfig.queued;
-              const isExpanded = expandedExecution === execution.id;
-              
-              const completedNodes = (execution.nodes as NodeExecution[]).filter(
-                (n) => n.status === "completed"
-              ).length;
-              const totalNodes = (execution.nodes as NodeExecution[]).length;
-              const progress = totalNodes > 0 ? (completedNodes / totalNodes) * 100 : 0;
+// =============================================================================
+// WORKFLOW RUN COMPONENT
+// =============================================================================
+
+function WorkflowRun({
+  run,
+  isExpanded,
+  onToggle,
+  index,
+}: {
+  run: any;
+  isExpanded: boolean;
+  onToggle: () => void;
+  index: number;
+}) {
+  const router = useRouter();
+  const nodes = run.nodes as NodeExecution[];
+  const status = STATUS_MAP[run.status as ExecutionStatus] || STATUS_MAP.pending;
+  const StatusIcon = status.icon;
+  const completedNodes = nodes.filter((n) => n.status === "completed").length;
+  const progress = nodes.length > 0 ? Math.round((completedNodes / nodes.length) * 100) : 0;
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString();
+  };
 
               return (
                 <motion.div
-                  key={execution.id}
-                  initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                >
-                  <Card 
-                    variant="elevated" 
-                    className={cn(
-                      "overflow-hidden transition-all duration-200",
-                      isExpanded && "ring-1 ring-zinc-700/50"
-                    )}
-                  >
-                    {/* Execution Header */}
+      transition={{ delay: index * 0.03 }}
+      className="group"
+    >
+      {/* Run Header */}
                     <button
-                      onClick={() => setExpandedExecution(isExpanded ? null : execution.id)}
-                      className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn("p-3 rounded-xl", status.bg)}>
-                          <div className={status.color}>{status.icon}</div>
-                        </div>
-                        <div className="text-left">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-semibold text-zinc-100">
-                              {execution.workflowName}
-                            </h3>
-                            <span className={cn(
-                              "text-[10px] font-semibold px-2 py-0.5 rounded-md",
-                              status.bg, status.color
-                            )}>
-                              {status.label}
-                            </span>
+        onClick={onToggle}
+        className="w-full px-6 py-4 flex items-center gap-4 hover:bg-zinc-900/50 transition-colors text-left"
+      >
+        {/* Status Indicator */}
+        <div className={cn(
+          "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+          run.status === "running" ? "bg-blue-500/10" :
+          run.status === "completed" ? "bg-emerald-500/10" :
+          run.status === "failed" ? "bg-red-500/10" :
+          "bg-zinc-800"
+        )}>
+          <StatusIcon className={cn(
+            "w-4 h-4",
+            status.text,
+            status.spin && "animate-spin"
+          )} />
                           </div>
-                          <div className="flex items-center gap-4 mt-1.5 text-xs text-zinc-500">
-                            <span className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" />
-                              {execution.startedAt ? formatTimeAgo(execution.startedAt) : "—"}
-                            </span>
-                            {execution.duration && (
-                              <span className="flex items-center gap-1.5">
-                                <Timer className="w-3.5 h-3.5" />
-                                {execution.duration}
+
+        {/* Workflow Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white truncate">{run.workflowName}</span>
+            {run.status === "running" && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-blue-500/20 text-blue-400 rounded">
+                Live
                               </span>
                             )}
-                            <span className="flex items-center gap-1.5">
-                              <Zap className="w-3.5 h-3.5" />
-                              {completedNodes}/{totalNodes} nodes
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-zinc-500">
+              {run.startedAt ? formatTime(run.startedAt) : "—"}
                             </span>
-                          </div>
+            <span className="text-zinc-700">·</span>
+            <span className="text-xs text-zinc-500">{nodes.length} nodes</span>
+            {run.status === "running" && (
+              <>
+                <span className="text-zinc-700">·</span>
+                <span className="text-xs text-blue-400">{progress}%</span>
+              </>
+            )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4">
-                        {execution.totalCost > 0 && (
-                          <div className="flex items-center gap-1.5 text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg">
-                            <Coins className="w-4 h-4" />
-                            <span className="font-semibold">{execution.totalCost}</span>
-                            <span className="text-xs text-amber-400/60">credits</span>
-                          </div>
-                        )}
-                        <ChevronRight
-                          className={cn(
-                            "w-5 h-5 text-zinc-500 transition-transform duration-200",
-                            isExpanded && "rotate-90"
-                          )}
-                        />
+        {/* Duration */}
+        <div className="text-right shrink-0">
+          <div className="text-sm font-mono text-zinc-300">{run.duration || "—"}</div>
+          {run.totalCost > 0 && (
+            <div className="text-xs text-zinc-600 mt-0.5">{run.totalCost} credits</div>
+          )}
                       </div>
-                    </button>
 
-                    {/* Progress bar for running */}
-                    {execution.status === "running" && (
-                      <div className="px-5 pb-3">
-                        <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+        {/* Progress/Status Badge */}
+        <div className="w-20 shrink-0">
+          {run.status === "running" ? (
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-cyan-500 to-violet-500"
+                className="h-full bg-blue-500"
                             initial={{ width: 0 }}
                             animate={{ width: `${progress}%` }}
-                            transition={{ duration: 0.5 }}
+                transition={{ duration: 0.3 }}
                           />
                         </div>
+          ) : (
+            <span className={cn(
+              "inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md",
+              run.status === "completed" && "bg-emerald-500/10 text-emerald-400",
+              run.status === "failed" && "bg-red-500/10 text-red-400",
+              run.status === "cancelled" && "bg-zinc-800 text-zinc-400",
+              !["completed", "failed", "cancelled", "running"].includes(run.status) && "bg-zinc-800 text-zinc-400"
+            )}>
+              {status.label}
+            </span>
+          )}
                       </div>
-                    )}
 
-                    {/* Expanded Details */}
-                    <AnimatePresence initial={false}>
+        {/* Chevron */}
+        <ChevronDown className={cn(
+          "w-4 h-4 text-zinc-600 transition-transform shrink-0",
+          isExpanded && "rotate-180"
+        )} />
+      </button>
+
+      {/* Expanded Node Timeline */}
+      <AnimatePresence>
                       {isExpanded && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
@@ -643,49 +491,371 @@ export default function ExecutionsPage() {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="p-5 pt-0 border-t border-zinc-800/50">
-                            <div className="flex items-center justify-between mb-5 mt-5">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-semibold text-zinc-300">
-                                  Execution Timeline
-                                </h4>
-                                <span className="text-xs text-zinc-600">
-                                  Click a node to focus on canvas
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {execution.workflowId && (
-                                  <Link href={`/workflows/${execution.workflowId}`}>
-                                    <Button variant="ghost" size="sm" className="h-8 text-xs">
-                                      <ExternalLink className="w-3 h-3 mr-1.5" />
-                                      Open Workflow
-                                    </Button>
+            <div className="px-6 pb-4">
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2 mb-4 ml-[52px]">
+                {run.workflowId && (
+                  <Link href={`/workflows/${run.workflowId}`}>
+                    <button className="h-7 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
+                      <ExternalLink className="w-3 h-3" />
+                      View Workflow
+                    </button>
                                   </Link>
                                 )}
-                                <Button variant="ghost" size="sm" className="h-8 text-xs">
-                                  <Play className="w-3 h-3 mr-1.5" />
-                                  Re-run
-                                </Button>
+                {run.status === "failed" && (
+                  <button className="h-7 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
+                    <RotateCcw className="w-3 h-3" />
+                    Retry
+                  </button>
+                )}
                               </div>
+
+              {/* Node Timeline */}
+              <div className="relative ml-[52px]">
+                {/* Timeline Line */}
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-zinc-800" />
+
+                <div className="space-y-1">
+                  {nodes.map((node, nodeIdx) => {
+                    const nodeStatus = STATUS_MAP[node.status as ExecutionStatus] || STATUS_MAP.pending;
+                    const NodeIcon = nodeStatus.icon;
+                    const nodeDef = NODE_DEFINITIONS[node.nodeType as AINodeType];
+
+                    return (
+                      <motion.div
+                        key={node.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: nodeIdx * 0.03 }}
+                        className="relative flex items-center gap-3 py-2 px-3 -ml-3 rounded-lg hover:bg-zinc-800/40 transition-colors cursor-pointer group/node"
+                        onClick={() => run.workflowId && router.push(`/workflows/${run.workflowId}`)}
+                      >
+                        {/* Node Status Dot */}
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 z-10",
+                          node.status === "completed" ? "border-emerald-500 bg-emerald-500" :
+                          node.status === "failed" ? "border-red-500 bg-red-500" :
+                          node.status === "running" ? "border-blue-500 bg-[#09090b]" :
+                          "border-zinc-700 bg-[#09090b]"
+                        )}>
+                          {node.status === "running" && (
+                            <Loader2 className="w-2 h-2 text-blue-500 animate-spin" />
+                          )}
+                          {node.status === "completed" && (
+                            <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                          )}
+                          {node.status === "failed" && (
+                            <XCircle className="w-2.5 h-2.5 text-white" />
+                          )}
                             </div>
-                            {(execution.nodes as NodeExecution[]).length > 0 ? (
-                              <ExecutionTimeline 
-                                nodes={execution.nodes as NodeExecution[]} 
-                                workflowId={execution.workflowId}
-                              />
-                            ) : (
-                              <div className="text-center py-8">
-                                <p className="text-sm text-zinc-500">No node executions recorded.</p>
-                              </div>
-                            )}
+
+                        {/* Node Info */}
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <Box className="w-3.5 h-3.5 text-zinc-600" />
+                          <span className="text-sm text-zinc-300 group-hover/node:text-white transition-colors">
+                            {nodeDef?.label || node.label}
+                          </span>
+                          {node.provider && (
+                            <span className="text-[10px] text-zinc-600 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+                              {node.provider}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Node Meta */}
+                        <div className="flex items-center gap-4 shrink-0">
+                          {node.duration && (
+                            <span className="text-xs font-mono text-zinc-500">{node.duration}</span>
+                          )}
+                          {node.cost !== undefined && node.cost > 0 && (
+                            <span className="text-xs text-zinc-600">{node.cost}c</span>
+                          )}
+                          {node.error && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-red-500/10 text-red-400 rounded font-medium">
+                              Error
+                            </span>
+                          )}
+                          <ArrowRight className="w-3.5 h-3.5 text-zinc-700 opacity-0 group-hover/node:opacity-100 transition-opacity" />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
-                  </Card>
+    </motion.div>
+  );
+}
+
+// =============================================================================
+// ERRORS PANEL
+// =============================================================================
+
+function ErrorsPanel() {
+  const { data, isLoading } = trpc.execution.errors.useQuery(undefined, { refetchInterval: 30000 });
+  const errors = data?.errors ?? [];
+  const stats = data?.stats ?? { total: 0, critical: 0, warning: 0 };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      {/* Error Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="relative p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-zinc-700/60 transition-colors">
+          <DotPattern className="text-zinc-500/5 group-hover:text-zinc-500/10 transition-colors" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-zinc-500" />
+              <span className="text-xs text-zinc-500">Total Errors</span>
+            </div>
+            <span className="text-2xl font-semibold text-white">{stats.total}</span>
+          </div>
+        </div>
+        <div className="relative p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-red-500/20 transition-colors">
+          <DotPattern className="text-red-500/5 group-hover:text-red-500/10 transition-colors" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <XCircle className="w-4 h-4 text-red-500" />
+              <span className="text-xs text-zinc-500">Critical</span>
+            </div>
+            <span className="text-2xl font-semibold text-red-400">{stats.critical}</span>
+          </div>
+        </div>
+        <div className="relative p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-amber-500/20 transition-colors">
+          <DotPattern className="text-amber-500/5 group-hover:text-amber-500/10 transition-colors" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <span className="text-xs text-zinc-500">Warnings</span>
+            </div>
+            <span className="text-2xl font-semibold text-amber-400">{stats.warning}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Error List */}
+      {errors.length === 0 ? (
+        <div className="relative flex flex-col items-center justify-center py-20 overflow-hidden rounded-2xl border border-zinc-800/60 bg-zinc-900/30">
+          <DotPattern className="text-emerald-500/5 [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
+          <div className="relative flex flex-col items-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20 flex items-center justify-center mb-4 shadow-lg shadow-emerald-500/10">
+              <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+            </div>
+            <p className="text-sm font-medium text-zinc-200">All systems operational</p>
+            <p className="text-xs text-zinc-600 mt-1">No errors in the last 7 days</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {errors.map((err, idx) => {
+            const nodeDef = NODE_DEFINITIONS[err.nodeType as AINodeType];
+            const isCritical = err.severity === "critical";
+
+            return (
+              <motion.div
+                key={err.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03 }}
+                className="p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl hover:border-zinc-700/60 transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                    isCritical ? "bg-red-500/10" : "bg-amber-500/10"
+                  )}>
+                    {isCritical ? (
+                      <XCircle className="w-4 h-4 text-red-400" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-white">
+                        {nodeDef?.label || err.nodeType}
+                      </span>
+                      <span className={cn(
+                        "px-1.5 py-0.5 text-[10px] font-medium uppercase rounded",
+                        isCritical ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"
+                      )}>
+                        {err.severity}
+                      </span>
+                    </div>
+                    <p className="text-sm text-zinc-400 break-words">{err.message}</p>
+                    {err.workflowName && (
+                      <p className="text-xs text-zinc-600 mt-2 flex items-center gap-1">
+                        <GitBranch className="w-3 h-3" />
+                        {err.workflowName}
+                      </p>
+                    )}
+                  </div>
+                </div>
                 </motion.div>
               );
             })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// HEALTH PANEL
+// =============================================================================
+
+function HealthPanel() {
+  const { data, isLoading } = trpc.execution.health.useQuery(undefined, { refetchInterval: 60000 });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      </div>
+    );
+  }
+
+  const health = data ?? {
+    credits: { balance: 0, usedToday: 0, usedThisWeek: 0 },
+    cache: { entries: 0, hitRate: "—" },
+    system: { workflows: 0, executions: 0, uptime: "—" },
+    providers: [],
+  };
+
+  return (
+    <div className="p-6 space-y-8">
+      {/* Overview Stats */}
+      <div>
+        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">Overview</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-amber-500/20 transition-colors">
+            <DotPattern className="text-amber-500/5 group-hover:text-amber-500/10 transition-colors" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <Coins className="w-4 h-4 text-amber-500" />
+                <span className="text-xs text-zinc-500">Credit Balance</span>
+              </div>
+              <span className="text-3xl font-semibold text-white tabular-nums">
+                {health.credits.balance.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-violet-500/20 transition-colors">
+            <DotPattern className="text-violet-500/5 group-hover:text-violet-500/10 transition-colors" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-violet-500" />
+                <span className="text-xs text-zinc-500">Workflows</span>
+              </div>
+              <span className="text-3xl font-semibold text-white tabular-nums">
+                {health.system.workflows}
+              </span>
+            </div>
+          </div>
+          <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-500/20 transition-colors">
+            <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <Activity className="w-4 h-4 text-blue-500" />
+                <span className="text-xs text-zinc-500">Total Runs</span>
+              </div>
+              <span className="text-3xl font-semibold text-white tabular-nums">
+                {health.system.executions.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-emerald-500/20 transition-colors">
+            <DotPattern className="text-emerald-500/5 group-hover:text-emerald-500/10 transition-colors" />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="w-4 h-4 text-emerald-500" />
+                <span className="text-xs text-zinc-500">Cache Entries</span>
+              </div>
+              <span className="text-3xl font-semibold text-white tabular-nums">
+                {health.cache.entries.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* API Providers */}
+      <div>
+        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">API Providers</h3>
+        <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden">
+          {health.providers.length === 0 ? (
+            <div className="p-8 text-center text-zinc-600 text-sm">No provider data available</div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {health.providers.map((provider) => (
+                <div key={provider.name} className="px-5 py-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      provider.status === "healthy" ? "bg-emerald-500" :
+                      provider.status === "degraded" ? "bg-amber-500" : "bg-red-500"
+                    )} />
+                    <span className="text-sm font-medium text-white">{provider.name}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-zinc-500">{provider.lastSuccess || "No data"}</span>
+                    <span className={cn(
+                      "px-2 py-1 text-[11px] font-medium rounded capitalize",
+                      provider.status === "healthy" ? "bg-emerald-500/10 text-emerald-400" :
+                      provider.status === "degraded" ? "bg-amber-500/10 text-amber-400" :
+                      "bg-red-500/10 text-red-400"
+                    )}>
+                      {provider.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Credit Usage */}
+      <div>
+        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">Credit Usage</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-zinc-500">Today</span>
+              <span className="text-lg font-semibold text-white tabular-nums">
+                {health.credits.usedToday.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
+                style={{ width: `${Math.min((health.credits.usedToday / (health.credits.balance + health.credits.usedToday || 1)) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-zinc-500">This Week</span>
+              <span className="text-lg font-semibold text-white tabular-nums">
+                {health.credits.usedThisWeek.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-600 to-blue-500 rounded-full"
+                style={{ width: `${Math.min((health.credits.usedThisWeek / (health.credits.balance + health.credits.usedThisWeek || 1)) * 100, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>

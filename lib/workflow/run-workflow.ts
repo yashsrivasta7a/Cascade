@@ -85,6 +85,62 @@ function topoSort(nodes: Node[], edges: Edge[]): Node[] {
   return out;
 }
 
+/**
+ * Get all upstream (ancestor) nodes that the target node depends on.
+ * Returns nodes in topological order (parents before children).
+ */
+function getUpstreamNodes(targetNodeId: string, nodes: Node[], edges: Edge[]): Node[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const visited = new Set<string>();
+  const upstream = new Set<string>();
+  
+  // Build reverse adjacency list (child -> parents)
+  const reverseAdj = new Map<string, string[]>();
+  for (const e of edges) {
+    if (!reverseAdj.has(e.target)) reverseAdj.set(e.target, []);
+    reverseAdj.get(e.target)!.push(e.source);
+  }
+  
+  // DFS to find all ancestors
+  const dfs = (nodeId: string) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    
+    const parents = reverseAdj.get(nodeId) ?? [];
+    for (const parentId of parents) {
+      upstream.add(parentId);
+      dfs(parentId);
+    }
+  };
+  
+  dfs(targetNodeId);
+  
+  // Convert to array of nodes
+  const upstreamNodes: Node[] = [];
+  for (const id of upstream) {
+    const node = byId.get(id);
+    if (node) upstreamNodes.push(node);
+  }
+  
+  // Return in topological order (so parents run before their children)
+  return topoSort(upstreamNodes, edges.filter(e => upstream.has(e.source) && upstream.has(e.target)));
+}
+
+/**
+ * Check if a node has already produced output (has a result).
+ */
+function nodeHasOutput(node: Node): boolean {
+  const data = node.data as Record<string, unknown>;
+  const result = data?.result;
+  
+  // Has a valid result if it's a non-empty string or a valid URL
+  if (typeof result === "string" && result.trim().length > 0) {
+    return true;
+  }
+  
+  return false;
+}
+
 // Get incoming text for context (includes history)
 function getIncomingTextForContext(edges: Edge[], outputs: OutputByNode, nodeId: string, nodes: Node[]): string | undefined {
   const incoming = edges.filter((e) => e.target === nodeId && e.targetHandle !== "prompt");
@@ -801,6 +857,342 @@ export async function runWorkflow(
 
 // Nodes that require server-side execution via Trigger.dev (async/webhook-based)
 const ASYNC_NODE_TYPES: AINodeType[] = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
+
+/**
+ * Run a single node WITH its dependencies.
+ * If the node depends on parent nodes that haven't run yet, it will run them first.
+ * 
+ * @param nodeId - The ID of the node to run
+ * @param nodes - All nodes in the workflow
+ * @param edges - All edges in the workflow
+ * @param callbacks - Callbacks for status updates
+ * @param workflowId - Optional workflow ID for tracking
+ * @param updateNodeData - Callback to update node data in the store (for propagating outputs)
+ */
+export async function runNodeWithDependencies(
+  nodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+  callbacks: RunCallbacks = {},
+  workflowId?: string,
+  updateNodeData?: (nodeId: string, data: Record<string, unknown>) => void
+): Promise<void> {
+  const targetNode = nodes.find((n) => n.id === nodeId);
+  if (!targetNode) {
+    console.error(`[runNodeWithDependencies] Node ${nodeId} not found`);
+    return;
+  }
+
+  console.log(`[runNodeWithDependencies] Starting execution for node ${nodeId} (${targetNode.type})`);
+
+  // Find all upstream dependencies
+  const upstreamNodes = getUpstreamNodes(nodeId, nodes, edges);
+  console.log(`[runNodeWithDependencies] Found ${upstreamNodes.length} upstream dependencies:`, 
+    upstreamNodes.map(n => `${n.id} (${n.type})`));
+
+  // Filter to only nodes that haven't produced output yet
+  const nodesToRun = upstreamNodes.filter(n => !nodeHasOutput(n));
+  console.log(`[runNodeWithDependencies] ${nodesToRun.length} nodes need to run first:`,
+    nodesToRun.map(n => `${n.id} (${n.type})`));
+
+  // If there are dependencies to run, execute them first using runWorkflow logic
+  if (nodesToRun.length > 0) {
+    // Include the target node in the execution
+    const allNodesToRun = [...nodesToRun, targetNode];
+    const relevantNodeIds = new Set(allNodesToRun.map(n => n.id));
+    
+    // Filter edges to only those connecting our nodes
+    const relevantEdges = edges.filter(e => 
+      relevantNodeIds.has(e.source) && relevantNodeIds.has(e.target)
+    );
+
+    console.log(`[runNodeWithDependencies] Running ${allNodesToRun.length} nodes in dependency order`);
+
+    // Run the subset of the workflow
+    await runWorkflowSubset(
+      allNodesToRun,
+      relevantEdges,
+      {
+        onNodeStatus: (id, status, patch) => {
+          callbacks.onNodeStatus?.(id, status, patch);
+        },
+        onNodeResult: (id, resultText, output) => {
+          callbacks.onNodeResult?.(id, resultText, output);
+          
+          // Update the node data in the store so outputs propagate
+          if (updateNodeData) {
+            updateNodeData(id, { result: resultText, status: "completed" });
+          }
+        },
+      },
+      workflowId
+    );
+  } else {
+    // No dependencies needed, just run the target node directly
+    console.log(`[runNodeWithDependencies] No dependencies needed, running ${nodeId} directly`);
+    await runSingleNode(nodeId, nodes, edges, callbacks, workflowId);
+  }
+}
+
+/**
+ * Run a subset of a workflow - used for running dependencies.
+ * Similar to runWorkflow but operates on a subset of nodes.
+ */
+async function runWorkflowSubset(
+  nodes: Node[],
+  edges: Edge[],
+  callbacks: RunCallbacks = {},
+  workflowId?: string
+): Promise<void> {
+  console.log("[runWorkflowSubset] Starting execution for", nodes.length, "nodes");
+  
+  const outputs: OutputByNode = new Map();
+  const allNodes = topoSort(nodes, edges);
+  
+  // Build dependency graph
+  const nodeById = new Map<string, Node>(allNodes.map(n => [n.id, n]));
+  const dependencies = new Map<string, Set<string>>();
+  const dependents = new Map<string, Set<string>>();
+  
+  for (const node of allNodes) {
+    dependencies.set(node.id, new Set());
+    dependents.set(node.id, new Set());
+  }
+  
+  for (const edge of edges) {
+    const source = edge.source;
+    const target = edge.target;
+    if (nodeById.has(source) && nodeById.has(target)) {
+      dependencies.get(target)!.add(source);
+      dependents.get(source)!.add(target);
+    }
+  }
+  
+  const completed = new Set<string>();
+  const failed = new Set<string>();
+  const running = new Set<string>();
+  
+  const getReadyNodes = (): Node[] => {
+    const ready: Node[] = [];
+    for (const node of allNodes) {
+      if (completed.has(node.id) || failed.has(node.id) || running.has(node.id)) {
+        continue;
+      }
+      const deps = dependencies.get(node.id)!;
+      const allDepsComplete = [...deps].every(d => completed.has(d));
+      const anyDepFailed = [...deps].some(d => failed.has(d));
+      
+      if (anyDepFailed) {
+        failed.add(node.id);
+        callbacks.onNodeStatus?.(node.id, "failed", { 
+          error: "Dependency failed",
+          progress: 0 
+        });
+        continue;
+      }
+      
+      if (allDepsComplete) {
+        ready.push(node);
+      }
+    }
+    return ready;
+  };
+  
+  const executeNode = async (node: Node): Promise<void> => {
+    const type = node.type as AINodeType;
+    const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny;
+    const outputSchema = NodeOutputSchemas[type] as z.ZodTypeAny;
+    const data = (node.data ?? {}) as any;
+
+    if (!inputSchema || !outputSchema) {
+      callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
+      failed.add(node.id);
+      return;
+    }
+
+    running.add(node.id);
+    callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
+
+    const rawInput = buildNodeInput(node, edges, outputs, allNodes);
+    console.log(`[runWorkflowSubset] Node ${node.id} (${type}) starting`);
+    
+    const parsed = inputSchema.safeParse(rawInput);
+    if (!parsed.success) {
+      callbacks.onNodeStatus?.(node.id, "failed", {
+        error: parsed.error.issues.map((i) => i.message).join("; "),
+        progress: 0,
+      });
+      running.delete(node.id);
+      failed.add(node.id);
+      return;
+    }
+
+    // Check cache
+    let cacheHash: string | undefined;
+    try {
+      const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+      cacheHash = cacheCheck.hash;
+      
+      if (cacheCheck.hit && cacheCheck.result) {
+        console.log(`[runWorkflowSubset] Cache HIT for ${node.id} (${type})`);
+        
+        const cachedOut = cacheCheck.result as AnyOut;
+        const validated = outputSchema.safeParse(cachedOut);
+        
+        if (validated.success) {
+          running.delete(node.id);
+          outputs.set(node.id, cachedOut);
+          completed.add(node.id);
+          
+          const resultText =
+            cachedOut.type === "text"
+              ? cachedOut.text
+              : cachedOut.type === "image"
+                ? cachedOut.image.url
+                : cachedOut.type === "video"
+                  ? cachedOut.video.url
+                  : cachedOut.audio.url;
+
+          callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+          callbacks.onNodeStatus?.(node.id, "completed", {
+            progress: 100,
+            fromCache: true,
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn(`[runWorkflowSubset] Cache check failed for ${node.id}:`, error);
+    }
+
+    // Provider execution
+    const nodeProvidersRaw = Array.isArray(data.providers) ? data.providers : undefined;
+    const providers = (nodeProvidersRaw?.filter((p: unknown) => typeof p === "string" && p.trim()) as string[] | undefined)
+      ?? (NodeProviders[type] as unknown as string[] | undefined)
+      ?? ["fal"];
+
+    const retryPerProvider =
+      typeof data.retryPerProvider === "number" && Number.isFinite(data.retryPerProvider) && data.retryPerProvider > 0
+        ? Math.floor(data.retryPerProvider)
+        : 1;
+
+    const timeoutMs =
+      parseDurationMs(data.timeout) ??
+      parseDurationMs(data.timeoutMs) ??
+      parseDurationMs(data.nodeTimeout) ??
+      DEFAULT_NODE_TIMEOUT_MS;
+
+    let lastError: string | undefined;
+    let finalOut: AnyOut | undefined;
+    let providerUsed: string | undefined;
+    const attemptedProviders: string[] = [];
+
+    for (const p of providers) {
+      if (!providerIsConfigured(p as any)) continue;
+      attemptedProviders.push(p);
+
+      for (let attempt = 1; attempt <= retryPerProvider; attempt++) {
+        callbacks.onNodeStatus?.(node.id, "running", {
+          progress: 20 + (attempt * 10),
+          providerTrying: p,
+          providerAttempt: attempt,
+        });
+
+        try {
+          const out = await withTimeout(
+            executeWithProvider(type, p as any, parsed.data),
+            timeoutMs,
+            `${type} (${p})`
+          );
+          const validated = outputSchema.safeParse(out);
+          if (!validated.success) {
+            throw new Error(`Output schema invalid: ${validated.error.issues.map((i) => i.message).join("; ")}`);
+          }
+          finalOut = validated.data as AnyOut;
+          providerUsed = p;
+          break;
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : String(e);
+          console.log(`[runWorkflowSubset] Node ${node.id} attempt ${attempt} failed: ${lastError}`);
+        }
+      }
+
+      if (finalOut) break;
+    }
+
+    running.delete(node.id);
+
+    if (!finalOut) {
+      callbacks.onNodeStatus?.(node.id, "failed", {
+        error: lastError ?? "All providers failed",
+        attemptedProviders,
+        progress: 0,
+      });
+      failed.add(node.id);
+      return;
+    }
+
+    outputs.set(node.id, finalOut);
+    completed.add(node.id);
+    
+    const resultText =
+      finalOut.type === "text"
+        ? finalOut.text
+        : finalOut.type === "image"
+          ? finalOut.image.url
+          : finalOut.type === "video"
+            ? finalOut.video.url
+            : finalOut.audio.url;
+
+    // Cache result
+    if (cacheHash) {
+      try {
+        await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
+      } catch (error) {
+        console.warn(`[runWorkflowSubset] Failed to cache result for ${node.id}:`, error);
+      }
+    }
+
+    callbacks.onNodeResult?.(node.id, resultText, finalOut);
+    callbacks.onNodeStatus?.(node.id, "completed", {
+      progress: 100,
+      providerUsed,
+      attemptedProviders,
+    });
+  };
+  
+  // Mark all nodes as queued
+  for (const node of allNodes) {
+    const type = node.type as AINodeType;
+    if (!NodeInputSchemas[type] || !NodeOutputSchemas[type]) {
+      callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
+      failed.add(node.id);
+      continue;
+    }
+    callbacks.onNodeStatus?.(node.id, "queued");
+  }
+  
+  // Execute nodes sequentially for dependency runs (simpler and more predictable)
+  while (completed.size + failed.size < allNodes.length) {
+    const readyNodes = getReadyNodes();
+    
+    if (readyNodes.length === 0) {
+      if (running.size === 0) {
+        console.error("[runWorkflowSubset] No nodes ready and none running");
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+      continue;
+    }
+    
+    // Run one node at a time for dependency execution (sequential is safer)
+    const nodeToRun = readyNodes[0];
+    console.log(`[runWorkflowSubset] Running node: ${nodeToRun.id} (${nodeToRun.type})`);
+    await executeNode(nodeToRun);
+  }
+  
+  console.log(`[runWorkflowSubset] Completed: ${completed.size} succeeded, ${failed.size} failed`);
+}
 
 export async function runSingleNode(
   nodeId: string,

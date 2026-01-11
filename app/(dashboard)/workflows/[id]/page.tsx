@@ -14,15 +14,16 @@ import {
   Activity,
   Target,
   GitBranch,
-  Bug,
   LayoutGrid,
   Square,
+  FolderOpen,
+  Coins,
 } from "lucide-react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
 import { NodeContextMenu } from "@/components/flow/node-context-menu";
 import { NodeTypeModal } from "@/components/flow/node-type-modal";
-import { NodePalette, ExecutionHistoryPanel, VersionHistoryPanel, ErrorInspectorPanel } from "@/components/flow";
+import { NodePalette, VersionHistoryPanel, ActivityPanel, AssetManagerPanel, CreditsPanel } from "@/components/flow";
 import type { WorkflowError } from "@/components/flow";
 import { WorkflowSidebar } from "@/components/flow/workflow-sidebar";
 import { useFlowStore } from "@/store";
@@ -187,8 +188,10 @@ export default function WorkflowEditorPage() {
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [assetManagerOpen, setAssetManagerOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const [workflowSidebarOpen, setWorkflowSidebarOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -202,7 +205,6 @@ export default function WorkflowEditorPage() {
   const [workflowName, setWorkflowName] = useState("My Workflow");
   const [dbWorkflowId, setDbWorkflowId] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
-  const [errorsOpen, setErrorsOpen] = useState(false);
   const [workflowErrors, setWorkflowErrors] = useState<WorkflowError[]>([]);
   
   // Keep refs to current state for polling (avoids stale closures)
@@ -236,9 +238,20 @@ export default function WorkflowEditorPage() {
           setPaletteOpen(prev => !prev);
           break;
         case "h":
+        case "e":
           e.preventDefault();
           e.stopPropagation();
-          setHistoryOpen(prev => !prev);
+          setActivityOpen(prev => !prev);
+          break;
+        case "a":
+          e.preventDefault();
+          e.stopPropagation();
+          setAssetManagerOpen(prev => !prev);
+          break;
+        case "c":
+          e.preventDefault();
+          e.stopPropagation();
+          setCreditsOpen(prev => !prev);
           break;
         case "v":
           e.preventDefault();
@@ -251,19 +264,10 @@ export default function WorkflowEditorPage() {
           if (!isWorkflowRunning) setIsRunModalOpen(true);
           break;
         case "w":
-          e.preventDefault();
-          e.stopPropagation();
-          setWorkflowSidebarOpen(prev => !prev);
-          break;
         case "t":
           e.preventDefault();
           e.stopPropagation();
           setWorkflowSidebarOpen(prev => !prev);
-          break;
-        case "e":
-          e.preventDefault();
-          e.stopPropagation();
-          setErrorsOpen(prev => !prev);
           break;
         case "escape":
           // If workflow is running, stop it
@@ -275,10 +279,11 @@ export default function WorkflowEditorPage() {
           } else {
             // Otherwise, close all panels and modals
             setPaletteOpen(false);
-            setHistoryOpen(false);
+            setActivityOpen(false);
             setVersionsOpen(false);
+            setAssetManagerOpen(false);
+            setCreditsOpen(false);
             setWorkflowSidebarOpen(false);
-            setErrorsOpen(false);
             setIsAddModalOpen(false);
             setIsRunModalOpen(false);
           }
@@ -418,7 +423,7 @@ export default function WorkflowEditorPage() {
           if (prev.some((e) => e.id === errorId)) return prev;
           return [newError, ...prev];
         });
-        setErrorsOpen(true);
+        setActivityOpen(true);
       }
     });
   }, [nodes, workflowErrors]);
@@ -592,7 +597,7 @@ export default function WorkflowEditorPage() {
                     canRetry: true,
                   };
                   setWorkflowErrors((prev) => [newError, ...prev]);
-                  setErrorsOpen(true);
+                  setActivityOpen(true);
                 }
               });
 
@@ -617,8 +622,8 @@ export default function WorkflowEditorPage() {
   const { data: dbErrorsData } = trpc.execution.getErrors.useQuery(
     { workflowId: dbWorkflowId ?? "", limit: 50 },
     {
-      enabled: Boolean(dbWorkflowId) && errorsOpen,
-      refetchInterval: errorsOpen ? 5000 : false, // Poll every 5s when panel is open
+      enabled: Boolean(dbWorkflowId) && activityOpen,
+      refetchInterval: activityOpen ? 5000 : false, // Poll every 5s when panel is open
     }
   );
 
@@ -875,7 +880,7 @@ export default function WorkflowEditorPage() {
       };
       
       setWorkflowErrors(prev => [newError, ...prev]);
-      setErrorsOpen(true);
+      setActivityOpen(true);
     },
     onWorkflowCompleted: ({ successCount, failCount, status }) => {
       console.log(`[SSE] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}`);
@@ -896,7 +901,7 @@ export default function WorkflowEditorPage() {
         canRetry: true,
       };
       setWorkflowErrors(prev => [newError, ...prev]);
-      setErrorsOpen(true);
+      setActivityOpen(true);
       setWorkflowRunning(false);
     },
   }), [nodes, setNodes, refetchCredits, setWorkflowRunning]);
@@ -960,7 +965,7 @@ export default function WorkflowEditorPage() {
         canRetry: false,
       };
       setWorkflowErrors(prev => [newError, ...prev]);
-      setErrorsOpen(true);
+      setActivityOpen(true);
       return;
     }
 
@@ -1066,21 +1071,29 @@ export default function WorkflowEditorPage() {
 
         {/* Top Right: Credits + Versions */}
         <div className="fixed top-3 right-3 z-50 flex items-center gap-2">
-          {/* Credit Balance Display */}
-          <a
-            href="/billing"
-            className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-3 py-1.5 hover:border-zinc-700 hover:bg-zinc-900/90 transition-colors group"
+          {/* Credit Balance Display - Click to open Credits Panel */}
+          <button
+            onClick={() => setCreditsOpen((v) => !v)}
+            className={`flex items-center gap-2 bg-zinc-950/90 border rounded-xl px-3 py-1.5 transition-colors group ${
+              creditsOpen
+                ? "border-amber-500/50 bg-amber-500/10"
+                : "border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/90"
+            }`}
           >
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-inner">
+            <div className={`w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-inner ${
+              creditsOpen ? "shadow-amber-500/30" : ""
+            }`}>
               <span className="text-[10px] text-amber-950 font-bold">$</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-semibold text-zinc-100 tabular-nums leading-none">
+              <span className={`text-xs font-semibold tabular-nums leading-none ${
+                creditsOpen ? "text-amber-400" : "text-zinc-100"
+              }`}>
                 {creditsData?.formatted ?? "..."}
               </span>
               <span className="text-[10px] text-zinc-500 leading-none">credits</span>
             </div>
-          </a>
+          </button>
 
           {/* Versions Button */}
           <div className="flex items-center gap-2 bg-zinc-950/90 border border-zinc-800 rounded-xl px-2 py-1.5">
@@ -1114,12 +1127,12 @@ export default function WorkflowEditorPage() {
             className="relative group"
           >
             {/* Subtle glow effect */}
-            <div className="absolute inset-0 bg-zinc-600/10 rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity" />
+            <div className="absolute inset-0 bg-white/[0.03] rounded-2xl blur-2xl opacity-60 group-hover:opacity-80 transition-opacity" />
             
-            {/* Main bar */}
-            <div className="relative flex items-center gap-0.5 bg-gradient-to-b from-zinc-800/95 to-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-2xl px-1.5 py-1.5 shadow-2xl shadow-black/50">
-              {/* Subtle inner glow */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent via-zinc-700/5 to-zinc-600/10 pointer-events-none" />
+            {/* Main bar - Glass effect */}
+            <div className="relative flex items-center gap-0.5 bg-white/[0.03] backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] rounded-2xl px-1.5 py-1.5 shadow-2xl shadow-black/40">
+              {/* Glass inner highlight */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
               
               {/* Nodes toggle */}
               <div className="relative">
@@ -1194,21 +1207,28 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-              {/* Activity toggle */}
+              {/* Activity toggle (combined runs + errors) */}
               <div className="relative">
                 <motion.button
-                  onClick={() => setHistoryOpen((v) => !v)}
-                  onMouseEnter={() => setHoveredAction("history")}
+                  onClick={() => setActivityOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("activity")}
                   onMouseLeave={() => setHoveredAction(null)}
                   whileTap={{ scale: 0.95 }}
                   className={`relative p-2.5 rounded-xl transition-all duration-200 ${
-                    historyOpen 
+                    activityOpen 
                       ? "text-blue-400" 
-                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                      : workflowErrors.length > 0
+                        ? "text-blue-400 hover:bg-white/5"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
                   }`}
                 >
                   <Activity className="w-4 h-4 relative z-10" />
-                  {historyOpen && (
+                  {workflowErrors.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
+                      {workflowErrors.length > 9 ? "9+" : workflowErrors.length}
+                    </span>
+                  )}
+                  {activityOpen && (
                     <>
                       {/* Blue glow behind */}
                       <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
@@ -1222,7 +1242,7 @@ export default function WorkflowEditorPage() {
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "history" && (
+                  {hoveredAction === "activity" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1239,34 +1259,26 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-              {/* Errors toggle */}
+              {/* Asset Manager toggle */}
               <div className="relative">
                 <motion.button
-                  onClick={() => setErrorsOpen((v) => !v)}
-                  onMouseEnter={() => setHoveredAction("errors")}
+                  onClick={() => setAssetManagerOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("assets")}
                   onMouseLeave={() => setHoveredAction(null)}
                   whileTap={{ scale: 0.95 }}
                   className={`relative p-2.5 rounded-xl transition-all duration-200 ${
-                    errorsOpen 
-                      ? "text-red-400" 
-                      : workflowErrors.length > 0
-                        ? "text-red-400 hover:bg-white/5"
-                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    assetManagerOpen 
+                      ? "text-purple-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
                   }`}
                 >
-                  <Bug className="w-4 h-4 relative z-10" />
-                  {workflowErrors.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold bg-red-500 text-white rounded-full flex items-center justify-center">
-                      {workflowErrors.length > 9 ? "9+" : workflowErrors.length}
-                    </span>
-                  )}
-                  {errorsOpen && (
+                  <FolderOpen className="w-4 h-4 relative z-10" />
+                  {assetManagerOpen && (
                     <>
-                      {/* Red glow behind */}
-                      <div className="absolute inset-0 bg-red-500/20 rounded-xl blur-md" />
+                      <div className="absolute inset-0 bg-purple-500/20 rounded-xl blur-md" />
                       <motion.div
-                        layoutId="activeIndicator4"
-                        className="absolute inset-0 bg-gradient-to-br from-red-500/30 to-red-600/20 rounded-xl border border-red-500/30"
+                        layoutId="activeIndicator3"
+                        className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-purple-600/20 rounded-xl border border-purple-500/30"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
                       />
                     </>
@@ -1274,7 +1286,7 @@ export default function WorkflowEditorPage() {
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "errors" && (
+                  {hoveredAction === "assets" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1282,8 +1294,52 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">Diagnostics</span>
-                        <Kbd>E</Kbd>
+                        <span className="text-xs text-zinc-300">Assets</span>
+                        <Kbd>A</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Credits toggle */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setCreditsOpen((v) => !v)}
+                  onMouseEnter={() => setHoveredAction("credits")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    creditsOpen 
+                      ? "text-amber-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Coins className="w-4 h-4 relative z-10" />
+                  {creditsOpen && (
+                    <>
+                      <div className="absolute inset-0 bg-amber-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicator4"
+                        className="absolute inset-0 bg-gradient-to-br from-amber-500/30 to-amber-600/20 rounded-xl border border-amber-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "credits" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Credits</span>
+                        <Kbd>C</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
                     </motion.div>
@@ -1395,13 +1451,18 @@ export default function WorkflowEditorPage() {
         {/* Floating context menu near selected node */}
         <NodeContextMenu />
 
-        {/* Activity Panel (right side) - use dbWorkflowId for database filtering */}
-        <ExecutionHistoryPanel 
+        {/* Activity Panel (combined runs + errors) */}
+        <ActivityPanel 
           workflowId={dbWorkflowId ?? workflowId} 
-          isOpen={historyOpen}
-          onClose={() => setHistoryOpen(false)}
+          isOpen={activityOpen}
+          onClose={() => setActivityOpen(false)}
           onNodeClick={(nodeId) => focusNode(nodeId)}
-          offsetRight={errorsOpen ? 412 : 0}
+          errors={workflowErrors}
+          onClearErrors={() => setWorkflowErrors([])}
+          onRetryNode={(nodeId) => {
+            focusNode(nodeId);
+            setActivityOpen(false);
+          }}
         />
 
         {/* Version History Panel */}
@@ -1416,21 +1477,18 @@ export default function WorkflowEditorPage() {
           }}
         />
 
-        {/* Diagnostics Panel */}
-        <ErrorInspectorPanel
-          isOpen={errorsOpen}
-          onClose={() => setErrorsOpen(false)}
-          errors={workflowErrors}
-          onClearErrors={() => setWorkflowErrors([])}
-          onRetryNode={(nodeId) => {
-            // Focus on the node and user can re-run
-            focusNode(nodeId);
-            setErrorsOpen(false);
-          }}
-          onNodeClick={(nodeId) => {
-            focusNode(nodeId);
-            setErrorsOpen(false);
-          }}
+        {/* Asset Manager Panel */}
+        <AssetManagerPanel
+          isOpen={assetManagerOpen}
+          onClose={() => setAssetManagerOpen(false)}
+          onNodeClick={(nodeId) => focusNode(nodeId)}
+        />
+
+        {/* Credits Panel */}
+        <CreditsPanel
+          workflowId={dbWorkflowId ?? workflowId}
+          isOpen={creditsOpen}
+          onClose={() => setCreditsOpen(false)}
         />
 
         {/* Hint when has nodes but few - positioned above the floating bar */}

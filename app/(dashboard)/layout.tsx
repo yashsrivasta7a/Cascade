@@ -13,7 +13,7 @@ export default function DashboardLayout({
   const hideSidebarOnWorkflows = pathname.startsWith("/workflows");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950">
+    <div className="flex h-screen overflow-hidden bg-[#09090b]">
       {!hideSidebarOnWorkflows && <Sidebar />}
       <main className={cn("flex-1 overflow-hidden", hideSidebarOnWorkflows && "w-full")}>
         {children}
