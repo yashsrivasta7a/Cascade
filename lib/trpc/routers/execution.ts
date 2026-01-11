@@ -98,15 +98,21 @@ export const executionRouter = router({
         }),
       ]);
 
-      // Calculate total credits used
-      const allNodeExecutions = await ctx.db.nodeExecution.aggregate({
-        where: {
-          workflowExecution: { workflow: { userId: ctx.userId } },
-        },
-        _sum: { actualCost: true },
-      });
+      // Calculate total credits used (workflow nodes + quick executions)
+      const [nodeCredits, quickCredits] = await Promise.all([
+        ctx.db.nodeExecution.aggregate({
+          where: {
+            workflowExecution: { workflow: { userId: ctx.userId } },
+          },
+          _sum: { actualCost: true },
+        }),
+        ctx.db.quickExecution.aggregate({
+          where: { userId: ctx.userId },
+          _sum: { actualCost: true },
+        }),
+      ]);
 
-      const totalCreditsUsed = allNodeExecutions._sum.actualCost ?? 0;
+      const totalCreditsUsed = (nodeCredits._sum.actualCost ?? 0) + (quickCredits._sum.actualCost ?? 0);
 
       // Calculate success rate
       const successfulRuns = weekStats.filter((e) => e.status === "COMPLETED").length;
@@ -133,6 +139,10 @@ export const executionRouter = router({
           ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
           : undefined;
 
+        // Use workflowExecution.actualCost if available, fallback to sum of nodeExecutions
+        const nodeCostSum = exec.nodeExecutions.reduce((sum, n) => sum + (n.actualCost ?? 0), 0);
+        const totalCost = exec.actualCost > 0 ? exec.actualCost : nodeCostSum;
+
         return {
           id: exec.id,
           type: "workflow" as const,
@@ -143,7 +153,7 @@ export const executionRouter = router({
           completedAt: exec.completedAt?.toISOString(),
           createdAt: exec.createdAt?.toISOString(),
           duration: durationMs ? formatDuration(durationMs) : undefined,
-          totalCost: exec.nodeExecutions.reduce((sum, n) => sum + (n.actualCost ?? 0), 0),
+          totalCost,
           nodeCount: exec.nodeExecutions.length,
           nodes: exec.nodeExecutions.map((node) => {
             const nodeDurationMs = node.completedAt && node.startedAt

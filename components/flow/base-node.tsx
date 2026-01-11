@@ -255,28 +255,19 @@ function BaseNodeComponent({
   const contract = nodeType ? NODE_CONTRACTS[nodeType as AINodeType] : undefined;
   const nodeSettings = contract?.settings || [];
   
-  // Calculate radial positions for settings handles
-  // Spreads N items across a semi-circle arc with good spacing
-  const getRadialPosition = useCallback((index: number, total: number, baseRadius: number = 80) => {
-    if (total === 1) {
-      return { x: baseRadius, y: 0 };
-    }
+  // Calculate vertical positions for settings handles
+  // Stacks items vertically with consistent spacing
+  const getSettingsPosition = useCallback((index: number, total: number) => {
+    const spacing = 28; // Vertical spacing between handles
+    const xOffset = 50; // Horizontal distance from anchor
     
-    // Adjust radius based on number of items to prevent overlap
-    // More items = larger radius
-    const radius = baseRadius + Math.max(0, (total - 5) * 8);
+    // Center the stack vertically around the anchor
+    const totalHeight = (total - 1) * spacing;
+    const startY = -totalHeight / 2;
     
-    // Spread angle based on number of items
-    // More items = wider spread (up to 140 degrees)
-    const maxSpread = Math.min(Math.PI * 0.78, Math.PI / 3 + (total * 0.08)); // -70° to +70° max
-    const startAngle = -maxSpread;
-    const endAngle = maxSpread;
-    const angleStep = (endAngle - startAngle) / (total - 1);
-    const angle = startAngle + (index * angleStep);
-
     return {
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
+      x: xOffset,
+      y: startY + (index * spacing),
     };
   }, []);
   
@@ -352,7 +343,7 @@ function BaseNodeComponent({
     // Longer delay for user-friendliness
     settingsTimeoutRef.current = setTimeout(() => {
       collapseSettings();
-    }, 400);
+    }, 600);
   }, [collapseSettings]);
   
   // Keep expanded when hovering on radial handles
@@ -866,12 +857,11 @@ function BaseNodeComponent({
                   onMouseLeave={handleSettingsLeave}
                 >
                   {nodeSettings.map((setting, settingIndex) => {
-                    const pos = getRadialPosition(settingIndex, nodeSettings.length, 85);
+                    const pos = getSettingsPosition(settingIndex, nodeSettings.length);
                     const Icon = settingIcons[setting.type] || Hash;
                     const color = dataTypeColors[setting.type as DataType] || dataTypeColors.text;
                     const isHovered = hoveredSetting === setting.id;
                     
-                    // Calculate bezier curve control points
                     return (
                       <div
                         key={setting.id}
@@ -881,13 +871,51 @@ function BaseNodeComponent({
                           top: isSettingsExpanded ? pos.y : 0,
                           opacity: isSettingsExpanded ? 1 : 0,
                           transform: `translate(-50%, -50%) scale(${isSettingsExpanded ? 1 : 0})`,
-                          transition: `all 0.2s ease-out ${settingIndex * 0.03}s`,
+                          transition: `all 0.2s ease-out ${settingIndex * 0.04}s`,
                         }}
                         onMouseEnter={() => setHoveredSetting(setting.id)}
                         onMouseLeave={() => setHoveredSetting(null)}
                       >
-                        {/* Setting Handle - ALWAYS RENDERED */}
-                        <div className="relative">
+                        {/* Setting Handle */}
+                        <div className="relative flex items-center">
+                          {/* Dotted line connecting anchor to handle */}
+                          <svg
+                            className="absolute"
+                            style={{
+                              left: 6,
+                              top: 6,
+                              width: 1,
+                              height: 1,
+                              overflow: "visible",
+                            }}
+                            onMouseEnter={handleRadialHandleEnter}
+                            onMouseLeave={handleSettingsLeave}
+                          >
+                            {/* Visible dotted line */}
+                            <line
+                              x1={-pos.x}
+                              y1={-pos.y}
+                              x2={0}
+                              y2={0}
+                              stroke={color.solid}
+                              strokeWidth="1.5"
+                              strokeOpacity={isHovered ? "0.7" : "0.3"}
+                              strokeDasharray="4 4"
+                              strokeLinecap="round"
+                              className="transition-all duration-150"
+                            />
+                            {/* Invisible wider stroke for easier hover */}
+                            <line
+                              x1={-pos.x}
+                              y1={-pos.y}
+                              x2={0}
+                              y2={0}
+                              stroke="transparent"
+                              strokeWidth="16"
+                              style={{ cursor: "pointer" }}
+                            />
+                          </svg>
+                          
                           {/* Glow ring on hover */}
                           {isHovered && (
                             <div 
@@ -922,51 +950,6 @@ function BaseNodeComponent({
                             )}
                             onMouseDown={() => handleSettingDragStart(setting.id, setting.type as DataType)}
                           />
-                          
-                          {/* Curved bezier line from handle to anchor */}
-                          {isSettingsExpanded && (
-                            <svg
-                              className="absolute"
-                              style={{
-                                left: 5,
-                                top: 5,
-                                width: 1,
-                                height: 1,
-                                overflow: "visible",
-                                pointerEvents: "stroke",
-                              }}
-                              onMouseEnter={handleRadialHandleEnter}
-                              onMouseLeave={handleSettingsLeave}
-                            >
-                              {/* Glow effect */}
-                              <path
-                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
-                                fill="none"
-                                stroke={color.solid}
-                                strokeWidth="6"
-                                strokeOpacity="0.1"
-                                strokeLinecap="round"
-                              />
-                              {/* Main curve */}
-                              <path
-                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
-                                fill="none"
-                                stroke={color.solid}
-                                strokeWidth="2"
-                                strokeOpacity={isHovered ? "0.8" : "0.4"}
-                                strokeLinecap="round"
-                                className="transition-all duration-150"
-                              />
-                              {/* Invisible wider stroke for easier hover */}
-                              <path
-                                d={`M 0,0 Q ${-pos.x * 0.2},0 ${-pos.x * 0.5},${-pos.y * 0.5} T ${-pos.x},${-pos.y}`}
-                                fill="none"
-                                stroke="transparent"
-                                strokeWidth="12"
-                                style={{ cursor: "pointer" }}
-                              />
-                            </svg>
-                          )}
                           
                           {/* Label - always visible when expanded */}
                           {isSettingsExpanded && (

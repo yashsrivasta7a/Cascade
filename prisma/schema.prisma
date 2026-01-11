@@ -315,3 +315,28 @@ model CreditTransaction {
   @@index([createdAt])
   @@map("credit_transactions")
 }
+
+// =============================================================================
+// NODE RESULT CACHE (for caching identical node executions)
+// =============================================================================
+
+model NodeResultCache {
+  id        String   @id @default(cuid())
+  
+  // Hash of nodeType + inputs for cache lookup
+  hash      String   @unique
+  
+  // What node type this is for
+  nodeType  String
+  
+  // Cached output JSON
+  output    Json
+  
+  // TTL management
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  
+  @@index([hash])
+  @@index([expiresAt])
+  @@map("node_result_cache")
+}

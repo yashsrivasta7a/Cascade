@@ -389,6 +389,22 @@ async function deductCreditsForNode(
         },
       });
 
+      // Update nodeExecution with actual cost (for Activity display)
+      if (!nodeExecutionId.startsWith("sync-")) {
+        await tx.nodeExecution.update({
+          where: { id: nodeExecutionId },
+          data: { actualCost: cost },
+        });
+      }
+
+      // Update workflowExecution actualCost (sum of all node costs)
+      await tx.workflowExecution.update({
+        where: { id: workflowExecutionId },
+        data: {
+          actualCost: { increment: cost },
+        },
+      });
+
       console.log(`[NodeExecutor] Deducted ${cost} credits from user ${workflowExec.userId}, new balance: ${newBalance}`);
     });
   } catch (error) {

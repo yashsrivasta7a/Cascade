@@ -37,10 +37,12 @@ export default function DashboardPage() {
   const { data, isLoading, error, refetch, isFetching } = trpc.dashboard.stats.useQuery(
     undefined,
     {
-      refetchInterval: 30000, // Refresh every 30 seconds
+      staleTime: 2 * 60 * 1000, // Cache for 2 minutes - dashboard data doesn't change rapidly
+      refetchInterval: 60000, // Refetch every 60 seconds (not 30)
     }
   );
 
+  // Skeleton loading UI - shows structure immediately for better perceived performance
   if (isLoading) {
     return (
       <div className="h-full flex flex-col">
@@ -48,8 +50,60 @@ export default function DashboardPage() {
           title="Dashboard"
           description="Welcome back! Here's your workflow overview."
         />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+        <div className="flex-1 overflow-auto p-6 space-y-6">
+          {/* Skeleton stats grid */}
+          <div className="grid grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} variant="elevated" className="p-5 animate-pulse">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 bg-zinc-800 rounded-xl" />
+                  <div className="h-4 w-4 bg-zinc-800 rounded" />
+                </div>
+                <div className="h-4 w-24 bg-zinc-800 rounded mb-2" />
+                <div className="h-8 w-16 bg-zinc-800 rounded mb-2" />
+                <div className="h-3 w-20 bg-zinc-800 rounded" />
+              </Card>
+            ))}
+          </div>
+          {/* Skeleton main content */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Skeleton activity list */}
+            <Card variant="elevated" className="col-span-2 animate-pulse">
+              <div className="p-5 border-b border-zinc-800">
+                <div className="h-5 w-32 bg-zinc-800 rounded mb-2" />
+                <div className="h-4 w-48 bg-zinc-800 rounded" />
+              </div>
+              <div className="divide-y divide-zinc-800/50">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="px-5 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-8 w-8 bg-zinc-800 rounded-lg" />
+                      <div>
+                        <div className="h-4 w-32 bg-zinc-800 rounded mb-1" />
+                        <div className="h-3 w-20 bg-zinc-800 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-6 w-16 bg-zinc-800 rounded-full" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+            {/* Skeleton sidebar */}
+            <div className="space-y-4">
+              <Card variant="elevated" className="p-5 animate-pulse">
+                <div className="h-5 w-28 bg-zinc-800 rounded mb-4" />
+                <div className="space-y-2">
+                  <div className="h-10 w-full bg-zinc-800 rounded-lg" />
+                  <div className="h-10 w-full bg-zinc-800 rounded-lg" />
+                </div>
+              </Card>
+              <Card variant="elevated" className="p-5 animate-pulse">
+                <div className="h-4 w-24 bg-zinc-800 rounded mb-4" />
+                <div className="h-4 w-full bg-zinc-800 rounded mb-2" />
+                <div className="h-2 w-full bg-zinc-800 rounded" />
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
     );

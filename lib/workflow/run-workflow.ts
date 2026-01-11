@@ -9,6 +9,8 @@ import {
   type ProviderId,
   type AnyOut,
 } from "./node-schemas";
+import { estimateNodeCost } from "@/lib/credits";
+import { checkCache, cacheResult } from "@/lib/cache";
 
 export type NodeRunStatus = "queued" | "running" | "completed" | "failed";
 
@@ -613,6 +615,44 @@ export async function runWorkflow(
       return;
     }
 
+    // Check cache for identical inputs
+    let cacheHash: string | undefined;
+    try {
+      const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+      cacheHash = cacheCheck.hash;
+      
+      if (cacheCheck.hit && cacheCheck.result) {
+        console.log(`[RunWorkflow] Cache HIT for ${node.id} (${type}) - skipping execution`);
+        
+        const cachedOut = cacheCheck.result as AnyOut;
+        const validated = outputSchema.safeParse(cachedOut);
+        
+        if (validated.success) {
+          running.delete(node.id);
+          outputs.set(node.id, cachedOut);
+          completed.add(node.id);
+          
+          const resultText =
+            cachedOut.type === "text"
+              ? cachedOut.text
+              : cachedOut.type === "image"
+                ? cachedOut.image.url
+                : cachedOut.type === "video"
+                  ? cachedOut.video.url
+                  : cachedOut.audio.url;
+
+          callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+          callbacks.onNodeStatus?.(node.id, "completed", {
+            progress: 100,
+            fromCache: true,
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn(`[RunWorkflow] Cache check failed for ${node.id}, proceeding with execution:`, error);
+    }
+
     // Provider fallback chain
     const nodeProvidersRaw = Array.isArray(data.providers) ? data.providers : undefined;
     const providers = (nodeProvidersRaw?.filter((p: unknown) => typeof p === "string" && p.trim()) as string[] | undefined)
@@ -694,6 +734,15 @@ export async function runWorkflow(
             ? finalOut.video.url
             : finalOut.audio.url;
 
+    // Cache successful result for future identical executions
+    if (cacheHash) {
+      try {
+        await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
+      } catch (error) {
+        console.warn(`[RunWorkflow] Failed to cache result for ${node.id}:`, error);
+      }
+    }
+
     callbacks.onNodeResult?.(node.id, resultText, finalOut);
     callbacks.onNodeStatus?.(node.id, "completed", {
       progress: 100,
@@ -757,12 +806,14 @@ export async function runSingleNode(
   nodeId: string,
   nodes: Node[],
   edges: Edge[],
-  callbacks: RunCallbacks = {}
+  callbacks: RunCallbacks = {},
+  workflowId?: string
 ): Promise<void> {
   const node = nodes.find((n) => n.id === nodeId);
   if (!node) return;
 
   const type = node.type as AINodeType;
+  const startTime = Date.now();
   const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny | undefined;
   const outputSchema = NodeOutputSchemas[type] as z.ZodTypeAny | undefined;
 
@@ -788,6 +839,40 @@ export async function runSingleNode(
       progress: 0,
     });
     return;
+  }
+
+  // Check cache for identical inputs (skip re-execution if cached)
+  let cacheHash: string | undefined;
+  try {
+    const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+    cacheHash = cacheCheck.hash;
+    
+    if (cacheCheck.hit && cacheCheck.result) {
+      console.log(`[runSingleNode] Cache HIT for ${type} - skipping execution`);
+      
+      const cachedOut = cacheCheck.result as AnyOut;
+      const validated = outputSchema.safeParse(cachedOut);
+      
+      if (validated.success) {
+        const resultText =
+          cachedOut.type === "text"
+            ? cachedOut.text
+            : cachedOut.type === "image"
+              ? cachedOut.image.url
+              : cachedOut.type === "video"
+                ? cachedOut.video.url
+                : cachedOut.audio.url;
+
+        callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+        callbacks.onNodeStatus?.(node.id, "completed", {
+          progress: 100,
+          fromCache: true,
+        });
+        return;
+      }
+    }
+  } catch (error) {
+    console.warn("[runSingleNode] Cache check failed, proceeding with execution:", error);
   }
 
   // For async nodes (fal.ai), use the API which tracks via Trigger.dev
@@ -901,6 +986,48 @@ export async function runSingleNode(
         : finalOut.type === "video"
           ? finalOut.video.url
           : finalOut.audio.url;
+
+  // Deduct credits and record execution for synchronous nodes (utility nodes)
+  // Note: openrouter handles its own credit deduction in /api/nodes/llm/stream
+  if (type !== "openrouter") {
+    try {
+      const creditCost = estimateNodeCost(type, parsed.data);
+      const durationMs = Date.now() - startTime;
+      const nodeLabel = (node.data as any)?.label || type;
+      
+      const response = await fetch("/api/nodes/deduct-credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodeType: type,
+          creditCost,
+          input: parsed.data,
+          workflowId,
+          nodeId: node.id,
+          nodeLabel,
+          durationMs,
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[runSingleNode] Recorded ${type} execution, credits: ${creditCost}, execution: ${result.executionId}`);
+      } else {
+        console.warn(`[runSingleNode] Failed to record execution for ${type}`);
+      }
+    } catch (error) {
+      console.warn(`[runSingleNode] Execution recording error for ${type}:`, error);
+    }
+  }
+
+  // Cache successful result for future identical executions
+  if (cacheHash) {
+    try {
+      await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
+    } catch (error) {
+      console.warn("[runSingleNode] Failed to cache result:", error);
+    }
+  }
 
   callbacks.onNodeResult?.(node.id, resultText, finalOut);
   callbacks.onNodeStatus?.(node.id, "completed", {

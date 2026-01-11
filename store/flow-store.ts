@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import {
   Node,
   Edge,
@@ -80,44 +80,45 @@ export interface FlowState {
 
 export const useFlowStore = create<FlowState>()(
   devtools(
-    (set, get) => ({
-      nodes: [],
-      edges: [],
-      selectedNode: null,
-      viewport: undefined,
-      isWorkflowRunning: false,
-      focusNodeId: null,
-      workflowId: null,
-      connectingFrom: null,
-      
-      // Execution tracking
-      currentWorkflowExecutionId: null,
-      currentTriggerRunId: null,
-      runningNodeIds: new Map(),
+    persist(
+      (set, get) => ({
+        nodes: [],
+        edges: [],
+        selectedNode: null,
+        viewport: undefined,
+        isWorkflowRunning: false,
+        focusNodeId: null,
+        workflowId: null,
+        connectingFrom: null,
+        
+        // Execution tracking
+        currentWorkflowExecutionId: null,
+        currentTriggerRunId: null,
+        runningNodeIds: new Map(),
 
-      setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
-      setWorkflowId: (workflowId) => set({ workflowId }),
-      setConnectingFrom: (info) => set({ connectingFrom: info }),
-      
-      // Execution tracking actions
-      setWorkflowExecution: (executionId, triggerRunId) => set({ 
-        currentWorkflowExecutionId: executionId,
-        currentTriggerRunId: triggerRunId ?? null,
-      }),
-      
-      setNodeRunning: (nodeId, executionId, triggerRunId) => {
-        const state = get();
-        const newMap = new Map(state.runningNodeIds);
-        newMap.set(nodeId, { executionId, triggerRunId });
-        set({ runningNodeIds: newMap });
-      },
-      
-      clearNodeRunning: (nodeId) => {
-        const state = get();
-        const newMap = new Map(state.runningNodeIds);
-        newMap.delete(nodeId);
-        set({ runningNodeIds: newMap });
-      },
+        setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
+        setWorkflowId: (workflowId) => set({ workflowId }),
+        setConnectingFrom: (info) => set({ connectingFrom: info }),
+        
+        // Execution tracking actions
+        setWorkflowExecution: (executionId, triggerRunId) => set({ 
+          currentWorkflowExecutionId: executionId,
+          currentTriggerRunId: triggerRunId ?? null,
+        }),
+        
+        setNodeRunning: (nodeId, executionId, triggerRunId) => {
+          const state = get();
+          const newMap = new Map(state.runningNodeIds);
+          newMap.set(nodeId, { executionId, triggerRunId });
+          set({ runningNodeIds: newMap });
+        },
+        
+        clearNodeRunning: (nodeId) => {
+          const state = get();
+          const newMap = new Map(state.runningNodeIds);
+          newMap.delete(nodeId);
+          set({ runningNodeIds: newMap });
+        },
       
       cancelWorkflow: async () => {
         const state = get();
@@ -794,9 +795,22 @@ export const useFlowStore = create<FlowState>()(
             if (id !== nodeId) return;
             applyResult(resultText);
           },
-        });
+        }, get().workflowId || undefined);
       },
-    }),
+      }),
+      {
+        name: "flowsmith-flow",
+        storage: createJSONStorage(() => localStorage),
+        // Only persist serializable, essential data - not transient state
+        partialize: (state) => ({
+          nodes: state.nodes,
+          edges: state.edges,
+          viewport: state.viewport,
+          workflowId: state.workflowId,
+          // Don't persist: selectedNode, isWorkflowRunning, runningNodeIds, etc.
+        }),
+      }
+    ),
     { name: "flow-store" }
   )
 );
