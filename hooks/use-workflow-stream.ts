@@ -91,11 +91,15 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
     });
   }, []);
 
-  const runWorkflow = useCallback(async (nodes: Node[], edges: Edge[]) => {
+  const runWorkflow = useCallback(async (nodes: Node[], edges: Edge[], overrideWorkflowId?: string) => {
     if (isRunning) {
       console.warn("[useWorkflowStream] Workflow already running");
       return;
     }
+
+    // Use override ID if provided (e.g., when workflow was just saved)
+    const effectiveWorkflowId = overrideWorkflowId || workflowId;
+    console.log("[useWorkflowStream] Running workflow with ID:", effectiveWorkflowId);
 
     // Reset state
     setIsRunning(true);
@@ -112,7 +116,7 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
       const response = await fetch("/api/workflow/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflowId, nodes: sanitizedNodes, edges }),
+        body: JSON.stringify({ workflowId: effectiveWorkflowId, nodes: sanitizedNodes, edges }),
         signal: abortControllerRef.current.signal,
       });
 

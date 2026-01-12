@@ -109,7 +109,7 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
           },
         },
         providerUsed: "internal",
-        actualCost: 0,
+        actualCost: 1_000, // $0.001 for crop operation
       };
     } catch (error) {
       return {

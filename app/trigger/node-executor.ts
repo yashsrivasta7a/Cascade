@@ -23,6 +23,7 @@ import {
   calculateSeedanceCost,
   calculateSeedvrCost,
 } from "@/lib/credits";
+import { checkCache, cacheResult } from "@/lib/cache";
 
 // Register all node executors at module load
 registerAllNodeExecutors();
@@ -42,10 +43,12 @@ export interface NodeExecutorPayload {
 // Helper to safely update nodeExecution (may not exist for single node runs)
 async function safeUpdateNodeExecution(
   nodeExecutionId: string,
+  workflowExecutionId: string,
   data: Parameters<typeof db.nodeExecution.update>[0]["data"]
 ): Promise<boolean> {
-  // Skip if this is a single-node run (IDs starting with "sync-")
-  if (nodeExecutionId.startsWith("sync-")) {
+  // Skip if this is a sync execution (utility nodes run individually)
+  // Sync executions have workflowExecutionId starting with "sync-"
+  if (workflowExecutionId.startsWith("sync-")) {
     return false;
   }
   
@@ -86,6 +89,41 @@ export const executeNode = task({
       throw new Error("Node already failed - not retrying");
     }
 
+    // =========================================================================
+    // CHECK CACHE - Return cached result if identical inputs were run before
+    // =========================================================================
+    let cacheHash: string | undefined;
+    try {
+      const cacheCheck = await checkCache(nodeType, input);
+      cacheHash = cacheCheck.hash;
+
+      if (cacheCheck.hit && cacheCheck.result) {
+        console.log(`[NodeExecutor] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+        
+        // Mark as completed with cached result (no execution needed)
+        await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          outputJson: cacheCheck.result,
+          providerUsed: "cache",
+          actualCost: 0, // No cost for cached results!
+        });
+
+        return {
+          success: true,
+          nodeExecutionId,
+          output: cacheCheck.result,
+          providerUsed: "cache",
+          actualCost: 0,
+          fromCache: true,
+        };
+      }
+
+      console.log(`[NodeExecutor] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+    } catch (cacheError) {
+      console.warn("[NodeExecutor] Cache check failed, proceeding with execution:", cacheError);
+    }
+
     // Check if user has enough credits before execution (use dynamic estimate)
     const estimatedCreditCost = estimateNodeCost(nodeType, input);
     if (estimatedCreditCost > 0) {
@@ -102,14 +140,14 @@ export const executeNode = task({
 
         if (!user || user.credits < estimatedCreditCost) {
           const errorMsg = `Insufficient credits. Required: ${estimatedCreditCost.toLocaleString()}, Available: ${(user?.credits ?? 0).toLocaleString()}`;
-          await markNodeFailed(nodeExecutionId, errorMsg);
+          await markNodeFailed(nodeExecutionId, workflowExecutionId, errorMsg);
           throw new Error(errorMsg);
         }
       }
     }
 
     // Update status to RUNNING (may not exist for single node runs)
-    await safeUpdateNodeExecution(nodeExecutionId, {
+    await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
       status: "RUNNING",
       startedAt: new Date(),
     });
@@ -117,14 +155,14 @@ export const executeNode = task({
     // Get the executor for this node type
     const executor = getNodeExecutor(nodeType);
     if (!executor) {
-      await markNodeFailed(nodeExecutionId, `Unknown node type: ${nodeType}`);
+      await markNodeFailed(nodeExecutionId, workflowExecutionId, `Unknown node type: ${nodeType}`);
       throw new Error(`Unknown node type: ${nodeType}`);
     }
 
     // Validate input
     const inputValidation = validateNodeInput(nodeType, input);
     if (!inputValidation.success) {
-      await markNodeFailed(nodeExecutionId, inputValidation.error);
+      await markNodeFailed(nodeExecutionId, workflowExecutionId, inputValidation.error);
       throw new Error(inputValidation.error);
     }
 
@@ -146,6 +184,7 @@ export const executeNode = task({
     } catch (error) {
       await markNodeFailed(
         nodeExecutionId,
+        workflowExecutionId,
         error instanceof Error ? error.message : String(error)
       );
       throw error;
@@ -157,7 +196,7 @@ export const executeNode = task({
       const waitToken = `node-${nodeExecutionId}`;
 
       // Update node execution with wait token and provider job ID
-      await safeUpdateNodeExecution(nodeExecutionId, {
+      await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
         status: "WAITING",
         waitToken,
         providerUsed: result.providerUsed,
@@ -176,14 +215,14 @@ export const executeNode = task({
       });
 
       if (!webhookResult.ok) {
-        await markNodeFailed(nodeExecutionId, "Webhook timeout or cancellation");
+        await markNodeFailed(nodeExecutionId, workflowExecutionId, "Webhook timeout or cancellation");
         throw new Error("Webhook timeout");
       }
 
       const webhookData = webhookResult.output;
 
       if (!webhookData.success) {
-        await markNodeFailed(nodeExecutionId, webhookData.error ?? "Provider job failed");
+        await markNodeFailed(nodeExecutionId, workflowExecutionId, webhookData.error ?? "Provider job failed");
         throw new Error(webhookData.error ?? "Provider job failed");
       }
 
@@ -193,42 +232,55 @@ export const executeNode = task({
       // Validate output
       const outputValidation = validateNodeOutput(nodeType, parsedOutput);
       if (!outputValidation.success) {
-        await markNodeFailed(nodeExecutionId, `Output validation failed: ${outputValidation.error}`);
+        await markNodeFailed(nodeExecutionId, workflowExecutionId, `Output validation failed: ${outputValidation.error}`);
         throw new Error(outputValidation.error);
       }
 
       // Mark as completed
-      await safeUpdateNodeExecution(nodeExecutionId, {
+      await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
         status: "COMPLETED",
         completedAt: new Date(),
         outputJson: outputValidation.data as Record<string, unknown>,
       });
 
       // Deduct credits after successful execution
+      const webhookCost = calculateActualCost(nodeType, input);
       await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input);
+
+      // Cache the successful result for future identical executions
+      if (cacheHash && outputValidation.data) {
+        try {
+          await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
+          console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+        } catch (cacheWriteError) {
+          console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
+        }
+      }
 
       return {
         success: true,
         nodeExecutionId,
         output: outputValidation.data,
+        providerUsed: result.providerUsed,
+        actualCost: webhookCost,
       };
     }
 
     // Synchronous execution completed
     if (!result.success) {
-      await markNodeFailed(nodeExecutionId, result.error ?? "Execution failed");
+      await markNodeFailed(nodeExecutionId, workflowExecutionId, result.error ?? "Execution failed");
       throw new Error(result.error ?? "Execution failed");
     }
 
     // Validate output
     const outputValidation = validateNodeOutput(nodeType, result.output);
     if (!outputValidation.success) {
-      await markNodeFailed(nodeExecutionId, `Output validation failed: ${outputValidation.error}`);
+      await markNodeFailed(nodeExecutionId, workflowExecutionId, `Output validation failed: ${outputValidation.error}`);
       throw new Error(outputValidation.error);
     }
 
     // Mark as completed
-    await safeUpdateNodeExecution(nodeExecutionId, {
+    await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
       status: "COMPLETED",
       completedAt: new Date(),
       outputJson: outputValidation.data as Record<string, unknown>,
@@ -237,12 +289,28 @@ export const executeNode = task({
     });
 
     // Deduct credits after successful execution
-    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, result.actualCost);
+    // Use result.actualCost if provided (> 0), otherwise calculate
+    const syncCost = (result.actualCost && result.actualCost > 0) 
+      ? result.actualCost 
+      : calculateActualCost(nodeType, input);
+    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, syncCost);
+
+    // Cache the successful result for future identical executions
+    if (cacheHash && outputValidation.data) {
+      try {
+        await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
+        console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+      } catch (cacheWriteError) {
+        console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
+      }
+    }
 
     return {
       success: true,
       nodeExecutionId,
       output: outputValidation.data,
+      providerUsed: result.providerUsed,
+      actualCost: syncCost,
     };
   },
 });
@@ -325,15 +393,33 @@ async function deductCreditsForNode(
   providerActualCost?: number
 ): Promise<void> {
   try {
-    // Get the workflow execution to find the user
-    const workflowExec = await db.workflowExecution.findUnique({
-      where: { id: workflowExecutionId },
-      select: { userId: true },
-    });
+    let userId: string | null = null;
+    const isSyncExecution = workflowExecutionId.startsWith("sync-");
 
-    if (!workflowExec?.userId) {
-      console.log(`[NodeExecutor] No user found for workflow ${workflowExecutionId}, skipping credit deduction`);
-      return;
+    if (isSyncExecution) {
+      // For sync executions (utility nodes), get user from QuickExecution
+      const quickExec = await db.quickExecution.findUnique({
+        where: { id: nodeExecutionId },
+        select: { userId: true },
+      });
+      userId = quickExec?.userId ?? null;
+      
+      if (!userId) {
+        console.log(`[NodeExecutor] No user found for QuickExecution ${nodeExecutionId}, skipping credit deduction`);
+        return;
+      }
+    } else {
+      // For workflow executions, get user from WorkflowExecution
+      const workflowExec = await db.workflowExecution.findUnique({
+        where: { id: workflowExecutionId },
+        select: { userId: true },
+      });
+      userId = workflowExec?.userId ?? null;
+
+      if (!userId) {
+        console.log(`[NodeExecutor] No user found for workflow ${workflowExecutionId}, skipping credit deduction`);
+        return;
+      }
     }
 
     // Calculate cost: provider actual (if > 0) > dynamic calculation > base estimate
@@ -348,18 +434,18 @@ async function deductCreditsForNode(
       return;
     }
     
-    console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits`);
+    console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits (sync: ${isSyncExecution})`);
 
     // Deduct credits in a transaction
     await db.$transaction(async (tx) => {
       // Get current user balance
       const user = await tx.user.findUnique({
-        where: { id: workflowExec.userId },
+        where: { id: userId! },
         select: { credits: true },
       });
 
       if (!user) {
-        console.log(`[NodeExecutor] User ${workflowExec.userId} not found, skipping credit deduction`);
+        console.log(`[NodeExecutor] User ${userId} not found, skipping credit deduction`);
         return;
       }
 
@@ -367,45 +453,55 @@ async function deductCreditsForNode(
 
       // Update user balance
       await tx.user.update({
-        where: { id: workflowExec.userId },
+        where: { id: userId! },
         data: { credits: newBalance },
       });
 
-      // Create ledger entry
+      // Create ledger entry (workflowExecutionId may be null for sync executions)
       await tx.creditTransaction.create({
         data: {
-          userId: workflowExec.userId,
+          userId: userId!,
           amount: -cost,
           balanceAfter: newBalance,
           type: "EXECUTION",
-          workflowExecutionId,
-          nodeExecutionId,
+          workflowExecutionId: isSyncExecution ? null : workflowExecutionId,
+          nodeExecutionId: isSyncExecution ? null : nodeExecutionId,
           description: `${nodeType} node execution`,
           metadata: {
             nodeType,
             estimatedCost: getNodeCost(nodeType),
             actualCost: cost,
+            quickExecutionId: isSyncExecution ? nodeExecutionId : undefined,
           },
         },
       });
 
-      // Update nodeExecution with actual cost (for Activity display)
-      if (!nodeExecutionId.startsWith("sync-")) {
+      // Update execution record with actual cost
+      if (isSyncExecution) {
+        // Update QuickExecution for sync (utility) nodes
+        await tx.quickExecution.update({
+          where: { id: nodeExecutionId },
+          data: { actualCost: cost },
+        });
+      } else {
+        // Update NodeExecution for workflow nodes
         await tx.nodeExecution.update({
           where: { id: nodeExecutionId },
           data: { actualCost: cost },
         });
       }
 
-      // Update workflowExecution actualCost (sum of all node costs)
-      await tx.workflowExecution.update({
-        where: { id: workflowExecutionId },
-        data: {
-          actualCost: { increment: cost },
-        },
-      });
+      // Update workflowExecution actualCost (only for real workflow executions)
+      if (!isSyncExecution) {
+        await tx.workflowExecution.update({
+          where: { id: workflowExecutionId },
+          data: {
+            actualCost: { increment: cost },
+          },
+        });
+      }
 
-      console.log(`[NodeExecutor] Deducted ${cost} credits from user ${workflowExec.userId}, new balance: ${newBalance}`);
+      console.log(`[NodeExecutor] Deducted ${cost} credits from user ${userId}, new balance: ${newBalance}`);
     });
   } catch (error) {
     // Log but don't fail the node execution if credit deduction fails
@@ -413,12 +509,26 @@ async function deductCreditsForNode(
   }
 }
 
-async function markNodeFailed(nodeExecutionId: string, error: string): Promise<void> {
+async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: string, error: string): Promise<void> {
   console.log(`[NodeExecutor] Marking node ${nodeExecutionId} as FAILED: ${error}`);
   
-  // Skip DB update for single node runs (IDs starting with "sync-")
-  if (nodeExecutionId.startsWith("sync-")) {
-    console.log(`[NodeExecutor] Single node run - skipping DB update`);
+  // Skip DB update for sync executions (utility nodes run individually)
+  if (workflowExecutionId.startsWith("sync-")) {
+    console.log(`[NodeExecutor] Sync execution - skipping nodeExecution DB update`);
+    // Update QuickExecution instead
+    try {
+      await db.quickExecution.update({
+        where: { id: nodeExecutionId },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          error,
+        },
+      });
+      console.log(`[NodeExecutor] QuickExecution ${nodeExecutionId} marked FAILED`);
+    } catch {
+      console.log(`[NodeExecutor] QuickExecution ${nodeExecutionId} not found`);
+    }
     return;
   }
   

@@ -233,7 +233,7 @@ async function extractAudioWithTransloadit(
           },
         },
         providerUsed: "transloadit",
-        actualCost: 0,
+        actualCost: 2_000, // $0.002 for extract-audio operation
       };
     }
 
@@ -334,7 +334,7 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
             },
           },
           providerUsed: "mock",
-          actualCost: 0,
+          actualCost: 2_000, // $0.002 for extract-audio operation
         };
       }
       return {
@@ -419,7 +419,7 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
           },
         },
         providerUsed: "internal",
-        actualCost: 0,
+        actualCost: 2_000, // $0.002 for extract-audio operation
       };
     } catch (error) {
       // Cleanup on error

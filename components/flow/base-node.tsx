@@ -232,8 +232,9 @@ function BaseNodeComponent({
   const isDragging = Boolean(connectingFrom && connectingFrom.nodeId !== id);
   
   const inheritedFrom = data._inheritedFrom;
-  const hasInheritedSettings = Boolean(inheritedFrom?.fullInheritance);
   const inheritedSettingsKeys = inheritedFrom?.settings ? Object.keys(inheritedFrom.settings) : [];
+  // Show indicator if ANY settings are inherited (not just full inheritance)
+  const hasInheritedSettings = inheritedSettingsKeys.length > 0 || Boolean(inheritedFrom?.fullInheritance);
 
   const accentColor = accentColors[color] || accentColors.zinc;
   const statusCfg = statusConfig[status];
@@ -474,9 +475,14 @@ function BaseNodeComponent({
               {hasInheritedSettings && (
                 <div 
                   className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/25"
-                  title={`Settings inherited (${inheritedSettingsKeys.length})`}
+                  title={inheritedSettingsKeys.length > 0 
+                    ? `Connected settings: ${inheritedSettingsKeys.join(", ")}` 
+                    : "Settings inherited from another node"}
                 >
                   <Link2 className="w-2.5 h-2.5 text-violet-400" />
+                  {inheritedSettingsKeys.length > 0 && (
+                    <span className="text-[9px] text-violet-400 font-medium">{inheritedSettingsKeys.length}</span>
+                  )}
                 </div>
               )}
             </div>

@@ -306,14 +306,14 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
                   isProcessing || isUploadingImage
                     ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                     : hasInput
-                    ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30"
+                    ? "bg-gradient-to-r from-blue-600/30 to-blue-500/20 border-blue-500/40 text-blue-300 hover:from-blue-600/40 hover:to-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
                     : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
                 }`}
               >
                 {isProcessing ? (
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" />Cropping...</>
                 ) : needsDependencies ? (
-                  <><Play className="w-3.5 h-3.5" />Run Pipeline</>
+                  <><Play className="w-3.5 h-3.5" />Run</>
                 ) : (
                   <><Crop className="w-3.5 h-3.5" />Crop Image</>
                 )}

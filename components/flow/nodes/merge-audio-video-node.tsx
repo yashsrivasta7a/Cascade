@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useRef, useMemo } from "react";
 import { NodeProps } from "reactflow";
-import { Combine, Play, Loader2, Upload, X, Film, Volume2, Lock, ChevronDown } from "lucide-react";
+import { Combine, Play, Loader2, Upload, X, Film, Volume2, Lock, ChevronDown, Link2 } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { useFlowStore } from "@/store";
@@ -73,6 +73,9 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
   const hasInputs = Boolean((effectiveVideo || hasVideoConnection) && (effectiveAudio || hasAudioConnection));
   // Check if we need to run dependencies (have connections but no data yet)
   const needsDependencies = (hasVideoConnection && !effectiveVideo) || (hasAudioConnection && !effectiveAudio);
+  
+  // Check if replaceAudio setting is being controlled by an incoming connection
+  const isReplaceAudioInherited = isSettingInherited(data, "replaceAudio");
 
   const handleVideoUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("video/")) return;
@@ -383,16 +386,16 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
               disabled={!hasInputs || isProcessing}
               className={`nodrag nowheel flex-1 h-7 px-3 rounded-lg border text-[10px] font-semibold flex items-center justify-center gap-1.5 ${
                 isProcessing
-                  ? "bg-red-500/20 border-red-500/30 text-red-300"
+                  ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                   : hasInputs
-                  ? "bg-zinc-500/20 border-zinc-500/30 text-zinc-300 hover:bg-zinc-500/30"
+                  ? "bg-gradient-to-r from-blue-600/30 to-blue-500/20 border-blue-500/40 text-blue-300 hover:from-blue-600/40 hover:to-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
               {isProcessing ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : needsDependencies ? (
-                <><Play className="w-3 h-3" />Run Pipeline</>
+                <><Play className="w-3 h-3" />Run </>
               ) : (
                 <><Play className="w-3 h-3" />Merge</>
               )}
@@ -436,16 +439,31 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                 className="overflow-hidden"
               >
                 <div className="pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={data.replaceAudio !== false}
-                      onChange={(e) => updateNode(id, { replaceAudio: e.target.checked })}
-                      className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20"
-                    />
+                  <label className={`flex items-center gap-2 ${isReplaceAudioInherited ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={data.replaceAudio !== false}
+                        onChange={(e) => !isReplaceAudioInherited && updateNode(id, { replaceAudio: e.target.checked })}
+                        disabled={isReplaceAudioInherited}
+                        className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20 disabled:opacity-50"
+                      />
+                      {isReplaceAudioInherited && (
+                        <Link2 className="absolute -top-1 -right-1 w-2.5 h-2.5 text-violet-400" />
+                      )}
+                    </div>
                     <div>
-                      <span className="text-[10px] text-zinc-300">Replace Original Audio</span>
-                      <p className="text-[8px] text-zinc-500">When off, mixes both audio tracks</p>
+                      <span className="text-[10px] text-zinc-300 flex items-center gap-1">
+                        Replace Original Audio
+                        {isReplaceAudioInherited && (
+                          <span className="text-[8px] text-violet-400 font-medium">(connected)</span>
+                        )}
+                      </span>
+                      <p className="text-[8px] text-zinc-500">
+                        {isReplaceAudioInherited 
+                          ? "Controlled by connected node" 
+                          : "When off, mixes both audio tracks"}
+                      </p>
                     </div>
                   </label>
                 </div>

@@ -968,9 +968,15 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         let settingsInheritanceUpdate: Record<string, unknown> = {};
         if (isSettingsConnection && sourceNode && sourceNodeType) {
           const sourceData = sourceNode.data as Record<string, unknown>;
-          const settingKey = params.targetHandle;
+          const targetSettingKey = params.targetHandle; // The setting on the target node
+          const sourceSettingKey = actualSourceHandle; // The setting from the source node
           
-          if (settingKey && sourceData[settingKey] !== undefined) {
+          // Get the value from the SOURCE handle (not target handle name in source data)
+          const sourceValue = sourceSettingKey && sourceData[sourceSettingKey] !== undefined 
+            ? sourceData[sourceSettingKey] 
+            : derivedValue; // Fall back to derived value
+          
+          if (targetSettingKey && sourceValue !== undefined) {
             // Get existing inherited settings or create new
             const existingInherited = (targetNode?.data as Record<string, unknown>)?._inheritedFrom as Record<string, unknown> | undefined;
             const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
@@ -978,20 +984,23 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
             // Add this setting to the inherited settings
             const newInheritedSettings = {
               ...existingSettings,
-              [settingKey]: sourceData[settingKey],
+              [targetSettingKey]: sourceValue,
             };
             
             settingsInheritanceUpdate = {
-              // Copy the setting value
-              [settingKey]: sourceData[settingKey],
+              // Copy the setting value to the target's setting key
+              [targetSettingKey]: sourceValue,
               // Update inheritance metadata
               _inheritedFrom: {
                 sourceNodeId: sourceNode.id,
                 sourceNodeType,
+                sourceSettingKey, // Track which setting it came from
                 settings: newInheritedSettings,
                 fullInheritance: false,
               },
             };
+            
+            console.log(`[Settings Connection] ${sourceNodeType}.${sourceSettingKey} → ${targetNodeType}.${targetSettingKey} = ${sourceValue}`);
           }
         }
 

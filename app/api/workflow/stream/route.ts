@@ -611,6 +611,12 @@ export async function POST(request: NextRequest) {
                 }
               }
               
+              // Fetch current nodeExecution to preserve actualCost set by Trigger.dev task
+              const currentNodeExec = await db.nodeExecution.findUnique({
+                where: { id: nodeExecutionIds.get(node.id)! },
+                select: { actualCost: true },
+              });
+              
               await db.nodeExecution.update({
                 where: { id: nodeExecutionIds.get(node.id)! },
                 data: { 
@@ -619,6 +625,10 @@ export async function POST(request: NextRequest) {
                   providerUsed: LOCAL_NODE_TYPES.includes(nodeType) ? "internal" : "trigger.dev",
                   // Store persisted output in database
                   outputJson: persistedOutput as any,
+                  // Preserve actualCost if already set, otherwise calculate it
+                  actualCost: currentNodeExec?.actualCost && currentNodeExec.actualCost > 0
+                    ? currentNodeExec.actualCost
+                    : estimateNodeCost(nodeType, input as Record<string, unknown>),
                 },
               });
 

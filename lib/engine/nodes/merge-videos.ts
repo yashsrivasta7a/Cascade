@@ -313,7 +313,7 @@ async function mergeVideosWithTransloadit(
           },
         },
         providerUsed: "transloadit",
-        actualCost: 0, // Transloadit billing is separate
+        actualCost: 5_000, // $0.005 for merge-videos operation
       };
     }
 
@@ -568,7 +568,7 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
             },
           },
           providerUsed: "mock",
-          actualCost: 0,
+          actualCost: 5_000, // $0.005 for merge-videos operation
         };
       }
       return {
@@ -721,7 +721,7 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
           },
         },
         providerUsed: "internal",
-        actualCost: 0,
+        actualCost: 5_000, // $0.005 for merge-videos operation
       };
     } catch (error) {
       // Cleanup on error

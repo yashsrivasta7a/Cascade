@@ -224,7 +224,7 @@ async function mergeAudioVideoWithTransloadit(
           },
         },
         providerUsed: "transloadit",
-        actualCost: 0,
+        actualCost: 3_000, // $0.003 for merge-audio-video operation
       };
     }
 
@@ -324,7 +324,7 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
             },
           },
           providerUsed: "mock",
-          actualCost: 0,
+          actualCost: 3_000, // $0.003 for merge-audio-video operation
         };
       }
       return {
@@ -427,7 +427,7 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
           },
         },
         providerUsed: "internal",
-        actualCost: 0,
+        actualCost: 3_000, // $0.003 for merge-audio-video operation
       };
     } catch (error) {
       // Cleanup on error

@@ -351,7 +351,14 @@ export const useFlowStore = create<FlowState>()(
         // Output handles - these should ONLY propagate the "result" field, NOT input fields
         const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response"];
         // Settings that should be shared in real-time (NOT media inputs)
-        const realtimeSettings = ["prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", "systemPrompt", "maxTokens", "duration", "text", "transition", "transitionDuration"];
+        // Including boolean settings like promptEnhancer, replaceAudio, truncatePrompt, syncMode
+        const realtimeSettings = [
+          "prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", 
+          "systemPrompt", "maxTokens", "duration", "text", "transition", "transitionDuration",
+          // Boolean settings
+          "promptEnhancer", "truncatePrompt", "syncMode", "replaceAudio",
+          "numInferenceSteps", "guidanceScale",
+        ];
         
         for (const edge of outgoingEdges) {
           const sourceHandle = edge.sourceHandle;
@@ -403,6 +410,26 @@ export const useFlowStore = create<FlowState>()(
           if (valueToPass !== undefined) {
             const existingUpdates = targetUpdates.get(targetNodeId) || {};
             existingUpdates[targetHandle] = valueToPass;
+            
+            // Also update the _inheritedFrom metadata for this setting
+            const targetNode = state.nodes.find(n => n.id === targetNodeId);
+            const actualSourceHandle = (sourceHandle || "").replace("-setting", "");
+            if (targetNode) {
+              const existingInherited = (targetNode.data as Record<string, unknown>)?._inheritedFrom as Record<string, unknown> | undefined;
+              const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
+              existingUpdates._inheritedFrom = {
+                ...existingInherited,
+                sourceNodeId: id,
+                sourceNodeType: state.nodes.find(n => n.id === id)?.type,
+                settings: {
+                  ...existingSettings,
+                  [targetHandle]: valueToPass,
+                },
+                sourceSettingKey: actualSourceHandle,
+                fullInheritance: false,
+              };
+            }
+            
             targetUpdates.set(targetNodeId, existingUpdates);
           }
         }

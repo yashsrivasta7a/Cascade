@@ -5,6 +5,7 @@ import { getUserIdForApi } from "@/lib/user";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { executeNode } from "@/app/trigger/node-executor";
 import { runs } from "@trigger.dev/sdk/v3";
+import { checkCache, cacheResult } from "@/lib/cache";
 
 // Register all node executors at module load (needed for validation)
 registerAllNodeExecutors();
@@ -86,6 +87,34 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // =========================================================================
+    // CHECK CACHE - Return cached result if identical inputs were run before
+    // =========================================================================
+    let cacheHash: string | undefined;
+    try {
+      const cacheCheck = await checkCache(nodeType, inputValidation.data as Record<string, unknown>);
+      cacheHash = cacheCheck.hash;
+
+      if (cacheCheck.hit && cacheCheck.result) {
+        const durationMs = Date.now() - startTime;
+        console.log(`[Sync Execute] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+        
+        return NextResponse.json({
+          success: true,
+          output: cacheCheck.result,
+          providerUsed: "cache",
+          actualCost: 0, // No cost for cached results!
+          fromCache: true,
+          cacheHash: cacheHash.slice(0, 12),
+          durationMs,
+        });
+      }
+      
+      console.log(`[Sync Execute] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+    } catch (cacheError) {
+      console.warn("[Sync Execute] Cache check failed, proceeding with execution:", cacheError);
     }
 
     // Get node definition for label
@@ -180,6 +209,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.success) {
+      // Cache successful result for future identical executions
+      if (cacheHash && result.output) {
+        try {
+          await cacheResult(cacheHash, nodeType, result.output as Record<string, unknown>);
+          console.log(`[Sync Execute] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+        } catch (cacheWriteError) {
+          console.warn("[Sync Execute] Failed to cache result:", cacheWriteError);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         output: result.output,

@@ -656,7 +656,8 @@ export default function WorkflowEditorPage() {
   }, [dbErrorsData]);
 
   // Save workflow to database (manual only)
-  const handleSave = useCallback(async () => {
+  // Returns the workflow ID after saving (for use in handleRunWorkflow)
+  const handleSave = useCallback(async (): Promise<string | null> => {
     setSaveStatus("saving");
 
     try {
@@ -680,17 +681,29 @@ export default function WorkflowEditorPage() {
 
       if (dbWorkflowId) {
         // Update existing workflow
-        updateMutation.mutate({
+        await updateMutation.mutateAsync({
           id: dbWorkflowId,
           ...workflowData,
         });
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+        return dbWorkflowId;
       } else {
-        // Create new workflow
-        createMutation.mutate(workflowData);
+        // Create new workflow - use mutateAsync to get the result
+        const result = await createMutation.mutateAsync(workflowData);
+        const newId = result.workflow?.id ?? null;
+        if (newId) {
+          setDbWorkflowId(newId);
+        }
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+        return newId;
       }
     } catch (error) {
       console.error("[handleSave] Error saving workflow:", error);
-      setSaveStatus("idle");
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+      return null;
     }
   }, [nodes, edges, viewport, workflowName, dbWorkflowId, updateMutation, createMutation, setNodes]);
 
@@ -971,9 +984,28 @@ export default function WorkflowEditorPage() {
 
     setWorkflowRunning(true);
 
-    // Save workflow first if not saved
+    // Save workflow first if not saved, and get the workflow ID
+    let effectiveWorkflowId = dbWorkflowId;
     if (!dbWorkflowId) {
-      await handleSave();
+      const savedId = await handleSave();
+      if (!savedId) {
+        // Save failed, abort run
+        setWorkflowRunning(false);
+        const newError: WorkflowError = {
+          id: `save-${Date.now()}`,
+          nodeId: "workflow",
+          nodeName: "Save Failed",
+          nodeType: "system",
+          severity: "critical",
+          message: "Failed to save workflow before running. Please try again.",
+          timestamp: new Date(),
+          canRetry: true,
+        };
+        setWorkflowErrors(prev => [newError, ...prev]);
+        setActivityOpen(true);
+        return;
+      }
+      effectiveWorkflowId = savedId;
     }
 
     // Reset statuses (only for connected nodes that will run)
@@ -990,10 +1022,11 @@ export default function WorkflowEditorPage() {
     );
 
     // Use SSE streaming for real-time updates
-    // The SSE stream will handle all status updates and completion
+    // Pass the effective workflow ID to ensure proper tracking
     await runWorkflowSSE(
       nodes as Parameters<typeof runWorkflowSSE>[0], 
-      edges as Parameters<typeof runWorkflowSSE>[1]
+      edges as Parameters<typeof runWorkflowSSE>[1],
+      effectiveWorkflowId
     );
   }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowSSE]);
 
