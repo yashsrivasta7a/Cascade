@@ -278,13 +278,18 @@ function buildNodeInput(
     return undefined;
   };
 
+  // Get image from connected edges
+  const connectedImage = getMediaFromEdge("image") || getMediaFromEdge("inputImage") || getAnyMediaFromEdges("image") || normalizeAsset(data.image) || normalizeAsset(data.inputImage) || normalizeAsset(data.result);
+  
   // Build the final input object
   const input = {
     ...data,
     prompt: prompt || data.prompt,
     context: context || data.context,
     // Single media inputs - check multiple handle names + fallback to any connected media
-    image: getMediaFromEdge("image") || getMediaFromEdge("inputImage") || getAnyMediaFromEdges("image") || normalizeAsset(data.image) || normalizeAsset(data.inputImage) || normalizeAsset(data.result),
+    image: connectedImage,
+    // For OpenRouter vision - pass imageUrl as a STRING (not object)
+    imageUrl: connectedImage?.url || (typeof data.inputImage === "string" ? data.inputImage : undefined),
     video: getMediaFromEdge("video") || getMediaFromEdge("inputVideo") || getMediaFromEdge("merged") || getAnyMediaFromEdges("video") || normalizeAsset(data.video) || normalizeAsset(data.inputVideo) || normalizeAsset(data.result),
     audio: getMediaFromEdge("audio") || getMediaFromEdge("inputAudio") || getAnyMediaFromEdges("audio") || normalizeAsset(data.audio) || normalizeAsset(data.inputAudio),
     frame: getMediaFromEdge("frame") || normalizeAsset(data.frame),
@@ -297,6 +302,7 @@ function buildNodeInput(
   
   console.log(`[buildNodeInput] Final input keys: ${Object.keys(input).filter(k => input[k as keyof typeof input] !== undefined).join(", ")}`);
   console.log(`[buildNodeInput] - image: ${input.image ? "present" : "missing"}`);
+  console.log(`[buildNodeInput] - imageUrl: ${input.imageUrl ? `present (${input.imageUrl.slice(0, 50)}...)` : "missing"}`);
   console.log(`[buildNodeInput] - video: ${input.video ? "present" : "missing"}`);
   console.log(`[buildNodeInput] - video1: ${input.video1 ? `present (${(input.video1 as any)?.url?.slice(0, 50)}...)` : "missing"}`);
   console.log(`[buildNodeInput] - video2: ${input.video2 ? `present (${(input.video2 as any)?.url?.slice(0, 50)}...)` : "missing"}`);

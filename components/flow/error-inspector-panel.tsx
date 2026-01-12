@@ -103,6 +103,11 @@ const errorSuggestions: Record<string, string> = {
   "Invalid": "The input data is malformed. Check the required fields and data types.",
   "quota": "You've exceeded your API quota. Check your billing or upgrade your plan.",
   "model": "The specified model may not be available. Try a different model.",
+  "expected object, received undefined": "A required input is missing. Make sure all required inputs are connected and the parent node has run successfully.",
+  "expected object": "A required input is missing or has the wrong format. Check that the connected node outputs the correct type.",
+  "received undefined": "The input value is undefined. This usually means the parent node hasn't run or didn't produce output.",
+  "Insufficient credits": "You don't have enough credits. Add credits in the billing section or wait for your balance to refresh.",
+  "can't view images": "The LLM model may not support vision/images. Try using a vision-capable model like GPT-4o or Gemini.",
 };
 
 function getSuggestion(error: WorkflowError): string | undefined {

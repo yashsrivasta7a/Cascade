@@ -92,36 +92,43 @@ export const executeNode = task({
     // =========================================================================
     // CHECK CACHE - Return cached result if identical inputs were run before
     // =========================================================================
+    // Check if caching is enabled (default true)
+    const useCache = (input as { useCache?: boolean }).useCache === true;
+    
     let cacheHash: string | undefined;
-    try {
-      const cacheCheck = await checkCache(nodeType, input);
-      cacheHash = cacheCheck.hash;
+    if (useCache) {
+      try {
+        const cacheCheck = await checkCache(nodeType, input);
+        cacheHash = cacheCheck.hash;
 
-      if (cacheCheck.hit && cacheCheck.result) {
-        console.log(`[NodeExecutor] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
-        
-        // Mark as completed with cached result (no execution needed)
-        await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
-          status: "COMPLETED",
-          completedAt: new Date(),
-          outputJson: cacheCheck.result,
-          providerUsed: "cache",
-          actualCost: 0, // No cost for cached results!
-        });
+        if (cacheCheck.hit && cacheCheck.result) {
+          console.log(`[NodeExecutor] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+          
+          // Mark as completed with cached result (no execution needed)
+          await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            outputJson: cacheCheck.result,
+            providerUsed: "cache",
+            actualCost: 0, // No cost for cached results!
+          });
 
-        return {
-          success: true,
-          nodeExecutionId,
-          output: cacheCheck.result,
-          providerUsed: "cache",
-          actualCost: 0,
-          fromCache: true,
-        };
+          return {
+            success: true,
+            nodeExecutionId,
+            output: cacheCheck.result,
+            providerUsed: "cache",
+            actualCost: 0,
+            fromCache: true,
+          };
+        }
+
+        console.log(`[NodeExecutor] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+      } catch (cacheError) {
+        console.warn("[NodeExecutor] Cache check failed, proceeding with execution:", cacheError);
       }
-
-      console.log(`[NodeExecutor] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
-    } catch (cacheError) {
-      console.warn("[NodeExecutor] Cache check failed, proceeding with execution:", cacheError);
+    } else {
+      console.log(`[NodeExecutor] Cache DISABLED for ${nodeType} - executing fresh`);
     }
 
     // Check if user has enough credits before execution (use dynamic estimate)
@@ -247,8 +254,8 @@ export const executeNode = task({
       const webhookCost = calculateActualCost(nodeType, input);
       await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input);
 
-      // Cache the successful result for future identical executions
-      if (cacheHash && outputValidation.data) {
+      // Cache the successful result for future identical executions (only if caching enabled)
+      if (useCache && cacheHash && outputValidation.data) {
         try {
           await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
           console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
@@ -295,8 +302,8 @@ export const executeNode = task({
       : calculateActualCost(nodeType, input);
     await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, syncCost);
 
-    // Cache the successful result for future identical executions
-    if (cacheHash && outputValidation.data) {
+    // Cache the successful result for future identical executions (only if caching enabled)
+    if (useCache && cacheHash && outputValidation.data) {
       try {
         await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
         console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);

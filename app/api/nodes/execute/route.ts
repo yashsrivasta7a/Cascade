@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
 import { executeNode } from "@/app/trigger/node-executor";
+import { estimateNodeCost, formatCredits } from "@/lib/credits";
 
 // =============================================================================
 // GENERIC NODE EXECUTION ENDPOINT - VIA TRIGGER.DEV
@@ -51,6 +52,22 @@ export async function POST(request: NextRequest) {
         },
       });
     }
+
+    // Check if user has enough credits
+    const estimatedCost = estimateNodeCost(nodeType, input);
+    if (user.credits < estimatedCost) {
+      console.log(`[Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
+      return NextResponse.json(
+        {
+          error: `Insufficient credits. You have ${formatCredits(user.credits)} but need ${formatCredits(estimatedCost)} to run this node.`,
+          insufficientCredits: true,
+          balance: user.credits,
+          required: estimatedCost,
+        },
+        { status: 402 } // Payment Required
+      );
+    }
+    console.log(`[Execute] Credit check passed. Balance: ${user.credits}, Required: ${estimatedCost}`);
 
     // Get or create a workflow for this execution
     let workflow;

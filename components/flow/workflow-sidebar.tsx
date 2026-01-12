@@ -140,7 +140,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
             <div className="p-4 border-b border-white/[0.06] bg-white/[0.02]">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-[#1e3a5f] to-[#2a4a6f] shadow-lg shadow-[#0f1f33]/50">
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>

@@ -13,6 +13,47 @@ import {
 } from "reactflow";
 import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workflow";
 
+// =============================================================================
+// Setting Value Clamping - ensures values stay within valid ranges
+// =============================================================================
+
+// Define min/max values for settings that should be clamped
+const SETTING_RANGES: Record<string, { min: number; max: number }> = {
+  // 0-2 range settings
+  "temperature": { min: 0, max: 2 },
+  // -2 to 2 range settings
+  "frequencyPenalty": { min: -2, max: 2 },
+  "presencePenalty": { min: -2, max: 2 },
+  // 0-1 range settings
+  "topP": { min: 0, max: 1 },
+  // Other bounded settings
+  "topK": { min: 0, max: 100 },
+  // 0-100 percentage settings
+  "xPercent": { min: 0, max: 100 },
+  "yPercent": { min: 0, max: 100 },
+  "widthPercent": { min: 0, max: 100 },
+  "heightPercent": { min: 0, max: 100 },
+  // Seedream/image gen settings
+  "numInferenceSteps": { min: 1, max: 60 },
+  "guidanceScale": { min: 1, max: 12 },
+  // Merge videos transition duration
+  "transitionDuration": { min: 0, max: 5 },
+  // ElevenLabs settings
+  "stability": { min: 0, max: 1 },
+  "similarityBoost": { min: 0, max: 1 },
+  "clarity": { min: 0, max: 1 },
+};
+
+// Helper to clamp a value to its range if defined
+function clampSettingValue(key: string, value: unknown): unknown {
+  if (typeof value !== "number") return value;
+  const range = SETTING_RANGES[key];
+  if (range !== undefined) {
+    return Math.min(Math.max(range.min, value), range.max);
+  }
+  return value;
+}
+
 export interface FlowState {
   nodes: Node[];
   edges: Edge[];
@@ -21,12 +62,14 @@ export interface FlowState {
   isWorkflowRunning: boolean;
   focusNodeId: string | null;
   workflowId: string | null; // Current workflow ID for Activity tracking
+  highlightedNodeIds: string[]; // IDs of nodes to highlight (for pipeline view)
   
   // Execution tracking for cancel functionality
   currentWorkflowExecutionId: string | null;
   currentTriggerRunId: string | null;
   runningNodeIds: Map<string, { executionId: string; triggerRunId?: string }>; // node ID -> execution info
-  
+  nodeAbortControllers: Map<string, AbortController>; // node ID -> AbortController for cancellation
+
   // Connection dragging state for highlighting compatible nodes
   connectingFrom: {
     nodeId: string;
@@ -61,6 +104,10 @@ export interface FlowState {
   selectNode: (node: Node | null) => void;
   focusNode: (nodeId: string | null) => void;
   
+  // Pipeline highlighting (for Activity panel)
+  highlightPipeline: (nodeIds: string[]) => void;
+  clearHighlight: () => void;
+  
   // Utilities
   clearFlow: () => void;
   loadFlow: (nodes: Node[], edges: Edge[]) => void;
@@ -89,12 +136,15 @@ export const useFlowStore = create<FlowState>()(
         isWorkflowRunning: false,
         focusNodeId: null,
         workflowId: null,
+        highlightedNodeIds: [],
         connectingFrom: null,
         
         // Execution tracking
         currentWorkflowExecutionId: null,
         currentTriggerRunId: null,
         runningNodeIds: new Map(),
+        // AbortController map for cancelling running nodes
+        nodeAbortControllers: new Map<string, AbortController>(),
 
         setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
         setWorkflowId: (workflowId) => set({ workflowId }),
@@ -169,48 +219,56 @@ export const useFlowStore = create<FlowState>()(
       
       cancelNode: async (nodeId) => {
         const state = get();
-        const runInfo = state.runningNodeIds.get(nodeId);
         
-        if (!runInfo) {
-          console.log("[cancelNode] No active execution for node", nodeId);
-          return false;
+        // First, try to abort via AbortController (for in-progress fetch requests)
+        const abortController = state.nodeAbortControllers.get(nodeId);
+        if (abortController) {
+          console.log("[cancelNode] Aborting fetch requests for node", nodeId);
+          abortController.abort();
+          
+          // Remove from abort controllers map
+          const newAbortMap = new Map(state.nodeAbortControllers);
+          newAbortMap.delete(nodeId);
+          set({ nodeAbortControllers: newAbortMap });
         }
         
-        try {
-          const response = await fetch(`/api/executions/${runInfo.executionId}/cancel`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              triggerRunId: runInfo.triggerRunId,
-              type: "quick" 
-            }),
-          });
-          
-          if (!response.ok) {
-            const error = await response.json();
-            console.error("[cancelNode] Failed:", error);
-            return false;
+        // Also try to cancel via API if we have execution info
+        const runInfo = state.runningNodeIds.get(nodeId);
+        if (runInfo) {
+          try {
+            const response = await fetch(`/api/executions/${runInfo.executionId}/cancel`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                triggerRunId: runInfo.triggerRunId,
+                type: "quick"
+              }),
+            });
+
+            if (!response.ok) {
+              console.warn("[cancelNode] API cancel failed, but local abort succeeded");
+            }
+          } catch (error) {
+            console.warn("[cancelNode] API cancel error:", error);
           }
           
-          // Update node status
-          const newMap = new Map(state.runningNodeIds);
-          newMap.delete(nodeId);
-          
-          set((prev) => ({
-            runningNodeIds: newMap,
-            nodes: prev.nodes.map((n) =>
-              n.id === nodeId
-                ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "cancelled" } }
-                : n
-            ),
-          }));
-          
-          console.log("[cancelNode] Node cancelled successfully");
-          return true;
-        } catch (error) {
-          console.error("[cancelNode] Error:", error);
-          return false;
+          // Remove from running nodes map
+          const newRunMap = new Map(state.runningNodeIds);
+          newRunMap.delete(nodeId);
+          set({ runningNodeIds: newRunMap });
         }
+
+        // Update node status to cancelled
+        set((prev) => ({
+          nodes: prev.nodes.map((n) =>
+            n.id === nodeId
+              ? { ...n, data: { ...(n.data as Record<string, unknown>), status: "cancelled", error: undefined } }
+              : n
+          ),
+        }));
+
+        console.log("[cancelNode] Node cancelled successfully");
+        return true;
       },
 
       setNodes: (nodes) =>
@@ -308,6 +366,15 @@ export const useFlowStore = create<FlowState>()(
             get().edges
           ),
         });
+
+        // AUTO-PROPAGATE if source has result
+        const sourceNode = get().nodes.find(n => n.id === connection.source);
+        if (sourceNode && sourceNode.data.result && typeof sourceNode.data.result === "string") {
+           // Small delay to ensure edge is registered
+           setTimeout(() => {
+             get().propagateOutput(sourceNode.id, sourceNode.data.result as string);
+           }, 10);
+        }
       },
 
       addNode: (node) => {
@@ -322,7 +389,19 @@ export const useFlowStore = create<FlowState>()(
         if (!node) return;
 
         const oldData = node.data as Record<string, unknown>;
-        const newData = { ...oldData, ...data };
+        let newData = { ...oldData, ...data };
+
+        // Auto-clear result when input media changes
+        const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame"];
+        const mediaInputChanged = mediaInputFields.some(field => 
+          data[field] !== undefined && data[field] !== oldData[field]
+        );
+        
+        if (mediaInputChanged && oldData.result !== undefined) {
+          // Clear the result when input media changes
+          newData = { ...newData, result: undefined };
+          console.log(`[updateNode] Cleared result for ${id} due to input media change`);
+        }
 
         // Find all outgoing edges from this node for real-time propagation
         const outgoingEdges = state.edges.filter(e => e.source === id);
@@ -353,11 +432,17 @@ export const useFlowStore = create<FlowState>()(
         // Settings that should be shared in real-time (NOT media inputs)
         // Including boolean settings like promptEnhancer, replaceAudio, truncatePrompt, syncMode
         const realtimeSettings = [
-          "prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature", 
+          "prompt", "negativePrompt", "aspectRatio", "seed", "model", "temperature",
           "systemPrompt", "maxTokens", "duration", "text", "transition", "transitionDuration",
           // Boolean settings
           "promptEnhancer", "truncatePrompt", "syncMode", "replaceAudio",
           "numInferenceSteps", "guidanceScale",
+          // OpenRouter LLM settings
+          "topP", "topK", "frequencyPenalty", "presencePenalty",
+          // Crop/video settings
+          "xPosition", "yPosition", "width", "height", "format", "bitrate",
+          // Crop-image percentage settings
+          "xPercent", "yPercent", "widthPercent", "heightPercent",
         ];
         
         for (const edge of outgoingEdges) {
@@ -409,8 +494,9 @@ export const useFlowStore = create<FlowState>()(
           
           if (valueToPass !== undefined) {
             const existingUpdates = targetUpdates.get(targetNodeId) || {};
-            existingUpdates[targetHandle] = valueToPass;
-            
+            // Clamp the value to its max if this setting has a defined max
+            existingUpdates[targetHandle] = clampSettingValue(targetHandle, valueToPass);
+
             // Also update the _inheritedFrom metadata for this setting
             const targetNode = state.nodes.find(n => n.id === targetNodeId);
             const actualSourceHandle = (sourceHandle || "").replace("-setting", "");
@@ -559,7 +645,35 @@ export const useFlowStore = create<FlowState>()(
         }
       },
 
-      clearFlow: () => set({ nodes: [], edges: [], selectedNode: null }),
+      highlightPipeline: (nodeIds) => {
+        const state = get();
+        
+        // Find all matching nodes
+        const matchingNodes = state.nodes.filter(n => 
+          nodeIds.some(id => n.id === id || n.id.includes(id) || id.includes(n.id))
+        );
+        
+        if (matchingNodes.length === 0) {
+          console.warn(`[highlightPipeline] No nodes found matching: ${nodeIds.join(", ")}`);
+          return;
+        }
+        
+        const matchedIds = matchingNodes.map(n => n.id);
+        console.log(`[highlightPipeline] Highlighting ${matchedIds.length} nodes`);
+        
+        // Set the first node as focus (for centering the view)
+        set({ 
+          highlightedNodeIds: matchedIds,
+          focusNodeId: matchedIds[0],
+          selectedNode: matchingNodes[0],
+        });
+      },
+
+      clearHighlight: () => {
+        set({ highlightedNodeIds: [] });
+      },
+
+      clearFlow: () => set({ nodes: [], edges: [], selectedNode: null, highlightedNodeIds: [] }),
 
       loadFlow: (nodes, edges) => set({ nodes, edges, selectedNode: null }),
 
@@ -685,10 +799,10 @@ export const useFlowStore = create<FlowState>()(
             const targetField = targetHandle ?? settingSource;
             
             console.log(`[propagateOutput] Settings connection: ${settingSource} -> ${targetField}, value="${String(sourceValue).slice(0, 50)}..."`);
-            
+
             if (sourceValue !== undefined) {
-              // Pass the SOURCE setting value to the TARGET field
-              nodeData[targetField] = sourceValue;
+              // Pass the SOURCE setting value to the TARGET field (clamped to valid range)
+              nodeData[targetField] = clampSettingValue(targetField, sourceValue);
               
               // Update inheritance metadata for this specific setting
               const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
@@ -770,6 +884,11 @@ export const useFlowStore = create<FlowState>()(
         const node = state.nodes.find((n) => n.id === nodeId);
         if (!node) return;
 
+        // Create an AbortController for this node
+        const abortController = new AbortController();
+        const newAbortMap = new Map(state.nodeAbortControllers);
+        newAbortMap.set(nodeId, abortController);
+
         // Async nodes that need polling (fal.ai based)
         const asyncNodeTypes = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
         const isAsyncNode = asyncNodeTypes.includes(node.type ?? "");
@@ -789,11 +908,17 @@ export const useFlowStore = create<FlowState>()(
                 }
               : n
           ),
+          nodeAbortControllers: newAbortMap,
           // Enable polling for async nodes
           isWorkflowRunning: isAsyncNode ? true : state.isWorkflowRunning,
         });
 
+        // Check if cancelled
+        const isCancelled = () => abortController.signal.aborted;
+
         const applyStatus = (id: string, status: string, patch?: Record<string, unknown>) => {
+          // Don't update if cancelled
+          if (isCancelled()) return;
           set((prev) => ({
             nodes: prev.nodes.map((n) =>
               n.id === id ? { ...n, data: { ...(n.data as any), status, ...(patch ?? {}) } } : n
@@ -802,6 +927,8 @@ export const useFlowStore = create<FlowState>()(
         };
 
         const applyResult = (id: string, resultText: string) => {
+          // Don't update if cancelled
+          if (isCancelled()) return;
           set((prev) => ({
             nodes: prev.nodes.map((n) =>
               n.id === id ? { ...n, data: { ...(n.data as any), result: resultText } } : n
@@ -811,6 +938,8 @@ export const useFlowStore = create<FlowState>()(
 
         // Update node data helper - used to propagate outputs through the workflow
         const updateNodeData = (id: string, data: Record<string, unknown>) => {
+          // Don't update if cancelled
+          if (isCancelled()) return;
           set((prev) => ({
             nodes: prev.nodes.map((n) =>
               n.id === id ? { ...n, data: { ...(n.data as any), ...data } } : n
@@ -825,26 +954,36 @@ export const useFlowStore = create<FlowState>()(
           }
         };
 
-        // Use runNodeWithDependencies to automatically run parent nodes first
-        await runNodeWithDependencies(
-          nodeId, 
-          get().nodes, 
-          get().edges, 
-          {
-            onNodeStatus: (id, status, patch) => {
-              applyStatus(id, status, patch);
-              // If async node finished (completed/failed), stop polling
-              if (id === nodeId && isAsyncNode && (status === "completed" || status === "failed")) {
-                set({ isWorkflowRunning: false });
-              }
-            },
-            onNodeResult: (id, resultText) => {
-              applyResult(id, resultText);
-            },
-          }, 
-          get().workflowId || undefined,
-          updateNodeData
-        );
+        try {
+          // Use runNodeWithDependencies to automatically run parent nodes first
+          await runNodeWithDependencies(
+            nodeId, 
+            get().nodes, 
+            get().edges, 
+            {
+              onNodeStatus: (id, status, patch) => {
+                if (isCancelled()) return;
+                applyStatus(id, status, patch);
+                // If async node finished (completed/failed), stop polling
+                if (id === nodeId && isAsyncNode && (status === "completed" || status === "failed")) {
+                  set({ isWorkflowRunning: false });
+                }
+              },
+              onNodeResult: (id, resultText) => {
+                if (isCancelled()) return;
+                applyResult(id, resultText);
+              },
+            }, 
+            get().workflowId || undefined,
+            updateNodeData
+          );
+        } finally {
+          // Clean up the AbortController
+          const currentAbortMap = get().nodeAbortControllers;
+          const cleanedMap = new Map(currentAbortMap);
+          cleanedMap.delete(nodeId);
+          set({ nodeAbortControllers: cleanedMap });
+        }
       },
       }),
       {

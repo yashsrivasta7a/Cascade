@@ -422,11 +422,13 @@ export const SeedreamConfigSchema = z.object({
   negativePrompt: z.string().optional(),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
   seed: z.number().optional(),
+  useCache: z.boolean().default(false), // When false, always execute fresh
 });
 
 export const SeedVRConfigSchema = z.object({
   scale: z.enum(["2x", "4x"]).default("2x"),
   enhanceFaces: z.boolean().default(false),
+  useCache: z.boolean().default(false),
 });
 
 export const SeedanceConfigSchema = z.object({
@@ -434,6 +436,7 @@ export const SeedanceConfigSchema = z.object({
   duration: z.enum(["4s", "8s", "16s"]).default("4s"),
   aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
   seed: z.number().optional(),
+  useCache: z.boolean().default(false),
 });
 
 export const ElevenLabsConfigSchema = z.object({
@@ -441,24 +444,25 @@ export const ElevenLabsConfigSchema = z.object({
   voiceId: z.string().min(1),
   stability: z.number().min(0).max(1).default(0.5),
   clarity: z.number().min(0).max(1).default(0.75),
+  useCache: z.boolean().default(false),
 });
 
 export const OpenRouterConfigSchema = z.object({
-  model: z.enum([
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3-opus",
-    "google/gemini-1.5-pro",
-    "google/gemini-1.5-flash",
-  ]).default("openai/gpt-4o-mini"),
+  model: z.string().default("openai/gpt-4o-mini"), // Accept any model string for flexibility
   systemPrompt: z.string().optional(),
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().min(1).max(128000).default(4096),
+  topP: z.number().min(0).max(1).optional(), // Nucleus sampling
+  topK: z.number().min(0).optional(), // Top-K sampling
+  frequencyPenalty: z.number().min(-2).max(2).optional(), // Repetition penalty
+  presencePenalty: z.number().min(-2).max(2).optional(), // Topic penalty
+  imageUrl: z.string().optional(), // Vision input - URL or base64 data URL
+  useCache: z.boolean().default(false),
 });
 
 export const LipsyncConfigSchema = z.object({
   model: z.enum(["sync-1.5", "sync-1.6-beta"]).default("sync-1.5"),
+  useCache: z.boolean().default(false),
 });
 
 export const CropImageConfigSchema = z.object({
@@ -466,15 +470,18 @@ export const CropImageConfigSchema = z.object({
   right: z.number().min(0).max(100).default(0),
   bottom: z.number().min(0).max(100).default(0),
   left: z.number().min(0).max(100).default(0),
+  useCache: z.boolean().default(false),
 });
 
 export const MergeAudioVideoConfigSchema = z.object({
   replaceAudio: z.boolean().default(true),
+  useCache: z.boolean().default(false),
 });
 
 export const MergeVideosConfigSchema = z.object({
   transition: z.enum(["none", "fade", "dissolve"]).default("none"),
   transitionDuration: z.number().min(0).max(2).default(0.5),
+  useCache: z.boolean().default(false),
 });
 
 export const ExtractAudioConfigSchema = z.object({
@@ -483,6 +490,7 @@ export const ExtractAudioConfigSchema = z.object({
   sampleRate: z.enum(["22050", "44100", "48000"]).default("44100"),
   channels: z.enum(["1", "2"]).default("2"),
   normalize: z.boolean().default(false),
+  useCache: z.boolean().default(false),
 });
 
 // ============================================================================
@@ -559,7 +567,7 @@ export interface NodeContract {
 export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
   seedream: {
     primaryOutputType: "image",
-    primaryOutputId: "out",
+    primaryOutputId: "image",
     mediaInputs: [
       { id: "image", type: "image", label: "Image", isMedia: true },
     ],
@@ -623,6 +631,9 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
       { id: "model", type: "model", label: "Model", isSettings: true },
       { id: "temperature", type: "temperature", label: "Temp", isSettings: true },
       { id: "maxTokens", type: "number", label: "MaxTok", isSettings: true },
+      { id: "topP", type: "number", label: "Top P", isSettings: true },
+      { id: "frequencyPenalty", type: "number", label: "FreqPen", isSettings: true },
+      { id: "presencePenalty", type: "number", label: "PresPen", isSettings: true },
       { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
     ],
   },
@@ -675,11 +686,14 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
   },
   "extract-audio": {
     primaryOutputType: "audio",
-    primaryOutputId: "audio",
+    primaryOutputId: "extracted",
     mediaInputs: [
       { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
     ],
-    settings: [],
+    settings: [
+      { id: "format", type: "text", label: "Format", isSettings: true },
+      { id: "bitrate", type: "text", label: "Bitrate", isSettings: true },
+    ],
   },
 };
 

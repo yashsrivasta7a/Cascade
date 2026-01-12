@@ -148,7 +148,7 @@ export function calculateOpenrouterCost(
       outputCostPerToken = 0.60;
     }
     // Gemini 2.5 Flash (Google) - $0.15 input, $0.60 output per 1M tokens (estimated)
-    else if (modelLower.includes('gemini-2.5-flash') || modelLower.includes('gemini-2.5')) {
+    else if (modelLower.includes('gemini-2.5-flash') || modelLower.includes('gemini-2.5') || modelLower.includes('gemini-flash')) {
       inputCostPerToken = 0.15;
       outputCostPerToken = 0.60;
     }

@@ -19,10 +19,10 @@ export interface SeedreamNodeData extends BaseNodeData {
   truncatePrompt?: boolean;
   promptEnhancer?: boolean;
   syncMode?: boolean;
-  out?: Record<string, unknown>;
   context?: string; // Text from connected text node
   inputImage?: string; // Image from connected image node OR uploaded
   result?: string; // URL of generated image
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS.seedream;
@@ -181,13 +181,6 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
               updateNode(id, {
                 result: imageUrl || "",
                 status: "completed",
-                out: imageUrl ? {
-                  prompt: data.prompt ?? "",
-                  negativePrompt: data.negativePrompt ?? "",
-                  aspectRatio: data.aspectRatio ?? "1:1",
-                  seed: data.seed,
-                  image: imageUrl,
-                } : undefined,
               });
               setWorkflowRunning(false);
             } else if (statusData.status === "failed") {
@@ -223,19 +216,6 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           updateNode(id, {
             result: imageUrl,
             status: "completed",
-            // Single bundled output payload (for downstream overrides)
-            out: {
-              prompt: data.prompt ?? "",
-              negativePrompt: data.negativePrompt ?? "",
-              aspectRatio: data.aspectRatio ?? "1:1",
-              seed: data.seed,
-              numInferenceSteps: data.numInferenceSteps ?? 30,
-              guidanceScale: data.guidanceScale ?? 5,
-              truncatePrompt: data.truncatePrompt ?? false,
-              promptEnhancer: data.promptEnhancer ?? false,
-              syncMode: data.syncMode ?? false,
-              image: imageUrl,
-            },
           });
         }
       }
@@ -287,8 +267,8 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
         { id: "syncMode", type: "boolean", label: "Sync", hidden: !showSettings },
       ]}
       outputs={[
-        // Single output: bundle of settings + image
-        { id: "out", type: "any", label: "Out" },
+        // Standard image output
+        { id: "image", type: "image", label: "Image" },
       ]}
       left={
         <div className="space-y-3">
@@ -458,30 +438,43 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                   </div>
 
                   {/* Num Inference Steps */}
-                  <div>
-                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
-                      Num Inference Steps
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={1}
-                        max={60}
-                        step={1}
-                        value={data.numInferenceSteps ?? 30}
-                        onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value, 10) })}
-                        className="nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-200"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={data.numInferenceSteps ?? 30}
-                        onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value || "30", 10) })}
-                        className="nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono"
-                      />
-                    </div>
-                  </div>
+                  {(() => {
+                    const isInherited = isSettingInherited(data, "numInferenceSteps");
+                    const value = Math.min(Math.max(1, data.numInferenceSteps ?? 30), 60);
+                    return (
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          Num Inference Steps
+                          {isInherited && <Lock className="w-2.5 h-2.5 text-violet-400" />}
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={1}
+                            max={60}
+                            step={1}
+                            value={value}
+                            onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value, 10) })}
+                            disabled={isInherited}
+                            className={`nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none ${
+                              isInherited ? "accent-violet-500 cursor-not-allowed opacity-60" : "cursor-pointer accent-zinc-200"
+                            }`}
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={value}
+                            onChange={(e) => updateNode(id, { numInferenceSteps: parseInt(e.target.value || "30", 10) })}
+                            disabled={isInherited}
+                            className={`nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono ${
+                              isInherited ? "opacity-60 cursor-not-allowed" : ""
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Seed */}
                   <div>
@@ -509,31 +502,44 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                   </div>
 
                   {/* Guidance Scale */}
-                  <div>
-                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">
-                      Guidance Scale
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={1}
-                        max={12}
-                        step={0.5}
-                        value={data.guidanceScale ?? 5}
-                        onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value) })}
-                        className="nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-200"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        max={12}
-                        step={0.5}
-                        value={data.guidanceScale ?? 5}
-                        onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value || "5") })}
-                        className="nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono"
-                      />
-                    </div>
-                  </div>
+                  {(() => {
+                    const isInherited = isSettingInherited(data, "guidanceScale");
+                    const value = Math.min(Math.max(1, data.guidanceScale ?? 5), 12);
+                    return (
+                      <div>
+                        <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          Guidance Scale
+                          {isInherited && <Lock className="w-2.5 h-2.5 text-violet-400" />}
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={1}
+                            max={12}
+                            step={0.5}
+                            value={value}
+                            onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value) })}
+                            disabled={isInherited}
+                            className={`nodrag nowheel flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none ${
+                              isInherited ? "accent-violet-500 cursor-not-allowed opacity-60" : "cursor-pointer accent-zinc-200"
+                            }`}
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            max={12}
+                            step={0.5}
+                            value={value}
+                            onChange={(e) => updateNode(id, { guidanceScale: parseFloat(e.target.value || "5") })}
+                            disabled={isInherited}
+                            className={`nodrag nowheel w-14 h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-100 focus:outline-none focus:border-white/20 font-mono ${
+                              isInherited ? "opacity-60 cursor-not-allowed" : ""
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Additional Settings */}
                   <div className="pt-1">
@@ -568,6 +574,18 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
                           type="checkbox"
                           checked={data.syncMode ?? false}
                           onChange={(e) => updateNode(id, { syncMode: e.target.checked })}
+                          className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                        <div>
+                          <span className="text-[10px] text-zinc-300">Use Cache</span>
+                          <p className="text-[8px] text-zinc-500">Skip re-run if unchanged</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={data.useCache === true}
+                          onChange={(e) => updateNode(id, { useCache: e.target.checked })}
                           className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
                         />
                       </label>
@@ -607,7 +625,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             )}
           </div>
           <div className="text-[9px] text-zinc-600 leading-relaxed">
-            Connect the single <span className="text-zinc-400 font-medium">Out</span> handle to override any target setting.
+            Connect the <span className="text-zinc-400 font-medium">Image</span> handle to use the generated result.
           </div>
         </div>
       }

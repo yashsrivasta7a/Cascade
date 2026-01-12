@@ -383,17 +383,54 @@ export const executionRouter = router({
         },
       });
 
-      const errors = nodeExecutions.map((ne) => ({
-        id: ne.id,
-        nodeId: ne.nodeId,
-        nodeName: ne.nodeLabel ?? ne.nodeType,
-        nodeType: ne.nodeType,
-        message: ne.error ?? "Unknown error",
-        timestamp: ne.completedAt?.toISOString() ?? ne.startedAt?.toISOString() ?? new Date().toISOString(),
-        executionId: ne.workflowExecution.id,
-        providerUsed: ne.providerUsed,
-        inputs: ne.inputJson as Record<string, unknown> | null,
-      }));
+      const errors = nodeExecutions.map((ne) => {
+        const inputs = ne.inputJson as Record<string, unknown> | null;
+        
+        // Identify missing inputs for better error messages
+        const missingInputs: string[] = [];
+        if (inputs) {
+          for (const [key, value] of Object.entries(inputs)) {
+            if (value === undefined || value === null) {
+              missingInputs.push(key);
+            }
+          }
+        }
+        
+        // Calculate duration if we have both times
+        const duration = ne.completedAt && ne.startedAt 
+          ? ne.completedAt.getTime() - ne.startedAt.getTime() 
+          : undefined;
+        
+        // Generate a helpful suggestion based on the error
+        let suggestion: string | undefined;
+        const errorLower = (ne.error ?? "").toLowerCase();
+        if (errorLower.includes("expected object") || errorLower.includes("undefined")) {
+          suggestion = `Missing required input. Check that all connected nodes have run successfully. Missing: ${missingInputs.length > 0 ? missingInputs.join(", ") : "unknown input"}`;
+        } else if (errorLower.includes("insufficient credits")) {
+          suggestion = "Add more credits in the billing section.";
+        } else if (errorLower.includes("timeout")) {
+          suggestion = "The operation took too long. Try with smaller inputs.";
+        } else if (errorLower.includes("not a valid model")) {
+          suggestion = "The model ID is incorrect. Select a different model.";
+        }
+        
+        return {
+          id: ne.id,
+          nodeId: ne.nodeId,
+          nodeName: ne.nodeLabel ?? ne.nodeType,
+          nodeType: ne.nodeType,
+          message: ne.error ?? "Unknown error",
+          details: missingInputs.length > 0 ? `Missing inputs: ${missingInputs.join(", ")}` : undefined,
+          timestamp: ne.completedAt?.toISOString() ?? ne.startedAt?.toISOString() ?? new Date().toISOString(),
+          executionId: ne.workflowExecution.id,
+          provider: ne.providerUsed ?? undefined,
+          inputs: inputs,
+          duration,
+          suggestion,
+          severity: "critical" as const,
+          canRetry: true,
+        };
+      });
 
       return { errors };
     }),

@@ -98,10 +98,20 @@ function buildNodeInput(
       // For image outputs, set as image input
       if (upstreamOutput.type === "image" && "image" in upstreamOutput) {
         const handle = edge.targetHandle;
+        const imageAsset = upstreamOutput.image as { url?: string };
+        
         if (handle === "image" || handle === "frame") {
           input[handle] = upstreamOutput.image;
+        } else if (handle === "inputImage") {
+          // For crop-image and similar nodes that expect inputImage
+          input.inputImage = imageAsset?.url;
+          input.image = upstreamOutput.image; // Also set as object for compatibility
+          // For OpenRouter vision - set imageUrl as string
+          input.imageUrl = imageAsset?.url;
         } else {
           input.image = upstreamOutput.image;
+          // Also set imageUrl for OpenRouter vision
+          input.imageUrl = imageAsset?.url;
         }
       }
       // For video outputs, set as video input

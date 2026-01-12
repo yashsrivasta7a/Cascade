@@ -49,7 +49,7 @@ export function Sidebar() {
         href="/dashboard" 
         className="h-14 px-4 flex items-center gap-2.5 border-b border-zinc-800/60"
       >
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1e3a5f] to-[#2a4a6f] flex items-center justify-center shadow-lg shadow-[#0f1f33]/50">
           <Zap className="w-4 h-4 text-white" />
         </div>
         <span className="font-semibold text-sm text-zinc-100">Flowsmith</span>

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
 import { getNodeCost, calculateOpenrouterCost } from "@/lib/credits";
+import { checkCache, cacheResult } from "@/lib/cache";
 
 // =============================================================================
 // STREAMING LLM API ENDPOINT
@@ -14,8 +15,13 @@ const LLMRequestSchema = z.object({
   model: z.string().default("openai/gpt-4o-mini"),
   temperature: z.number().min(0).max(2).default(0.7),
   maxTokens: z.number().min(1).max(128000).default(4096),
+  topP: z.number().min(0).max(1).optional(), // Nucleus sampling
+  topK: z.number().min(0).optional(), // Top-K sampling (not all models support this)
+  frequencyPenalty: z.number().min(-2).max(2).optional(), // Repetition penalty
+  presencePenalty: z.number().min(-2).max(2).optional(), // Topic penalty
   context: z.string().optional(),
   imageUrl: z.string().optional(), // Can be URL or base64 data URL
+  useCache: z.boolean().optional(), // Cache identical inputs
   // Workflow context for Activity tab
   workflowId: z.string().optional(),
   nodeId: z.string().optional(),
@@ -59,7 +65,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, systemPrompt, model, temperature, maxTokens, context, imageUrl, workflowId, nodeId, nodeLabel } = parsed.data;
+    const { prompt, systemPrompt, model, temperature, maxTokens, topP, frequencyPenalty, presencePenalty, context, imageUrl, useCache, workflowId, nodeId, nodeLabel } = parsed.data;
+
+    // CHECK CACHE - If useCache is enabled, check for identical inputs
+    let cacheHash: string | undefined;
+    if (useCache) {
+      try {
+        // Only include defined values for consistent hashing
+        const cacheInputs: Record<string, unknown> = { prompt, model };
+        if (systemPrompt) cacheInputs.systemPrompt = systemPrompt;
+        if (temperature !== undefined) cacheInputs.temperature = temperature;
+        if (maxTokens !== undefined) cacheInputs.maxTokens = maxTokens;
+        if (topP !== undefined) cacheInputs.topP = topP;
+        if (frequencyPenalty !== undefined) cacheInputs.frequencyPenalty = frequencyPenalty;
+        if (presencePenalty !== undefined) cacheInputs.presencePenalty = presencePenalty;
+        if (context) cacheInputs.context = context;
+        if (imageUrl) cacheInputs.imageUrl = imageUrl;
+        
+        console.log(`[LLM Stream] Cache check with inputs:`, JSON.stringify(cacheInputs).slice(0, 200));
+        const cacheCheck = await checkCache("openrouter", cacheInputs);
+        cacheHash = cacheCheck.hash;
+        
+        if (cacheCheck.hit && cacheCheck.result) {
+          console.log(`[LLM Stream] CACHE HIT for openrouter (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+          
+          // Return cached result as a simple JSON response (not streaming)
+          const cachedText = (cacheCheck.result as { text?: string }).text || "";
+          
+          // Record the cached execution
+          if (executionId) {
+            await db.quickExecution.update({
+              where: { id: executionId },
+              data: {
+                status: "COMPLETED",
+                completedAt: new Date(),
+                durationMs: Date.now() - startTime,
+                outputJson: cacheCheck.result,
+                actualCost: 0, // No cost for cached results
+                providerUsed: "cache",
+              },
+            }).catch(() => {});
+          }
+          
+          return new Response(
+            JSON.stringify({ 
+              cached: true, 
+              text: cachedText,
+              hash: cacheHash.slice(0, 12),
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        
+        console.log(`[LLM Stream] Cache MISS for openrouter (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+      } catch (cacheError) {
+        console.warn("[LLM Stream] Cache check failed, proceeding with execution:", cacheError);
+      }
+    }
 
     // Create execution record with userId and workflow context
     try {
@@ -142,6 +204,10 @@ export async function POST(request: NextRequest) {
         temperature,
         max_tokens: maxTokens,
         stream: true,
+        // Optional advanced parameters
+        ...(topP !== undefined && { top_p: topP }),
+        ...(frequencyPenalty !== undefined && { frequency_penalty: frequencyPenalty }),
+        ...(presencePenalty !== undefined && { presence_penalty: presencePenalty }),
       }),
     });
 
@@ -169,6 +235,8 @@ export async function POST(request: NextRequest) {
     const execStartTime = startTime;
     const execUserId = userId; // Capture userId for closure
     const execModel = model; // Capture model for closure
+    const execCacheHash = cacheHash; // Capture cache hash for closure
+    const execUseCache = useCache; // Capture useCache flag for closure
     
     // Estimate input tokens (roughly 4 characters per token)
     const inputText = messages.map(m => 
@@ -242,6 +310,16 @@ export async function POST(request: NextRequest) {
                 },
               });
               console.log(`[LLM Stream] Execution ${execId} marked as COMPLETED. Tokens: ${estimatedInputTokens} in, ${outputTokenCount} out. Cost: ${creditCost} credits`);
+              
+              // Cache result if caching enabled
+              if (execUseCache && execCacheHash && fullResponse) {
+                try {
+                  await cacheResult(execCacheHash, "openrouter", { type: "text", text: fullResponse });
+                  console.log(`[LLM Stream] Cached result for openrouter (hash: ${execCacheHash.slice(0, 12)}...)`);
+                } catch (cacheWriteError) {
+                  console.warn("[LLM Stream] Failed to cache result:", cacheWriteError);
+                }
+              }
               
               // Deduct credits from user
               if (execUserId && creditCost > 0) {

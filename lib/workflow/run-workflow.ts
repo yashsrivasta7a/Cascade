@@ -308,7 +308,7 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     case "seedvr":
       return { ...base, image: getImageInput("image", "inputImage") || normalizeAsset(base.image) };
     case "crop-image":
-      return { ...base, image: getImageInput("inputImage", "inputImage") || normalizeAsset(base.image) };
+      return { ...base, image: getImageInput("inputImage", "inputImage") || normalizeAsset(base.inputImage) };
     case "extract-audio":
       return { ...base, video: getVideoInput("inputVideo", "inputVideo") };
     case "merge-videos": {
@@ -342,6 +342,21 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     }
     case "seedance":
       return { ...base, frame: getImageInput("frame", "frame") || normalizeAsset(base.frame) };
+    case "openrouter": {
+      // OpenRouter supports vision - get image from connected nodes or node data
+      const imageConnected = getIncomingMedia(edges, outputs, node.id, "inputImage");
+      const imageUrl = imageConnected || data.inputImage;
+      
+      console.log(`[buildNodeInput] OpenRouter node ${node.id}:`);
+      console.log(`[buildNodeInput]   - imageConnected: ${imageConnected ? "yes" : "no"}`);
+      console.log(`[buildNodeInput]   - data.inputImage: ${data.inputImage ? "yes" : "no"}`);
+      console.log(`[buildNodeInput]   - final imageUrl: ${imageUrl ? imageUrl.slice(0, 50) + "..." : "undefined"}`);
+      
+      return {
+        ...base,
+        imageUrl, // Pass as string URL (not AssetRef) for vision API
+      };
+    }
     default:
       return base;
   }
@@ -671,42 +686,48 @@ export async function runWorkflow(
       return;
     }
 
-    // Check cache for identical inputs
+    // Check cache for identical inputs (only if caching enabled)
+    const useCache = (data as { useCache?: boolean }).useCache === true;
     let cacheHash: string | undefined;
-    try {
-      const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
-      cacheHash = cacheCheck.hash;
-      
-      if (cacheCheck.hit && cacheCheck.result) {
-        console.log(`[RunWorkflow] Cache HIT for ${node.id} (${type}) - skipping execution`);
+    
+    if (useCache) {
+      try {
+        const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+        cacheHash = cacheCheck.hash;
         
-        const cachedOut = cacheCheck.result as AnyOut;
-        const validated = outputSchema.safeParse(cachedOut);
-        
-        if (validated.success) {
-          running.delete(node.id);
-          outputs.set(node.id, cachedOut);
-          completed.add(node.id);
+        if (cacheCheck.hit && cacheCheck.result) {
+          console.log(`[RunWorkflow] Cache HIT for ${node.id} (${type}) - skipping execution`);
           
-          const resultText =
-            cachedOut.type === "text"
-              ? cachedOut.text
-              : cachedOut.type === "image"
-                ? cachedOut.image.url
-                : cachedOut.type === "video"
-                  ? cachedOut.video.url
-                  : cachedOut.audio.url;
+          const cachedOut = cacheCheck.result as AnyOut;
+          const validated = outputSchema.safeParse(cachedOut);
+          
+          if (validated.success) {
+            running.delete(node.id);
+            outputs.set(node.id, cachedOut);
+            completed.add(node.id);
+            
+            const resultText =
+              cachedOut.type === "text"
+                ? cachedOut.text
+                : cachedOut.type === "image"
+                  ? cachedOut.image.url
+                  : cachedOut.type === "video"
+                    ? cachedOut.video.url
+                    : cachedOut.audio.url;
 
-          callbacks.onNodeResult?.(node.id, resultText, cachedOut);
-          callbacks.onNodeStatus?.(node.id, "completed", {
-            progress: 100,
-            fromCache: true,
-          });
-          return;
+            callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+            callbacks.onNodeStatus?.(node.id, "completed", {
+              progress: 100,
+              fromCache: true,
+            });
+            return;
+          }
         }
+      } catch (error) {
+        console.warn(`[RunWorkflow] Cache check failed for ${node.id}, proceeding with execution:`, error);
       }
-    } catch (error) {
-      console.warn(`[RunWorkflow] Cache check failed for ${node.id}, proceeding with execution:`, error);
+    } else {
+      console.log(`[RunWorkflow] Cache DISABLED for ${node.id} (${type}) - executing fresh`);
     }
 
     // Provider fallback chain
@@ -790,8 +811,8 @@ export async function runWorkflow(
             ? finalOut.video.url
             : finalOut.audio.url;
 
-    // Cache successful result for future identical executions
-    if (cacheHash) {
+    // Cache successful result for future identical executions (only if caching enabled)
+    if (useCache && cacheHash) {
       try {
         await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
       } catch (error) {
@@ -1027,42 +1048,48 @@ async function runWorkflowSubset(
       return;
     }
 
-    // Check cache
+    // Check cache (only if caching enabled)
+    const useCache = (data as { useCache?: boolean }).useCache === true;
     let cacheHash: string | undefined;
-    try {
-      const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
-      cacheHash = cacheCheck.hash;
-      
-      if (cacheCheck.hit && cacheCheck.result) {
-        console.log(`[runWorkflowSubset] Cache HIT for ${node.id} (${type})`);
+    
+    if (useCache) {
+      try {
+        const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+        cacheHash = cacheCheck.hash;
         
-        const cachedOut = cacheCheck.result as AnyOut;
-        const validated = outputSchema.safeParse(cachedOut);
-        
-        if (validated.success) {
-          running.delete(node.id);
-          outputs.set(node.id, cachedOut);
-          completed.add(node.id);
+        if (cacheCheck.hit && cacheCheck.result) {
+          console.log(`[runWorkflowSubset] Cache HIT for ${node.id} (${type})`);
           
-          const resultText =
-            cachedOut.type === "text"
-              ? cachedOut.text
-              : cachedOut.type === "image"
-                ? cachedOut.image.url
-                : cachedOut.type === "video"
-                  ? cachedOut.video.url
-                  : cachedOut.audio.url;
+          const cachedOut = cacheCheck.result as AnyOut;
+          const validated = outputSchema.safeParse(cachedOut);
+          
+          if (validated.success) {
+            running.delete(node.id);
+            outputs.set(node.id, cachedOut);
+            completed.add(node.id);
+            
+            const resultText =
+              cachedOut.type === "text"
+                ? cachedOut.text
+                : cachedOut.type === "image"
+                  ? cachedOut.image.url
+                  : cachedOut.type === "video"
+                    ? cachedOut.video.url
+                    : cachedOut.audio.url;
 
-          callbacks.onNodeResult?.(node.id, resultText, cachedOut);
-          callbacks.onNodeStatus?.(node.id, "completed", {
-            progress: 100,
-            fromCache: true,
-          });
-          return;
+            callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+            callbacks.onNodeStatus?.(node.id, "completed", {
+              progress: 100,
+              fromCache: true,
+            });
+            return;
+          }
         }
+      } catch (error) {
+        console.warn(`[runWorkflowSubset] Cache check failed for ${node.id}:`, error);
       }
-    } catch (error) {
-      console.warn(`[runWorkflowSubset] Cache check failed for ${node.id}:`, error);
+    } else {
+      console.log(`[runWorkflowSubset] Cache DISABLED for ${node.id} (${type}) - executing fresh`);
     }
 
     // Provider execution
@@ -1144,8 +1171,8 @@ async function runWorkflowSubset(
             ? finalOut.video.url
             : finalOut.audio.url;
 
-    // Cache result
-    if (cacheHash) {
+    // Cache result (only if caching enabled)
+    if (useCache && cacheHash) {
       try {
         await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
       } catch (error) {
@@ -1234,37 +1261,43 @@ export async function runSingleNode(
   }
 
   // Check cache for identical inputs (skip re-execution if cached)
+  const useCache = (node.data as { useCache?: boolean } | undefined)?.useCache === true;
   let cacheHash: string | undefined;
-  try {
-    const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
-    cacheHash = cacheCheck.hash;
-    
-    if (cacheCheck.hit && cacheCheck.result) {
-      console.log(`[runSingleNode] Cache HIT for ${type} - skipping execution`);
+  
+  if (useCache) {
+    try {
+      const cacheCheck = await checkCache(type, parsed.data as Record<string, unknown>);
+      cacheHash = cacheCheck.hash;
       
-      const cachedOut = cacheCheck.result as AnyOut;
-      const validated = outputSchema.safeParse(cachedOut);
-      
-      if (validated.success) {
-        const resultText =
-          cachedOut.type === "text"
-            ? cachedOut.text
-            : cachedOut.type === "image"
-              ? cachedOut.image.url
-              : cachedOut.type === "video"
-                ? cachedOut.video.url
-                : cachedOut.audio.url;
+      if (cacheCheck.hit && cacheCheck.result) {
+        console.log(`[runSingleNode] Cache HIT for ${type} - skipping execution`);
+        
+        const cachedOut = cacheCheck.result as AnyOut;
+        const validated = outputSchema.safeParse(cachedOut);
+        
+        if (validated.success) {
+          const resultText =
+            cachedOut.type === "text"
+              ? cachedOut.text
+              : cachedOut.type === "image"
+                ? cachedOut.image.url
+                : cachedOut.type === "video"
+                  ? cachedOut.video.url
+                  : cachedOut.audio.url;
 
-        callbacks.onNodeResult?.(node.id, resultText, cachedOut);
-        callbacks.onNodeStatus?.(node.id, "completed", {
-          progress: 100,
-          fromCache: true,
-        });
-        return;
+          callbacks.onNodeResult?.(node.id, resultText, cachedOut);
+          callbacks.onNodeStatus?.(node.id, "completed", {
+            progress: 100,
+            fromCache: true,
+          });
+          return;
+        }
       }
+    } catch (error) {
+      console.warn("[runSingleNode] Cache check failed, proceeding with execution:", error);
     }
-  } catch (error) {
-    console.warn("[runSingleNode] Cache check failed, proceeding with execution:", error);
+  } else {
+    console.log(`[runSingleNode] Cache DISABLED for ${type} - executing fresh`);
   }
 
   // For async nodes (fal.ai), use the API which tracks via Trigger.dev
@@ -1412,8 +1445,8 @@ export async function runSingleNode(
     }
   }
 
-  // Cache successful result for future identical executions
-  if (cacheHash) {
+  // Cache successful result for future identical executions (only if caching enabled)
+  if (useCache && cacheHash) {
     try {
       await cacheResult(cacheHash, type, finalOut as Record<string, unknown>);
     } catch (error) {

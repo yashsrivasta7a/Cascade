@@ -35,6 +35,8 @@ import {
   Crop,
   Scissors,
   Mic,
+  Database,
+  Focus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DotPattern } from "@/components/ui";
@@ -132,16 +134,12 @@ function formatDurationMs(ms: number): string {
   return `${mins}m ${secs}s`;
 }
 
-function formatCost(cost?: number): string {
-  if (cost === undefined || cost === null) return "$0.00";
-  if (cost < 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(2)}`;
-}
-
-function formatCredits(credits: number): string {
-  if (credits < 0.0001) return "~$0.0001";
-  if (credits < 0.01) return `$${credits.toFixed(4)}`;
-  return `$${credits.toFixed(2)}`;
+function formatCredits(credits?: number): string {
+  if (credits === undefined || credits === null || credits === 0) return "0";
+  if (credits >= 1000000) return `${(credits / 1000000).toFixed(2)}M`;
+  if (credits >= 1000) return `${(credits / 1000).toFixed(1)}K`;
+  if (credits < 1) return credits.toFixed(2);
+  return credits.toLocaleString();
 }
 
 function getNodeIcon(nodeType: string) {
@@ -225,6 +223,74 @@ export function ActivityPanel({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const storeNodes = useFlowStore((s) => s.nodes);
+  const storeEdges = useFlowStore((s) => s.edges);
+  const highlightPipeline = useFlowStore((s) => s.highlightPipeline);
+  const clearHighlight = useFlowStore((s) => s.clearHighlight);
+  const highlightedNodeIds = useFlowStore((s) => s.highlightedNodeIds);
+  
+  // Find connected components (pipelines) from edges
+  // Uses Union-Find algorithm to group connected nodes
+  const findConnectedPipelines = useCallback((nodeIds: string[]): string[][] => {
+    if (nodeIds.length === 0) return [];
+    
+    // Build adjacency from edges
+    const parent = new Map<string, string>();
+    const rank = new Map<string, number>();
+    
+    // Initialize each node as its own parent
+    for (const id of nodeIds) {
+      parent.set(id, id);
+      rank.set(id, 0);
+    }
+    
+    // Find with path compression
+    const find = (x: string): string => {
+      if (parent.get(x) !== x) {
+        parent.set(x, find(parent.get(x)!));
+      }
+      return parent.get(x)!;
+    };
+    
+    // Union by rank
+    const union = (x: string, y: string) => {
+      const px = find(x);
+      const py = find(y);
+      if (px === py) return;
+      
+      const rx = rank.get(px) || 0;
+      const ry = rank.get(py) || 0;
+      
+      if (rx < ry) {
+        parent.set(px, py);
+      } else if (rx > ry) {
+        parent.set(py, px);
+      } else {
+        parent.set(py, px);
+        rank.set(px, rx + 1);
+      }
+    };
+    
+    // Connect nodes based on edges
+    const nodeIdSet = new Set(nodeIds);
+    for (const edge of storeEdges) {
+      if (nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target)) {
+        union(edge.source, edge.target);
+      }
+    }
+    
+    // Group nodes by their root
+    const groups = new Map<string, string[]>();
+    for (const id of nodeIds) {
+      const root = find(id);
+      if (!groups.has(root)) {
+        groups.set(root, []);
+      }
+      groups.get(root)!.push(id);
+    }
+    
+    // Convert to array and sort by size (largest first)
+    return Array.from(groups.values()).sort((a, b) => b.length - a.length);
+  }, [storeEdges]);
 
   const fetchExecutions = useCallback(async () => {
     if (!isOpen) return;
@@ -372,22 +438,42 @@ export function ActivityPanel({
             
             {/* Stats */}
             {executions.length > 0 && (
-              <div className="mt-3 grid grid-cols-4 gap-1.5">
-                <div className="bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-500/20">
-                  <div className="flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" /><span className="text-[8px] text-emerald-400/70">Success</span></div>
-                  <p className="text-xs font-bold text-emerald-400 mt-0.5">{stats.success}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20 flex items-center justify-center">
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">Success</p>
+                    <p className="text-xl font-bold text-emerald-400 -mt-0.5">{stats.success}</p>
+                  </div>
                 </div>
-                <div className="bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-500/20">
-                  <div className="flex items-center gap-1"><XCircle className="w-2.5 h-2.5 text-red-400" /><span className="text-[8px] text-red-400/70">Failed</span></div>
-                  <p className="text-xs font-bold text-red-400 mt-0.5">{stats.failed}</p>
+                <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/20 flex items-center justify-center">
+                    <XCircle className="w-4.5 h-4.5 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">Failed</p>
+                    <p className="text-xl font-bold text-red-400 -mt-0.5">{stats.failed}</p>
+                  </div>
                 </div>
-                <div className="bg-blue-500/10 rounded-lg px-2 py-1.5 border border-blue-500/20">
-                  <div className="flex items-center gap-1"><Loader2 className="w-2.5 h-2.5 text-blue-400" /><span className="text-[8px] text-blue-400/70">Running</span></div>
-                  <p className="text-xs font-bold text-blue-400 mt-0.5">{stats.running}</p>
+                <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                    <Loader2 className="w-4.5 h-4.5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">Running</p>
+                    <p className="text-xl font-bold text-blue-400 -mt-0.5">{stats.running}</p>
+                  </div>
                 </div>
-                <div className="bg-amber-500/10 rounded-lg px-2 py-1.5 border border-amber-500/20">
-                  <div className="flex items-center gap-1"><Coins className="w-2.5 h-2.5 text-amber-400" /><span className="text-[8px] text-amber-400/70">Cost</span></div>
-                  <p className="text-xs font-bold text-amber-400 mt-0.5">{formatCost(stats.totalCost)}</p>
+                <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/[0.06] hover:bg-white/[0.05] transition-colors">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center">
+                    <Coins className="w-4.5 h-4.5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wide font-medium">Credits</p>
+                    <p className="text-lg font-bold text-amber-400 -mt-0.5">{formatCredits(stats.totalCost)}</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -430,6 +516,7 @@ export function ActivityPanel({
                     const isExpanded = expandedWorkflows.has(exec.id);
                     const workflowCost = exec.nodeExecutions.reduce((sum, n) => sum + (n.actualCost || 0), 0);
                     const singleNode = !isMulti ? exec.nodeExecutions[0] : null;
+                    const pipelineNumber = executions.length - idx; // Reverse numbering (newest = highest)
                     
                     return (
                       <motion.div key={exec.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className={cn("rounded-xl border overflow-hidden relative", status.cardBg, status.border)}>
@@ -442,46 +529,148 @@ export function ActivityPanel({
                                 <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", status.bg)}><div className={status.color}>{status.icon}</div></div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[9px] font-bold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded uppercase">Pipeline</span>
-                                    <span className="text-xs font-medium text-white truncate">Workflow Run</span>
+                                    <span className="text-[9px] font-bold text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded uppercase border border-violet-500/20">Pipeline #{pipelineNumber}</span>
+                                    <span className="text-xs font-medium text-white truncate">{exec.workflowName || "Workflow Run"}</span>
                                   </div>
                                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                     <div className="flex items-center gap-1 text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded"><Calendar className="w-2.5 h-2.5" />{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</div>
                                     {exec.durationMs && <div className="flex items-center gap-1 text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />{formatDurationMs(exec.durationMs)}</div>}
-                                    {workflowCost > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCost(workflowCost)}</div>}
+                                    {workflowCost > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCredits(workflowCost)}</div>}
                                   </div>
                                   <div className="flex items-center gap-2 mt-1">
+                                    {(() => {
+                                      const nodeIds = exec.nodeExecutions.map(n => n.nodeId);
+                                      const pipelines = findConnectedPipelines(nodeIds);
+                                      return pipelines.length > 1 ? (
+                                        <span className="text-[9px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">{pipelines.length} chains</span>
+                                      ) : null;
+                                    })()}
                                     <span className="text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded">{exec.nodeExecutions.length} nodes</span>
                                     {exec.nodeExecutions.filter(n => n.status === "COMPLETED").length > 0 && <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle2 className="w-2.5 h-2.5" />{exec.nodeExecutions.filter(n => n.status === "COMPLETED").length}</span>}
                                     {exec.nodeExecutions.filter(n => n.status === "FAILED").length > 0 && <span className="text-[9px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5"><XCircle className="w-2.5 h-2.5" />{exec.nodeExecutions.filter(n => n.status === "FAILED").length}</span>}
                                   </div>
                                 </div>
-                                <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-zinc-500"><ChevronDown className="w-4 h-4" /></motion.div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const nodeIds = exec.nodeExecutions.map(n => n.nodeId);
+                                      const isCurrentlyHighlighted = nodeIds.some(id => highlightedNodeIds.includes(id));
+                                      if (isCurrentlyHighlighted) {
+                                        clearHighlight();
+                                      } else {
+                                        highlightPipeline(nodeIds);
+                                        // Don't close - let user see the mapping
+                                      }
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium transition-colors",
+                                      exec.nodeExecutions.some(n => highlightedNodeIds.includes(n.nodeId))
+                                        ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                                        : "hover:bg-white/[0.05] text-zinc-500 hover:text-zinc-300 border border-transparent"
+                                    )}
+                                    title="Highlight and fit view to all pipeline nodes"
+                                  >
+                                    <Focus className="w-3.5 h-3.5" />
+                                    <span>{exec.nodeExecutions.some(n => highlightedNodeIds.includes(n.nodeId)) ? "Viewing" : "Focus"}</span>
+                                  </button>
+                                  <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-zinc-500"><ChevronDown className="w-4 h-4" /></motion.div>
+                                </div>
                               </div>
                             </button>
                             <AnimatePresence>
                               {isExpanded && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-white/[0.04]">
-                                  <div className="p-2 space-y-1.5">
-                                    {exec.nodeExecutions.map((node, i) => {
-                                      const ns = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
-                                      return (
-                                        <button key={`${node.id}-${i}`} onClick={() => handleNodeClick(node.nodeType, node.nodeId)} className="w-full text-left p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] transition-all">
-                                          <div className="flex items-center gap-2.5">
-                                            <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center", getNodeColor(node.nodeType))}>{getNodeIcon(node.nodeType)}</div>
-                                            <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-1.5"><span className="text-[11px] font-medium text-zinc-200 truncate">{getNodeDisplayName(node)}</span>{node.providerUsed && <span className="text-[8px] text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">{node.providerUsed}</span>}</div>
-                                              <div className="flex items-center gap-1.5 mt-0.5">
-                                                {node.durationMs && <span className="text-[9px] text-zinc-500 flex items-center gap-0.5"><Timer className="w-2.5 h-2.5" />{formatDurationMs(node.durationMs)}</span>}
-                                                {(node.actualCost ?? 0) > 0 && <span className="text-[9px] text-amber-400 flex items-center gap-0.5"><Coins className="w-2.5 h-2.5" />{formatCredits(node.actualCost!)}</span>}
+                                  <div className="p-2 space-y-2">
+                                    {(() => {
+                                      // Group nodes by connected pipelines (chains)
+                                      const nodeIds = exec.nodeExecutions.map(n => n.nodeId);
+                                      const pipelines = findConnectedPipelines(nodeIds);
+                                      const hasManyPipelines = pipelines.length > 1;
+                                      
+                                      return pipelines.map((pipelineNodeIds, pIdx) => {
+                                        const pipelineNodes = exec.nodeExecutions.filter(n => pipelineNodeIds.includes(n.nodeId));
+                                        const isPipelineHighlighted = pipelineNodeIds.some(id => highlightedNodeIds.includes(id));
+                                        const pipelineCost = pipelineNodes.reduce((sum, n) => sum + (n.actualCost || 0), 0);
+                                        
+                                        // Color palette for different pipelines
+                                        const pipelineColors = [
+                                          { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400", accent: "bg-violet-500/20" },
+                                          { bg: "bg-cyan-500/10", border: "border-cyan-500/20", text: "text-cyan-400", accent: "bg-cyan-500/20" },
+                                          { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", accent: "bg-amber-500/20" },
+                                          { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400", accent: "bg-emerald-500/20" },
+                                          { bg: "bg-rose-500/10", border: "border-rose-500/20", text: "text-rose-400", accent: "bg-rose-500/20" },
+                                        ];
+                                        const pColor = pipelineColors[pIdx % pipelineColors.length];
+                                        
+                                        return (
+                                          <div key={`pipeline-${pIdx}`} className={cn("rounded-lg border", hasManyPipelines ? pColor.border : "border-transparent")}>
+                                            {/* Pipeline header (only show if multiple pipelines) */}
+                                            {hasManyPipelines && (
+                                              <div className={cn("flex items-center justify-between px-2 py-1.5 rounded-t-lg", pColor.bg)}>
+                                                <div className="flex items-center gap-2">
+                                                  <span className={cn("text-[8px] font-bold uppercase px-1.5 py-0.5 rounded", pColor.accent, pColor.text)}>
+                                                    Chain {pIdx + 1}
+                                                  </span>
+                                                  <span className="text-[9px] text-zinc-500">{pipelineNodes.length} nodes</span>
+                                                  {pipelineCost > 0 && (
+                                                    <span className="text-[9px] text-amber-400 flex items-center gap-0.5">
+                                                      <Coins className="w-2.5 h-2.5" />{formatCredits(pipelineCost)}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (isPipelineHighlighted) {
+                                                      clearHighlight();
+                                                    } else {
+                                                      highlightPipeline(pipelineNodeIds);
+                                                    }
+                                                  }}
+                                                  className={cn(
+                                                    "flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium transition-colors",
+                                                    isPipelineHighlighted
+                                                      ? cn(pColor.accent, pColor.text, "border", pColor.border)
+                                                      : "hover:bg-white/[0.05] text-zinc-500 hover:text-zinc-300"
+                                                  )}
+                                                >
+                                                  <Focus className="w-3 h-3" />
+                                                  {isPipelineHighlighted ? "Viewing" : "Focus"}
+                                                </button>
                                               </div>
+                                            )}
+                                            
+                                            {/* Nodes in this pipeline */}
+                                            <div className={cn("space-y-1.5", hasManyPipelines ? "p-1.5" : "")}>
+                                              {pipelineNodes.map((node, i) => {
+                                                const ns = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
+                                                return (
+                                                  <button key={`${node.id}-${i}`} onClick={() => handleNodeClick(node.nodeType, node.nodeId)} className="w-full text-left p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] transition-all">
+                                                    <div className="flex items-center gap-2.5">
+                                                      <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center", getNodeColor(node.nodeType))}>{getNodeIcon(node.nodeType)}</div>
+                                                      <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1.5"><span className="text-[11px] font-medium text-zinc-200 truncate">{getNodeDisplayName(node)}</span>{node.providerUsed && (node.providerUsed === "cache" ? <span className="text-[8px] text-cyan-400 bg-cyan-500/15 px-1 py-0.5 rounded flex items-center gap-0.5"><Database className="w-2 h-2" />CACHED</span> : <span className="text-[8px] text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">{node.providerUsed}</span>)}</div>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                          {node.providerUsed === "cache" ? (
+                                                            <span className="text-[9px] text-cyan-400 flex items-center gap-0.5"><Timer className="w-2.5 h-2.5" />0ms</span>
+                                                          ) : node.durationMs && <span className="text-[9px] text-zinc-500 flex items-center gap-0.5"><Timer className="w-2.5 h-2.5" />{formatDurationMs(node.durationMs)}</span>}
+                                                          {node.providerUsed === "cache" ? (
+                                                            <span className="text-[9px] text-cyan-400 flex items-center gap-0.5"><Coins className="w-2.5 h-2.5" />0</span>
+                                                          ) : (node.actualCost ?? 0) > 0 && <span className="text-[9px] text-amber-400 flex items-center gap-0.5"><Coins className="w-2.5 h-2.5" />{formatCredits(node.actualCost!)}</span>}
+                                                        </div>
+                                                      </div>
+                                                      <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-md", ns.bg)}><div className={cn("scale-75", ns.color)}>{ns.icon}</div><span className={cn("text-[9px] font-medium", ns.color)}>{ns.label}</span></div>
+                                                    </div>
+                                                    {node.error && <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20"><p className="text-[9px] text-red-400 line-clamp-2">{node.error}</p></div>}
+                                                  </button>
+                                                );
+                                              })}
                                             </div>
-                                            <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-md", ns.bg)}><div className={cn("scale-75", ns.color)}>{ns.icon}</div><span className={cn("text-[9px] font-medium", ns.color)}>{ns.label}</span></div>
                                           </div>
-                                          {node.error && <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20"><p className="text-[9px] text-red-400 line-clamp-2">{node.error}</p></div>}
-                                        </button>
-                                      );
-                                    })}
+                                        );
+                                      });
+                                    })()}
                                   </div>
                                 </motion.div>
                               )}
@@ -499,10 +688,14 @@ export function ActivityPanel({
                                 </div>
                                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                   <div className="flex items-center gap-1 text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded"><Calendar className="w-2.5 h-2.5" />{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</div>
-                                  {singleNode?.durationMs && <div className="flex items-center gap-1 text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />{formatDurationMs(singleNode.durationMs)}</div>}
-                                  {(singleNode?.actualCost ?? 0) > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCost(singleNode!.actualCost)}</div>}
+                                  {singleNode?.providerUsed === "cache" ? (
+                                    <div className="flex items-center gap-1 text-[9px] text-cyan-400 bg-cyan-500/15 px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />0ms</div>
+                                  ) : singleNode?.durationMs && <div className="flex items-center gap-1 text-[9px] text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />{formatDurationMs(singleNode.durationMs)}</div>}
+                                  {singleNode?.providerUsed === "cache" ? (
+                                    <div className="flex items-center gap-1 text-[9px] text-cyan-400 bg-cyan-500/15 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />0</div>
+                                  ) : (singleNode?.actualCost ?? 0) > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCredits(singleNode!.actualCost)}</div>}
                                 </div>
-                                {singleNode?.providerUsed && <div className="mt-1"><span className="text-[9px] text-blue-400 font-medium bg-blue-500/10 px-1.5 py-0.5 rounded">{singleNode.providerUsed}</span></div>}
+                                {singleNode?.providerUsed && <div className="mt-1">{singleNode.providerUsed === "cache" ? <span className="text-[9px] text-cyan-400 font-medium bg-cyan-500/15 px-1.5 py-0.5 rounded flex items-center gap-1 inline-flex"><Database className="w-2.5 h-2.5" />CACHED</span> : <span className="text-[9px] text-blue-400 font-medium bg-blue-500/10 px-1.5 py-0.5 rounded">{singleNode.providerUsed}</span>}</div>}
                               </div>
                               <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold uppercase border", status.bg, status.border)}><div className={status.color}>{status.icon}</div><span className={status.color}>{status.label}</span></div>
                             </div>
@@ -567,7 +760,7 @@ export function ActivityPanel({
           {/* Footer */}
           <div className="px-3 py-2.5 border-t border-white/[0.06] bg-white/[0.02] shrink-0">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-zinc-500 flex items-center gap-1.5"><Target className="w-3 h-3" />Click to focus node</p>
+              <p className="text-[10px] text-zinc-500 flex items-center gap-1.5"><Focus className="w-3 h-3" />Focus to highlight & fit view</p>
               <p className="text-[10px] text-zinc-600">Auto-refresh: 5s</p>
             </div>
           </div>

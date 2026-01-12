@@ -131,6 +131,7 @@ export const ExtractAudioInputSchema = z.object({
   channels: z.enum(["1", "2"]).default("2"), // mono or stereo
   normalize: z.boolean().default(false),
   context: z.string().optional(),
+  useCache: z.boolean().optional().default(false),
 });
 
 export type ExtractAudioInput = z.infer<typeof ExtractAudioInputSchema>;

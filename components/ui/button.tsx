@@ -36,9 +36,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary: `
-        bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold
-        shadow-lg shadow-blue-500/25
-        hover:from-blue-500 hover:to-blue-400
+        bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] text-white font-semibold
+        shadow-lg shadow-[#0f1f33]/50
+        hover:from-[#2a4a6f] hover:to-[#3a5a7f]
         active:scale-[0.98]
       `,
       gradient: `

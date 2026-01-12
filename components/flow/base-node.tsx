@@ -220,6 +220,8 @@ function BaseNodeComponent({
   const status = data.status || "idle";
   const selectedNodeId = useFlowStore((s) => s.selectedNode?.id ?? null);
   const isSelected = Boolean(selected || (selectedNodeId && selectedNodeId === id));
+  const highlightedNodeIds = useFlowStore((s) => s.highlightedNodeIds);
+  const isHighlighted = highlightedNodeIds.includes(id);
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
   const runNode = useFlowStore((s) => s.runNode);
@@ -260,7 +262,7 @@ function BaseNodeComponent({
   // Stacks items vertically with consistent spacing
   const getSettingsPosition = useCallback((index: number, total: number) => {
     const spacing = 28; // Vertical spacing between handles
-    const xOffset = 50; // Horizontal distance from anchor
+    const xOffset = 25; // Horizontal distance from anchor
     
     // Center the stack vertically around the anchor
     const totalHeight = (total - 1) * spacing;
@@ -380,11 +382,22 @@ function BaseNodeComponent({
   const visibleOutputs = outputs.filter(o => !o.hidden);
 
   const leftNotches = visibleInputs.map((_, i) => getHandlePercent(i, visibleInputs.length));
-  const rightNotches = visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
+  
+  // Right notches: media output + settings anchor (settings handles are stacked next to anchor)
+  const hasSettings = nodeSettings.length > 0;
+  
+  const rightNotches = visibleOutputs.length === 0 ? [] : 
+    hasSettings 
+      ? [35, 65] // Media output at 35%, settings anchor at 65%
+      : visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
 
   const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
 
-  const borderColor = isSelected ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.08)";
+  const borderColor = isHighlighted 
+    ? "rgba(59, 130, 246, 0.6)" // Blue highlight for pipeline view
+    : isSelected 
+      ? "rgba(255,255,255,0.25)" 
+      : "rgba(255,255,255,0.08)";
 
   return (
     <motion.div
@@ -646,7 +659,13 @@ function BaseNodeComponent({
       {inputs.map((input, index) => {
         const isHidden = Boolean(input.hidden);
         const handleColor = dataTypeColors[input.type];
-        const percent = getHandlePercent(index, inputs.length);
+        // Calculate visible index for positioning (only count non-hidden inputs before this one)
+        const visibleIndex = inputs.slice(0, index).filter(i => !i.hidden).length;
+        const visibleCount = inputs.filter(i => !i.hidden).length;
+        // Use visible positioning for visible handles, original for hidden (they're invisible anyway)
+        const percent = isHidden 
+          ? getHandlePercent(index, inputs.length) 
+          : getHandlePercent(visibleIndex, visibleCount);
 
         // Type compatibility groups (matching flow-canvas.tsx)
         const TYPE_COMPAT: Record<string, string[]> = {
@@ -884,44 +903,6 @@ function BaseNodeComponent({
                       >
                         {/* Setting Handle */}
                         <div className="relative flex items-center">
-                          {/* Dotted line connecting anchor to handle */}
-                          <svg
-                            className="absolute"
-                            style={{
-                              left: 6,
-                              top: 6,
-                              width: 1,
-                              height: 1,
-                              overflow: "visible",
-                            }}
-                            onMouseEnter={handleRadialHandleEnter}
-                            onMouseLeave={handleSettingsLeave}
-                          >
-                            {/* Visible dotted line */}
-                            <line
-                              x1={-pos.x}
-                              y1={-pos.y}
-                              x2={0}
-                              y2={0}
-                              stroke={color.solid}
-                              strokeWidth="1.5"
-                              strokeOpacity={isHovered ? "0.7" : "0.3"}
-                              strokeDasharray="4 4"
-                              strokeLinecap="round"
-                              className="transition-all duration-150"
-                            />
-                            {/* Invisible wider stroke for easier hover */}
-                            <line
-                              x1={-pos.x}
-                              y1={-pos.y}
-                              x2={0}
-                              y2={0}
-                              stroke="transparent"
-                              strokeWidth="16"
-                              style={{ cursor: "pointer" }}
-                            />
-                          </svg>
-                          
                           {/* Glow ring on hover */}
                           {isHovered && (
                             <div 

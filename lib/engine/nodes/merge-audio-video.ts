@@ -128,6 +128,7 @@ export const MergeAudioVideoInputSchema = z.object({
   audio: AssetRefSchema,
   replaceAudio: z.boolean().default(true), // true = replace original audio, false = mix
   context: z.string().optional(),
+  useCache: z.boolean().optional().default(false),
 });
 
 export type MergeAudioVideoInput = z.infer<typeof MergeAudioVideoInputSchema>;

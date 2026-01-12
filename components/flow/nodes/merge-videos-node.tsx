@@ -17,6 +17,7 @@ export interface MergeVideosNodeData extends BaseNodeData {
   result?: string;
   advancedOpen?: boolean;
   error?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS["merge-videos"];
@@ -189,6 +190,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
             video2: { url: effectiveVideo2 },
             transition: data.transition || "none",
             transitionDuration: data.transitionDuration || 0.5,
+            useCache: data.useCache === true,
           },
         }),
       });
@@ -205,7 +207,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [needsDependencies, effectiveVideo1, effectiveVideo2, data.transition, data.transitionDuration, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
+  }, [needsDependencies, effectiveVideo1, effectiveVideo2, data.transition, data.transitionDuration, data.label, data.useCache, id, updateNode, propagateOutput, workflowId, runNode]);
 
   const handleDownload = useCallback(() => {
     if (!data.result) return;
@@ -402,7 +404,7 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                 isProcessing
                   ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                   : hasInputs
-                  ? "bg-gradient-to-r from-blue-600/30 to-blue-500/20 border-blue-500/40 text-blue-300 hover:from-blue-600/40 hover:to-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
+                  ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] border-[#3a5a7f]/60 text-blue-100 hover:from-[#2a4a6f] hover:to-[#3a5a7f] shadow-[0_0_15px_rgba(30,58,95,0.4)]"
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
@@ -508,6 +510,21 @@ function MergeVideosNodeComponent(props: NodeProps<MergeVideosNodeData>) {
                       />
                     </div>
                   )}
+                  
+                  {/* Use Cache Toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer pt-2 border-t border-white/5">
+                    <input
+                      type="checkbox"
+                      checked={data.useCache === true}
+                      onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                      disabled={isProcessing}
+                      className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20"
+                    />
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Use Cache</span>
+                      <p className="text-[8px] text-zinc-500">Skip re-execution if inputs unchanged</p>
+                    </div>
+                  </label>
                 </div>
               </motion.div>
             )}

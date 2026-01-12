@@ -218,6 +218,7 @@ export const MergeVideosInputSchema = z.object({
   transition: z.enum(["none", "fade", "dissolve"]).default("none"),
   transitionDuration: z.number().min(0).max(2).default(0.5),
   context: z.string().optional(),
+  useCache: z.boolean().optional().default(false),
 });
 
 export type MergeVideosInput = z.infer<typeof MergeVideosInputSchema>;

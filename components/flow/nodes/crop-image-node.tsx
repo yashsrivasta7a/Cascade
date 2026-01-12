@@ -17,6 +17,7 @@ export interface CropImageNodeData extends BaseNodeData {
   result?: string;
   advancedOpen?: boolean;
   error?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS["crop-image"];
@@ -143,6 +144,16 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
     updateNode(id, { status: "running" });
 
     try {
+      const inputPayload = {
+        image: { url: imageToUse },
+        xPercent: data.xPercent || 0,
+        yPercent: data.yPercent || 0,
+        widthPercent: data.widthPercent || 100,
+        heightPercent: data.heightPercent || 100,
+        useCache: data.useCache === true,
+      };
+      console.log("[CropImage] Sending request with useCache:", inputPayload.useCache);
+      
       const response = await fetch("/api/nodes/execute-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,13 +162,7 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
           nodeId: id,
           nodeLabel: data.label || nodeDef.label,
           workflowId: workflowId ?? undefined,
-          input: {
-            image: { url: imageToUse },
-            xPercent: data.xPercent || 0,
-            yPercent: data.yPercent || 0,
-            widthPercent: data.widthPercent || 100,
-            heightPercent: data.heightPercent || 100,
-          },
+          input: inputPayload,
         }),
       });
 
@@ -174,7 +179,7 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
     } finally {
       setIsProcessing(false);
     }
-  }, [needsDependencies, effectiveImage, data.xPercent, data.yPercent, data.widthPercent, data.heightPercent, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
+  }, [needsDependencies, effectiveImage, data.xPercent, data.yPercent, data.widthPercent, data.heightPercent, data.label, data.useCache, id, updateNode, propagateOutput, workflowId, runNode]);
 
   // Memoize inputs to avoid recreating on every render
   const inputs = useMemo(() => [
@@ -306,7 +311,7 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
                   isProcessing || isUploadingImage
                     ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                     : hasInput
-                    ? "bg-gradient-to-r from-blue-600/30 to-blue-500/20 border-blue-500/40 text-blue-300 hover:from-blue-600/40 hover:to-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
+                    ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] border-[#3a5a7f]/60 text-blue-100 hover:from-[#2a4a6f] hover:to-[#3a5a7f] shadow-[0_0_15px_rgba(30,58,95,0.4)]"
                     : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
                 }`}
               >
@@ -359,30 +364,52 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
                   <div className="space-y-3 pt-3">
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { key: "xPercent", label: "X Position", defaultVal: 0 },
-                        { key: "yPercent", label: "Y Position", defaultVal: 0 },
-                        { key: "widthPercent", label: "Width", defaultVal: 100 },
-                        { key: "heightPercent", label: "Height", defaultVal: 100 },
-                      ].map(({ key, label, defaultVal }) => (
-                        <div key={key} className={isProcessing ? "opacity-50" : ""}>
-                          <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
-                            <span>{label}</span>
-                            <span className="text-zinc-300 font-mono">{(data as any)[key] ?? defaultVal}%</span>
+                        { key: "xPercent", label: "X Position", defaultVal: 0, max: 99 },
+                        { key: "yPercent", label: "Y Position", defaultVal: 0, max: 99 },
+                        { key: "widthPercent", label: "Width", defaultVal: 100, max: 100 },
+                        { key: "heightPercent", label: "Height", defaultVal: 100, max: 100 },
+                      ].map(({ key, label, defaultVal, max }) => {
+                        const isInherited = isSettingInherited(data, key);
+                        const currentValue = Math.min(Math.max(0, (data as any)[key] ?? defaultVal), max);
+                        return (
+                          <div key={key} className={isProcessing ? "opacity-50" : ""}>
+                            <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
+                              <span className="flex items-center gap-1">
+                                {label}
+                                {isInherited && <Lock className="w-2.5 h-2.5 text-violet-400" />}
+                              </span>
+                              <span className="text-zinc-300 font-mono">{currentValue}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max={max}
+                              value={currentValue}
+                              onChange={(e) => updateNode(id, { [key]: parseInt(e.target.value) })}
+                              disabled={isProcessing || isInherited}
+                              className={`nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none ${
+                                isInherited ? "accent-violet-500 cursor-not-allowed opacity-60" : "accent-emerald-500"
+                              } ${isProcessing ? "cursor-not-allowed" : isInherited ? "" : "cursor-pointer"}`}
+                            />
                           </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max={key.includes("Percent") && !key.includes("x") && !key.includes("y") ? 100 : 99}
-                            value={(data as any)[key] ?? defaultVal}
-                            onChange={(e) => updateNode(id, { [key]: parseInt(e.target.value) })}
-                            disabled={isProcessing}
-                            className={`nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none accent-emerald-500 ${
-                              isProcessing ? "cursor-not-allowed" : "cursor-pointer"
-                            }`}
-                          />
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
+                    
+                    {/* Use Cache Toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer pt-2 border-t border-white/5">
+                      <input
+                        type="checkbox"
+                        checked={data.useCache === true}
+                        onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                        disabled={isProcessing}
+                        className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20"
+                      />
+                      <div>
+                        <span className="text-[10px] text-zinc-300">Use Cache</span>
+                        <p className="text-[8px] text-zinc-500">Skip re-execution if inputs unchanged</p>
+                      </div>
+                    </label>
                   </div>
                 </motion.div>
               )}

@@ -15,6 +15,7 @@ export interface LipsyncNodeData extends BaseNodeData {
   inputAudio?: string;
   result?: string;
   error?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS.lipsync;
@@ -368,16 +369,32 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="pt-2 border-t border-white/5">
-                  <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">Model</label>
-                  <select
-                    value={data.model || "sync-1.5"}
-                    onChange={(e) => updateNode(id, { model: e.target.value as "sync-1.5" | "sync-1.6-beta" })}
-                    className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
-                  >
-                    <option value="sync-1.5">Sync 1.5 (Stable)</option>
-                    <option value="sync-1.6-beta">Sync 1.6 Beta</option>
-                  </select>
+                <div className="pt-2 border-t border-white/5 space-y-2">
+                  <div>
+                    <label className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 block">Model</label>
+                    <select
+                      value={data.model || "sync-1.5"}
+                      onChange={(e) => updateNode(id, { model: e.target.value as "sync-1.5" | "sync-1.6-beta" })}
+                      className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                    >
+                      <option value="sync-1.5">Sync 1.5 (Stable)</option>
+                      <option value="sync-1.6-beta">Sync 1.6 Beta</option>
+                    </select>
+                  </div>
+                  
+                  {/* Use Cache Toggle */}
+                  <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Use Cache</span>
+                      <p className="text-[8px] text-zinc-500">Skip re-run if unchanged</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={data.useCache === true}
+                      onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                      className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                    />
+                  </label>
                 </div>
               </motion.div>
             )}

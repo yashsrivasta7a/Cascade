@@ -14,6 +14,7 @@ export interface SeedVRNodeData extends BaseNodeData {
   enhanceFaces?: boolean;
   inputImage?: string;
   result?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS.seedvr;
@@ -305,7 +306,7 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="pt-2 border-t border-white/5">
+                <div className="pt-2 border-t border-white/5 space-y-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -314,6 +315,20 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
                       className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20"
                     />
                     <span className="text-[10px] text-zinc-300">Enhance Faces</span>
+                  </label>
+                  
+                  {/* Use Cache Toggle */}
+                  <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer">
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Use Cache</span>
+                      <p className="text-[8px] text-zinc-500">Skip re-run if unchanged</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={data.useCache === true}
+                      onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                      className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
+                    />
                   </label>
                 </div>
               </motion.div>

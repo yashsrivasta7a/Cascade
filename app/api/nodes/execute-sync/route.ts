@@ -6,6 +6,7 @@ import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { executeNode } from "@/app/trigger/node-executor";
 import { runs } from "@trigger.dev/sdk/v3";
 import { checkCache, cacheResult } from "@/lib/cache";
+import { estimateNodeCost, formatCredits } from "@/lib/credits";
 
 // Register all node executors at module load (needed for validation)
 registerAllNodeExecutors();
@@ -90,31 +91,72 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
+    // CHECK CREDITS - Ensure user has enough credits before execution
+    // =========================================================================
+    const estimatedCost = estimateNodeCost(nodeType, input);
+    
+    if (userId) {
+      try {
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { credits: true },
+        });
+        
+        if (user && user.credits < estimatedCost) {
+          console.log(`[Sync Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Insufficient credits. You have ${formatCredits(user.credits)} but need ${formatCredits(estimatedCost)} to run this node.`,
+              insufficientCredits: true,
+              balance: user.credits,
+              required: estimatedCost,
+            },
+            { status: 402 } // Payment Required
+          );
+        }
+        
+        console.log(`[Sync Execute] Credit check passed. Balance: ${user?.credits ?? 0}, Required: ${estimatedCost}`);
+      } catch (creditError) {
+        console.warn("[Sync Execute] Credit check failed, proceeding:", creditError);
+      }
+    }
+
+    // =========================================================================
     // CHECK CACHE - Return cached result if identical inputs were run before
     // =========================================================================
+    // Check if caching is enabled (default false)
+    const validatedInput = inputValidation.data as Record<string, unknown>;
+    const useCache = validatedInput.useCache === true;
+    console.log(`[Sync Execute] Node ${nodeType} - useCache flag:`, useCache, "raw value:", validatedInput.useCache);
+    
     let cacheHash: string | undefined;
-    try {
-      const cacheCheck = await checkCache(nodeType, inputValidation.data as Record<string, unknown>);
-      cacheHash = cacheCheck.hash;
+    if (useCache) {
+      try {
+        const cacheCheck = await checkCache(nodeType, validatedInput);
+        cacheHash = cacheCheck.hash;
 
-      if (cacheCheck.hit && cacheCheck.result) {
-        const durationMs = Date.now() - startTime;
-        console.log(`[Sync Execute] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+        if (cacheCheck.hit && cacheCheck.result) {
+          const durationMs = Date.now() - startTime;
+          console.log(`[Sync Execute] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+          
+          return NextResponse.json({
+            success: true,
+            output: cacheCheck.result,
+            providerUsed: "cache",
+            actualCost: 0, // No cost for cached results!
+            fromCache: true,
+            cacheHash: cacheHash.slice(0, 12),
+            durationMs,
+          });
+        }
         
-        return NextResponse.json({
-          success: true,
-          output: cacheCheck.result,
-          providerUsed: "cache",
-          actualCost: 0, // No cost for cached results!
-          fromCache: true,
-          cacheHash: cacheHash.slice(0, 12),
-          durationMs,
-        });
+        console.log(`[Sync Execute] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+      } catch (cacheError) {
+        console.warn("[Sync Execute] Cache check failed, proceeding with execution:", cacheError);
       }
-      
-      console.log(`[Sync Execute] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
-    } catch (cacheError) {
-      console.warn("[Sync Execute] Cache check failed, proceeding with execution:", cacheError);
+    } else {
+      console.log(`[Sync Execute] Cache DISABLED for ${nodeType} - executing fresh`);
     }
 
     // Get node definition for label
@@ -209,8 +251,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (result.success) {
-      // Cache successful result for future identical executions
-      if (cacheHash && result.output) {
+      // Cache successful result for future identical executions (only if caching enabled)
+      if (useCache && cacheHash && result.output) {
         try {
           await cacheResult(cacheHash, nodeType, result.output as Record<string, unknown>);
           console.log(`[Sync Execute] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);

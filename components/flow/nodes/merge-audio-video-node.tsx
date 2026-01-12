@@ -16,6 +16,7 @@ export interface MergeAudioVideoNodeData extends BaseNodeData {
   result?: string;
   advancedOpen?: boolean;
   error?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS["merge-audio-video"];
@@ -212,6 +213,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
             video: { url: effectiveVideo },
             audio: { url: effectiveAudio },
             replaceAudio: data.replaceAudio !== false,
+            useCache: data.useCache === true,
           },
         }),
       });
@@ -246,7 +248,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
     } finally {
       setIsProcessing(false);
     }
-  }, [needsDependencies, effectiveVideo, effectiveAudio, data.replaceAudio, data.label, id, updateNode, propagateOutput, workflowId, runNode]);
+  }, [needsDependencies, effectiveVideo, effectiveAudio, data.replaceAudio, data.label, data.useCache, id, updateNode, propagateOutput, workflowId, runNode]);
 
   // Memoize inputs
   const inputs = useMemo(() => [
@@ -388,7 +390,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                 isProcessing
                   ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
                   : hasInputs
-                  ? "bg-gradient-to-r from-blue-600/30 to-blue-500/20 border-blue-500/40 text-blue-300 hover:from-blue-600/40 hover:to-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
+                  ? "bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] border-[#3a5a7f]/60 text-blue-100 hover:from-[#2a4a6f] hover:to-[#3a5a7f] shadow-[0_0_15px_rgba(30,58,95,0.4)]"
                   : "bg-white/[0.03] border-white/10 text-zinc-500 cursor-not-allowed"
               }`}
             >
@@ -438,7 +440,7 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="pt-2">
+                <div className="pt-2 space-y-3">
                   <label className={`flex items-center gap-2 ${isReplaceAudioInherited ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
                     <div className="relative">
                       <input
@@ -460,10 +462,24 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
                         )}
                       </span>
                       <p className="text-[8px] text-zinc-500">
-                        {isReplaceAudioInherited 
-                          ? "Controlled by connected node" 
+                        {isReplaceAudioInherited
+                          ? "Controlled by connected node"
                           : "When off, mixes both audio tracks"}
                       </p>
+                    </div>
+                  </label>
+                  
+                  {/* Use Cache Toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer pt-2 border-t border-white/5">
+                    <input
+                      type="checkbox"
+                      checked={data.useCache === true}
+                      onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                      className="nodrag nowheel w-4 h-4 rounded bg-zinc-900 border-white/20"
+                    />
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Use Cache</span>
+                      <p className="text-[8px] text-zinc-500">Skip re-execution if inputs unchanged</p>
                     </div>
                   </label>
                 </div>

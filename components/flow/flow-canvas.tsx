@@ -445,7 +445,7 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
       image: "image",
     },
     outputs: {
-      out: "any",
+      image: "image",
     },
   },
   seedvr: { 
@@ -555,19 +555,19 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
 // Type compatibility matrix for settings connections
 // Groups of types that can connect to each other
 const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
-  // Number types can connect to each other
-  number: ["number", "seed", "duration"],
-  seed: ["number", "seed", "duration"],
-  duration: ["number", "seed", "duration"],
-  
+  // Number types can connect to each other (including temperature)
+  number: ["number", "seed", "duration", "temperature"],
+  seed: ["number", "seed", "duration", "temperature"],
+  duration: ["number", "seed", "duration", "temperature"],
+
   // Text types can connect to each other
   text: ["text", "prompt", "negative"],
   prompt: ["text", "prompt", "negative"],
   negative: ["text", "prompt", "negative"],
-  
+
   // Boolean types
   boolean: ["boolean"],
-  
+
   // Aspect ratio is specific
   aspectRatio: ["aspectRatio"],
   
@@ -579,8 +579,8 @@ const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
   // Model types
   model: ["model"],
   
-  // Temperature
-  temperature: ["temperature", "number"],
+  // Temperature - compatible with all number types
+  temperature: ["temperature", "number", "seed", "duration"],
 };
 
 function isTypeCompatible(from: DataType | undefined, to: DataType | undefined): boolean {
@@ -598,9 +598,158 @@ function isTypeCompatible(from: DataType | undefined, to: DataType | undefined):
   return false;
 }
 
+// =============================================================================
+// PIPELINE HIGHLIGHT OVERLAY
+// =============================================================================
+// Renders a dotted container around highlighted pipeline nodes
+// Uses a custom node-like approach that moves with the canvas
+
+interface PipelineHighlightOverlayProps {
+  nodes: Node[];
+  highlightedNodeIds: string[];
+}
+
+function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlightOverlayProps) {
+  const { getViewport } = useReactFlow();
+  const [viewport, setViewport] = useState(getViewport());
+  const animationRef = useRef<number | null>(null);
+  
+  // Calculate bounds from highlighted nodes
+  const bounds = useMemo(() => {
+    if (highlightedNodeIds.length < 1) return null;
+    
+    const highlightedNodes = nodes.filter((n) => highlightedNodeIds.includes(n.id));
+    if (highlightedNodes.length === 0) return null;
+    
+    // Node dimensions - use larger values to ensure full coverage
+    // Nodes can be quite tall when expanded with all settings visible
+    const nodeWidth = 320;   // Nodes are ~280-300px wide + some margin
+    const nodeHeight = 750;  // Nodes can be very tall when expanded
+    const padding = 80;      // Extra padding around the container
+    
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    for (const node of highlightedNodes) {
+      // Node position is at center-top (nodeOrigin: [0.5, 0])
+      // So we need to offset by half the width to get left edge
+      const nodeLeft = node.position.x - nodeWidth / 2;
+      const nodeRight = node.position.x + nodeWidth / 2;
+      const nodeTop = node.position.y;
+      const nodeBottom = node.position.y + nodeHeight;
+      
+      minX = Math.min(minX, nodeLeft);
+      maxX = Math.max(maxX, nodeRight);
+      minY = Math.min(minY, nodeTop);
+      maxY = Math.max(maxY, nodeBottom);
+    }
+    
+    return {
+      x: minX - padding,
+      y: minY - padding,
+      width: maxX - minX + padding * 2,
+      height: maxY - minY + padding * 2,
+    };
+  }, [highlightedNodeIds, nodes]);
+  
+  // Update viewport on animation frame for smooth tracking during pan/zoom
+  useEffect(() => {
+    if (!bounds) return;
+    
+    const updateViewport = () => {
+      setViewport(getViewport());
+      animationRef.current = requestAnimationFrame(updateViewport);
+    };
+    
+    animationRef.current = requestAnimationFrame(updateViewport);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [bounds, getViewport]);
+  
+  if (!bounds || highlightedNodeIds.length < 1) return null;
+  
+  // Transform bounds to screen coordinates
+  const screenX = bounds.x * viewport.zoom + viewport.x;
+  const screenY = bounds.y * viewport.zoom + viewport.y;
+  const screenWidth = bounds.width * viewport.zoom;
+  const screenHeight = bounds.height * viewport.zoom;
+  
+  return (
+    <div 
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      style={{ zIndex: 0 }}
+    >
+      <svg 
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ overflow: 'visible' }}
+      >
+        <defs>
+          <linearGradient id="pipelineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
+            <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.6" />
+          </linearGradient>
+        </defs>
+        {/* Dotted border container */}
+        <rect
+          x={screenX}
+          y={screenY}
+          width={screenWidth}
+          height={screenHeight}
+          fill="rgba(59, 130, 246, 0.02)"
+          stroke="url(#pipelineGradient)"
+          strokeWidth="2"
+          strokeDasharray="10 6"
+          rx="16"
+          ry="16"
+          style={{
+            filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.4))',
+          }}
+        />
+        {/* Label */}
+        <g transform={`translate(${screenX + 12}, ${screenY - 8})`}>
+          <rect
+            x="0"
+            y="-14"
+            width="110"
+            height="22"
+            rx="6"
+            fill="rgba(0, 0, 0, 0.9)"
+            stroke="rgba(139, 92, 246, 0.6)"
+            strokeWidth="1"
+          />
+          <text
+            x="10"
+            y="1"
+            fill="#60a5fa"
+            fontSize="11"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="600"
+          >
+            PIPELINE
+          </text>
+          <text
+            x="75"
+            y="1"
+            fill="#71717a"
+            fontSize="11"
+            fontFamily="system-ui, sans-serif"
+          >
+            · {highlightedNodeIds.length}
+          </text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, getViewport, setViewport, setCenter } = useReactFlow();
+  const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
   
   // Modal state for adding nodes
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -624,11 +773,15 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     focusNodeId,
     focusNode,
     setConnectingFrom,
+    highlightedNodeIds,
+    clearHighlight,
   } = useFlowStore();
 
   // Focus on node when focusNodeId changes - pan so the NODE is at screen center
+  // This is used for single node focus (clicking on a node in Activity panel)
   useEffect(() => {
-    if (!focusNodeId) return;
+    // Skip if we have multiple highlighted nodes - let the fitBounds effect handle it
+    if (!focusNodeId || highlightedNodeIds.length > 1) return;
     
     const node = nodes.find((n) => n.id === focusNodeId);
     if (node) {
@@ -650,7 +803,53 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       // Clear focus after animation
       setTimeout(() => focusNode(null), 550);
     }
-  }, [focusNodeId, nodes, setCenter, focusNode]);
+  }, [focusNodeId, nodes, setCenter, focusNode, highlightedNodeIds.length]);
+
+  // Fit view to all highlighted nodes when highlighting a pipeline
+  // This provides a better overview of the entire pipeline
+  useEffect(() => {
+    if (highlightedNodeIds.length < 2) return;
+
+    // Find all highlighted nodes
+    const highlightedNodes = nodes.filter((n) => highlightedNodeIds.includes(n.id));
+    if (highlightedNodes.length === 0) return;
+
+    // Calculate bounds of all highlighted nodes
+    // Use same dimensions as PipelineHighlightOverlay for consistency
+    const nodeWidth = 320;   // Nodes are ~280-300px wide + some margin
+    const nodeHeight = 750;  // Nodes can be very tall when expanded
+    const padding = 120;     // Padding around the bounds
+
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+
+    for (const node of highlightedNodes) {
+      // Node position is at center-top (nodeOrigin: [0.5, 0])
+      const nodeLeft = node.position.x - nodeWidth / 2;
+      const nodeRight = node.position.x + nodeWidth / 2;
+      const nodeTop = node.position.y;
+      const nodeBottom = node.position.y + nodeHeight;
+      
+      minX = Math.min(minX, nodeLeft);
+      maxX = Math.max(maxX, nodeRight);
+      minY = Math.min(minY, nodeTop);
+      maxY = Math.max(maxY, nodeBottom);
+    }
+    
+    // Fit the view to show all highlighted nodes
+    fitBounds(
+      {
+        x: minX - padding,
+        y: minY - padding,
+        width: maxX - minX + padding * 2,
+        height: maxY - minY + padding * 2,
+      },
+      { duration: 600, padding: 0.1 }
+    );
+    
+    // Clear the focusNodeId but keep highlighting
+    setTimeout(() => focusNode(null), 650);
+  }, [highlightedNodeIds, nodes, fitBounds, focusNode]);
 
   // Save/restore viewport (per workflow)
   useEffect(() => {
@@ -767,15 +966,31 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         return false;
       }
       
-      // If connecting to a settings input from a regular output
-      if (isTargetSettings && sourceNodeType) {
-        // Check if source node has this setting
-        const sourceContract = NODE_CONTRACTS[sourceNodeType];
-        const hasSourceSetting = sourceContract?.settings.some((s: { id: string }) => s.id === targetHandle);
-        if (hasSourceSetting) {
-          // Settings connection is valid if source has the setting
-          if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
-          return true;
+      // If connecting to a settings input from a regular output or another setting
+      if (isTargetSettings && targetNodeType) {
+        const targetContract = NODE_CONTRACTS[targetNodeType];
+        const targetSetting = targetContract?.settings.find((s: { id: string; type: string }) => s.id === targetHandle);
+        
+        if (targetSetting) {
+          const targetSettingType = targetSetting.type as DataType;
+          
+          // Check if source has a compatible setting to connect from
+          if (sourceNodeType) {
+            const sourceContract = NODE_CONTRACTS[sourceNodeType];
+            // Look for ANY setting from source that has a compatible type
+            const compatibleSourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) => 
+              isTypeCompatible(s.type as DataType, targetSettingType)
+            );
+            
+            // Also check if the source output type is compatible
+            const sourceOutputType = getHandleDataType(sourceNode, "outputs", actualSourceHandle);
+            const isOutputCompatible = isTypeCompatible(sourceOutputType, targetSettingType);
+            
+            if (compatibleSourceSetting || isOutputCompatible) {
+              if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
+              return true;
+            }
+          }
         }
       }
 
@@ -1269,6 +1484,10 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           nodeColor="#27272a"
         />
       </ReactFlow>
+      
+      {/* Pipeline Highlight Overlay - Dotted container around highlighted nodes */}
+      {/* Rendered outside ReactFlow to avoid blocking canvas interactions */}
+      <PipelineHighlightOverlay nodes={nodes} highlightedNodeIds={highlightedNodeIds} />
 
       {/* Node Type Selection Modal - appears when dragging to empty space */}
       <NodeTypeModal

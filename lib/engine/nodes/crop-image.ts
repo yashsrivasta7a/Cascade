@@ -14,6 +14,7 @@ export const CropImageInputSchema = z.object({
   widthPercent: z.number().min(1).max(100).default(100),
   heightPercent: z.number().min(1).max(100).default(100),
   context: z.string().optional(),
+  useCache: z.boolean().optional().default(false),
 });
 
 export type CropImageInput = z.infer<typeof CropImageInputSchema>;

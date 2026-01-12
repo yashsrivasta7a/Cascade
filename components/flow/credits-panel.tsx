@@ -31,10 +31,12 @@ import { trpc } from "@/lib/trpc/react";
 // HELPERS
 // =============================================================================
 
-function formatCost(cost?: number): string {
-  if (cost === undefined || cost === null) return "$0.00";
-  if (cost < 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(2)}`;
+function formatCredits(credits?: number): string {
+  if (credits === undefined || credits === null) return "0";
+  if (credits >= 1000000) return `${(credits / 1000000).toFixed(2)}M`;
+  if (credits >= 1000) return `${(credits / 1000).toFixed(1)}K`;
+  if (credits < 1) return credits.toFixed(2);
+  return credits.toLocaleString();
 }
 
 function formatTimeAgo(dateStr: string): string {
@@ -220,10 +222,10 @@ export function CreditsPanel({
                     <Wallet className="w-4 h-4 text-emerald-400" />
                     <span className="text-[10px] text-emerald-400/70 uppercase tracking-wider">Balance</span>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-400">{formatCost(balance)}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{formatCredits(balance)} <span className="text-sm font-normal text-emerald-400/60">credits</span></p>
                 </div>
                 <Link href="/billing">
-                  <button className="h-8 px-3 text-[10px] font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-lg flex items-center gap-1.5 transition-all shadow-lg shadow-blue-500/20">
+                  <button className="h-8 px-3 text-[10px] font-medium text-white bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] hover:from-[#2a4a6f] hover:to-[#3a5a7f] rounded-lg flex items-center gap-1.5 transition-all shadow-lg shadow-[#0f1f33]/50">
                     <CreditCard className="w-3.5 h-3.5" />
                     Buy Credits
                   </button>
@@ -241,7 +243,7 @@ export function CreditsPanel({
                   {workflowId && workflowId !== "new" ? "This Workflow" : "All Workflows"}
                 </span>
               </div>
-              <p className="text-xl font-bold text-amber-400">{formatCost(totalSpent)}</p>
+              <p className="text-xl font-bold text-amber-400">{formatCredits(totalSpent)} <span className="text-xs font-normal text-amber-400/60">credits</span></p>
               <p className="text-[9px] text-zinc-500 mt-1">{creditHistory.length} transactions</p>
             </div>
           </div>
@@ -296,7 +298,7 @@ export function CreditsPanel({
                       </div>
                     </div>
                     <span className="text-[10px] font-semibold text-amber-400 shrink-0">
-                      -{formatCost(item.cost)}
+                      -{formatCredits(item.cost)}
                     </span>
                   </motion.div>
                 ))}

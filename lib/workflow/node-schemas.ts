@@ -146,6 +146,7 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
     .object({
       prompt: z.string().min(1).max(LIMITS.text.maxPromptChars),
       context: z.string().optional(),
+      imageUrl: z.string().optional(), // Vision input - URL or base64 data URL
     })
     .merge(OpenRouterConfigSchema.partial()),
 

@@ -11,18 +11,84 @@ import { db } from "@/lib/db";
 const CACHE_TTL_DAYS = 7;
 
 /**
+ * Normalize a URL for caching - removes query parameters that might change between runs
+ * but keeps the core URL that identifies the content
+ */
+function normalizeUrlForCache(url: string): string {
+  // Skip base64 data URLs - just use first 100 chars + length for identity
+  if (url.startsWith("data:")) {
+    return `data:${url.length}:${url.slice(0, 100)}`;
+  }
+  
+  try {
+    const parsed = new URL(url);
+    // Remove common cache-busting or token parameters
+    const paramsToRemove = ["token", "t", "ts", "timestamp", "expires", "signature", "sig", "_"];
+    paramsToRemove.forEach(param => parsed.searchParams.delete(param));
+    return parsed.toString();
+  } catch {
+    // If URL parsing fails, return as-is
+    return url;
+  }
+}
+
+/**
+ * Normalize a value for caching - handles nested objects with URLs
+ */
+function normalizeValueForCache(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  
+  if (typeof value === "string") {
+    // Check if it looks like a URL
+    if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")) {
+      return normalizeUrlForCache(value);
+    }
+    return value;
+  }
+  
+  if (Array.isArray(value)) {
+    return value.map(normalizeValueForCache);
+  }
+  
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+      // Special handling for 'url' keys in AssetRef objects
+      if (key === "url" && typeof obj[key] === "string") {
+        normalized[key] = normalizeUrlForCache(obj[key] as string);
+      } else {
+        normalized[key] = normalizeValueForCache(obj[key]);
+      }
+    }
+    return normalized;
+  }
+  
+  return value;
+}
+
+/**
  * Generate a deterministic hash for node inputs
  * Combines nodeType with sorted, stringified inputs
+ * Filters out undefined, null, and empty string values for consistent hashing
+ * Normalizes URLs to remove cache-busting parameters
  */
 export function hashNodeInputs(
   nodeType: string,
   inputs: Record<string, unknown>
 ): string {
-  // Sort keys for deterministic ordering
+  // Sort keys and filter out undefined/null/empty values for deterministic ordering
   const sortedInputs = Object.keys(inputs)
     .sort()
     .reduce((acc, key) => {
-      acc[key] = inputs[key];
+      const value = inputs[key];
+      // Only include defined, non-null, non-empty values
+      if (value !== undefined && value !== null && value !== "") {
+        // Normalize the value (especially URLs) for consistent hashing
+        acc[key] = normalizeValueForCache(value);
+      }
       return acc;
     }, {} as Record<string, unknown>);
 
@@ -121,8 +187,27 @@ export async function checkCache(
   nodeType: string,
   inputs: Record<string, unknown>
 ): Promise<{ hit: boolean; hash: string; result: Record<string, unknown> | null }> {
+  // Log the normalized inputs (for debugging)
+  const normalizedInputs: Record<string, unknown> = {};
+  for (const key of Object.keys(inputs).sort()) {
+    const value = inputs[key];
+    if (value !== undefined && value !== null && value !== "") {
+      normalizedInputs[key] = normalizeValueForCache(value);
+    }
+  }
+  
   const hash = hashNodeInputs(nodeType, inputs);
+  console.log(`[NodeCache] Checking cache for ${nodeType}`);
+  console.log(`[NodeCache] Hash: ${hash.slice(0, 16)}...`);
+  console.log(`[NodeCache] Input keys: ${Object.keys(normalizedInputs).join(", ")}`);
+  
   const result = await getCachedResult(hash);
+  
+  if (result) {
+    console.log(`[NodeCache] ✅ Cache HIT for ${nodeType} - returning cached result`);
+  } else {
+    console.log(`[NodeCache] ❌ Cache MISS for ${nodeType} - will execute`);
+  }
   
   return {
     hit: result !== null,
@@ -139,7 +224,9 @@ export async function cacheResult(
   nodeType: string,
   output: Record<string, unknown>
 ): Promise<void> {
+  console.log(`[NodeCache] Caching result for ${nodeType}, hash: ${hash.slice(0, 12)}...`);
   await setCachedResult(hash, nodeType, output);
+  console.log(`[NodeCache] Successfully cached result`);
 }
 
 export default {

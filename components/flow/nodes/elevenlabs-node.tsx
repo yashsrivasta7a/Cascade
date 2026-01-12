@@ -16,6 +16,7 @@ export interface ElevenLabsNodeData extends BaseNodeData {
   clarity?: number;
   context?: string;
   result?: string;
+  useCache?: boolean;
 }
 
 const nodeDef = NODE_DEFINITIONS.elevenlabs;
@@ -203,36 +204,74 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
                 className="overflow-hidden"
               >
                 <div className="space-y-2 pt-2 border-t border-white/5">
-                  <div>
-                    <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
-                      <span>Stability</span>
-                      <span className="text-zinc-300">{(data.stability || 0.5).toFixed(1)}</span>
+                  {(() => {
+                    const isInherited = isSettingInherited(data, "stability");
+                    const value = Math.min(Math.max(0, data.stability ?? 0.5), 1);
+                    return (
+                      <div>
+                        <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
+                          <span className="flex items-center gap-1">
+                            Stability
+                            {isInherited && <Lock className="w-2.5 h-2.5 text-violet-400" />}
+                          </span>
+                          <span className="text-zinc-300">{value.toFixed(1)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={value}
+                          onChange={(e) => updateNode(id, { stability: parseFloat(e.target.value) })}
+                          disabled={isInherited}
+                          className={`nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none ${
+                            isInherited ? "accent-violet-500 cursor-not-allowed opacity-60" : "cursor-pointer"
+                          }`}
+                        />
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const isInherited = isSettingInherited(data, "clarity");
+                    const value = Math.min(Math.max(0, data.clarity ?? 0.75), 1);
+                    return (
+                      <div>
+                        <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
+                          <span className="flex items-center gap-1">
+                            Clarity
+                            {isInherited && <Lock className="w-2.5 h-2.5 text-violet-400" />}
+                          </span>
+                          <span className="text-zinc-300">{value.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={value}
+                          onChange={(e) => updateNode(id, { clarity: parseFloat(e.target.value) })}
+                          disabled={isInherited}
+                          className={`nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none ${
+                            isInherited ? "accent-violet-500 cursor-not-allowed opacity-60" : "cursor-pointer"
+                          }`}
+                        />
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Use Cache Toggle */}
+                  <label className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/[0.02] border border-white/10 cursor-pointer mt-2">
+                    <div>
+                      <span className="text-[10px] text-zinc-300">Use Cache</span>
+                      <p className="text-[8px] text-zinc-500">Skip re-run if unchanged</p>
                     </div>
                     <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={data.stability || 0.5}
-                      onChange={(e) => updateNode(id, { stability: parseFloat(e.target.value) })}
-                      className="nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none cursor-pointer"
+                      type="checkbox"
+                      checked={data.useCache === true}
+                      onChange={(e) => updateNode(id, { useCache: e.target.checked })}
+                      className="nodrag nowheel w-4 h-4 rounded border-white/20 bg-zinc-900 text-zinc-200 focus:ring-white/20"
                     />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[9px] text-zinc-500 mb-1">
-                      <span>Clarity</span>
-                      <span className="text-zinc-300">{(data.clarity || 0.75).toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={data.clarity || 0.75}
-                      onChange={(e) => updateNode(id, { clarity: parseFloat(e.target.value) })}
-                      className="nodrag nowheel w-full h-1.5 rounded-full bg-zinc-800 appearance-none cursor-pointer"
-                    />
-                  </div>
+                  </label>
                 </div>
               </motion.div>
             )}
