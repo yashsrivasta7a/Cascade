@@ -19,6 +19,7 @@ import {
   Wand2,
   Monitor,
   HelpCircle,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DotPattern } from "@/components/ui";
@@ -440,148 +441,107 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
                 onClick={() => setShowColorHelp(false)}
               />
               <motion.div
-                initial={{ opacity: 0, y: 4, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                transition={{ type: "spring", damping: 25, stiffness: 400 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.15 }}
                 style={{
                   position: "fixed",
                   top: popupPosition.top,
                   left: popupPosition.left,
                 }}
-                className="w-72 bg-black/90 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.1] rounded-xl shadow-2xl shadow-black/50 z-[9999] overflow-hidden max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10"
+                className="w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl shadow-black/40 z-[9999] overflow-hidden"
               >
-                <div className="p-3 border-b border-white/[0.04]">
-                  <h4 className="text-xs font-semibold text-white flex items-center gap-2">
-                    <span className="w-4 h-4 rounded bg-gradient-to-br from-white/20 to-white/5 flex items-center justify-center">
-                      🎨
-                    </span>
-                    Color Guide
-                  </h4>
-                  <p className="text-[10px] text-zinc-500 mt-1">
-                    Colors aren't random — they show what each node does!
-                  </p>
+                {/* Header */}
+                <div className="px-3 py-2.5 border-b border-zinc-800 flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-zinc-800 flex items-center justify-center">
+                    <Layers className="w-3.5 h-3.5 text-zinc-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-zinc-200">Color Guide</h4>
+                    <p className="text-[10px] text-zinc-600">Connection reference</p>
+                  </div>
                 </div>
-                
-                {/* Layer 1: Node Categories */}
-                <div className="p-3 border-b border-white/[0.04]">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 1: Node Types</p>
+
+                {/* Node Types */}
+                <div className="p-3 border-b border-zinc-800/60">
+                  <p className="text-[10px] text-zinc-500 mb-2">Node Categories</p>
+                  <div className="flex gap-1">
+                    {[
+                      { icon: Brain, label: "LLM", color: "bg-blue-500" },
+                      { icon: Image, label: "Image", color: "bg-emerald-500" },
+                      { icon: Film, label: "Video", color: "bg-violet-500" },
+                      { icon: Volume2, label: "Audio", color: "bg-amber-500" },
+                      { icon: Wrench, label: "Utility", color: "bg-zinc-500" },
+                    ].map((item) => (
+                      <div 
+                        key={item.label}
+                        title={item.label}
+                        className="flex-1 h-9 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center gap-0.5 cursor-default transition-colors"
+                      >
+                        <div className="relative">
+                          <item.icon className="w-3.5 h-3.5 text-zinc-500" />
+                          <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full", item.color)} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Data Types */}
+                <div className="p-3 border-b border-zinc-800/60">
+                  <p className="text-[10px] text-zinc-500 mb-2">Data Types</p>
                   <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center">
-                        <Brain className="w-3 h-3 text-blue-400" />
+                    {[
+                      { label: "Text", color: "bg-blue-500", barColor: "bg-blue-500/20" },
+                      { label: "Image", color: "bg-emerald-500", barColor: "bg-emerald-500/20" },
+                      { label: "Video", color: "bg-violet-500", barColor: "bg-violet-500/20" },
+                      { label: "Audio", color: "bg-amber-500", barColor: "bg-amber-500/20" },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center gap-2">
+                        <div className={cn("w-2 h-2 rounded-full", item.color)} />
+                        <div className={cn("flex-1 h-1 rounded-full", item.barColor)} />
+                        <span className="text-[10px] text-zinc-500 w-10 text-right">{item.label}</span>
                       </div>
-                      <span className="text-[11px] text-zinc-300">LLM / AI</span>
-                      <span className="text-[10px] text-blue-400 ml-auto">Blue</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center">
-                        <Image className="w-3 h-3 text-emerald-400" />
-                      </div>
-                      <span className="text-[11px] text-zinc-300">Image</span>
-                      <span className="text-[10px] text-emerald-400 ml-auto">Emerald</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded bg-violet-500/20 flex items-center justify-center">
-                        <Film className="w-3 h-3 text-violet-400" />
-                      </div>
-                      <span className="text-[11px] text-zinc-300">Video</span>
-                      <span className="text-[10px] text-violet-400 ml-auto">Violet</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded bg-amber-500/20 flex items-center justify-center">
-                        <Volume2 className="w-3 h-3 text-amber-400" />
-                      </div>
-                      <span className="text-[11px] text-zinc-300">Audio</span>
-                      <span className="text-[10px] text-amber-400 ml-auto">Amber</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded bg-zinc-500/20 flex items-center justify-center">
-                        <Wrench className="w-3 h-3 text-zinc-400" />
-                      </div>
-                      <span className="text-[11px] text-zinc-300">Utility</span>
-                      <span className="text-[10px] text-zinc-400 ml-auto">Gray</span>
-                    </div>
+                    ))}
                   </div>
                 </div>
-                
-                {/* Layer 2: Media Data Types */}
-                <div className="p-3 border-b border-white/[0.04]">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 2: Media Data</p>
-                  <p className="text-[10px] text-zinc-600 mb-2">Main content flowing between nodes</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                      <div className="flex-1 h-[2px] bg-gradient-to-r from-blue-500 to-blue-500/30 rounded-full" />
-                      <span className="text-[10px] text-blue-400">Text</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <div className="flex-1 h-[2px] bg-gradient-to-r from-emerald-500 to-emerald-500/30 rounded-full" />
-                      <span className="text-[10px] text-emerald-400">Image</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                      <div className="flex-1 h-[2px] bg-gradient-to-r from-violet-500 to-violet-500/30 rounded-full" />
-                      <span className="text-[10px] text-violet-400">Video</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                      <div className="flex-1 h-[2px] bg-gradient-to-r from-amber-500 to-amber-500/30 rounded-full" />
-                      <span className="text-[10px] text-amber-400">Audio</span>
-                    </div>
+
+                {/* Settings */}
+                <div className="p-3 border-b border-zinc-800/60">
+                  <p className="text-[10px] text-zinc-500 mb-2">Settings</p>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { label: "Prompt", color: "#0ea5e9" },
+                      { label: "Seed", color: "#84cc16" },
+                      { label: "Neg", color: "#ef4444" },
+                      { label: "Aspect", color: "#6366f1" },
+                      { label: "Duration", color: "#14b8a6" },
+                      { label: "Model", color: "#f43f5e" },
+                      { label: "Temp", color: "#f97316" },
+                      { label: "Num", color: "#ec4899" },
+                    ].map((item) => (
+                      <div 
+                        key={item.label}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/60 hover:bg-zinc-800 transition-colors cursor-default"
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-[9px] text-zinc-500">{item.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                
-                {/* Layer 3: Settings Types */}
-                <div className="p-3 border-b border-white/[0.04]">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Layer 3: Settings</p>
-                  <p className="text-[10px] text-zinc-600 mb-2">Parameters shared across nodes</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#0ea5e9" }} />
-                      <span className="text-[9px] text-sky-400">Prompt</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#84cc16" }} />
-                      <span className="text-[9px] text-lime-400">Seed</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#ef4444" }} />
-                      <span className="text-[9px] text-red-400">Negative</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#6366f1" }} />
-                      <span className="text-[9px] text-indigo-400">Aspect</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#14b8a6" }} />
-                      <span className="text-[9px] text-teal-400">Duration</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f43f5e" }} />
-                      <span className="text-[9px] text-rose-400">Model</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f97316" }} />
-                      <span className="text-[9px] text-orange-400">Temp</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#ec4899" }} />
-                      <span className="text-[9px] text-pink-400">Number</span>
-                    </div>
+
+                {/* Running */}
+                <div className="px-3 py-2.5 flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-600">Running</span>
+                  <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                    <motion.div
+                      className="h-full w-1/3 rounded-full bg-zinc-600"
+                      animate={{ x: ["-100%", "400%"] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
                   </div>
-                </div>
-                
-                {/* Animation hint */}
-                <div className="p-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">When Running</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex-1 h-[3px] rounded-full bg-gradient-to-r from-violet-500 via-blue-500 to-emerald-500 animate-pulse" />
-                  </div>
-                  <p className="text-[9px] text-zinc-600 italic">
-                    Edges animate with flowing dots to show data movement
-                  </p>
                 </div>
               </motion.div>
             </>
