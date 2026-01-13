@@ -215,7 +215,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     action: "Text → Image",
     inputs: [
       { type: "text", label: "Prompt" },
-      { type: "image", label: "Reference Image (optional)" },
+      { type: "image", label: "Reference Images (up to 14)" },
     ],
     outputs: [{ type: "image", label: "Generated Image" }],
     estimatedCost: 40_000, // $0.04 per image
@@ -224,7 +224,7 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedTime: "~10s",
     aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
     resolutions: ["1K", "2K"],
-    features: ["Negative Prompt", "Prompt Enhancer", "Image Editing"],
+    features: ["Negative Prompt", "Prompt Enhancer", "Image Editing", "Multi-Reference (up to 14)"],
   },
   seedvr: {
     type: "seedvr",
@@ -569,7 +569,8 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     primaryOutputType: "image",
     primaryOutputId: "image",
     mediaInputs: [
-      { id: "image", type: "image", label: "Image", isMedia: true },
+      // Seedream supports up to 14 reference images via fal.ai API
+      { id: "referenceImages", type: "image", label: "Reference Images (max 14)", isMedia: true },
     ],
     settings: [
       { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },

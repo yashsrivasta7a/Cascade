@@ -920,14 +920,47 @@ export async function runNodeWithDependencies(
   if (nodesToRun.length > 0) {
     // Include the target node in the execution
     const allNodesToRun = [...nodesToRun, targetNode];
-    const relevantNodeIds = new Set(allNodesToRun.map(n => n.id));
+    const nodesToRunIds = new Set(allNodesToRun.map(n => n.id));
     
-    // Filter edges to only those connecting our nodes
+    // Include ALL upstream nodes (even those with output) for edge filtering
+    // This ensures data flows from completed nodes to running nodes
+    const allUpstreamIds = new Set([...upstreamNodes.map(n => n.id), targetNode.id]);
+    
+    // Filter edges to include:
+    // 1. Edges between nodes we're running
+    // 2. Edges FROM upstream nodes with output TO nodes we're running
     const relevantEdges = edges.filter(e => 
-      relevantNodeIds.has(e.source) && relevantNodeIds.has(e.target)
+      (allUpstreamIds.has(e.source) && nodesToRunIds.has(e.target)) ||
+      (nodesToRunIds.has(e.source) && nodesToRunIds.has(e.target))
     );
 
     console.log(`[runNodeWithDependencies] Running ${allNodesToRun.length} nodes in dependency order`);
+
+    // Pre-populate outputs from upstream nodes that already have results
+    // This ensures data flows from completed nodes to running nodes
+    const prePopulatedOutputs: OutputByNode = new Map();
+    for (const upstreamNode of upstreamNodes) {
+      if (nodeHasOutput(upstreamNode)) {
+        const data = upstreamNode.data as Record<string, unknown>;
+        const result = data.result as string;
+        const nodeType = upstreamNode.type;
+        
+        // Determine output type based on node type
+        let outputEntry: AnyOut;
+        if (nodeType === "seedream" || nodeType === "seedvr" || nodeType === "crop-image") {
+          outputEntry = { type: "image", image: { url: result } };
+        } else if (nodeType === "seedance" || nodeType === "lipsync" || nodeType === "merge-videos" || nodeType === "merge-audio-video") {
+          outputEntry = { type: "video", video: { url: result } };
+        } else if (nodeType === "elevenlabs" || nodeType === "extract-audio") {
+          outputEntry = { type: "audio", audio: { url: result } };
+        } else {
+          outputEntry = { type: "text", text: result };
+        }
+        
+        prePopulatedOutputs.set(upstreamNode.id, outputEntry);
+        console.log(`[runNodeWithDependencies] Pre-populated output from ${upstreamNode.id} (${nodeType}): ${result.slice(0, 50)}...`);
+      }
+    }
 
     // Run the subset of the workflow
     await runWorkflowSubset(
@@ -946,7 +979,8 @@ export async function runNodeWithDependencies(
           }
         },
       },
-      workflowId
+      workflowId,
+      prePopulatedOutputs
     );
   } else {
     // No dependencies needed, just run the target node directly
@@ -958,16 +992,20 @@ export async function runNodeWithDependencies(
 /**
  * Run a subset of a workflow - used for running dependencies.
  * Similar to runWorkflow but operates on a subset of nodes.
+ * @param prePopulatedOutputs - Optional pre-populated outputs from nodes that already completed
  */
 async function runWorkflowSubset(
   nodes: Node[],
   edges: Edge[],
   callbacks: RunCallbacks = {},
-  workflowId?: string
+  workflowId?: string,
+  prePopulatedOutputs?: OutputByNode
 ): Promise<void> {
   console.log("[runWorkflowSubset] Starting execution for", nodes.length, "nodes");
   
-  const outputs: OutputByNode = new Map();
+  // Start with pre-populated outputs if provided (from upstream nodes that already have results)
+  const outputs: OutputByNode = prePopulatedOutputs ? new Map(prePopulatedOutputs) : new Map();
+  console.log("[runWorkflowSubset] Pre-populated outputs:", outputs.size);
   const allNodes = topoSort(nodes, edges);
   
   // Build dependency graph

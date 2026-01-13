@@ -412,7 +412,7 @@ function BaseNodeComponent({
     : isHighlighted 
       ? "rgba(59, 130, 246, 0.6)" // Blue highlight for pipeline view
       : isSelected 
-        ? isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
+        ? "rgba(59, 130, 246, 0.7)" // Blue highlight when selected
         : isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
   
   const nodeBgColor = isDarkMode ? "#0d0d0d" : "#ffffff";

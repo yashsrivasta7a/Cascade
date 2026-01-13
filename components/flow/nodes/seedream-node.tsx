@@ -20,10 +20,13 @@ export interface SeedreamNodeData extends BaseNodeData {
   promptEnhancer?: boolean;
   syncMode?: boolean;
   context?: string; // Text from connected text node
-  inputImage?: string; // Image from connected image node OR uploaded
+  inputImage?: string; // Legacy single image support
+  referenceImages?: string[]; // Up to 14 reference images (fal.ai limit)
   result?: string; // URL of generated image
   useCache?: boolean;
 }
+
+const MAX_REFERENCE_IMAGES = 14;
 
 const nodeDef = NODE_DEFINITIONS.seedream;
 const aspectRatios = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
@@ -52,50 +55,93 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
     }
   }, [data.result, id, propagateOutput]);
 
-  const handleImageUpload = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
+  // Get current reference images (support legacy inputImage)
+  const currentImages = data.referenceImages || (data.inputImage ? [data.inputImage] : []);
+  const canAddMore = currentImages.length < MAX_REFERENCE_IMAGES;
+
+  const handleImageUpload = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (fileArray.length === 0) return;
     
-    // Check file size - limit to 10MB (API body limit is ~4MB, base64 adds ~33%)
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > 10) {
-      updateNode(id, { status: "failed" });
-      alert(`Image too large (${sizeMB.toFixed(1)}MB). Max 10MB.`);
+    // Check how many more we can add
+    const remainingSlots = MAX_REFERENCE_IMAGES - currentImages.length;
+    if (remainingSlots <= 0) {
+      alert(`Maximum ${MAX_REFERENCE_IMAGES} reference images allowed.`);
       return;
+    }
+    
+    const filesToUpload = fileArray.slice(0, remainingSlots);
+    if (filesToUpload.length < fileArray.length) {
+      alert(`Only adding ${filesToUpload.length} images. Maximum ${MAX_REFERENCE_IMAGES} total.`);
     }
     
     setIsUploadingImage(true);
     
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target?.result as string;
-      
-      // Try to upload to CDN for persistence
-      try {
-        const response = await fetch("/api/media/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dataUrl: base64,
-            type: "image",
-            filename: file.name,
-          }),
-        });
-        
-        if (response.ok) {
-          const { url } = await response.json();
-          updateNode(id, { inputImage: url });
-          setIsUploadingImage(false);
-          return;
-        }
-      } catch (err) {
-        console.warn("[Seedream] CDN upload failed, using base64:", err);
+    const uploadedUrls: string[] = [];
+    
+    for (const file of filesToUpload) {
+      // Check file size - limit to 10MB each
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > 10) {
+        console.warn(`[Seedream] Skipping ${file.name} - too large (${sizeMB.toFixed(1)}MB)`);
+        continue;
       }
       
-      // Fallback to base64 if CDN upload fails
-      updateNode(id, { inputImage: base64 });
-      setIsUploadingImage(false);
-    };
-    reader.readAsDataURL(file);
+      try {
+        // Read file as base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        // Try to upload to CDN for persistence
+        try {
+          const response = await fetch("/api/media/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dataUrl: base64,
+              type: "image",
+              filename: file.name,
+            }),
+          });
+          
+          if (response.ok) {
+            const { url } = await response.json();
+            uploadedUrls.push(url);
+            continue;
+          }
+        } catch (err) {
+          console.warn("[Seedream] CDN upload failed, using base64:", err);
+        }
+        
+        // Fallback to base64 if CDN upload fails
+        uploadedUrls.push(base64);
+      } catch (err) {
+        console.error(`[Seedream] Failed to process ${file.name}:`, err);
+      }
+    }
+    
+    if (uploadedUrls.length > 0) {
+      const newImages = [...currentImages, ...uploadedUrls];
+      updateNode(id, { referenceImages: newImages, inputImage: undefined });
+    }
+    
+    setIsUploadingImage(false);
+  }, [id, updateNode, currentImages]);
+
+  const removeImage = useCallback((index: number) => {
+    const newImages = currentImages.filter((_, i) => i !== index);
+    updateNode(id, { 
+      referenceImages: newImages.length > 0 ? newImages : undefined,
+      inputImage: undefined 
+    });
+  }, [id, updateNode, currentImages]);
+
+  const clearAllImages = useCallback(() => {
+    updateNode(id, { referenceImages: undefined, inputImage: undefined });
   }, [id, updateNode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -103,8 +149,9 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
     e.stopPropagation();
     setIsDragOver(false);
     
-    const file = e.dataTransfer.files[0];
-    if (file) handleImageUpload(file);
+    if (e.dataTransfer.files.length > 0) {
+      handleImageUpload(e.dataTransfer.files);
+    }
   }, [handleImageUpload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -143,7 +190,9 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
           prompt,
           negativePrompt: data.negativePrompt,
           aspectRatio: data.aspectRatio || "1:1",
-          image: data.inputImage,
+          // Send reference images array (or legacy single image)
+          referenceImages: currentImages.length > 0 ? currentImages : undefined,
+          image: undefined, // Deprecated - use referenceImages
           seed: data.seed,
           nodeId: id, // Pass the flow node ID for polling to match
         }),
@@ -233,10 +282,10 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       setIsGenerating(false);
       abortControllerRef.current = null;
     }
-  }, [data.prompt, data.context, data.negativePrompt, data.aspectRatio, data.inputImage, data.seed, id, updateNode, isGenerating]);
+  }, [data.prompt, data.context, data.negativePrompt, data.aspectRatio, currentImages, data.seed, id, updateNode, isGenerating]);
 
   const hasPrompt = Boolean(data.prompt?.trim() || data.context?.trim());
-  const isEditMode = Boolean(data.inputImage);
+  const isEditMode = currentImages.length > 0;
 
   return (
     <BaseNode
@@ -254,7 +303,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       inputs={[
         // Always-visible ports - using unified color types
         { id: "prompt", type: "prompt", label: "Prompt", required: true },
-        { id: "image", type: "image", label: "Image" },
+        { id: "referenceImages", type: "image", label: `Images (${currentImages.length}/14)` },
 
         // Advanced ports (only show when settings panel is expanded)
         { id: "numInferenceSteps", type: "number", label: "Steps", hidden: !showSettings },
@@ -272,14 +321,17 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
       ]}
       left={
         <div className="space-y-3">
-          {/* Hidden file input */}
+          {/* Hidden file input - supports multiple files */}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleImageUpload(file);
+              if (e.target.files && e.target.files.length > 0) {
+                handleImageUpload(e.target.files);
+                e.target.value = ""; // Reset so same files can be selected again
+              }
             }}
             className="hidden"
           />
@@ -317,39 +369,79 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             />
           </div>
 
-          {/* Image (optional) - kept compact to avoid "messy" layout */}
+          {/* Reference Images (up to 14) */}
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onClick={() => !data.inputImage && fileInputRef.current?.click()}
-            className={`nodrag nowheel relative rounded-xl border border-white/10 bg-white/[0.02] transition-all cursor-pointer ${
-              isDragOver ? "border-emerald-500/40 bg-emerald-500/10" : "hover:border-white/20"
+            className={`nodrag nowheel relative rounded-xl border border-white/10 bg-white/[0.02] transition-all ${
+              isDragOver ? "border-emerald-500/40 bg-emerald-500/10" : ""
             }`}
           >
             {isUploadingImage ? (
               <div className="flex items-center justify-center gap-2 px-3 py-4 text-emerald-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-[10px]">Uploading image...</span>
+                <span className="text-[10px]">Uploading images...</span>
               </div>
-            ) : data.inputImage ? (
-              <div className="relative p-2">
-                <img src={data.inputImage} alt="Reference" className="w-full h-20 object-cover rounded-lg" />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateNode(id, { inputImage: undefined });
-                  }}
-                  className="absolute top-3 right-3 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </button>
+            ) : currentImages.length > 0 ? (
+              <div className="p-2 space-y-2">
+                {/* Image grid */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {currentImages.map((img, index) => (
+                    <div key={index} className="relative group aspect-square">
+                      <img 
+                        src={img} 
+                        alt={`Reference ${index + 1}`} 
+                        className="w-full h-full object-cover rounded-md" 
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(index);
+                        }}
+                        className="absolute -top-1 -right-1 p-0.5 bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      >
+                        <X className="w-2.5 h-2.5 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add more button */}
+                  {canAddMore && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="aspect-square rounded-md border border-dashed border-white/20 bg-white/[0.02] flex items-center justify-center hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-zinc-500" />
+                    </button>
+                  )}
+                </div>
+                {/* Count and clear */}
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[9px] text-zinc-500">
+                    {currentImages.length}/{MAX_REFERENCE_IMAGES} images
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearAllImages();
+                    }}
+                    className="text-[9px] text-zinc-500 hover:text-red-400 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between px-3 py-2 text-zinc-500">
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-between px-3 py-2 text-zinc-500 cursor-pointer hover:border-white/20"
+              >
                 <div className="flex items-center gap-2">
                   <Upload className="w-4 h-4" />
-                  <span className="text-[10px]">Add image (optional)</span>
+                  <span className="text-[10px]">Add reference images (max 14)</span>
                 </div>
                 <span className="text-[10px] text-zinc-600">Drag / click</span>
               </div>

@@ -25,6 +25,10 @@ export const SeedreamInputSchema = z.object({
   syncMode: z.boolean().optional(),
   // Context from previous nodes
   context: z.string().optional(),
+  // Reference images - fal.ai supports up to 14 reference images
+  referenceImages: z.array(z.string().url()).max(14).optional(),
+  // Legacy single image support (converted to array)
+  inputImage: z.string().optional(),
 });
 
 export type SeedreamInput = z.infer<typeof SeedreamInputSchema>;
@@ -78,9 +82,19 @@ const imageGenProviders = createProviderMap<SeedreamInput>({
       throw new Error("fal.ai not configured. Set FAL_KEY environment variable.");
     }
 
+    // Build reference images array - support both new array format and legacy single image
+    let referenceImages: string[] = [];
+    if (input.referenceImages && input.referenceImages.length > 0) {
+      // New multi-image format - enforce max 14 images
+      referenceImages = input.referenceImages.slice(0, 14);
+    } else if (input.inputImage) {
+      // Legacy single image support
+      referenceImages = [input.inputImage];
+    }
+
     // Build fal.ai input
     const size = getImageSize(input.aspectRatio);
-    const falInput = {
+    const falInput: Record<string, unknown> = {
       prompt: input.context
         ? `${input.prompt}\n\nContext: ${input.context}`
         : input.prompt,
@@ -94,6 +108,11 @@ const imageGenProviders = createProviderMap<SeedreamInput>({
       sync_mode: input.syncMode,
       num_images: 1,
     };
+
+    // Add reference images if provided (fal.ai supports up to 14)
+    if (referenceImages.length > 0) {
+      falInput.image_urls = referenceImages;
+    }
 
     // Submit job with webhook
     const webhookUrl = `${context.webhookBaseUrl}/api/webhooks/fal?nodeExecutionId=${context.nodeExecutionId}`;

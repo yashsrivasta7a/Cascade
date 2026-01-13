@@ -392,7 +392,7 @@ export const useFlowStore = create<FlowState>()(
         let newData = { ...oldData, ...data };
 
         // Auto-clear result when input media changes
-        const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame"];
+        const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages"];
         const mediaInputChanged = mediaInputFields.some(field => 
           data[field] !== undefined && data[field] !== oldData[field]
         );
@@ -775,7 +775,13 @@ export const useFlowStore = create<FlowState>()(
             };
             
             // Also set the appropriate media input
-            if (targetHandle === "image" || targetHandle === "inputImage") {
+            if (targetHandle === "referenceImages") {
+              // Seedream referenceImages - add to array (supports up to 14)
+              const existing = (nodeData.referenceImages as string[]) || [];
+              if (existing.length < 14) {
+                nodeData.referenceImages = [...existing, output];
+              }
+            } else if (targetHandle === "image" || targetHandle === "inputImage") {
               nodeData.inputImage = output;
             } else if (targetHandle === "video" || targetHandle === "inputVideo") {
               nodeData.inputVideo = output;
@@ -828,7 +834,13 @@ export const useFlowStore = create<FlowState>()(
           const isTextResponse = sourceHandle === "response"; // LLM text response
           
           // Map to appropriate field based on target handle and output type
-          if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
+          if (targetHandle === "referenceImages") {
+            // Seedream referenceImages - add to array (supports up to 14)
+            const existing = (nodeData.referenceImages as string[]) || [];
+            if (existing.length < 14) {
+              nodeData.referenceImages = [...existing, output];
+            }
+          } else if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
             nodeData.inputImage = output;
           } else if (targetHandle === "inputVideo1") {
             // Specifically for merge-videos Video 1 input
@@ -994,7 +1006,7 @@ export const useFlowStore = create<FlowState>()(
           // Fields to exclude from node data (large media content)
           const mediaFields = [
             "result", "inputVideo", "inputVideo1", "inputVideo2", 
-            "inputAudio", "inputImage", "frame", "video", "audio", "image",
+            "inputAudio", "inputImage", "referenceImages", "frame", "video", "audio", "image",
             "outputVideo", "outputAudio", "outputImage"
           ];
           

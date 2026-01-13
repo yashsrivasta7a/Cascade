@@ -1,4 +1,4 @@
-import { task, wait, runs } from "@trigger.dev/sdk";
+import { task, wait } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import {
   getNodeExecutor,
@@ -38,8 +38,6 @@ export interface NodeExecutorPayload {
   nodeId: string;
   nodeType: AINodeType;
   input: Record<string, unknown>;
-  /** Token to resume when node completes - signals back to workflow orchestrator */
-  completionToken?: string;
 }
 
 // Helper to safely update nodeExecution (may not exist for single node runs)
@@ -77,27 +75,8 @@ export const executeNode = task({
   },
 
   run: async (payload: NodeExecutorPayload) => {
-    const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input, completionToken } = payload;
+    const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input } = payload;
 
-    // Helper to signal completion back to workflow orchestrator
-    async function signalCompletion(success: boolean, output?: Record<string, unknown>, error?: string) {
-      if (completionToken) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (runs as any).resumeWithToken(completionToken, {
-            nodeId,
-            success,
-            output,
-            error,
-          });
-          console.log(`[NodeExecutor] Signaled completion for ${nodeId} (success: ${success})`);
-        } catch (err) {
-          console.error(`[NodeExecutor] Failed to signal completion:`, err);
-        }
-      }
-    }
-
-    // Wrap entire execution in try/catch to always signal completion on failure
     try {
       // Check current status - don't overwrite FAILED on retry
       const currentExec = await db.nodeExecution.findUnique({
@@ -134,9 +113,6 @@ export const executeNode = task({
             providerUsed: "cache",
             actualCost: 0, // No cost for cached results!
           });
-
-          // Signal completion to workflow
-          await signalCompletion(true, cacheCheck.result as Record<string, unknown>);
 
           return {
             success: true,
@@ -286,9 +262,6 @@ export const executeNode = task({
         }
       }
 
-      // Signal completion to workflow
-      await signalCompletion(true, outputValidation.data as Record<string, unknown>);
-
       return {
         success: true,
         nodeExecutionId,
@@ -337,9 +310,6 @@ export const executeNode = task({
       }
     }
 
-    // Signal completion to workflow
-    await signalCompletion(true, outputValidation.data as Record<string, unknown>);
-
     return {
       success: true,
       nodeExecutionId,
@@ -349,10 +319,9 @@ export const executeNode = task({
     };
 
     } catch (error) {
-      // Signal failure to workflow orchestrator
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      await signalCompletion(false, undefined, errorMsg);
-      throw error; // Re-throw to let Trigger.dev handle retries
+      // Re-throw to let Trigger.dev handle retries
+      // Parent task (workflow executor) will receive the error via batchTriggerAndWait
+      throw error;
     }
   },
 });

@@ -1,4 +1,4 @@
-import { task, wait, runs } from "@trigger.dev/sdk";
+import { task } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
@@ -9,14 +9,14 @@ import { registerAllNodeExecutors } from "@/lib/engine";
 registerAllNodeExecutors();
 
 // =============================================================================
-// WORKFLOW EXECUTOR TASK - DAG Orchestration with Polling-based Parallelism
+// WORKFLOW EXECUTOR TASK - DAG Orchestration with Parent-Child Hierarchy
 // =============================================================================
 // 
-// Uses trigger() (non-blocking) + polling for true parallel execution:
-// - ALL nodes with satisfied dependencies run in parallel
-// - Multiple chains execute independently
-// - wait.for() during polling = NO BILLING (checkpointed)
-// - As soon as ANY node completes, its dependents can start
+// Uses batchTriggerAndWait() for wave-based execution:
+// - Nodes are grouped into "waves" by dependency level
+// - Each wave runs in parallel using batchTriggerAndWait (creates child tasks)
+// - Parent-child relationship visible in Trigger.dev dashboard
+// - All nodes from same workflow are grouped under parent task
 //
 // =============================================================================
 
@@ -28,44 +28,80 @@ export interface WorkflowExecutorPayload {
   edges: Edge[];
 }
 
-interface RunningNodeInfo {
-  nodeId: string;
-  runId: string;
-  nodeType: AINodeType;
-  nodeExecutionId: string;
-}
-
 // Build dependency graph
 function buildDependencyGraph(nodes: Node[], edges: Edge[]) {
-  const nodeById = new Map(nodes.map(n => [n.id, n]));
   const dependencies = new Map<string, Set<string>>();
-  const dependents = new Map<string, Set<string>>();
 
   for (const node of nodes) {
     dependencies.set(node.id, new Set());
-    dependents.set(node.id, new Set());
   }
 
   for (const edge of edges) {
     dependencies.get(edge.target)?.add(edge.source);
-    dependents.get(edge.source)?.add(edge.target);
   }
 
-  return { nodeById, dependencies, dependents };
+  return { dependencies };
 }
 
-// Check if a node is ready to run
-function isNodeReady(
-  nodeId: string,
-  dependencies: Map<string, Set<string>>,
-  completedNodes: Set<string>
-): boolean {
-  const deps = dependencies.get(nodeId);
-  if (!deps || deps.size === 0) return true;
-  for (const depId of deps) {
-    if (!completedNodes.has(depId)) return false;
+/**
+ * Compute execution waves using topological sort by dependency level.
+ * 
+ * - Wave 0: Nodes with no dependencies (entry points)
+ * - Wave 1: Nodes whose dependencies are all in Wave 0
+ * - Wave N: Nodes whose dependencies are all in Waves 0..N-1
+ * 
+ * Nodes within the same wave can execute in parallel.
+ */
+function computeExecutionWaves(
+  nodes: Node[],
+  dependencies: Map<string, Set<string>>
+): Node[][] {
+  const waves: Node[][] = [];
+  const nodeLevel = new Map<string, number>();
+  const remaining = new Set(nodes.map(n => n.id));
+
+  // Iteratively find nodes whose dependencies are all resolved
+  while (remaining.size > 0) {
+    const currentWave: Node[] = [];
+
+    for (const nodeId of remaining) {
+      const deps = dependencies.get(nodeId) ?? new Set();
+      
+      // Check if all dependencies are in previous waves
+      let allDepsResolved = true;
+      for (const depId of deps) {
+        if (!nodeLevel.has(depId)) {
+          allDepsResolved = false;
+          break;
+        }
+      }
+
+      if (allDepsResolved) {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) {
+          currentWave.push(node);
+          nodeLevel.set(nodeId, waves.length);
+        }
+      }
+    }
+
+    // If no nodes can be added, we have a cycle (shouldn't happen in valid DAG)
+    if (currentWave.length === 0 && remaining.size > 0) {
+      console.error("[Workflow] Cycle detected in workflow graph!");
+      break;
+    }
+
+    // Remove processed nodes from remaining
+    for (const node of currentWave) {
+      remaining.delete(node.id);
+    }
+
+    if (currentWave.length > 0) {
+      waves.push(currentWave);
+    }
   }
-  return true;
+
+  return waves;
 }
 
 // Build input for a node
@@ -127,15 +163,14 @@ export const executeWorkflow = task({
       data: { status: "RUNNING", startedAt: new Date() },
     });
 
-    // Build dependency graph
-    const { nodeById, dependencies, dependents } = buildDependencyGraph(nodes, edges);
+    // Build dependency graph and compute execution waves
+    const { dependencies } = buildDependencyGraph(nodes, edges);
+    const waves = computeExecutionWaves(nodes, dependencies);
+
+    console.log(`[Workflow] Computed ${waves.length} execution waves for ${nodes.length} nodes`);
 
     // Track state
     const outputs = new Map<string, Record<string, unknown>>();
-    const completedNodes = new Set<string>();
-    const failedNodes = new Set<string>();
-    const triggeredNodes = new Set<string>();
-    const runningRuns = new Map<string, RunningNodeInfo>();
     const nodeExecutionIds = new Map<string, string>();
 
     // Create all node execution records upfront
@@ -155,164 +190,81 @@ export const executeWorkflow = task({
       nodeExecutionIds.set(node.id, nodeExecution.id);
     }
 
-    // Function to trigger a node (non-blocking)
-    async function triggerNode(nodeId: string): Promise<void> {
-      if (triggeredNodes.has(nodeId) || failedNodes.size > 0) return;
+    // Execute waves sequentially, nodes within each wave run in parallel
+    for (let waveIndex = 0; waveIndex < waves.length; waveIndex++) {
+      const wave = waves[waveIndex];
+      console.log(`[Workflow] Executing wave ${waveIndex + 1}/${waves.length} with ${wave.length} nodes`);
 
-      const node = nodeById.get(nodeId);
-      if (!node) return;
+      // Build payloads for all nodes in this wave
+      const batchPayloads: { payload: NodeExecutorPayload }[] = [];
 
-      const nodeType = node.type as AINodeType;
-      const nodeExecutionId = nodeExecutionIds.get(nodeId)!;
-      const input = buildNodeInput(node, edges, outputs);
+      for (const node of wave) {
+        const nodeType = node.type as AINodeType;
+        const nodeExecutionId = nodeExecutionIds.get(node.id)!;
+        const input = buildNodeInput(node, edges, outputs);
 
-      // Store input in DB
-      await db.nodeExecution.update({
-        where: { id: nodeExecutionId },
-        data: { inputJson: input as object },
-      });
+        // Store input in DB
+        await db.nodeExecution.update({
+          where: { id: nodeExecutionId },
+          data: { inputJson: input as object },
+        });
 
-      const nodePayload: NodeExecutorPayload = {
-        nodeExecutionId,
-        workflowExecutionId,
-        nodeId,
-        nodeType,
-        input,
-      };
-
-      // Trigger (non-blocking) - allows true parallelism across chains
-      const handle = await executeNode.trigger(nodePayload);
-      
-      triggeredNodes.add(nodeId);
-      runningRuns.set(handle.id, {
-        nodeId,
-        runId: handle.id,
-        nodeType,
-        nodeExecutionId,
-      });
-
-      console.log(`[Workflow] Triggered node ${nodeId} (${nodeType}), runId: ${handle.id}`);
-    }
-
-    // Function to trigger ALL ready nodes (supports multiple parallel chains)
-    async function triggerAllReadyNodes(): Promise<number> {
-      let count = 0;
-      for (const node of nodes) {
-        if (
-          !triggeredNodes.has(node.id) &&
-          !completedNodes.has(node.id) &&
-          !failedNodes.has(node.id) &&
-          isNodeReady(node.id, dependencies, completedNodes)
-        ) {
-          await triggerNode(node.id);
-          count++;
-        }
+        batchPayloads.push({
+          payload: {
+            nodeExecutionId,
+            workflowExecutionId,
+            nodeId: node.id,
+            nodeType,
+            input,
+          },
+        });
       }
-      return count;
-    }
 
-    // Trigger all initially ready nodes (multiple chains can start in parallel!)
-    await triggerAllReadyNodes();
-    console.log(`[Workflow] Initial trigger: ${runningRuns.size} nodes started`);
+      // Execute all nodes in this wave in parallel as child tasks
+      // batchTriggerAndWait creates parent-child relationship in Trigger.dev dashboard
+      const results = await executeNode.batchTriggerAndWait(batchPayloads);
 
-    // Polling loop - checks ALL running nodes each iteration
-    // This ensures any chain that completes first gets its dependents triggered
-    const maxPollIterations = 1800; // 30 minutes max (1800 * 1s)
-    let pollIteration = 0;
+      // Process results
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const node = wave[i];
+        const nodeType = node.type as AINodeType;
 
-    while (runningRuns.size > 0 && pollIteration < maxPollIterations) {
-      // Check ALL running nodes (not just one!)
-      const completedThisRound: string[] = [];
+        if (result.ok) {
+          console.log(`[Workflow] Node ${node.id} (${nodeType}) completed successfully`);
 
-      for (const [runId, info] of runningRuns) {
-        try {
-          const run = await runs.retrieve(runId);
-
-          if (run.status === "COMPLETED") {
-            console.log(`[Workflow] Node ${info.nodeId} (${info.nodeType}) completed`);
-
-            // Get output from the run
-            const output = run.output as { output?: Record<string, unknown> } | undefined;
-            if (output?.output) {
-              outputs.set(info.nodeId, output.output);
-            }
-
-            completedNodes.add(info.nodeId);
-            completedThisRound.push(runId);
-
-          } else if (run.status === "FAILED" || run.status === "CANCELED" || run.status === "CRASHED") {
-            console.error(`[Workflow] Node ${info.nodeId} failed with status: ${run.status}`);
-
-            failedNodes.add(info.nodeId);
-            runningRuns.delete(runId);
-
-            // Mark workflow as failed
-            await db.workflowExecution.update({
-              where: { id: workflowExecutionId },
-              data: {
-                status: "FAILED",
-                completedAt: new Date(),
-                error: `Node ${info.nodeId} (${info.nodeType}) failed`,
-              },
-            });
-
-            return {
-              success: false,
-              workflowExecutionId,
-              failedNodeId: info.nodeId,
-              partialOutputs: Object.fromEntries(outputs),
-            };
+          // Extract output from result
+          const taskOutput = result.output as { output?: Record<string, unknown> } | undefined;
+          if (taskOutput?.output) {
+            outputs.set(node.id, taskOutput.output);
           }
-          // If still running, continue to next node
-        } catch (error) {
-          console.error(`[Workflow] Error checking run ${runId}:`, error);
+        } else {
+          // Node failed - fail the entire workflow
+          console.error(`[Workflow] Node ${node.id} (${nodeType}) failed:`, result.error);
+
+          await db.workflowExecution.update({
+            where: { id: workflowExecutionId },
+            data: {
+              status: "FAILED",
+              completedAt: new Date(),
+              error: `Node ${node.id} (${nodeType}) failed: ${result.error}`,
+            },
+          });
+
+          return {
+            success: false,
+            workflowExecutionId,
+            failedNodeId: node.id,
+            error: result.error,
+            partialOutputs: Object.fromEntries(outputs),
+          };
         }
       }
 
-      // Remove completed runs and trigger their dependents
-      for (const runId of completedThisRound) {
-        const info = runningRuns.get(runId);
-        runningRuns.delete(runId);
-
-        if (info) {
-          // Trigger any nodes that are now ready (from ANY chain!)
-          const deps = dependents.get(info.nodeId) ?? new Set();
-          for (const depNodeId of deps) {
-            if (isNodeReady(depNodeId, dependencies, completedNodes)) {
-              await triggerNode(depNodeId);
-            }
-          }
-        }
-      }
-
-      // If there are still running nodes, wait before next poll
-      // wait.for() is checkpointed - NO BILLING during this time!
-      if (runningRuns.size > 0) {
-        await wait.for({ seconds: 1 });
-        pollIteration++;
-      }
+      console.log(`[Workflow] Wave ${waveIndex + 1} completed`);
     }
 
-    // Check if we timed out
-    if (runningRuns.size > 0) {
-      await db.workflowExecution.update({
-        where: { id: workflowExecutionId },
-        data: {
-          status: "FAILED",
-          completedAt: new Date(),
-          error: "Workflow timed out waiting for nodes to complete",
-        },
-      });
-
-      return {
-        success: false,
-        workflowExecutionId,
-        error: "Timeout",
-        partialOutputs: Object.fromEntries(outputs),
-      };
-    }
-
-    // All nodes completed successfully
+    // All waves completed successfully
     await db.workflowExecution.update({
       where: { id: workflowExecutionId },
       data: {
@@ -321,7 +273,7 @@ export const executeWorkflow = task({
       },
     });
 
-    console.log(`[Workflow] Completed successfully with ${completedNodes.size} nodes`);
+    console.log(`[Workflow] Completed successfully with ${nodes.length} nodes in ${waves.length} waves`);
 
     return {
       success: true,

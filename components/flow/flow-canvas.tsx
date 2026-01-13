@@ -389,6 +389,45 @@ function getNodeOutputPreview(node: Node): string | undefined {
   return undefined;
 }
 
+// Get the actual media output from a node (image/video/audio URL)
+// Maps output handle names to data fields where the actual output is stored
+function getNodeMediaOutput(node: Node, handleId: string | null): string | undefined {
+  const d = (node.data ?? {}) as any;
+  
+  // Direct field match first
+  if (handleId && d[handleId] && typeof d[handleId] === "string") {
+    return d[handleId];
+  }
+  
+  // Map handle names to common data field names
+  const handleToFieldMap: Record<string, string[]> = {
+    // Image outputs
+    "image": ["result", "image", "outputImage"],
+    "upscaled": ["result", "upscaled", "outputImage"],
+    "cropped": ["result", "cropped", "outputImage"],
+    // Video outputs
+    "video": ["result", "video", "outputVideo"],
+    "synced": ["result", "synced", "outputVideo"],
+    "combined": ["result", "combined", "outputVideo"],
+    "merged": ["result", "merged", "outputVideo"],
+    // Audio outputs
+    "audio": ["result", "audio", "outputAudio"],
+    // Text outputs
+    "response": ["response", "result", "output"],
+    "out": ["result", "response", "output"],
+  };
+  
+  const fieldsToCheck = handleId ? (handleToFieldMap[handleId] || [handleId, "result"]) : ["result"];
+  
+  for (const field of fieldsToCheck) {
+    if (d[field] && typeof d[field] === "string" && d[field].trim().length > 0) {
+      return d[field];
+    }
+  }
+  
+  return undefined;
+}
+
 // Handle type definitions - using specific setting types for consistent colors
 const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
   seedream: {
@@ -402,7 +441,7 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
       truncatePrompt: "boolean",
       promptEnhancer: "boolean",
       syncMode: "boolean",
-      image: "image",
+      referenceImages: "image", // Supports up to 14 reference images
     },
     outputs: {
       image: "image",
@@ -710,6 +749,24 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
 function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
+
+  // Theme detection for background dots
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  
+  useEffect(() => {
+    const checkTheme = () => {
+      const isLight = document.documentElement.classList.contains('light');
+      setIsDarkMode(!isLight);
+    };
+    
+    checkTheme();
+    
+    // Watch for theme changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    
+    return () => observer.disconnect();
+  }, []);
 
   // Modal state for adding nodes
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1121,23 +1178,37 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           return;
         }
 
-        const preview = src ? getNodeOutputPreview(src) : undefined;
         const srcData = (src?.data ?? {}) as any;
-        const valueFromSourceHandle =
-          sourceHandle && sourceHandle in srcData ? srcData[sourceHandle] : undefined;
-
-        // Prefer same-named field value, otherwise use preview string
-        const nextValue = valueFromSourceHandle !== undefined ? valueFromSourceHandle : preview;
-
-        // If we got a bundle object (e.g., Seedream `out`) and the targetHandle is a specific setting,
-        // pull the matching value out of the bundle.
-        const derivedValue =
-          nextValue &&
-            typeof nextValue === "object" &&
-            !Array.isArray(nextValue) &&
-            targetHandle in (nextValue as any)
-            ? (nextValue as any)[targetHandle]
-            : nextValue;
+        
+        // Check if this is a media connection (image/video/audio)
+        const mediaHandles = ["image", "inputImage", "referenceImages", "upscaled", "cropped", "video", "inputVideo", "synced", "combined", "merged", "audio", "inputAudio", "frame", "inputFrame"];
+        const isMediaConnection = mediaHandles.includes(targetHandle) || mediaHandles.includes(sourceHandle ?? "");
+        
+        // For media connections, use the dedicated function that maps handles to data fields
+        // For other connections, use the preview function
+        let derivedValue: string | undefined;
+        
+        if (isMediaConnection && src) {
+          // Get the actual media output (handles mapping like "image" -> "result")
+          derivedValue = getNodeMediaOutput(src, sourceHandle);
+          console.log(`[onConnect] Media connection: ${sourceHandle} -> ${targetHandle}, value=${derivedValue?.slice(0, 100)}...`);
+        } else {
+          // For text/settings connections
+          const preview = src ? getNodeOutputPreview(src) : undefined;
+          const valueFromSourceHandle =
+            sourceHandle && sourceHandle in srcData ? srcData[sourceHandle] : undefined;
+          const nextValue = valueFromSourceHandle !== undefined ? valueFromSourceHandle : preview;
+          
+          // If we got a bundle object (e.g., Seedream `out`) and the targetHandle is a specific setting,
+          // pull the matching value out of the bundle.
+          derivedValue =
+            nextValue &&
+              typeof nextValue === "object" &&
+              !Array.isArray(nextValue) &&
+              targetHandle in (nextValue as any)
+              ? (nextValue as any)[targetHandle]
+              : nextValue;
+        }
 
         // Build settings inheritance data if connecting to a settings input
         let settingsInheritanceUpdate: Record<string, unknown> = {};
@@ -1423,12 +1494,13 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
-        className="!bg-gray-100 dark:!bg-[#101010]"
+        style={{ background: isDarkMode ? '#101010' : '#F3F4F6' }}
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
+          gap={30}
           size={2}
+          color={isDarkMode ? "#3f3f46" : "#9ca3af"}
         />
         <Controls
           showInteractive={false}

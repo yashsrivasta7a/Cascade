@@ -63,14 +63,14 @@ export function PageBackground({
   className?: string;
 }) {
   return (
-    <div className={cn("h-full flex flex-col bg-[#09090b] relative overflow-hidden", className)}>
+    <div className={cn("h-full flex flex-col bg-gray-100 dark:bg-[#09090b] relative overflow-hidden", className)}>
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {showDots && (
-          <DotPattern className="text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
+          <DotPattern className="text-gray-300 dark:text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
         )}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/[0.02] dark:bg-blue-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/[0.02] dark:bg-cyan-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
       </div>
       {/* Content */}
       <div className="relative flex-1 flex flex-col overflow-hidden">

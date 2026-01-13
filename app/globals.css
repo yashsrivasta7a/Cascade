@@ -201,20 +201,35 @@ html.dark .react-flow {
 
 .react-flow__background {
   background: transparent !important;
+  z-index: 0 !important;
+}
+
+/* Make renderer/container transparent so dots show through */
+.react-flow__renderer,
+.react-flow__container,
+.react-flow__viewport,
+.react-flow__pane {
+  background: transparent !important;
 }
 
 /* Light mode ReactFlow background - MUST come before dark mode */
-html.light .react-flow,
-html.light .react-flow__renderer,
-html.light .react-flow__container {
+html.light .react-flow {
   background: #F3F4F6 !important;
 }
 
+html.light .react-flow__renderer,
+html.light .react-flow__container {
+  background: transparent !important;
+}
+
 /* Dark mode ReactFlow background */
-html.dark .react-flow,
+html.dark .react-flow {
+  background: #101010 !important;
+}
+
 html.dark .react-flow__renderer,
 html.dark .react-flow__container {
-  background: #101010 !important;
+  background: transparent !important;
 }
 
 /* Default edge styles - now using custom edge component */
@@ -431,9 +446,10 @@ html.dark .react-flow__container {
   cursor: crosshair;
 }
 
-/* Dot grid visibility - base style (dark mode default) */
-.react-flow__background pattern circle {
-  fill: rgba(255, 255, 255, 0.2) !important;
+/* Dot grid visibility - base style */
+.react-flow__background pattern circle,
+.react-flow__background circle {
+  fill: #3f3f46 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2047,24 +2063,30 @@ html.light .react-flow__node .bg-black\/60 {
    REACT FLOW BACKGROUND DOTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Light mode - black dots */
-html.light .react-flow__background pattern circle {
-  fill: #000000 !important;
+/* Light mode - visible gray dots */
+html.light .react-flow__background circle,
+html.light .react-flow__background pattern circle,
+html.light .react-flow__background svg circle,
+html.light .react-flow__background svg pattern circle {
+  fill: #9ca3af !important;
 }
 
-html.light .react-flow__background circle {
-  fill: #000000 !important;
-}
-
-/* Dark mode - white dots */
-html.dark .react-flow__background pattern circle,
-.dark .react-flow__background pattern circle {
-  fill: rgba(255, 255, 255, 0.2) !important;
-}
-
+/* Dark mode - visible white dots */
 html.dark .react-flow__background circle,
-.dark .react-flow__background circle {
-  fill: rgba(255, 255, 255, 0.2) !important;
+html.dark .react-flow__background pattern circle,
+html.dark .react-flow__background svg circle,
+html.dark .react-flow__background svg pattern circle,
+.dark .react-flow__background circle,
+.dark .react-flow__background pattern circle,
+.dark .react-flow__background svg circle,
+.dark .react-flow__background svg pattern circle {
+  fill: #3f3f46 !important;
+}
+
+/* Fallback for default/no theme class */
+.react-flow__background circle,
+.react-flow__background pattern circle {
+  fill: #3f3f46 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2956,4 +2978,449 @@ html.light .fixed.bottom-5 .group\/runwrap .text-white,
 html.light .fixed.bottom-5 button .text-white,
 html.light [class*="bg-gradient-to-r"] .text-white {
   color: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - DASHBOARD PAGES (/dashboard, /workflows, /executions, /billing)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Page backgrounds - bg-[#09090b] -> light gray */
+html.light .bg-\[\#09090b\] {
+  background-color: #F9FAFB !important;
+}
+
+/* Card/Panel backgrounds - bg-zinc-900/50 -> white */
+html.light .bg-zinc-900\/50 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-900\/30 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-900\/60 {
+  background-color: #F9FAFB !important;
+}
+
+html.light .bg-zinc-900 {
+  background-color: #FFFFFF !important;
+}
+
+/* Border colors - border-zinc-800/xx -> light gray */
+html.light .border-zinc-800\/60 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-800\/50 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-800\/40 {
+  border-color: #F3F4F6 !important;
+}
+
+html.light .border-zinc-800 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-700\/50 {
+  border-color: #D1D5DB !important;
+}
+
+html.light .border-zinc-700 {
+  border-color: #D1D5DB !important;
+}
+
+/* Divider colors */
+html.light .divide-zinc-800\/50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E5E7EB !important;
+}
+
+html.light .divide-zinc-800\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E5E7EB !important;
+}
+
+/* Text colors */
+html.light .text-white {
+  color: #111827 !important;
+}
+
+html.light .text-zinc-200 {
+  color: #1F2937 !important;
+}
+
+html.light .text-zinc-300 {
+  color: #374151 !important;
+}
+
+html.light .text-zinc-400 {
+  color: #4B5563 !important;
+}
+
+html.light .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+html.light .text-zinc-700 {
+  color: #D1D5DB !important;
+}
+
+/* Button backgrounds */
+html.light .bg-zinc-800\/50 {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-zinc-800\/80 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .bg-zinc-800\/30 {
+  background-color: #F9FAFB !important;
+}
+
+html.light .bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .hover\:bg-zinc-800:hover {
+  background-color: #D1D5DB !important;
+}
+
+html.light .hover\:bg-zinc-700:hover {
+  background-color: #D1D5DB !important;
+}
+
+html.light .hover\:bg-zinc-800\/30:hover {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .hover\:bg-zinc-900\/50:hover {
+  background-color: #F3F4F6 !important;
+}
+
+/* Input fields */
+html.light input.bg-zinc-900,
+html.light input.bg-zinc-900\/50 {
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+html.light input.bg-zinc-900::placeholder,
+html.light input.bg-zinc-900\/50::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Progress bar backgrounds */
+html.light .bg-zinc-800.rounded-full,
+html.light .h-1\.5.bg-zinc-800,
+html.light .h-2.bg-zinc-800,
+html.light .h-1.bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+/* DotPattern in light mode - more visible */
+html.light svg.text-zinc-800\/40,
+html.light svg.text-zinc-800\/60 {
+  color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Hover border effects remain colored */
+html.light .hover\:border-violet-500\/20:hover {
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+html.light .hover\:border-blue-500\/20:hover {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+html.light .hover\:border-emerald-500\/20:hover {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+html.light .hover\:border-amber-500\/20:hover {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+html.light .hover\:border-red-500\/20:hover {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+html.light .hover\:border-zinc-700\/60:hover {
+  border-color: #D1D5DB !important;
+}
+
+/* Keep colored text vibrant in light mode */
+html.light .text-violet-400 {
+  color: #7C3AED !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563EB !important;
+}
+
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+html.light .text-red-400 {
+  color: #DC2626 !important;
+}
+
+html.light .text-amber-500 {
+  color: #F59E0B !important;
+}
+
+html.light .text-blue-500 {
+  color: #3B82F6 !important;
+}
+
+html.light .text-emerald-500 {
+  color: #10B981 !important;
+}
+
+html.light .text-violet-500 {
+  color: #8B5CF6 !important;
+}
+
+html.light .text-red-500 {
+  color: #EF4444 !important;
+}
+
+/* Background colors with alpha - make them more visible */
+html.light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+html.light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+html.light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+html.light .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Status badges background/text */
+html.light .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+html.light .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+html.light .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Tab indicator stays white on active */
+html.light .h-0\.5.bg-white {
+  background-color: #111827 !important;
+}
+
+/* Gradient header icon boxes - keep original colors */
+html.light .bg-gradient-to-br.from-blue-500.to-blue-600,
+html.light .bg-gradient-to-br.from-amber-500.to-orange-600 {
+  color: #FFFFFF !important;
+}
+
+html.light .bg-gradient-to-br.from-blue-500.to-blue-600 .text-white,
+html.light .bg-gradient-to-br.from-amber-500.to-orange-600 .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Filter buttons */
+html.light .bg-zinc-900.border.border-zinc-800 {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .bg-zinc-800.text-white.shadow-sm {
+  background-color: #E5E7EB !important;
+  color: #111827 !important;
+}
+
+/* Hover text transitions */
+html.light .hover\:text-white:hover {
+  color: #111827 !important;
+}
+
+html.light .hover\:text-zinc-300:hover {
+  color: #374151 !important;
+}
+
+html.light .hover\:text-zinc-400:hover {
+  color: #4B5563 !important;
+}
+
+/* Empty state icons */
+html.light .text-zinc-700.mb-4 {
+  color: #9CA3AF !important;
+}
+
+/* Timeline and node dots */
+html.light .w-px.bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-700.bg-\[\#09090b\] {
+  background-color: #FFFFFF !important;
+}
+
+/* API provider status dots stay colored */
+html.light .w-2.h-2.rounded-full.bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+
+html.light .w-2.h-2.rounded-full.bg-amber-500 {
+  background-color: #F59E0B !important;
+}
+
+html.light .w-2.h-2.rounded-full.bg-red-500 {
+  background-color: #EF4444 !important;
+}
+
+/* Ping animation dots stay colored */
+html.light .animate-ping.bg-emerald-400,
+html.light .animate-ping.bg-blue-400 {
+  background-color: inherit !important;
+}
+
+html.light .relative.inline-flex.rounded-full.bg-emerald-500,
+html.light .relative.inline-flex.rounded-full.bg-blue-500 {
+  background-color: inherit !important;
+}
+
+/* Running indicator badge */
+html.light .bg-blue-500\/10.border.border-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Plan cards with special border */
+html.light .border-blue-500\/30 {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Checkbox icons - keep them colored correctly */
+html.light .text-zinc-600.w-3\.5.h-3\.5 {
+  color: #9CA3AF !important;
+}
+
+/* Gradient progress bars - keep colored */
+html.light .bg-gradient-to-r.from-amber-500.to-orange-500,
+html.light .bg-gradient-to-r.from-blue-600.to-blue-500 {
+  background: inherit !important;
+}
+
+/* Glow effects on icons - soften in light mode */
+html.light .shadow-lg.shadow-blue-500\/25 {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .shadow-xl.shadow-emerald-500\/10 {
+  box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Context menu / dropdown */
+html.light .bg-zinc-900.border.border-zinc-700.rounded-xl.shadow-xl {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Hover on dropdown items */
+html.light .hover\:bg-red-500\/10:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* SPECIAL: Keep icons inside gradient boxes white */
+html.light .bg-gradient-to-br .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Keep badges styled correctly */
+html.light .bg-emerald-500\/10.text-emerald-400.border.border-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Search input on workflows page */
+html.light input.bg-zinc-900\/50.border.border-zinc-800.rounded-xl {
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+html.light input.bg-zinc-900\/50.border.border-zinc-800.rounded-xl::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Empty state container */
+html.light .rounded-2xl.border.border-zinc-800\/60.bg-zinc-900\/30 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Workflow item cards */
+html.light .rounded-xl.bg-zinc-900\/30.border.border-zinc-800\/50 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .rounded-xl.bg-zinc-900\/30.border.border-zinc-800\/50:hover {
+  background-color: #F9FAFB !important;
+  border-color: #D1D5DB !important;
+}
+
+/* Workflow item icon box */
+html.light .bg-zinc-800\/80.border.border-zinc-700\/50 {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Icon color transitions */
+html.light .text-zinc-400.group-hover\:text-zinc-300 {
+  color: #6B7280 !important;
+}
+
+html.light .group:hover .group-hover\:text-zinc-300 {
+  color: #4B5563 !important;
+}
+
+html.light .group:hover .group-hover\:text-white {
+  color: #111827 !important;
+}
+
+/* Node timeline dot backgrounds */
+html.light .border-blue-500.bg-\[\#09090b\] {
+  background-color: #FFFFFF !important;
+}
+
+/* Credit bar icon boxes */
+html.light .bg-amber-500\/10.border.border-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Transaction list hover */
+html.light .hover\:bg-zinc-800\/30.transition-colors:hover {
+  background-color: #F3F4F6 !important;
 }

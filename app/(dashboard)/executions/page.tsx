@@ -148,12 +148,12 @@ export default function ActivityPage() {
   const failedCount = runs.filter(r => r.status === "failed").length;
 
   return (
-    <div className="h-full flex flex-col bg-[#09090b] relative overflow-hidden">
+    <div className="h-full flex flex-col bg-gray-100 dark:bg-[#09090b] relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden">
-        <DotPattern className="text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-violet-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <DotPattern className="text-gray-300 dark:text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-violet-600/[0.02] dark:bg-violet-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-600/[0.02] dark:bg-blue-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
       </div>
 
       {/* Top Bar */}
@@ -535,8 +535,8 @@ function WorkflowRun({
                           "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 z-10",
                           node.status === "completed" ? "border-emerald-500 bg-emerald-500" :
                           node.status === "failed" ? "border-red-500 bg-red-500" :
-                          node.status === "running" ? "border-blue-500 bg-[#09090b]" :
-                          "border-zinc-700 bg-[#09090b]"
+                          node.status === "running" ? "border-blue-500 bg-white dark:bg-[#09090b]" :
+                          "border-zinc-700 bg-white dark:bg-[#09090b]"
                         )}>
                           {node.status === "running" && (
                             <Loader2 className="w-2 h-2 text-blue-500 animate-spin" />

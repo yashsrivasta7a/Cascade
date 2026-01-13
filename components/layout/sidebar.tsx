@@ -43,16 +43,16 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 h-screen flex flex-col bg-[#09090b] border-r border-zinc-800/60">
+    <aside className="w-56 h-screen flex flex-col bg-white dark:bg-[#09090b] border-r border-gray-200 dark:border-zinc-800/60">
       {/* Logo */}
       <Link 
         href="/dashboard" 
-        className="h-14 px-4 flex items-center gap-2.5 border-b border-zinc-800/60"
+        className="h-14 px-4 flex items-center gap-2.5 border-b border-gray-200 dark:border-zinc-800/60"
       >
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1e3a5f] to-[#2a4a6f] flex items-center justify-center shadow-lg shadow-[#0f1f33]/50">
           <Zap className="w-4 h-4 text-white" />
         </div>
-        <span className="font-semibold text-sm text-zinc-100">Flowsmith</span>
+        <span className="font-semibold text-sm text-gray-900 dark:text-zinc-100">Flowsmith</span>
       </Link>
 
       {/* New Workflow */}
@@ -77,12 +77,12 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
                     isActive
-                      ? "bg-zinc-800/80 text-white"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                      ? "bg-gray-100 dark:bg-zinc-800/80 text-gray-900 dark:text-white"
+                      : "text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800/50"
                   )}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Icon className={cn("w-4 h-4", isActive && "text-blue-400")} />
+                  <Icon className={cn("w-4 h-4", isActive && "text-blue-500 dark:text-blue-400")} />
                   <span className="font-medium">{item.label}</span>
                 </motion.div>
               </Link>
@@ -92,7 +92,7 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom Nav */}
-      <div className="px-2 py-2 border-t border-zinc-800/60">
+      <div className="px-2 py-2 border-t border-gray-200 dark:border-zinc-800/60">
         <div className="space-y-0.5">
           {bottomItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -104,8 +104,8 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
                     isActive
-                      ? "bg-zinc-800/80 text-white"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                      ? "bg-gray-100 dark:bg-zinc-800/80 text-gray-900 dark:text-white"
+                      : "text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800/50"
                   )}
                 >
                   <Icon className="w-4 h-4" />
@@ -118,22 +118,22 @@ export function Sidebar() {
       </div>
 
       {/* User */}
-      <div className="p-3 border-t border-zinc-800/60">
+      <div className="p-3 border-t border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-2.5">
           <UserButton 
             afterSignOutUrl="/sign-in"
             appearance={{
               elements: {
                 avatarBox: "w-8 h-8",
-                userButtonPopoverCard: "bg-zinc-900 border border-zinc-800",
-                userButtonPopoverActionButton: "text-zinc-300 hover:bg-zinc-800",
-                userButtonPopoverActionButtonText: "text-zinc-300",
+                userButtonPopoverCard: "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800",
+                userButtonPopoverActionButton: "text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800",
+                userButtonPopoverActionButtonText: "text-gray-700 dark:text-zinc-300",
                 userButtonPopoverFooter: "hidden",
               },
             }}
           />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-zinc-400 truncate">Account</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-zinc-400 truncate">Account</p>
           </div>
           <ThemeToggle size="sm" />
         </div>
