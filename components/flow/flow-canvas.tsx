@@ -52,7 +52,7 @@ const edgeColors: Record<string, { stroke: string; glow: string; dash: string }>
   video: { stroke: "#8b5cf6", glow: "#8b5cf6", dash: "#a78bfa" },          // Violet
   audio: { stroke: "#f59e0b", glow: "#f59e0b", dash: "#fbbf24" },          // Amber
   any: { stroke: "#a1a1aa", glow: "#a1a1aa", dash: "#d4d4d8" },            // Zinc
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // SETTINGS TYPES - Parameters & configuration
   // ═══════════════════════════════════════════════════════════════════════════
@@ -86,27 +86,27 @@ function CustomEdge({
   const [isHovered, setIsHovered] = useState(false);
   const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
   const [animationPhase, setAnimationPhase] = useState(0);
-  
+
   // Get colors based on data type - uses the unified color palette
   // Settings connections use a special violet/purple color scheme
-  const typeColors = isSettingsConnection 
+  const typeColors = isSettingsConnection
     ? { stroke: "#a855f7", glow: "rgba(168, 85, 247, 0.5)" } // violet for settings
     : edgeColors[dataType] || edgeColors.any;
-  
+
   // Animate phase for flowing dots when workflow is running
   useEffect(() => {
     if (!isWorkflowRunning) {
       setAnimationPhase(0);
       return;
     }
-    
+
     const interval = setInterval(() => {
       setAnimationPhase((prev) => (prev + 2) % 100);
     }, 30); // Smooth animation
-    
+
     return () => clearInterval(interval);
   }, [isWorkflowRunning]);
-  
+
   // Use bezier path for smooth flowing curves (matching connection line style)
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -184,31 +184,11 @@ function CustomEdge({
         strokeWidth={24}
         style={{ cursor: "pointer" }}
       />
-      
+
       {/* Edge with break effect - all layers use the mask when hovered */}
       <g mask={isHovered && !isWorkflowRunning ? `url(#${maskId})` : undefined}>
-        {/* Outer soft glow */}
-        <path
-          d={edgePath}
-          fill="none"
-          stroke={typeColors.stroke}
-          strokeWidth={isWorkflowRunning ? 20 : 16}
-          strokeLinecap="round"
-          opacity={isWorkflowRunning ? 0.15 : 0.08}
-          style={{ filter: "blur(8px)" }}
-        />
-        
-        {/* Middle glow layer */}
-        <path
-          d={edgePath}
-          fill="none"
-          stroke={typeColors.stroke}
-          strokeWidth={isWorkflowRunning ? 10 : 8}
-          strokeLinecap="round"
-          opacity={isWorkflowRunning ? 0.25 : 0.15}
-          style={{ filter: "blur(4px)" }}
-        />
-        
+
+
         {/* Main colored line */}
         <path
           id={id}
@@ -220,10 +200,10 @@ function CustomEdge({
           strokeDasharray={isSettingsConnection ? "6 4" : undefined}
           markerEnd={markerEnd}
           style={{
-            filter: `drop-shadow(0 0 4px ${typeColors.stroke})`,
+            // Removed drop-shadow glow
           }}
         />
-        
+
         {/* Settings connection indicator - small dots along the path */}
         {isSettingsConnection && !isWorkflowRunning && (
           <path
@@ -237,7 +217,7 @@ function CustomEdge({
           />
         )}
       </g>
-      
+
       {/* Animated flowing dash when running */}
       {isWorkflowRunning && (
         <path
@@ -253,7 +233,7 @@ function CustomEdge({
           }}
         />
       )}
-      
+
       {/* Delete button in the "break" - styled like a cut wire */}
       {isHovered && !isWorkflowRunning && (
         <g>
@@ -268,7 +248,7 @@ function CustomEdge({
             strokeDasharray="4 3"
             style={{ cursor: "pointer" }}
           />
-          
+
           {/* Inner delete button */}
           <foreignObject
             x={labelX - 12}
@@ -347,39 +327,19 @@ function CustomConnectionLine({
   const connectingFrom = useFlowStore((s) => s.connectingFrom);
   const handleType = connectingFrom?.handleType || "any";
   const typeColors = edgeColors[handleType] || edgeColors.any;
-  
+
   // Create a smooth bezier curve path
   const dx = toX - fromX;
   const dy = toY - fromY;
   const controlOffset = Math.min(Math.abs(dx) * 0.5, 150);
-  
+
   // Bezier control points for a smooth S-curve
   const path = `M ${fromX} ${fromY} C ${fromX + controlOffset} ${fromY}, ${toX - controlOffset} ${toY}, ${toX} ${toY}`;
 
   return (
     <g className="react-flow__connection">
-      {/* Outer soft glow */}
-      <path
-        d={path}
-        fill="none"
-        stroke={typeColors.stroke}
-        strokeWidth={20}
-        strokeLinecap="round"
-        opacity={0.1}
-        style={{ filter: "blur(8px)" }}
-      />
-      
-      {/* Middle glow layer */}
-      <path
-        d={path}
-        fill="none"
-        stroke={typeColors.stroke}
-        strokeWidth={10}
-        strokeLinecap="round"
-        opacity={0.2}
-        style={{ filter: "blur(4px)" }}
-      />
-      
+
+
       {/* Main colored line */}
       <path
         d={path}
@@ -388,10 +348,10 @@ function CustomConnectionLine({
         strokeWidth={3}
         strokeLinecap="round"
         style={{
-          filter: `drop-shadow(0 0 4px ${typeColors.stroke})`,
+          // Removed drop-shadow glow
         }}
       />
-      
+
       {/* Animated flowing dash on top */}
       <path
         d={path}
@@ -448,17 +408,17 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
       image: "image",
     },
   },
-  seedvr: { 
-    inputs: { inputImage: "image", scale: "number", enhanceFaces: "boolean" }, 
-    outputs: { upscaled: "image" } 
+  seedvr: {
+    inputs: { inputImage: "image", scale: "number", enhanceFaces: "boolean" },
+    outputs: { upscaled: "image" }
   },
   seedance: {
     inputs: { prompt: "prompt", inputFrame: "image", duration: "duration", aspectRatio: "aspectRatio", seed: "seed" },
     outputs: { video: "video" },
   },
-  elevenlabs: { 
-    inputs: { text: "prompt", voiceId: "model", stability: "number", clarity: "number" }, 
-    outputs: { audio: "audio" } 
+  elevenlabs: {
+    inputs: { text: "prompt", voiceId: "model", stability: "number", clarity: "number" },
+    outputs: { audio: "audio" }
   },
   openrouter: {
     inputs: {
@@ -473,39 +433,39 @@ const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outpu
     },
     outputs: { response: "text", out: "any" },
   },
-  lipsync: { 
-    inputs: { inputVideo: "video", inputAudio: "audio", model: "model" }, 
-    outputs: { synced: "video" } 
+  lipsync: {
+    inputs: { inputVideo: "video", inputAudio: "audio", model: "model" },
+    outputs: { synced: "video" }
   },
-  "crop-image": { 
-    inputs: { inputImage: "image", xPercent: "number", yPercent: "number", widthPercent: "number", heightPercent: "number" }, 
-    outputs: { cropped: "image" } 
+  "crop-image": {
+    inputs: { inputImage: "image", xPercent: "number", yPercent: "number", widthPercent: "number", heightPercent: "number" },
+    outputs: { cropped: "image" }
   },
-  "merge-audio-video": { 
-    inputs: { inputVideo: "video", inputAudio: "audio", replaceAudio: "boolean" }, 
-    outputs: { combined: "video" } 
+  "merge-audio-video": {
+    inputs: { inputVideo: "video", inputAudio: "audio", replaceAudio: "boolean" },
+    outputs: { combined: "video" }
   },
-  "merge-videos": { 
-    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text", transitionDuration: "duration" }, 
-    outputs: { merged: "video" } 
+  "merge-videos": {
+    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text", transitionDuration: "duration" },
+    outputs: { merged: "video" }
   },
-  "extract-audio": { 
-    inputs: { inputVideo: "video", format: "text", bitrate: "text", sampleRate: "text", channels: "text", normalize: "boolean" }, 
-    outputs: { audio: "audio" } 
+  "extract-audio": {
+    inputs: { inputVideo: "video", format: "text", bitrate: "text", sampleRate: "text", channels: "text", normalize: "boolean" },
+    outputs: { audio: "audio" }
   },
 };
 
 function getNodeSettingKeys(node: Node | undefined): string[] {
   if (!node?.type) return [];
   const nodeType = node.type as AINodeType;
-  
+
   // Use NODE_CONTRACTS for accurate settings mapping
   const contract = NODE_CONTRACTS[nodeType];
   if (contract) {
     // Return all setting keys
     return contract.settings.map((s: { id: string }) => s.id);
   }
-  
+
   // Fallback to HANDLE_TYPES
   const def = HANDLE_TYPES[nodeType];
   if (!def) return [];
@@ -570,15 +530,15 @@ const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
 
   // Aspect ratio is specific
   aspectRatio: ["aspectRatio"],
-  
+
   // Media types
   image: ["image"],
   video: ["video"],
   audio: ["audio"],
-  
+
   // Model types
   model: ["model"],
-  
+
   // Temperature - compatible with all number types
   temperature: ["temperature", "number", "seed", "duration"],
 };
@@ -588,13 +548,13 @@ function isTypeCompatible(from: DataType | undefined, to: DataType | undefined):
   if (from === to) return true;
   if (to === "any") return true;
   if (from === "any") return true;
-  
+
   // Check compatibility groups
   const compatibleTypes = TYPE_COMPATIBILITY_GROUPS[from];
   if (compatibleTypes && compatibleTypes.includes(to)) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -613,23 +573,23 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
   const { getViewport } = useReactFlow();
   const [viewport, setViewport] = useState(getViewport());
   const animationRef = useRef<number | null>(null);
-  
+
   // Calculate bounds from highlighted nodes
   const bounds = useMemo(() => {
     if (highlightedNodeIds.length < 1) return null;
-    
+
     const highlightedNodes = nodes.filter((n) => highlightedNodeIds.includes(n.id));
     if (highlightedNodes.length === 0) return null;
-    
+
     // Node dimensions - use larger values to ensure full coverage
     // Nodes can be quite tall when expanded with all settings visible
     const nodeWidth = 320;   // Nodes are ~280-300px wide + some margin
     const nodeHeight = 750;  // Nodes can be very tall when expanded
     const padding = 80;      // Extra padding around the container
-    
+
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
-    
+
     for (const node of highlightedNodes) {
       // Node position is at center-top (nodeOrigin: [0.5, 0])
       // So we need to offset by half the width to get left edge
@@ -637,13 +597,13 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
       const nodeRight = node.position.x + nodeWidth / 2;
       const nodeTop = node.position.y;
       const nodeBottom = node.position.y + nodeHeight;
-      
+
       minX = Math.min(minX, nodeLeft);
       maxX = Math.max(maxX, nodeRight);
       minY = Math.min(minY, nodeTop);
       maxY = Math.max(maxY, nodeBottom);
     }
-    
+
     return {
       x: minX - padding,
       y: minY - padding,
@@ -651,39 +611,39 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
       height: maxY - minY + padding * 2,
     };
   }, [highlightedNodeIds, nodes]);
-  
+
   // Update viewport on animation frame for smooth tracking during pan/zoom
   useEffect(() => {
     if (!bounds) return;
-    
+
     const updateViewport = () => {
       setViewport(getViewport());
       animationRef.current = requestAnimationFrame(updateViewport);
     };
-    
+
     animationRef.current = requestAnimationFrame(updateViewport);
-    
+
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
   }, [bounds, getViewport]);
-  
+
   if (!bounds || highlightedNodeIds.length < 1) return null;
-  
+
   // Transform bounds to screen coordinates
   const screenX = bounds.x * viewport.zoom + viewport.x;
   const screenY = bounds.y * viewport.zoom + viewport.y;
   const screenWidth = bounds.width * viewport.zoom;
   const screenHeight = bounds.height * viewport.zoom;
-  
+
   return (
-    <div 
+    <div
       className="absolute inset-0 pointer-events-none overflow-hidden"
       style={{ zIndex: 0 }}
     >
-      <svg 
+      <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
         style={{ overflow: 'visible' }}
       >
@@ -750,18 +710,18 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
 function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
-  
+
   // Modal state for adding nodes
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const connectingFromRef = useRef<{ nodeId: string; handleId: string | null } | null>(null);
   const connectionCompletedRef = useRef(false);
 
-  const { 
-    nodes, 
-    edges, 
-    onNodesChange, 
-    onEdgesChange, 
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
     setNodes,
     setEdges,
     selectNode,
@@ -782,7 +742,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   useEffect(() => {
     // Skip if we have multiple highlighted nodes - let the fitBounds effect handle it
     if (!focusNodeId || highlightedNodeIds.length > 1) return;
-    
+
     const node = nodes.find((n) => n.id === focusNodeId);
     if (node) {
       // node.position is top-left corner of the node
@@ -790,16 +750,16 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       // Center point should be middle of the node
       const nodeHalfWidth = 140;  // ~280/2
       const nodeHalfHeight = 180; // ~360/2 for expanded nodes
-      
+
       const nodeCenterX = node.position.x + nodeHalfWidth;
       const nodeCenterY = node.position.y + nodeHalfHeight;
-      
+
       // setCenter puts these coordinates at the CENTER of the viewport
-      setCenter(nodeCenterX, nodeCenterY, { 
-        zoom: 1, 
-        duration: 500 
+      setCenter(nodeCenterX, nodeCenterY, {
+        zoom: 1,
+        duration: 500
       });
-      
+
       // Clear focus after animation
       setTimeout(() => focusNode(null), 550);
     }
@@ -829,13 +789,13 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const nodeRight = node.position.x + nodeWidth / 2;
       const nodeTop = node.position.y;
       const nodeBottom = node.position.y + nodeHeight;
-      
+
       minX = Math.min(minX, nodeLeft);
       maxX = Math.max(maxX, nodeRight);
       minY = Math.min(minY, nodeTop);
       maxY = Math.max(maxY, nodeBottom);
     }
-    
+
     // Fit the view to show all highlighted nodes
     fitBounds(
       {
@@ -846,7 +806,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       },
       { duration: 600, padding: 0.1 }
     );
-    
+
     // Clear the focusNodeId but keep highlighting
     setTimeout(() => focusNode(null), 650);
   }, [highlightedNodeIds, nodes, fitBounds, focusNode]);
@@ -940,24 +900,24 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       // Check if source handle is a radial settings handle (ends with -setting)
       const sourceHandle = conn.sourceHandle ?? "";
       const isFromRadialSettings = sourceHandle.endsWith("-setting");
-      const actualSourceHandle = isFromRadialSettings 
-        ? sourceHandle.replace("-setting", "") 
+      const actualSourceHandle = isFromRadialSettings
+        ? sourceHandle.replace("-setting", "")
         : sourceHandle;
-      
+
       const targetHandle = conn.targetHandle ?? "";
-      
+
       // Check if target is a settings input
       const isTargetSettings = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
-      
+
       // If dragging FROM a radial settings handle
       if (isFromRadialSettings && sourceNodeType) {
         const sourceContract = NODE_CONTRACTS[sourceNodeType];
         const sourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) => s.id === actualSourceHandle);
-        
+
         if (sourceSetting) {
           const sourceSettingType = sourceSetting.type as DataType;
           const toType = getHandleDataType(targetNode, "inputs", targetHandle);
-          
+
           // Check type compatibility between source setting and target input
           if (!isTypeCompatible(sourceSettingType, toType)) return false;
           if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
@@ -965,27 +925,27 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         }
         return false;
       }
-      
+
       // If connecting to a settings input from a regular output or another setting
       if (isTargetSettings && targetNodeType) {
         const targetContract = NODE_CONTRACTS[targetNodeType];
         const targetSetting = targetContract?.settings.find((s: { id: string; type: string }) => s.id === targetHandle);
-        
+
         if (targetSetting) {
           const targetSettingType = targetSetting.type as DataType;
-          
+
           // Check if source has a compatible setting to connect from
           if (sourceNodeType) {
             const sourceContract = NODE_CONTRACTS[sourceNodeType];
             // Look for ANY setting from source that has a compatible type
-            const compatibleSourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) => 
+            const compatibleSourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) =>
               isTypeCompatible(s.type as DataType, targetSettingType)
             );
-            
+
             // Also check if the source output type is compatible
             const sourceOutputType = getHandleDataType(sourceNode, "outputs", actualSourceHandle);
             const isOutputCompatible = isTypeCompatible(sourceOutputType, targetSettingType);
-            
+
             if (compatibleSourceSetting || isOutputCompatible) {
               if (wouldCreateCycle(edges, conn.source, conn.target)) return false;
               return true;
@@ -1043,13 +1003,13 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const targetNode = params.target ? nodes.find((n) => n.id === params.target) : undefined;
       const sourceNodeType = sourceNode?.type as AINodeType | undefined;
       const targetNodeType = targetNode?.type as AINodeType | undefined;
-      
+
       // Check if connection is from settings popover or settings bundle handle
       let actualSourceHandle = params.sourceHandle ?? "";
       let isFromSettingsPopover = false;
       let isFromOutputPopover = false;
       let settingId: string | null = null;
-      
+
       if (actualSourceHandle.endsWith("-setting")) {
         // Connection from individual setting in popover
         actualSourceHandle = actualSourceHandle.replace("-setting", "");
@@ -1065,7 +1025,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         console.log("Settings bundle handle - use popover to select a specific setting");
         return;
       }
-      
+
       // For settings connections, keep the original handle ID so React Flow connects from the radial handle
       // For other connections, use the cleaned handle ID
       const edgeSourceHandle = isFromSettingsPopover ? params.sourceHandle : actualSourceHandle;
@@ -1073,22 +1033,22 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         ...params,
         sourceHandle: edgeSourceHandle,
       };
-      
+
       const edgeDataType = getHandleDataType(sourceNode, "outputs", actualSourceHandle) ?? "any";
       const targetHandleType = getHandleDataType(targetNode, "inputs", params.targetHandle);
 
       // Check if connecting to a negative prompt handle
       const isNegative = targetHandleType === "negative" || params.targetHandle === "negativePrompt" || params.targetHandle === "negative";
-      
+
       // Use NODE_CONTRACTS to determine if target is a settings input or media input
       const targetHandle = params.targetHandle ?? "";
       const isTargetSettingsInput = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
       const isTargetMediaInput = targetNodeType ? isMediaHandle(targetNodeType, targetHandle) : false;
-      
+
       // Settings connection: when connecting FROM a settings handle OR TO a settings input
       // This should copy the setting value AND lock it on the target node
       const isSettingsConnection = isFromSettingsPopover || isTargetSettingsInput;
-      
+
       // Determine the edge data type for settings connections
       let finalEdgeDataType = edgeDataType;
       if (isFromSettingsPopover && sourceNodeType) {
@@ -1124,7 +1084,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         edges
       );
       setEdges(nextEdges);
-      
+
       // Mark as successful connect so onConnectEnd doesn't open the modal.
       connectionCompletedRef.current = true;
 
@@ -1138,7 +1098,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         // The prompt should only be populated when the LLM actually generates a response.
         // This prevents the source's prompt from being copied to the target's prompt.
         const isResponseToPrompt = sourceHandle === "response" && targetHandle === "prompt";
-        
+
         if (isResponseToPrompt) {
           // Don't copy anything yet - wait for actual LLM response
           // Just set up the connection metadata
@@ -1146,15 +1106,15 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
             nodes.map((n) =>
               n.id === params.target
                 ? {
-                    ...n,
-                    data: {
-                      ...(n.data as any),
-                      incomingFrom: {
-                        ...(n.data as any)?.incomingFrom,
-                        [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
-                      },
+                  ...n,
+                  data: {
+                    ...(n.data as any),
+                    incomingFrom: {
+                      ...(n.data as any)?.incomingFrom,
+                      [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
                     },
-                  }
+                  },
+                }
                 : n
             )
           );
@@ -1173,9 +1133,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         // pull the matching value out of the bundle.
         const derivedValue =
           nextValue &&
-          typeof nextValue === "object" &&
-          !Array.isArray(nextValue) &&
-          targetHandle in (nextValue as any)
+            typeof nextValue === "object" &&
+            !Array.isArray(nextValue) &&
+            targetHandle in (nextValue as any)
             ? (nextValue as any)[targetHandle]
             : nextValue;
 
@@ -1185,23 +1145,23 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           const sourceData = sourceNode.data as Record<string, unknown>;
           const targetSettingKey = params.targetHandle; // The setting on the target node
           const sourceSettingKey = actualSourceHandle; // The setting from the source node
-          
+
           // Get the value from the SOURCE handle (not target handle name in source data)
-          const sourceValue = sourceSettingKey && sourceData[sourceSettingKey] !== undefined 
-            ? sourceData[sourceSettingKey] 
+          const sourceValue = sourceSettingKey && sourceData[sourceSettingKey] !== undefined
+            ? sourceData[sourceSettingKey]
             : derivedValue; // Fall back to derived value
-          
+
           if (targetSettingKey && sourceValue !== undefined) {
             // Get existing inherited settings or create new
             const existingInherited = (targetNode?.data as Record<string, unknown>)?._inheritedFrom as Record<string, unknown> | undefined;
             const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
-            
+
             // Add this setting to the inherited settings
             const newInheritedSettings = {
               ...existingSettings,
               [targetSettingKey]: sourceValue,
             };
-            
+
             settingsInheritanceUpdate = {
               // Copy the setting value to the target's setting key
               [targetSettingKey]: sourceValue,
@@ -1214,7 +1174,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
                 fullInheritance: false,
               },
             };
-            
+
             console.log(`[Settings Connection] ${sourceNodeType}.${sourceSettingKey} → ${targetNodeType}.${targetSettingKey} = ${sourceValue}`);
           }
         }
@@ -1224,19 +1184,19 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           nodes.map((n) =>
             n.id === params.target
               ? {
-                  ...n,
-                  data: {
-                    ...(n.data as any),
-                    // Apply derived value if available (for media inputs)
-                    ...(derivedValue !== undefined && !isSettingsConnection ? { [targetHandle]: derivedValue } : {}),
-                    // Apply settings inheritance if connecting to a settings input
-                    ...settingsInheritanceUpdate,
-                    incomingFrom: {
-                      ...(n.data as any)?.incomingFrom,
-                      [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
-                    },
+                ...n,
+                data: {
+                  ...(n.data as any),
+                  // Apply derived value if available (for media inputs)
+                  ...(derivedValue !== undefined && !isSettingsConnection ? { [targetHandle]: derivedValue } : {}),
+                  // Apply settings inheritance if connecting to a settings input
+                  ...settingsInheritanceUpdate,
+                  incomingFrom: {
+                    ...(n.data as any)?.incomingFrom,
+                    [targetHandle]: { nodeId: params.source, handleId: sourceHandle },
                   },
-                }
+                },
+              }
               : n
           )
         );
@@ -1246,13 +1206,13 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   );
 
   // Track the source node/handle reliably (React Flow's onConnectEnd state can be inconsistent).
-  
+
   const onConnectStart: OnConnectStart = useCallback((event, params) => {
     const nodeId = params.nodeId ?? "";
     const handleId = params.handleId ?? null;
-    
+
     connectingFromRef.current = { nodeId, handleId };
-    
+
     // Get the handle type from the data-handletype attribute on the handle wrapper or parent
     const target = event.target as HTMLElement | null;
     // Look for data-handletype on the handle itself, its wrapper, or any parent
@@ -1262,7 +1222,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       handleType = el.getAttribute("data-handletype");
       el = el.parentElement;
     }
-    
+
     // Set store state for node highlighting
     setConnectingFrom({ nodeId, handleId, handleType });
   }, [setConnectingFrom]);
@@ -1335,12 +1295,12 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           ...baseData,
           ...(preview
             ? {
-                context: preview,
-                incomingFrom: {
-                  nodeId: pendingConnection.sourceNodeId,
-                  handleId: pendingConnection.sourceHandleId,
-                },
-              }
+              context: preview,
+              incomingFrom: {
+                nodeId: pendingConnection.sourceNodeId,
+                handleId: pendingConnection.sourceHandleId,
+              },
+            }
             : {}),
         },
       };
@@ -1353,12 +1313,12 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         const sourceNode = nodes.find((n) => n.id === pendingConnection.sourceNodeId);
         const edgeDataType =
           getHandleDataType(sourceNode, "outputs", pendingConnection.sourceHandleId) ?? "any";
-        
+
         // Determine target handle based on node type (default to context for text)
         const targetNodeDef = HANDLE_TYPES[nodeType];
         const targetHandle = targetNodeDef?.inputs ? Object.keys(targetNodeDef.inputs)[0] : undefined;
         const isNegative = targetHandle === "negativePrompt" || targetHandle === "negative";
-        
+
         const newEdge: Edge = {
           id: `e-${pendingConnection.sourceNodeId}-${newNodeId}`,
           source: pendingConnection.sourceNodeId,
@@ -1463,28 +1423,27 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         deleteKeyCode={null}
         selectionKeyCode={null}
         multiSelectionKeyCode={null}
-        className="bg-[#101010]"
+        className="!bg-gray-100 dark:!bg-[#101010]"
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={32}
+          gap={20}
           size={2}
-          color="rgba(0, 0, 255, 0.1)"
         />
         <Controls
           showInteractive={false}
-          className="!bg-zinc-900/80 !backdrop-blur-md !border-white/5 !rounded-xl !shadow-2xl !p-1"
+          className="!bg-white dark:!bg-zinc-900/80 !backdrop-blur-none dark:!backdrop-blur-md !border-gray-200 dark:!border-white/5 !rounded-xl !shadow-md dark:!shadow-2xl !p-1"
         />
         <MiniMap
           nodeStrokeWidth={3}
           pannable
           zoomable
-          className="!bg-zinc-900/80 !backdrop-blur-md !border-white/5 !rounded-xl !shadow-2xl"
-          maskColor="rgba(0, 212, 255, 0.05)"
-          nodeColor="#27272a"
+          className="!bg-white dark:!bg-zinc-900/80 !backdrop-blur-none dark:!backdrop-blur-md !border-gray-200 dark:!border-white/5 !rounded-xl !shadow-md dark:!shadow-2xl"
+          maskColor="rgba(59, 130, 246, 0.1)"
+          nodeColor="#9CA3AF"
         />
       </ReactFlow>
-      
+
       {/* Pipeline Highlight Overlay - Dotted container around highlighted nodes */}
       {/* Rendered outside ReactFlow to avoid blocking canvas interactions */}
       <PipelineHighlightOverlay nodes={nodes} highlightedNodeIds={highlightedNodeIds} />
@@ -1501,7 +1460,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
 function getDefaultNodeData(type: string): Record<string, unknown> {
   const nodeDef = NODE_DEFINITIONS[type as AINodeType];
-  
+
   if (!nodeDef) {
     return { label: "Unknown Node" };
   }

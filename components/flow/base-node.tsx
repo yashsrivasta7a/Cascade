@@ -97,39 +97,39 @@ const statusConfig: Record<NodeStatus, {
 }> = {
   idle: { 
     icon: Circle, 
-    color: "text-zinc-500", 
-    bgColor: "bg-zinc-500/10",
+    color: "text-gray-500 dark:text-zinc-500", 
+    bgColor: "bg-gray-100 dark:bg-zinc-500/10",
     label: "Ready" 
   },
   queued: { 
     icon: Clock, 
-    color: "text-zinc-400", 
-    bgColor: "bg-zinc-400/10",
+    color: "text-gray-500 dark:text-zinc-400", 
+    bgColor: "bg-gray-100 dark:bg-zinc-400/10",
     label: "Queued" 
   },
   running: { 
     icon: Loader2, 
-    color: "text-white", 
-    bgColor: "bg-white/10",
+    color: "text-blue-600 dark:text-white", 
+    bgColor: "bg-blue-50 dark:bg-white/10",
     label: "Running",
     animate: true 
   },
   completed: { 
     icon: CheckCircle2, 
-    color: "text-emerald-400", 
-    bgColor: "bg-emerald-500/10",
+    color: "text-emerald-600 dark:text-emerald-400", 
+    bgColor: "bg-emerald-50 dark:bg-emerald-500/10",
     label: "Done" 
   },
   failed: { 
     icon: AlertCircle, 
-    color: "text-red-400", 
-    bgColor: "bg-red-500/10",
+    color: "text-red-600 dark:text-red-400", 
+    bgColor: "bg-red-50 dark:bg-red-500/10",
     label: "Failed" 
   },
   cancelled: {
     icon: Square,
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/10",
+    color: "text-amber-600 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-500/10",
     label: "Cancelled"
   },
 };
@@ -227,7 +227,8 @@ function BaseNodeComponent({
   const runNode = useFlowStore((s) => s.runNode);
   const cancelNode = useFlowStore((s) => s.cancelNode);
   const canRun = status !== "running" && status !== "queued";
-  const isRunning = status === "running" || status === "queued";
+  const isRunningOrQueued = status === "running" || status === "queued";
+  const isActuallyRunning = status === "running"; // Only show glow for actually running nodes
   
   const connectingFrom = useFlowStore((s) => s.connectingFrom);
   const draggedType = connectingFrom?.handleType;
@@ -393,11 +394,28 @@ function BaseNodeComponent({
 
   const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
 
-  const borderColor = isHighlighted 
-    ? "rgba(59, 130, 246, 0.6)" // Blue highlight for pipeline view
-    : isSelected 
-      ? "rgba(255,255,255,0.25)" 
-      : "rgba(255,255,255,0.08)";
+  // Check if we're in dark mode by checking the document's class
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+    checkDarkMode();
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const borderColor = isActuallyRunning
+    ? "rgba(59, 130, 246, 0.5)" // Subtle blue glow when running (not queued)
+    : isHighlighted 
+      ? "rgba(59, 130, 246, 0.6)" // Blue highlight for pipeline view
+      : isSelected 
+        ? isDarkMode ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
+        : isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
+  
+  const nodeBgColor = isDarkMode ? "#0d0d0d" : "#ffffff";
 
   return (
     <motion.div
@@ -408,9 +426,10 @@ function BaseNodeComponent({
       className={cn(
         "group/node relative min-w-[300px] max-w-[380px]",
         "overflow-visible",
-        "shadow-2xl shadow-black/50",
+        "shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/50",
         "will-change-transform",
-        "transition-all duration-200"
+        "transition-all duration-200",
+        isActuallyRunning && "running-node-glow"
       )}
     >
       {/* SVG Border with notches */}
@@ -422,18 +441,30 @@ function BaseNodeComponent({
           <clipPath id={`node-clip-${id}`}>
             <path d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)} />
           </clipPath>
+          {/* Glow filter for running state - subtle effect */}
+          {isActuallyRunning && (
+            <filter id={`glow-${id}`} x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          )}
         </defs>
         {/* Background fill */}
         <path
           d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)}
-          fill="#0d0d0d"
+          fill={nodeBgColor}
         />
         {/* Border stroke */}
         <path
           d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)}
           fill="none"
           stroke={borderColor}
-          strokeWidth={1.5}
+          strokeWidth={isActuallyRunning ? 1.5 : 1.5}
+          filter={isActuallyRunning ? `url(#glow-${id})` : undefined}
+          className={isActuallyRunning ? "animate-pulse-glow" : ""}
         />
         {/* Accent bar at top */}
         <rect
@@ -452,11 +483,11 @@ function BaseNodeComponent({
       <div className="relative z-10">
         {/* Progress Overlay (when running) */}
         {status === "running" && data.progress !== undefined && (
-          <div className="absolute top-1 left-0 right-0 h-0.5 bg-white/5 mx-3 rounded-full overflow-hidden">
+          <div className="absolute top-1 left-0 right-0 h-0.5 bg-gray-200 dark:bg-white/5 mx-3 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${data.progress}%` }}
-              className="h-full bg-white"
+              className="h-full bg-blue-500 dark:bg-white"
               style={{ boxShadow: `0 0 8px ${accentColor}` }}
             />
           </div>
@@ -482,32 +513,32 @@ function BaseNodeComponent({
           {/* Title & Meta */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-white text-sm truncate">
+              <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
                 {data.label}
               </h3>
               {hasInheritedSettings && (
                 <div 
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/25"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/15 border border-violet-300 dark:border-violet-500/25"
                   title={inheritedSettingsKeys.length > 0 
                     ? `Connected settings: ${inheritedSettingsKeys.join(", ")}` 
                     : "Settings inherited from another node"}
                 >
-                  <Link2 className="w-2.5 h-2.5 text-violet-400" />
+                  <Link2 className="w-2.5 h-2.5 text-violet-600 dark:text-violet-400" />
                   {inheritedSettingsKeys.length > 0 && (
-                    <span className="text-[9px] text-violet-400 font-medium">{inheritedSettingsKeys.length}</span>
+                    <span className="text-[9px] text-violet-600 dark:text-violet-400 font-medium">{inheritedSettingsKeys.length}</span>
                   )}
                 </div>
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               {data.provider && (
-                <span className="text-[10px] text-zinc-500">{data.provider}</span>
+                <span className="text-[10px] text-gray-500 dark:text-zinc-500">{data.provider}</span>
               )}
               {data.provider && data.estimatedCost !== undefined && data.estimatedCost > 0 && (
-                <span className="text-zinc-700">•</span>
+                <span className="text-gray-400 dark:text-zinc-700">•</span>
               )}
               {data.estimatedCost !== undefined && data.estimatedCost > 0 && (
-                <span className="text-[10px] text-zinc-500">{data.estimatedCost} credits</span>
+                <span className="text-[10px] text-gray-500 dark:text-zinc-500">{data.estimatedCost} credits</span>
               )}
             </div>
           </div>
@@ -518,7 +549,7 @@ function BaseNodeComponent({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (isRunning) {
+              if (isRunningOrQueued) {
                 void cancelNode(id);
               } else {
                 void runNode(id);
@@ -526,16 +557,16 @@ function BaseNodeComponent({
             }}
             className={cn(
               "nodrag nowheel h-8 w-8 rounded-lg flex items-center justify-center transition-all",
-              isRunning
-                ? "bg-red-500/80 text-white hover:bg-red-500"
+              isRunningOrQueued
+                ? "bg-red-500 text-white hover:bg-red-600 dark:bg-red-500/80 dark:hover:bg-red-500"
                 : canRun
-                ? "bg-white/10 text-white hover:bg-white hover:text-black"
-                : "bg-white/5 text-zinc-600 cursor-not-allowed"
+                ? "bg-gray-100 text-gray-700 hover:bg-gray-900 hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white dark:hover:text-black"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-white/5 dark:text-zinc-600"
             )}
-            title={isRunning ? "Stop" : "Run Node"}
+            title={isRunningOrQueued ? "Stop" : "Run Node"}
           >
             {status === "running" ? (
-              <Square className="w-4 h-4 fill-white" />
+              <Square className="w-4 h-4 fill-current" />
             ) : status === "queued" ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
@@ -549,41 +580,41 @@ function BaseNodeComponent({
           {right ? (
             layout === "vertical" ? (
               <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
                   {left ?? children ?? (
-                    <div className="text-[11px] text-zinc-600 italic">No input configured</div>
+                    <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">No input configured</div>
                   )}
                 </div>
                 <div className="relative">
-                  <div className="absolute -top-1.5 left-3 px-1.5 bg-[#0d0d0d] text-[9px] text-zinc-500 uppercase tracking-wider">
+                  <div className="absolute -top-1.5 left-3 px-1.5 bg-white dark:bg-[#0d0d0d] text-[9px] text-gray-500 dark:text-zinc-500 uppercase tracking-wider">
                     Output
                   </div>
-                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] pt-4">
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04] pt-4">
                     {right}
                   </div>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
                   {left ?? children ?? (
-                    <div className="text-[11px] text-zinc-600 italic">No input</div>
+                    <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">No input</div>
                   )}
                 </div>
                 <div className="relative">
-                  <div className="absolute -top-1.5 left-3 px-1.5 bg-[#0d0d0d] text-[9px] text-zinc-500 uppercase tracking-wider">
+                  <div className="absolute -top-1.5 left-3 px-1.5 bg-white dark:bg-[#0d0d0d] text-[9px] text-gray-500 dark:text-zinc-500 uppercase tracking-wider">
                     Output
                   </div>
-                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] pt-4">
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04] pt-4">
                     {right}
                   </div>
                 </div>
               </div>
             )
           ) : (
-            <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
               {left ?? children ?? (
-                <div className="text-[11px] text-zinc-600 italic">Configure node settings</div>
+                <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">Configure node settings</div>
               )}
             </div>
           )}
@@ -592,7 +623,7 @@ function BaseNodeComponent({
         {/* Error Display */}
         {hasError && (
           <div className="px-4 pb-3">
-            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2.5">
+            <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-2.5">
               <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span className="break-words leading-relaxed">{(data as any).error}</span>
             </div>
@@ -603,7 +634,7 @@ function BaseNodeComponent({
         <div 
           className={cn(
             "px-4 py-2 flex items-center justify-between",
-            "border-t border-white/[0.04]",
+            "border-t border-gray-200 dark:border-white/[0.04]",
             statusCfg.bgColor
           )}
         >
@@ -634,7 +665,7 @@ function BaseNodeComponent({
                 e.stopPropagation();
                 duplicateNode(id);
               }}
-              className="nodrag nowheel h-6 w-6 rounded-md bg-white/[0.04] text-zinc-500 hover:text-white hover:bg-white/[0.08] transition-colors inline-flex items-center justify-center"
+              className="nodrag nowheel h-6 w-6 rounded-md bg-gray-100 dark:bg-white/[0.04] text-gray-500 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/[0.08] transition-colors inline-flex items-center justify-center"
               title="Duplicate"
             >
               <Copy className="w-3 h-3" />
@@ -646,7 +677,7 @@ function BaseNodeComponent({
                 e.stopPropagation();
                 deleteNode(id);
               }}
-              className="nodrag nowheel h-6 w-6 rounded-md bg-white/[0.04] text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors inline-flex items-center justify-center"
+              className="nodrag nowheel h-6 w-6 rounded-md bg-gray-100 dark:bg-white/[0.04] text-gray-500 dark:text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors inline-flex items-center justify-center"
               title="Delete"
             >
               <Trash2 className="w-3 h-3" />
@@ -750,7 +781,7 @@ function BaseNodeComponent({
                 "absolute right-full mr-2 top-1/2 -translate-y-1/2",
                 "text-[10px] font-medium whitespace-nowrap",
                 "px-2 py-1 rounded-md",
-                "bg-[#0d0d0d] border border-white/10",
+                "bg-white dark:bg-[#0d0d0d] border border-gray-200 dark:border-white/10",
                 "transition-all duration-200",
                 handleColor.text,
                 isCompatible && "border-current"
@@ -761,7 +792,7 @@ function BaseNodeComponent({
               } : undefined}
             >
               {input.label}
-              {input.required && <span className="text-red-400 ml-0.5">*</span>}
+              {input.required && <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>}
             </span>
           </div>
         );
@@ -815,7 +846,7 @@ function BaseNodeComponent({
                   "absolute left-full ml-2 top-1/2 -translate-y-1/2",
                   "text-[10px] font-medium whitespace-nowrap",
                   "px-2 py-1 rounded-md",
-                  "bg-[#0d0d0d] border border-white/10",
+                  "bg-white dark:bg-[#0d0d0d] border border-gray-200 dark:border-white/10",
                   handleColor.text
                 )}
               >
@@ -862,8 +893,8 @@ function BaseNodeComponent({
                         "absolute left-full ml-2 top-1/2 -translate-y-1/2",
                         "text-[10px] font-medium whitespace-nowrap",
                         "px-2 py-1 rounded-md flex items-center gap-1",
-                        "bg-violet-500/10 border border-violet-500/30",
-                        "text-violet-400 cursor-pointer"
+                        "bg-violet-100 dark:bg-violet-500/10 border border-violet-300 dark:border-violet-500/30",
+                        "text-violet-600 dark:text-violet-400 cursor-pointer"
                       )}
                     >
                       <Settings2 className="w-2.5 h-2.5" />
@@ -938,28 +969,28 @@ function BaseNodeComponent({
                             onMouseDown={() => handleSettingDragStart(setting.id, setting.type as DataType)}
                           />
                           
-                          {/* Label - always visible when expanded */}
-                          {isSettingsExpanded && (
-                            <div
-                              className={cn(
-                                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                                "text-[9px] font-medium whitespace-nowrap",
-                                "px-2 py-1 rounded-md",
-                                "bg-zinc-900/95 backdrop-blur-sm border z-50",
-                                "flex items-center gap-1.5",
-                                "shadow-xl transition-all duration-150",
-                                isHovered && "scale-105"
-                              )}
-                              style={{
-                                borderColor: isHovered ? color.solid : `${color.solid}40`,
-                                color: color.solid,
-                                boxShadow: isHovered ? `0 0 12px ${color.solid}30` : undefined,
-                              }}
-                            >
-                              <Icon className="w-3 h-3" />
-                              {setting.label}
-                            </div>
-                          )}
+                                          {/* Label - always visible when expanded */}
+                                          {isSettingsExpanded && (
+                                            <div
+                                              className={cn(
+                                                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                                                "text-[9px] font-medium whitespace-nowrap",
+                                                "px-2 py-1 rounded-md",
+                                                "bg-white dark:bg-zinc-900/95 backdrop-blur-sm border z-50",
+                                                "flex items-center gap-1.5",
+                                                "shadow-xl transition-all duration-150",
+                                                isHovered && "scale-105"
+                                              )}
+                                              style={{
+                                                borderColor: isHovered ? color.solid : `${color.solid}40`,
+                                                color: color.solid,
+                                                boxShadow: isHovered ? `0 0 12px ${color.solid}30` : undefined,
+                                              }}
+                                            >
+                                              <Icon className="w-3 h-3" />
+                                              {setting.label}
+                                            </div>
+                                          )}
                         </div>
                       </div>
                     );

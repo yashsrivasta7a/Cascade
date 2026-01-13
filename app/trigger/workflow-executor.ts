@@ -1,15 +1,23 @@
-import { task } from "@trigger.dev/sdk";
+import { task, wait, runs } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
-import { registerAllNodeExecutors, getNodeExecutor, DEFAULT_NODE_CONFIG } from "@/lib/engine";
+import { registerAllNodeExecutors } from "@/lib/engine";
 
 // Register all node executors
 registerAllNodeExecutors();
 
 // =============================================================================
-// WORKFLOW EXECUTOR TASK - DAG Orchestration with Parallel Execution
+// WORKFLOW EXECUTOR TASK - DAG Orchestration with Polling-based Parallelism
+// =============================================================================
+// 
+// Uses trigger() (non-blocking) + polling for true parallel execution:
+// - ALL nodes with satisfied dependencies run in parallel
+// - Multiple chains execute independently
+// - wait.for() during polling = NO BILLING (checkpointed)
+// - As soon as ANY node completes, its dependents can start
+//
 // =============================================================================
 
 export interface WorkflowExecutorPayload {
@@ -20,82 +28,62 @@ export interface WorkflowExecutorPayload {
   edges: Edge[];
 }
 
-// Get nodes grouped by execution level (for parallel execution)
-// Level 0: no dependencies, Level 1: depends only on level 0, etc.
-function getExecutionLevels(nodes: Node[], edges: Edge[]): Node[][] {
-  const inDeg = new Map<string, number>();
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const adj = new Map<string, string[]>();
-
-  for (const n of nodes) inDeg.set(n.id, 0);
-  for (const e of edges) {
-    if (!adj.has(e.source)) adj.set(e.source, []);
-    adj.get(e.source)!.push(e.target);
-    inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
-  }
-
-  const levels: Node[][] = [];
-  const remaining = new Set(nodes.map((n) => n.id));
-
-  while (remaining.size > 0) {
-    // Find all nodes with in-degree 0 (ready to execute)
-    const currentLevel: Node[] = [];
-    for (const id of remaining) {
-      if ((inDeg.get(id) ?? 0) === 0) {
-        const node = byId.get(id);
-        if (node) currentLevel.push(node);
-      }
-    }
-
-    if (currentLevel.length === 0) {
-      // Cycle detected or error - just add remaining
-      for (const id of remaining) {
-        const node = byId.get(id);
-        if (node) currentLevel.push(node);
-      }
-      remaining.clear();
-    } else {
-      // Remove current level nodes and update in-degrees
-      for (const node of currentLevel) {
-        remaining.delete(node.id);
-        for (const nextId of adj.get(node.id) ?? []) {
-          inDeg.set(nextId, (inDeg.get(nextId) ?? 0) - 1);
-        }
-      }
-    }
-
-    if (currentLevel.length > 0) {
-      levels.push(currentLevel);
-    }
-  }
-
-  return levels;
+interface RunningNodeInfo {
+  nodeId: string;
+  runId: string;
+  nodeType: AINodeType;
+  nodeExecutionId: string;
 }
 
-// Build input for a node by collecting outputs from upstream nodes
+// Build dependency graph
+function buildDependencyGraph(nodes: Node[], edges: Edge[]) {
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+  const dependencies = new Map<string, Set<string>>();
+  const dependents = new Map<string, Set<string>>();
+
+  for (const node of nodes) {
+    dependencies.set(node.id, new Set());
+    dependents.set(node.id, new Set());
+  }
+
+  for (const edge of edges) {
+    dependencies.get(edge.target)?.add(edge.source);
+    dependents.get(edge.source)?.add(edge.target);
+  }
+
+  return { nodeById, dependencies, dependents };
+}
+
+// Check if a node is ready to run
+function isNodeReady(
+  nodeId: string,
+  dependencies: Map<string, Set<string>>,
+  completedNodes: Set<string>
+): boolean {
+  const deps = dependencies.get(nodeId);
+  if (!deps || deps.size === 0) return true;
+  for (const depId of deps) {
+    if (!completedNodes.has(depId)) return false;
+  }
+  return true;
+}
+
+// Build input for a node
 function buildNodeInput(
   node: Node,
   edges: Edge[],
   outputs: Map<string, Record<string, unknown>>
 ): Record<string, unknown> {
   const nodeData = (node.data ?? {}) as Record<string, unknown>;
-
-  // Get incoming edges
   const incomingEdges = edges.filter((e) => e.target === node.id);
-
-  // Start with node's own configuration
   const input: Record<string, unknown> = { ...nodeData };
 
-  // Collect outputs from upstream nodes
   for (const edge of incomingEdges) {
     const upstreamOutput = outputs.get(edge.source);
     if (upstreamOutput) {
-      // Map upstream output to input based on edge handles
-      // For text outputs, set as context
       if (upstreamOutput.type === "text" && "text" in upstreamOutput) {
         input.context = upstreamOutput.text;
       }
-      // For image outputs, set as image input
       if (upstreamOutput.type === "image" && "image" in upstreamOutput) {
         const handle = edge.targetHandle;
         const imageAsset = upstreamOutput.image as { url?: string };
@@ -103,23 +91,18 @@ function buildNodeInput(
         if (handle === "image" || handle === "frame") {
           input[handle] = upstreamOutput.image;
         } else if (handle === "inputImage") {
-          // For crop-image and similar nodes that expect inputImage
           input.inputImage = imageAsset?.url;
-          input.image = upstreamOutput.image; // Also set as object for compatibility
-          // For OpenRouter vision - set imageUrl as string
+          input.image = upstreamOutput.image;
           input.imageUrl = imageAsset?.url;
         } else {
           input.image = upstreamOutput.image;
-          // Also set imageUrl for OpenRouter vision
           input.imageUrl = imageAsset?.url;
         }
       }
-      // For video outputs, set as video input
       if (upstreamOutput.type === "video" && "video" in upstreamOutput) {
         const handle = edge.targetHandle ?? "video";
         input[handle] = upstreamOutput.video;
       }
-      // For audio outputs, set as audio input
       if (upstreamOutput.type === "audio" && "audio" in upstreamOutput) {
         input.audio = upstreamOutput.audio;
       }
@@ -132,135 +115,201 @@ function buildNodeInput(
 export const executeWorkflow = task({
   id: "execute-workflow",
   retry: {
-    maxAttempts: 1, // Workflow-level retries are handled by node-level retries
+    maxAttempts: 1,
   },
 
   run: async (payload: WorkflowExecutorPayload) => {
     const { workflowExecutionId, nodes, edges } = payload;
 
-    // Update workflow execution status to RUNNING
+    // Update workflow status
     await db.workflowExecution.update({
       where: { id: workflowExecutionId },
-      data: {
-        status: "RUNNING",
-        startedAt: new Date(),
-      },
+      data: { status: "RUNNING", startedAt: new Date() },
     });
 
-    // Get execution levels for parallel processing
-    const levels = getExecutionLevels(nodes, edges);
+    // Build dependency graph
+    const { nodeById, dependencies, dependents } = buildDependencyGraph(nodes, edges);
 
-    // Track outputs by node ID
+    // Track state
     const outputs = new Map<string, Record<string, unknown>>();
+    const completedNodes = new Set<string>();
+    const failedNodes = new Set<string>();
+    const triggeredNodes = new Set<string>();
+    const runningRuns = new Map<string, RunningNodeInfo>();
+    const nodeExecutionIds = new Map<string, string>();
 
-    // Execute nodes level by level (parallel within each level)
-    for (const level of levels) {
-      // Create node execution records for all nodes in this level
-      const nodeExecutions = await Promise.all(
-        level.map(async (node) => {
-          const nodeType = node.type as AINodeType;
-          const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
+    // Create all node execution records upfront
+    for (const node of nodes) {
+      const nodeType = node.type as AINodeType;
+      const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
 
-          const nodeExecution = await db.nodeExecution.create({
-            data: {
-              workflowExecutionId,
-              nodeId: node.id,
-              nodeType,
-              nodeLabel: nodeLabel ?? node.type,
-              status: "QUEUED",
-            },
-          });
+      const nodeExecution = await db.nodeExecution.create({
+        data: {
+          workflowExecutionId,
+          nodeId: node.id,
+          nodeType,
+          nodeLabel: nodeLabel ?? node.type,
+          status: "QUEUED",
+        },
+      });
+      nodeExecutionIds.set(node.id, nodeExecution.id);
+    }
 
-          // Build input from node data and upstream outputs
-          const input = buildNodeInput(node, edges, outputs);
+    // Function to trigger a node (non-blocking)
+    async function triggerNode(nodeId: string): Promise<void> {
+      if (triggeredNodes.has(nodeId) || failedNodes.size > 0) return;
 
-          // Store input
-          await db.nodeExecution.update({
-            where: { id: nodeExecution.id },
-            data: { inputJson: input as object },
-          });
+      const node = nodeById.get(nodeId);
+      if (!node) return;
 
-          return { node, nodeExecution, input };
-        })
-      );
+      const nodeType = node.type as AINodeType;
+      const nodeExecutionId = nodeExecutionIds.get(nodeId)!;
+      const input = buildNodeInput(node, edges, outputs);
 
-      // Execute all nodes in this level in parallel
-      const results = await Promise.allSettled(
-        nodeExecutions.map(async ({ node, nodeExecution, input }) => {
-          const nodeType = node.type as AINodeType;
+      // Store input in DB
+      await db.nodeExecution.update({
+        where: { id: nodeExecutionId },
+        data: { inputJson: input as object },
+      });
 
-          // Get node config for timeout
-          const executor = getNodeExecutor(nodeType);
-          const nodeConfig = executor?.config ?? DEFAULT_NODE_CONFIG;
+      const nodePayload: NodeExecutorPayload = {
+        nodeExecutionId,
+        workflowExecutionId,
+        nodeId,
+        nodeType,
+        input,
+      };
 
-          const nodePayload: NodeExecutorPayload = {
-            nodeExecutionId: nodeExecution.id,
-            workflowExecutionId,
-            nodeId: node.id,
-            nodeType,
-            input,
-          };
+      // Trigger (non-blocking) - allows true parallelism across chains
+      const handle = await executeNode.trigger(nodePayload);
+      
+      triggeredNodes.add(nodeId);
+      runningRuns.set(handle.id, {
+        nodeId,
+        runId: handle.id,
+        nodeType,
+        nodeExecutionId,
+      });
 
-          // triggerAndWait: Parent task PAUSES (no billing) while waiting
-          const result = await executeNode.triggerAndWait(nodePayload, {
-            timeout: nodeConfig.timeout,
-          });
+      console.log(`[Workflow] Triggered node ${nodeId} (${nodeType}), runId: ${handle.id}`);
+    }
 
-          return { node, result };
-        })
-      );
+    // Function to trigger ALL ready nodes (supports multiple parallel chains)
+    async function triggerAllReadyNodes(): Promise<number> {
+      let count = 0;
+      for (const node of nodes) {
+        if (
+          !triggeredNodes.has(node.id) &&
+          !completedNodes.has(node.id) &&
+          !failedNodes.has(node.id) &&
+          isNodeReady(node.id, dependencies, completedNodes)
+        ) {
+          await triggerNode(node.id);
+          count++;
+        }
+      }
+      return count;
+    }
 
-      // Process results
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          const { node, result: execResult } = result.value;
+    // Trigger all initially ready nodes (multiple chains can start in parallel!)
+    await triggerAllReadyNodes();
+    console.log(`[Workflow] Initial trigger: ${runningRuns.size} nodes started`);
 
-          if (execResult.ok && execResult.output) {
-            const output = execResult.output as { output?: Record<string, unknown> };
-            if (output.output) {
-              outputs.set(node.id, output.output);
+    // Polling loop - checks ALL running nodes each iteration
+    // This ensures any chain that completes first gets its dependents triggered
+    const maxPollIterations = 1800; // 30 minutes max (1800 * 1s)
+    let pollIteration = 0;
+
+    while (runningRuns.size > 0 && pollIteration < maxPollIterations) {
+      // Check ALL running nodes (not just one!)
+      const completedThisRound: string[] = [];
+
+      for (const [runId, info] of runningRuns) {
+        try {
+          const run = await runs.retrieve(runId);
+
+          if (run.status === "COMPLETED") {
+            console.log(`[Workflow] Node ${info.nodeId} (${info.nodeType}) completed`);
+
+            // Get output from the run
+            const output = run.output as { output?: Record<string, unknown> } | undefined;
+            if (output?.output) {
+              outputs.set(info.nodeId, output.output);
             }
-          } else {
-            // Node failed - mark workflow as failed but continue to collect partial results
-            const errorMsg = !execResult.ok
-              ? `Node ${node.id} timeout or error`
-              : `Node ${node.id} failed`;
 
+            completedNodes.add(info.nodeId);
+            completedThisRound.push(runId);
+
+          } else if (run.status === "FAILED" || run.status === "CANCELED" || run.status === "CRASHED") {
+            console.error(`[Workflow] Node ${info.nodeId} failed with status: ${run.status}`);
+
+            failedNodes.add(info.nodeId);
+            runningRuns.delete(runId);
+
+            // Mark workflow as failed
             await db.workflowExecution.update({
               where: { id: workflowExecutionId },
               data: {
                 status: "FAILED",
                 completedAt: new Date(),
-                error: errorMsg,
+                error: `Node ${info.nodeId} (${info.nodeType}) failed`,
               },
             });
 
             return {
               success: false,
               workflowExecutionId,
-              failedNodeId: node.id,
+              failedNodeId: info.nodeId,
               partialOutputs: Object.fromEntries(outputs),
             };
           }
-        } else {
-          // Promise rejected - execution error
-          await db.workflowExecution.update({
-            where: { id: workflowExecutionId },
-            data: {
-              status: "FAILED",
-              completedAt: new Date(),
-              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-            },
-          });
-
-          return {
-            success: false,
-            workflowExecutionId,
-            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-            partialOutputs: Object.fromEntries(outputs),
-          };
+          // If still running, continue to next node
+        } catch (error) {
+          console.error(`[Workflow] Error checking run ${runId}:`, error);
         }
       }
+
+      // Remove completed runs and trigger their dependents
+      for (const runId of completedThisRound) {
+        const info = runningRuns.get(runId);
+        runningRuns.delete(runId);
+
+        if (info) {
+          // Trigger any nodes that are now ready (from ANY chain!)
+          const deps = dependents.get(info.nodeId) ?? new Set();
+          for (const depNodeId of deps) {
+            if (isNodeReady(depNodeId, dependencies, completedNodes)) {
+              await triggerNode(depNodeId);
+            }
+          }
+        }
+      }
+
+      // If there are still running nodes, wait before next poll
+      // wait.for() is checkpointed - NO BILLING during this time!
+      if (runningRuns.size > 0) {
+        await wait.for({ seconds: 1 });
+        pollIteration++;
+      }
+    }
+
+    // Check if we timed out
+    if (runningRuns.size > 0) {
+      await db.workflowExecution.update({
+        where: { id: workflowExecutionId },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          error: "Workflow timed out waiting for nodes to complete",
+        },
+      });
+
+      return {
+        success: false,
+        workflowExecutionId,
+        error: "Timeout",
+        partialOutputs: Object.fromEntries(outputs),
+      };
     }
 
     // All nodes completed successfully
@@ -271,6 +320,8 @@ export const executeWorkflow = task({
         completedAt: new Date(),
       },
     });
+
+    console.log(`[Workflow] Completed successfully with ${completedNodes.size} nodes`);
 
     return {
       success: true,

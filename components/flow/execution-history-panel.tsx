@@ -154,17 +154,17 @@ function getNodeIcon(nodeType: string): React.ReactNode {
   
   switch (category) {
     case "image":
-      return <Image className="w-3 h-3" />;
+      return <Image className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />;
     case "video":
-      return <Film className="w-3 h-3" />;
+      return <Film className="w-3 h-3 text-violet-600 dark:text-violet-400" />;
     case "audio":
-      return <Volume2 className="w-3 h-3" />;
+      return <Volume2 className="w-3 h-3 text-amber-600 dark:text-amber-400" />;
     case "llm":
-      return <Brain className="w-3 h-3" />;
+      return <Brain className="w-3 h-3 text-blue-600 dark:text-blue-400" />;
     case "utility":
-      return <Wrench className="w-3 h-3" />;
+      return <Wrench className="w-3 h-3 text-slate-600 dark:text-zinc-400" />;
     default:
-      return <Zap className="w-3 h-3" />;
+      return <Zap className="w-3 h-3 text-slate-600 dark:text-zinc-400" />;
   }
 }
 
@@ -175,15 +175,15 @@ function getNodeColor(nodeType: string): string {
   
   switch (color) {
     case "emerald":
-      return "text-emerald-400 bg-emerald-500/15";
+      return "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-transparent";
     case "violet":
-      return "text-violet-400 bg-violet-500/15";
+      return "text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/15 border border-violet-200 dark:border-transparent";
     case "amber":
-      return "text-amber-400 bg-amber-500/15";
+      return "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-transparent";
     case "blue":
-      return "text-blue-400 bg-blue-500/15";
+      return "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-transparent";
     default:
-      return "text-zinc-400 bg-zinc-500/15";
+      return "text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-500/15 border border-gray-200 dark:border-transparent";
   }
 }
 
@@ -191,91 +191,91 @@ function getNodeColor(nodeType: string): string {
 const statusStyles = {
   PENDING: { 
     icon: <Clock className="w-3.5 h-3.5" />, 
-    color: "text-zinc-400", 
-    bg: "bg-zinc-500/20",
-    border: "border-zinc-500/40",
+    color: "text-gray-600 dark:text-zinc-400", 
+    bg: "bg-gray-100 dark:bg-zinc-500/20",
+    border: "border-gray-200 dark:border-zinc-500/40",
     label: "Pending",
     glow: "",
-    dotColor: "bg-zinc-400",
-    cardBg: "bg-zinc-900/60",
-    accentBar: "bg-zinc-500",
+    dotColor: "bg-gray-400 dark:bg-zinc-400",
+    cardBg: "bg-white dark:bg-zinc-900/60",
+    accentBar: "bg-gray-400 dark:bg-zinc-500",
   },
   QUEUED: { 
     icon: <Clock className="w-3.5 h-3.5" />, 
-    color: "text-zinc-400", 
-    bg: "bg-zinc-500/20",
-    border: "border-zinc-500/40",
+    color: "text-gray-600 dark:text-zinc-400", 
+    bg: "bg-gray-100 dark:bg-zinc-500/20",
+    border: "border-gray-200 dark:border-zinc-500/40",
     label: "Queued",
     glow: "",
-    dotColor: "bg-zinc-400",
-    cardBg: "bg-zinc-900/60",
-    accentBar: "bg-zinc-500",
+    dotColor: "bg-gray-400 dark:bg-zinc-400",
+    cardBg: "bg-white dark:bg-zinc-900/60",
+    accentBar: "bg-gray-400 dark:bg-zinc-500",
   },
   RUNNING: { 
     icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, 
-    color: "text-cyan-400", 
-    bg: "bg-cyan-500/25",
-    border: "border-cyan-500/50",
+    color: "text-cyan-700 dark:text-cyan-400", 
+    bg: "bg-cyan-100 dark:bg-cyan-500/25",
+    border: "border-cyan-200 dark:border-cyan-500/50",
     label: "Running",
-    glow: "shadow-[0_0_15px_rgba(34,211,238,0.4)]",
-    dotColor: "bg-cyan-400 animate-pulse",
-    cardBg: "bg-cyan-950/30",
-    accentBar: "bg-gradient-to-b from-cyan-400 to-cyan-600",
+    glow: "dark:shadow-[0_0_15px_rgba(34,211,238,0.4)]",
+    dotColor: "bg-cyan-500 dark:bg-cyan-400 animate-pulse",
+    cardBg: "bg-gradient-to-r from-cyan-50 to-sky-50 dark:bg-cyan-950/30",
+    accentBar: "bg-cyan-500 dark:bg-gradient-to-b dark:from-cyan-400 dark:to-cyan-600",
   },
   WAITING: { 
     icon: <Pause className="w-3.5 h-3.5" />, 
-    color: "text-amber-400", 
-    bg: "bg-amber-500/25",
-    border: "border-amber-500/50",
+    color: "text-amber-700 dark:text-amber-400", 
+    bg: "bg-amber-100 dark:bg-amber-500/25",
+    border: "border-amber-200 dark:border-amber-500/50",
     label: "Waiting",
-    glow: "shadow-[0_0_15px_rgba(251,191,36,0.3)]",
-    dotColor: "bg-amber-400 animate-pulse",
-    cardBg: "bg-amber-950/20",
-    accentBar: "bg-gradient-to-b from-amber-400 to-amber-600",
+    glow: "dark:shadow-[0_0_15px_rgba(251,191,36,0.3)]",
+    dotColor: "bg-amber-500 dark:bg-amber-400 animate-pulse",
+    cardBg: "bg-gradient-to-r from-amber-50 to-yellow-50 dark:bg-amber-950/20",
+    accentBar: "bg-amber-500 dark:bg-gradient-to-b dark:from-amber-400 dark:to-amber-600",
   },
   COMPLETED: { 
     icon: <CheckCircle2 className="w-3.5 h-3.5" />, 
-    color: "text-emerald-400", 
-    bg: "bg-emerald-500/25",
-    border: "border-emerald-500/50",
+    color: "text-emerald-700 dark:text-emerald-400", 
+    bg: "bg-emerald-100 dark:bg-emerald-500/25",
+    border: "border-emerald-200 dark:border-emerald-500/50",
     label: "Success",
-    glow: "shadow-[0_0_12px_rgba(52,211,153,0.3)]",
-    dotColor: "bg-emerald-400",
-    cardBg: "bg-emerald-950/20",
-    accentBar: "bg-gradient-to-b from-emerald-400 to-emerald-600",
+    glow: "dark:shadow-[0_0_12px_rgba(52,211,153,0.3)]",
+    dotColor: "bg-emerald-500 dark:bg-emerald-400",
+    cardBg: "bg-gradient-to-r from-emerald-50 to-teal-50 dark:bg-emerald-950/20",
+    accentBar: "bg-emerald-500 dark:bg-gradient-to-b dark:from-emerald-400 dark:to-emerald-600",
   },
   FAILED: { 
     icon: <XCircle className="w-3.5 h-3.5" />, 
-    color: "text-red-400", 
-    bg: "bg-red-500/30",
-    border: "border-red-500/60",
+    color: "text-red-700 dark:text-red-400", 
+    bg: "bg-red-100 dark:bg-red-500/30",
+    border: "border-red-200 dark:border-red-500/60",
     label: "Failed",
-    glow: "shadow-[0_0_15px_rgba(248,113,113,0.4)]",
-    dotColor: "bg-red-400",
-    cardBg: "bg-red-950/25",
-    accentBar: "bg-gradient-to-b from-red-400 to-red-600",
+    glow: "dark:shadow-[0_0_15px_rgba(248,113,113,0.4)]",
+    dotColor: "bg-red-500 dark:bg-red-400",
+    cardBg: "bg-gradient-to-r from-red-50 to-rose-50 dark:bg-red-950/25",
+    accentBar: "bg-red-500 dark:bg-gradient-to-b dark:from-red-400 dark:to-red-600",
   },
   CANCELLED: { 
     icon: <XCircle className="w-3.5 h-3.5" />, 
-    color: "text-orange-400", 
-    bg: "bg-orange-500/20",
-    border: "border-orange-500/40",
+    color: "text-orange-700 dark:text-orange-400", 
+    bg: "bg-orange-100 dark:bg-orange-500/20",
+    border: "border-orange-200 dark:border-orange-500/40",
     label: "Cancelled",
     glow: "",
-    dotColor: "bg-orange-400",
-    cardBg: "bg-orange-950/15",
-    accentBar: "bg-gradient-to-b from-orange-400 to-orange-600",
+    dotColor: "bg-orange-500 dark:bg-orange-400",
+    cardBg: "bg-gradient-to-r from-orange-50 to-amber-50 dark:bg-orange-950/15",
+    accentBar: "bg-orange-500 dark:bg-gradient-to-b dark:from-orange-400 dark:to-orange-600",
   },
   TERMINATED: { 
     icon: <AlertCircle className="w-3.5 h-3.5" />, 
-    color: "text-zinc-500", 
-    bg: "bg-zinc-500/20",
-    border: "border-zinc-500/40",
+    color: "text-gray-600 dark:text-zinc-500", 
+    bg: "bg-gray-100 dark:bg-zinc-500/20",
+    border: "border-gray-200 dark:border-zinc-500/40",
     label: "Terminated",
     glow: "",
-    dotColor: "bg-zinc-500",
-    cardBg: "bg-zinc-900/60",
-    accentBar: "bg-zinc-500",
+    dotColor: "bg-gray-500 dark:bg-zinc-500",
+    cardBg: "bg-white dark:bg-zinc-900/60",
+    accentBar: "bg-gray-500 dark:bg-zinc-500",
   },
 };
 
@@ -514,18 +514,18 @@ export function ExecutionHistoryPanel({
           exit={{ opacity: 0, x: 16, scale: 0.95 }}
           transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
           style={{ right: `${16 + offsetRight}px` }}
-          className="fixed top-16 z-50 w-[340px] bg-zinc-950 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50"
+          className="fixed top-16 z-50 w-[340px] bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800/80 rounded-2xl overflow-hidden shadow-xl shadow-gray-200/80 dark:shadow-black/50"
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-zinc-800/80 bg-gradient-to-r from-zinc-900 to-zinc-950">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-zinc-800/80 bg-gray-50 dark:bg-gradient-to-r dark:from-zinc-900 dark:to-zinc-950">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500/20 via-violet-500/15 to-emerald-500/20 flex items-center justify-center ring-1 ring-white/5">
-                  <Activity className="w-4 h-4 text-cyan-400" />
+                <div className="w-8 h-8 rounded-xl bg-cyan-500 dark:bg-gradient-to-br dark:from-cyan-500/20 dark:via-violet-500/15 dark:to-emerald-500/20 flex items-center justify-center ring-1 ring-cyan-600 dark:ring-white/5">
+                  <Activity className="w-4 h-4 text-white dark:text-cyan-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-zinc-100">Activity</h3>
-                  <p className="text-[10px] text-zinc-500">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-100">Activity</h3>
+                  <p className="text-[10px] text-gray-500 dark:text-zinc-500">
                     {executions.length > 0 ? `${executions.length} recent runs` : "No runs yet"}
                   </p>
                 </div>
@@ -534,14 +534,14 @@ export function ExecutionHistoryPanel({
                 <button
                   onClick={fetchExecutions}
                   disabled={isLoading}
-                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all"
+                  className="p-1.5 rounded-lg text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800/50 transition-all"
                   title="Refresh"
                 >
                   <RotateCcw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
                 </button>
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all"
+                  className="p-1.5 rounded-lg text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800/50 transition-all"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -552,45 +552,45 @@ export function ExecutionHistoryPanel({
             {executions.length > 0 && (
               <div className="mt-3 grid grid-cols-4 gap-1.5">
                 {/* Success */}
-                <div className="bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-500/20">
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-200 dark:border-emerald-500/20">
                   <div className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    <span className="text-[9px] text-emerald-400/70">Success</span>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-[9px] text-emerald-700 dark:text-emerald-400/70 font-semibold">Success</span>
                   </div>
-                  <p className="text-sm font-bold text-emerald-400 mt-0.5">
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
                     {executions.filter(e => e.status === "COMPLETED").length}
                   </p>
                 </div>
                 
                 {/* Failed */}
-                <div className="bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-500/20">
+                <div className="bg-red-50 dark:bg-red-500/10 rounded-lg px-2 py-1.5 border border-red-200 dark:border-red-500/20">
                   <div className="flex items-center gap-1">
-                    <XCircle className="w-3 h-3 text-red-400" />
-                    <span className="text-[9px] text-red-400/70">Failed</span>
+                    <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
+                    <span className="text-[9px] text-red-700 dark:text-red-400/70 font-semibold">Failed</span>
                   </div>
-                  <p className="text-sm font-bold text-red-400 mt-0.5">
+                  <p className="text-sm font-bold text-red-700 dark:text-red-400 mt-0.5">
                     {executions.filter(e => e.status === "FAILED").length}
                   </p>
                 </div>
                 
                 {/* Running */}
-                <div className="bg-cyan-500/10 rounded-lg px-2 py-1.5 border border-cyan-500/20">
+                <div className="bg-cyan-50 dark:bg-cyan-500/10 rounded-lg px-2 py-1.5 border border-cyan-200 dark:border-cyan-500/20">
                   <div className="flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 text-cyan-400" />
-                    <span className="text-[9px] text-cyan-400/70">Running</span>
+                    <Loader2 className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                    <span className="text-[9px] text-cyan-700 dark:text-cyan-400/70 font-semibold">Running</span>
                   </div>
-                  <p className="text-sm font-bold text-cyan-400 mt-0.5">
+                  <p className="text-sm font-bold text-cyan-700 dark:text-cyan-400 mt-0.5">
                     {executions.filter(e => e.status === "RUNNING").length}
                   </p>
                 </div>
                 
                 {/* Total Cost */}
-                <div className="bg-amber-500/10 rounded-lg px-2 py-1.5 border border-amber-500/20">
+                <div className="bg-amber-50 dark:bg-amber-500/10 rounded-lg px-2 py-1.5 border border-amber-200 dark:border-amber-500/20">
                   <div className="flex items-center gap-1">
-                    <Coins className="w-3 h-3 text-amber-400" />
-                    <span className="text-[9px] text-amber-400/70">Cost</span>
+                    <Coins className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    <span className="text-[9px] text-amber-700 dark:text-amber-400/70 font-semibold">Cost</span>
                   </div>
-                  <p className="text-sm font-bold text-amber-400 mt-0.5">
+                  <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                     {formatCost(executions.reduce((sum, e) => sum + (e.totalCost || 0), 0))}
                   </p>
                 </div>
@@ -602,16 +602,16 @@ export function ExecutionHistoryPanel({
           <div className="max-h-[55vh] overflow-y-auto p-2">
             {isLoading && executions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
-                <p className="text-xs text-zinc-500 mt-2">Loading...</p>
+                <Loader2 className="w-5 h-5 text-gray-400 dark:text-zinc-600 animate-spin" />
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mt-2">Loading...</p>
               </div>
             ) : executions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <div className="w-10 h-10 rounded-xl bg-zinc-800/50 flex items-center justify-center mb-3">
-                  <Inbox className="w-5 h-5 text-zinc-600" />
+                <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center mb-3">
+                  <Inbox className="w-5 h-5 text-gray-400 dark:text-zinc-600" />
                 </div>
-                <p className="text-sm text-zinc-400">No runs yet</p>
-                <p className="text-xs text-zinc-600 mt-1">Run a workflow to see history</p>
+                <p className="text-sm text-gray-600 dark:text-zinc-400">No runs yet</p>
+                <p className="text-xs text-gray-400 dark:text-zinc-600 mt-1">Run a workflow to see history</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -652,7 +652,7 @@ export function ExecutionHistoryPanel({
                         <>
                           <button
                             onClick={() => toggleWorkflow(exec.id)}
-                            className="w-full text-left p-3 pl-4 hover:bg-white/[0.02] transition-colors"
+                            className="w-full text-left p-3 pl-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors"
                           >
                             <div className="flex items-center gap-3">
                               {/* Status Icon */}
@@ -667,10 +667,10 @@ export function ExecutionHistoryPanel({
                               {/* Workflow Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/15 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                  <span className="text-[9px] font-bold text-cyan-700 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                     Pipeline
                                   </span>
-                                  <span className="text-sm font-medium text-zinc-100 truncate">
+                                  <span className="text-sm font-semibold text-gray-800 dark:text-zinc-100 truncate">
                                     Workflow Run
                                   </span>
                                 </div>
@@ -678,16 +678,16 @@ export function ExecutionHistoryPanel({
                                 {/* Time and Stats Row */}
                                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                   {/* Exact Time */}
-                                  <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                  <div className="flex items-center gap-1 text-[10px] text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/60 px-1.5 py-0.5 rounded">
                                     <Calendar className="w-2.5 h-2.5" />
                                     <span>{formatExactDate(exec.createdAt)}</span>
-                                    <span className="text-zinc-600">•</span>
+                                    <span className="text-gray-400 dark:text-zinc-600">•</span>
                                     <span>{formatExactTime(exec.createdAt)}</span>
                                   </div>
                                   
                                   {/* Duration */}
                                   {exec.durationMs && (
-                                    <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                    <div className="flex items-center gap-1 text-[10px] text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/60 px-1.5 py-0.5 rounded">
                                       <Timer className="w-2.5 h-2.5" />
                                       <span>{formatDurationMs(exec.durationMs)}</span>
                                     </div>
@@ -695,7 +695,7 @@ export function ExecutionHistoryPanel({
                                   
                                   {/* Cost */}
                                   {(exec.totalCost ?? 0) > 0 && (
-                                    <div className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                    <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded font-medium">
                                       <Coins className="w-2.5 h-2.5" />
                                       <span>{formatCost(exec.totalCost)}</span>
                                     </div>
@@ -704,17 +704,17 @@ export function ExecutionHistoryPanel({
                                 
                                 {/* Node Stats */}
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[10px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                                  <span className="text-[10px] text-gray-600 dark:text-zinc-500 bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-semibold">
                                     {nodeCount} node{nodeCount !== 1 ? "s" : ""}
                                   </span>
                                   {completedNodes > 0 && (
-                                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 font-semibold">
                                       <CheckCircle2 className="w-2.5 h-2.5" />
                                       {completedNodes}
                                     </span>
                                   )}
                                   {failedNodes > 0 && (
-                                    <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                    <span className="text-[10px] text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 font-semibold">
                                       <XCircle className="w-2.5 h-2.5" />
                                       {failedNodes}
                                     </span>
@@ -725,7 +725,7 @@ export function ExecutionHistoryPanel({
                               {/* Expand/Collapse Icon */}
                               <motion.div
                                 animate={{ rotate: isExpanded ? 180 : 0 }}
-                                className="text-zinc-500"
+                                className="text-gray-400 dark:text-zinc-500"
                               >
                                 <ChevronDown className="w-4 h-4" />
                               </motion.div>
@@ -740,9 +740,9 @@ export function ExecutionHistoryPanel({
                                 animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className="border-t border-zinc-800/50"
+                                className="border-t border-gray-200 dark:border-zinc-800/50"
                               >
-                                <div className="p-2 space-y-1.5">
+                                <div className="p-2 space-y-1.5 bg-gray-50/50 dark:bg-transparent">
                                   {exec.nodeExecutions.map((node, nodeIndex) => {
                                     const nodeStatus = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
                                     const nodeColor = getNodeColor(node.nodeType);
@@ -755,8 +755,8 @@ export function ExecutionHistoryPanel({
                                         onClick={() => handleNodeClick(node.nodeType, node.nodeId)}
                                         className={cn(
                                           "w-full text-left p-2.5 rounded-lg transition-all group",
-                                          "bg-zinc-800/40 hover:bg-zinc-800/70",
-                                          "border border-zinc-700/30 hover:border-zinc-600/50"
+                                          "bg-white dark:bg-zinc-800/40 hover:bg-gray-50 dark:hover:bg-zinc-800/70",
+                                          "border border-gray-200 dark:border-zinc-700/30 hover:border-gray-300 dark:hover:border-zinc-600/50"
                                         )}
                                       >
                                         <div className="flex items-center gap-2.5">
@@ -768,11 +768,11 @@ export function ExecutionHistoryPanel({
                                           {/* Node Info */}
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1.5">
-                                              <span className="text-xs font-medium text-zinc-200 truncate">
+                                              <span className="text-xs font-semibold text-gray-800 dark:text-zinc-200 truncate">
                                                 {displayName}
                                               </span>
                                               {node.providerUsed && (
-                                                <span className="text-[8px] text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded">
+                                                <span className="text-[8px] text-violet-700 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/10 px-1 py-0.5 rounded font-semibold">
                                                   {node.providerUsed}
                                                 </span>
                                               )}
@@ -782,7 +782,7 @@ export function ExecutionHistoryPanel({
                                             <div className="flex items-center gap-1.5 mt-1">
                                               {/* Duration */}
                                               {(node.durationMs || node.startedAt) && (
-                                                <span className="text-[9px] text-zinc-500 flex items-center gap-0.5">
+                                                <span className="text-[9px] text-gray-500 dark:text-zinc-500 flex items-center gap-0.5">
                                                   <Timer className="w-2.5 h-2.5" />
                                                   {node.durationMs 
                                                     ? formatDurationMs(node.durationMs)
@@ -801,8 +801,8 @@ export function ExecutionHistoryPanel({
                                                 if (displayCost > 0) {
                                                   return (
                                                     <span className={cn(
-                                                      "text-[9px] flex items-center gap-0.5",
-                                                      isEstimate ? "text-zinc-500" : "text-amber-400"
+                                                      "text-[9px] flex items-center gap-0.5 font-medium",
+                                                      isEstimate ? "text-gray-500 dark:text-zinc-500" : "text-amber-700 dark:text-amber-400"
                                                     )}>
                                                       <Coins className="w-2.5 h-2.5" />
                                                       {isEstimate ? "~" : ""}{formatCredits(displayCost)}
@@ -814,7 +814,7 @@ export function ExecutionHistoryPanel({
                                               
                                               {/* Exact Time */}
                                               {node.startedAt && (
-                                                <span className="text-[9px] text-zinc-600">
+                                                <span className="text-[9px] text-gray-400 dark:text-zinc-600">
                                                   {formatExactTime(node.startedAt)}
                                                 </span>
                                               )}
@@ -827,7 +827,7 @@ export function ExecutionHistoryPanel({
                                             nodeStatus.bg
                                           )}>
                                             <div className={cn("scale-75", nodeStatus.color)}>{nodeStatus.icon}</div>
-                                            <span className={cn("text-[9px] font-medium", nodeStatus.color)}>
+                                            <span className={cn("text-[9px] font-semibold", nodeStatus.color)}>
                                               {nodeStatus.label}
                                             </span>
                                           </div>
@@ -835,8 +835,8 @@ export function ExecutionHistoryPanel({
                                         
                                         {/* Error */}
                                         {node.error && (
-                                          <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                                            <p className="text-[9px] text-red-400 line-clamp-2">{node.error}</p>
+                                          <div className="mt-2 p-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+                                            <p className="text-[9px] text-red-700 dark:text-red-400 line-clamp-2">{node.error}</p>
                                           </div>
                                         )}
                                       </button>
@@ -851,7 +851,7 @@ export function ExecutionHistoryPanel({
                         /* Individual Node Run - Single node (Play button) */
                         <button
                           onClick={() => singleNode && handleNodeClick(singleNode.nodeType, singleNode.nodeId)}
-                          className="w-full text-left p-3 pl-4 hover:bg-white/[0.02] transition-colors"
+                          className="w-full text-left p-3 pl-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             {/* Status Icon */}
@@ -866,13 +866,13 @@ export function ExecutionHistoryPanel({
                             {/* Node Info */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-bold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                <span className="text-[9px] font-bold text-gray-600 dark:text-zinc-500 bg-gray-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                   Single
                                 </span>
                                 <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center", singleNodeColor)}>
                                   {singleNode && getNodeIcon(singleNode.nodeType)}
                                 </div>
-                                <span className="text-sm font-medium text-zinc-100 truncate">
+                                <span className="text-sm font-semibold text-gray-800 dark:text-zinc-100 truncate">
                                   {singleNodeName}
                                 </span>
                               </div>
@@ -880,16 +880,16 @@ export function ExecutionHistoryPanel({
                               {/* Time and Stats Row */}
                               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                                 {/* Exact Time */}
-                                <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                <div className="flex items-center gap-1 text-[10px] text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/60 px-1.5 py-0.5 rounded">
                                   <Calendar className="w-2.5 h-2.5" />
                                   <span>{formatExactDate(exec.createdAt)}</span>
-                                  <span className="text-zinc-600">•</span>
+                                  <span className="text-gray-400 dark:text-zinc-600">•</span>
                                   <span>{formatExactTime(exec.createdAt)}</span>
                                 </div>
                                 
                                 {/* Duration */}
                                 {(singleNode?.durationMs || singleNode?.startedAt) && (
-                                  <div className="flex items-center gap-1 text-[10px] text-zinc-400 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                                  <div className="flex items-center gap-1 text-[10px] text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/60 px-1.5 py-0.5 rounded">
                                     <Timer className="w-2.5 h-2.5" />
                                     <span>
                                       {singleNode?.durationMs 
@@ -911,10 +911,10 @@ export function ExecutionHistoryPanel({
                                   if (displayCost > 0) {
                                     return (
                                       <div className={cn(
-                                        "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded",
+                                        "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
                                         isEstimate 
-                                          ? "text-zinc-400 bg-zinc-800/60" 
-                                          : "text-amber-400 bg-amber-500/10"
+                                          ? "text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-zinc-800/60" 
+                                          : "text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10"
                                       )}>
                                         <Coins className="w-2.5 h-2.5" />
                                         <span>{isEstimate ? "~" : ""}{formatCost(displayCost)}</span>
@@ -927,7 +927,7 @@ export function ExecutionHistoryPanel({
                               
                               {/* Provider */}
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] text-violet-400 font-medium bg-violet-500/10 px-1.5 py-0.5 rounded">
+                                <span className="text-[10px] text-violet-700 dark:text-violet-400 font-semibold bg-violet-100 dark:bg-violet-500/10 px-1.5 py-0.5 rounded">
                                   {singleNodeProvider}
                                 </span>
                               </div>
@@ -947,8 +947,8 @@ export function ExecutionHistoryPanel({
 
                           {/* Error */}
                           {singleNode?.error && (
-                            <div className="mt-2.5 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                              <p className="text-[10px] text-red-400 line-clamp-2">{singleNode.error}</p>
+                            <div className="mt-2.5 p-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+                              <p className="text-[10px] text-red-700 dark:text-red-400 line-clamp-2">{singleNode.error}</p>
                             </div>
                           )}
                         </button>
@@ -961,13 +961,13 @@ export function ExecutionHistoryPanel({
           </div>
 
           {/* Footer */}
-          <div className="px-3 py-2.5 border-t border-zinc-800/80 bg-gradient-to-r from-zinc-900/80 to-zinc-950/80">
+          <div className="px-3 py-2.5 border-t border-gray-100 dark:border-zinc-800/80 bg-gray-50 dark:bg-gradient-to-r dark:from-zinc-900/80 dark:to-zinc-950/80">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-zinc-500 flex items-center gap-1.5">
+              <p className="text-[10px] text-gray-500 dark:text-zinc-500 flex items-center gap-1.5 font-medium">
                 <Target className="w-3 h-3" />
                 Click to focus node
               </p>
-              <p className="text-[10px] text-zinc-600">
+              <p className="text-[10px] text-gray-400 dark:text-zinc-600">
                 Auto-refresh: 5s
               </p>
             </div>

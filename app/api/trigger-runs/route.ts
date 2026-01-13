@@ -38,7 +38,10 @@ export async function GET(request: NextRequest) {
         include: {
           workflow: { select: { name: true, id: true } },
           nodeExecutions: {
-            orderBy: { startedAt: "asc" },
+            orderBy: [
+              { completedAt: { sort: "asc", nulls: "last" } },
+              { startedAt: { sort: "asc", nulls: "last" } },
+            ],
             select: {
               id: true,
               nodeId: true,
@@ -66,33 +69,56 @@ export async function GET(request: NextRequest) {
       });
 
       // Transform workflow executions
-      const workflowExecs = dbExecutions.map((exec) => ({
-        id: exec.id,
-        triggerRunId: exec.triggerRunId,
-        status: exec.status,
-        createdAt: exec.createdAt.toISOString(),
-        startedAt: exec.startedAt?.toISOString(),
-        completedAt: exec.completedAt?.toISOString(),
-        taskIdentifier: "workflow-execution",
-        workflowName: exec.workflow?.name,
-        workflowId: exec.workflowId,
-        durationMs: exec.startedAt && exec.completedAt 
-          ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
-          : undefined,
-        nodeExecutions: exec.nodeExecutions.map((ne) => ({
-          id: ne.id,
-          nodeId: ne.nodeId,
-          nodeLabel: ne.nodeLabel || ne.nodeType,
-          nodeType: ne.nodeType,
-          status: ne.status,
-          providerUsed: ne.providerUsed,
-          error: ne.error,
-          startedAt: ne.startedAt?.toISOString(),
-          completedAt: ne.completedAt?.toISOString(),
-          actualCost: ne.actualCost || 0,
-        })),
-        error: exec.error,
-      }));
+      const workflowExecs = dbExecutions.map((exec) => {
+        // Calculate effective workflow status based on node statuses
+        const nodeStatuses = exec.nodeExecutions.map(ne => ne.status);
+        const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every(s => s === "COMPLETED");
+        const anyFailed = nodeStatuses.some(s => s === "FAILED");
+        const anyRunning = nodeStatuses.some(s => s === "RUNNING" || s === "WAITING");
+        const anyQueued = nodeStatuses.some(s => s === "QUEUED");
+        
+        // Derive workflow status from nodes if the stored status doesn't match reality
+        let effectiveStatus = exec.status;
+        if (anyFailed && effectiveStatus !== "FAILED") {
+          effectiveStatus = "FAILED";
+        } else if ((anyRunning || anyQueued) && effectiveStatus !== "RUNNING") {
+          effectiveStatus = "RUNNING";
+        } else if (allCompleted && (effectiveStatus === "RUNNING" || effectiveStatus === "PENDING")) {
+          effectiveStatus = "COMPLETED";
+        }
+        // Keep PENDING status if no nodes exist yet (execution just started)
+        else if (exec.status === "PENDING" && nodeStatuses.length === 0) {
+          effectiveStatus = "PENDING";
+        }
+
+        return {
+          id: exec.id,
+          triggerRunId: exec.triggerRunId,
+          status: effectiveStatus,
+          createdAt: exec.createdAt.toISOString(),
+          startedAt: exec.startedAt?.toISOString(),
+          completedAt: exec.completedAt?.toISOString(),
+          taskIdentifier: "workflow-execution",
+          workflowName: exec.workflow?.name,
+          workflowId: exec.workflowId,
+          durationMs: exec.startedAt && exec.completedAt 
+            ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
+            : undefined,
+          nodeExecutions: exec.nodeExecutions.map((ne) => ({
+            id: ne.id,
+            nodeId: ne.nodeId,
+            nodeLabel: ne.nodeLabel || ne.nodeType,
+            nodeType: ne.nodeType,
+            status: ne.status,
+            providerUsed: ne.providerUsed,
+            error: ne.error,
+            startedAt: ne.startedAt?.toISOString(),
+            completedAt: ne.completedAt?.toISOString(),
+            actualCost: ne.actualCost || 0,
+          })),
+          error: exec.error,
+        };
+      });
 
       // Transform quick executions (individual node runs via Play button)
       const quickExecs = quickExecutions.map((exec) => {
@@ -125,9 +151,16 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      // Merge and sort by start time
+      // Merge and sort: RUNNING/PENDING executions first, then by start time (newest first)
       const allExecutions = [...workflowExecs, ...quickExecs]
         .sort((a, b) => {
+          // Active executions (RUNNING or PENDING) always come first
+          const activeStatuses = ["RUNNING", "PENDING"];
+          const aActive = activeStatuses.includes(a.status) ? 1 : 0;
+          const bActive = activeStatuses.includes(b.status) ? 1 : 0;
+          if (aActive !== bActive) return bActive - aActive;
+          
+          // Then sort by start time (newest first)
           const aTime = new Date(a.startedAt || a.createdAt).getTime();
           const bTime = new Date(b.startedAt || b.createdAt).getTime();
           return bTime - aTime;
@@ -167,7 +200,10 @@ export async function GET(request: NextRequest) {
       include: {
         workflow: { select: { name: true, id: true } },
         nodeExecutions: {
-          orderBy: { startedAt: "asc" },
+          orderBy: [
+            { completedAt: { sort: "asc", nulls: "last" } },
+            { startedAt: { sort: "asc", nulls: "last" } },
+          ],
           select: {
             id: true,
             nodeId: true,
@@ -329,9 +365,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Merge trigger.dev executions with quick executions and sort by date
+    // Merge trigger.dev executions with quick executions
+    // Sort: RUNNING/PENDING executions first, then by start time (newest first)
     const allExecutions = [...executions, ...quickExecutionRecords]
       .sort((a, b) => {
+        // Active executions (RUNNING or PENDING) always come first
+        const activeStatuses = ["RUNNING", "PENDING"];
+        const aActive = activeStatuses.includes(a.status) ? 1 : 0;
+        const bActive = activeStatuses.includes(b.status) ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+        
+        // Then sort by start time (newest first)
         const aTime = new Date(a.startedAt || a.createdAt).getTime();
         const bTime = new Date(b.startedAt || b.createdAt).getTime();
         return bTime - aTime;

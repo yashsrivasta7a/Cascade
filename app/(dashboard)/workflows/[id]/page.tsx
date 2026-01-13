@@ -33,6 +33,7 @@ import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
 import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
+import { ThemeToggle } from "@/components/ui";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
@@ -1043,7 +1044,7 @@ export default function WorkflowEditorPage() {
   }[activeColor] ?? "from-blue-600 via-blue-500 to-blue-600";
 
   return (
-    <div className="h-full bg-[#101010]">
+    <div className="h-full bg-gray-100 dark:bg-[#101010]">
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
         <FlowCanvas className="h-full w-full" storageKey={`workflow:${workflowId}`} />
@@ -1102,8 +1103,11 @@ export default function WorkflowEditorPage() {
           </div>
         </div>
 
-        {/* Top Right: Credits + Versions */}
+        {/* Top Right: Credits + Versions + Theme */}
         <div className="fixed top-3 right-3 z-50 flex items-center gap-2">
+          {/* Theme Toggle */}
+          <ThemeToggle size="sm" />
+          
           {/* Credit Balance Display - Click to open Credits Panel */}
           <button
             onClick={() => setCreditsOpen((v) => !v)}

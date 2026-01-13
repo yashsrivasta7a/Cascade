@@ -5,5 +5,6 @@ export { Input } from "./input";
 export { Badge } from "./badge";
 export { MediaLoader, MediaSkeleton } from "./media-loader";
 export { DotPattern, GridPattern, PageBackground, StatCard } from "./patterns";
+export { ThemeToggle } from "./theme-toggle";
 
 

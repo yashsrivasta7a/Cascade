@@ -478,22 +478,22 @@ ${data.prompt}`;
               placeholder={isPromptConnected ? "Receiving from connected node..." : "Write your prompt... (Ctrl+Enter to run)"}
               rows={3}
               readOnly={isPromptConnected}
-              className={`nodrag nowheel w-full px-3 py-2 rounded-lg border text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none ${
+              className={`nodrag nowheel w-full px-3 py-2 rounded-lg border text-xs text-gray-800 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none resize-none ${
                 isPromptConnected 
-                  ? "bg-blue-500/5 border-blue-500/20 cursor-not-allowed" 
-                  : "bg-zinc-900/60 border-white/10 focus:border-white/20"
+                  ? "bg-blue-50 dark:bg-blue-500/5 border-blue-200 dark:border-blue-500/20 cursor-not-allowed" 
+                  : "bg-gray-50 dark:bg-zinc-900/60 border-gray-200 dark:border-white/10 focus:border-gray-300 dark:focus:border-white/20"
               }`}
             />
           </div>
 
           {/* Incoming Context Indicator - Only show when context handle is connected */}
           {isContextConnected && data.context && (
-            <div className="px-2 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+            <div className="px-2 py-1.5 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20">
               <div className="flex items-center gap-1.5 mb-1">
-                <Link2 className="w-3 h-3 text-cyan-400" />
-                <span className="text-[9px] text-cyan-400 font-medium uppercase tracking-wider">Context from connected node</span>
+                <Link2 className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-medium uppercase tracking-wider">Context from connected node</span>
               </div>
-              <p className="text-[10px] text-cyan-300/80 line-clamp-2 italic">
+              <p className="text-[10px] text-cyan-700 dark:text-cyan-300/80 line-clamp-2 italic">
                 {data.context.length > 150 ? data.context.slice(0, 150) + "..." : data.context}
               </p>
             </div>
@@ -507,12 +507,12 @@ ${data.prompt}`;
             onClick={() => !isImageConnected && !data.inputImage && fileInputRef.current?.click()}
             className={`nodrag nowheel relative rounded-lg border-2 border-dashed transition-all ${
               isImageConnected
-                ? "border-emerald-500/30 bg-emerald-500/5 cursor-default"
+                ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5 cursor-default"
                 : isDragOver
-                ? "border-blue-500 bg-blue-500/10 cursor-pointer"
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10 cursor-pointer"
                 : data.inputImage
-                ? "border-blue-500/30 bg-blue-500/5 cursor-pointer"
-                : "border-white/10 bg-white/[0.02] hover:border-white/20 cursor-pointer"
+                ? "border-blue-300 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/5 cursor-pointer"
+                : "border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] hover:border-gray-300 dark:hover:border-white/20 cursor-pointer"
             }`}
           >
             {isImageConnected && (
@@ -537,7 +537,7 @@ ${data.prompt}`;
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2 py-2 text-zinc-500">
+              <div className="flex items-center justify-center gap-2 py-2 text-gray-500 dark:text-zinc-500">
                 <ImageIcon className="w-3 h-3" />
                 <span className="text-[9px]">{isImageConnected ? "Waiting for image..." : "Add image for vision (optional)"}</span>
               </div>

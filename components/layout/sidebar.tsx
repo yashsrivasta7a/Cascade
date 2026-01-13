@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui";
+import { Button, ThemeToggle } from "@/components/ui";
 import {
   LayoutDashboard,
   Workflow,
@@ -135,6 +135,7 @@ export function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-zinc-400 truncate">Account</p>
           </div>
+          <ThemeToggle size="sm" />
         </div>
       </div>
     </aside>

@@ -17,7 +17,6 @@ import {
 import { trpc } from "@/lib/trpc/react";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { DotPattern } from "@/components/ui";
 
 interface VersionHistoryPanelProps {
   workflowId: string;
@@ -131,7 +130,7 @@ export function VersionHistoryPanel({
         >
           <div className="h-full bg-black/60 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] rounded-2xl overflow-hidden flex flex-col shadow-2xl shadow-black/40 relative">
             {/* Dot Pattern */}
-            <DotPattern className="text-white/[0.03] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_100%)]" />
+            {/* Dots removed - now only on ReactFlow background */}
 
             {/* Header */}
             <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02] relative z-10">

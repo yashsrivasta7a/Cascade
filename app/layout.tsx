@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+// Inter is very similar to Suisse Intl (which is paid)
+// Clean, modern sans-serif with excellent readability
+const inter = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
   display: "swap",
@@ -65,9 +67,27 @@ export default function RootLayout({
         },
       }}
     >
-      <html lang="en" className="dark">
+      <html lang="en" className="dark" suppressHydrationWarning>
+        <head>
+          {/* Theme initialization script - prevents flash of wrong theme */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                (function() {
+                  try {
+                    var theme = localStorage.getItem('theme');
+                    if (theme === 'light' || theme === 'dark') {
+                      document.documentElement.classList.remove('light', 'dark');
+                      document.documentElement.classList.add(theme);
+                    }
+                  } catch (e) {}
+                })();
+              `,
+            }}
+          />
+        </head>
         <body
-          className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} antialiased bg-zinc-950 text-zinc-100`}
+          className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
         >
           <Providers>{children}</Providers>
         </body>

@@ -1,4 +1,4 @@
-import { task, wait } from "@trigger.dev/sdk";
+import { task, wait, runs } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import {
   getNodeExecutor,
@@ -38,6 +38,8 @@ export interface NodeExecutorPayload {
   nodeId: string;
   nodeType: AINodeType;
   input: Record<string, unknown>;
+  /** Token to resume when node completes - signals back to workflow orchestrator */
+  completionToken?: string;
 }
 
 // Helper to safely update nodeExecution (may not exist for single node runs)
@@ -68,26 +70,46 @@ async function safeUpdateNodeExecution(
 export const executeNode = task({
   id: "execute-node",
   retry: {
-    maxAttempts: 3,
+    maxAttempts: 2,
     factor: 2,
     minTimeoutInMs: 1000,
     maxTimeoutInMs: 30000,
   },
 
   run: async (payload: NodeExecutorPayload) => {
-    const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input } = payload;
+    const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input, completionToken } = payload;
 
-    // Check current status - don't overwrite FAILED on retry
-    const currentExec = await db.nodeExecution.findUnique({
-      where: { id: nodeExecutionId },
-      select: { status: true },
-    });
-
-    // If already failed, don't retry (return early to avoid re-running)
-    if (currentExec?.status === "FAILED") {
-      console.log(`[NodeExecutor] ${nodeType} already FAILED, skipping retry`);
-      throw new Error("Node already failed - not retrying");
+    // Helper to signal completion back to workflow orchestrator
+    async function signalCompletion(success: boolean, output?: Record<string, unknown>, error?: string) {
+      if (completionToken) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (runs as any).resumeWithToken(completionToken, {
+            nodeId,
+            success,
+            output,
+            error,
+          });
+          console.log(`[NodeExecutor] Signaled completion for ${nodeId} (success: ${success})`);
+        } catch (err) {
+          console.error(`[NodeExecutor] Failed to signal completion:`, err);
+        }
+      }
     }
+
+    // Wrap entire execution in try/catch to always signal completion on failure
+    try {
+      // Check current status - don't overwrite FAILED on retry
+      const currentExec = await db.nodeExecution.findUnique({
+        where: { id: nodeExecutionId },
+        select: { status: true },
+      });
+
+      // If already failed, don't retry (return early to avoid re-running)
+      if (currentExec?.status === "FAILED") {
+        console.log(`[NodeExecutor] ${nodeType} already FAILED, skipping retry`);
+        throw new Error("Node already failed - not retrying");
+      }
 
     // =========================================================================
     // CHECK CACHE - Return cached result if identical inputs were run before
@@ -108,10 +130,13 @@ export const executeNode = task({
           await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
             status: "COMPLETED",
             completedAt: new Date(),
-            outputJson: cacheCheck.result,
+            outputJson: cacheCheck.result as object,
             providerUsed: "cache",
             actualCost: 0, // No cost for cached results!
           });
+
+          // Signal completion to workflow
+          await signalCompletion(true, cacheCheck.result as Record<string, unknown>);
 
           return {
             success: true,
@@ -216,10 +241,7 @@ export const executeNode = task({
         success: boolean;
         result?: unknown;
         error?: string;
-      }>({
-        id: waitToken,
-        timeout: "30m", // 30 minute timeout for long-running AI jobs
-      });
+      }>(waitToken);
 
       if (!webhookResult.ok) {
         await markNodeFailed(nodeExecutionId, workflowExecutionId, "Webhook timeout or cancellation");
@@ -247,7 +269,7 @@ export const executeNode = task({
       await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
         status: "COMPLETED",
         completedAt: new Date(),
-        outputJson: outputValidation.data as Record<string, unknown>,
+        outputJson: outputValidation.data as object,
       });
 
       // Deduct credits after successful execution
@@ -263,6 +285,9 @@ export const executeNode = task({
           console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
         }
       }
+
+      // Signal completion to workflow
+      await signalCompletion(true, outputValidation.data as Record<string, unknown>);
 
       return {
         success: true,
@@ -290,7 +315,7 @@ export const executeNode = task({
     await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
       status: "COMPLETED",
       completedAt: new Date(),
-      outputJson: outputValidation.data as Record<string, unknown>,
+      outputJson: outputValidation.data as object,
       providerUsed: result.providerUsed,
       actualCost: result.actualCost ?? 0,
     });
@@ -312,6 +337,9 @@ export const executeNode = task({
       }
     }
 
+    // Signal completion to workflow
+    await signalCompletion(true, outputValidation.data as Record<string, unknown>);
+
     return {
       success: true,
       nodeExecutionId,
@@ -319,6 +347,13 @@ export const executeNode = task({
       providerUsed: result.providerUsed,
       actualCost: syncCost,
     };
+
+    } catch (error) {
+      // Signal failure to workflow orchestrator
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await signalCompletion(false, undefined, errorMsg);
+      throw error; // Re-throw to let Trigger.dev handle retries
+    }
   },
 });
 

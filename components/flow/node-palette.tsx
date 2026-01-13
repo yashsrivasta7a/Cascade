@@ -22,7 +22,6 @@ import {
   Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DotPattern } from "@/components/ui";
 import {
   NODE_DEFINITIONS,
   CATEGORY_META,
@@ -244,7 +243,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
         className="w-72 h-full bg-black/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/40 relative"
       >
         {/* Dot Pattern */}
-        <DotPattern className="text-white/[0.03] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_100%)]" />
+        {/* Dots removed - now only on ReactFlow background */}
 
         {/* Header - Glass highlight */}
         <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
