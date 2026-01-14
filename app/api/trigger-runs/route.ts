@@ -26,11 +26,17 @@ export async function GET(request: NextRequest) {
 
     // If workflowId is specified, fetch directly from database instead of Trigger.dev
     // This is more efficient and accurate for per-workflow filtering
-    if (workflowId && workflowId !== "new") {
+    // Also handle "new" workflow by showing executions with null workflowId
+    const isNewWorkflow = workflowId === "new";
+    const shouldFilterByWorkflow = workflowId && !isNewWorkflow;
+    const shouldShowNullWorkflow = isNewWorkflow; // For unsaved workflows, show null workflowId executions
+    
+    if (shouldFilterByWorkflow || shouldShowNullWorkflow) {
       // Fetch workflow executions (full workflow runs)
       const dbExecutions = await db.workflowExecution.findMany({
         where: {
-          workflowId,
+          ...(shouldFilterByWorkflow ? { workflowId } : {}),
+          ...(shouldShowNullWorkflow ? { workflowId: null } : {}),
           ...(userId ? { userId } : {}),
         },
         orderBy: { startedAt: "desc" },
@@ -61,7 +67,8 @@ export async function GET(request: NextRequest) {
       // Also fetch QuickExecution records for this workflow (individual node runs)
       const quickExecutions = await db.quickExecution.findMany({
         where: {
-          workflowId,
+          ...(shouldFilterByWorkflow ? { workflowId } : {}),
+          ...(shouldShowNullWorkflow ? { workflowId: null } : {}),
           ...(userId ? { userId } : {}),
         },
         orderBy: { startedAt: "desc" },
