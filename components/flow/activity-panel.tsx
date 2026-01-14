@@ -97,6 +97,70 @@ export interface WorkflowError {
   suggestion?: string;
 }
 
+// -----------------------------------------------------------------------------
+// Error explanations (user-facing)
+// -----------------------------------------------------------------------------
+const errorSuggestions: Record<string, string> = {
+  "Not Found": "The endpoint/model may not exist. Verify the model name and that the provider is available.",
+  "Unauthorized": "Missing/invalid API key. Check your env vars (e.g. OPENROUTER_API_KEY, FAL_KEY).",
+  "Rate limit": "You hit a rate limit. Wait a bit and retry.",
+  "timeout": "The request took too long. Try smaller inputs or increase timeouts.",
+  "ECONNREFUSED": "Could not reach the server. Check provider status/network.",
+  "Invalid": "Your input is malformed. Ensure required fields exist and types match.",
+  "quota": "You ran out of quota/credits at the provider. Check billing/limits.",
+  "expected object, received undefined": "A required input is missing. Usually the parent node didn't run or produced no output.",
+  "received undefined": "A required input is missing. Run upstream nodes first or connect the correct handle.",
+  "Unexpected token": "The server returned non-JSON (often an HTML error page). This can happen on 413 Request Entity Too Large.",
+  "Request Entity Too Large": "Your input is too big for the API route. Upload media to CDN/Transloadit or use smaller files.",
+  "can't view images": "The selected LLM/model may not support vision, or the image URL isn't accessible.",
+};
+
+function getSuggestion(error: WorkflowError): string | undefined {
+  if (error.suggestion) return error.suggestion;
+  const msg = (error.message || "").toLowerCase();
+  for (const [pattern, suggestion] of Object.entries(errorSuggestions)) {
+    if (msg.includes(pattern.toLowerCase())) return suggestion;
+  }
+  return undefined;
+}
+
+function formatTimeAgo(d: Date): string {
+  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}
+
+function sanitizeForDisplay(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.startsWith("data:")) return "[base64 data url]";
+    if (value.startsWith("blob:")) return "[blob url]";
+    if (value.length > 2000) return `${value.slice(0, 2000)}…(truncated)`;
+    return value;
+  }
+  if (Array.isArray(value)) return value.slice(0, 50).map(sanitizeForDisplay);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    const entries = Object.entries(value as Record<string, unknown>).slice(0, 80);
+    for (const [k, v] of entries) out[k] = sanitizeForDisplay(v);
+    return out;
+  }
+  return value;
+}
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(sanitizeForDisplay(value), null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -829,6 +893,7 @@ export function ActivityPanel({
                     const severity = severityConfig[error.severity];
                     const SeverityIcon = severity.icon;
                     const isExpanded = expandedErrors.has(error.id);
+                    const suggestion = getSuggestion(error);
                     return (
                       <motion.div key={error.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className={cn("rounded-xl border overflow-hidden relative", severity.bg, severity.border)}>
                         <div className={cn("absolute left-0 top-0 bottom-0 w-1 rounded-l-xl", severity.accentBar)} />
@@ -838,7 +903,12 @@ export function ActivityPanel({
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2"><span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded uppercase", severity.badgeBg, severity.color)}>{severity.label}</span><span className="text-xs font-medium text-gray-800 dark:text-white truncate">{error.nodeName}</span></div>
                               <p className="text-[10px] text-gray-500 dark:text-zinc-400 mt-1 line-clamp-2">{error.message}</p>
-                              <div className="flex items-center gap-1.5 mt-1.5"><span className="text-[9px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded">{error.nodeType}</span>{error.provider && <span className="text-[9px] text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">{error.provider}</span>}</div>
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span className="text-[9px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded">{error.nodeType}</span>
+                                {error.provider && <span className="text-[9px] text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">{error.provider}</span>}
+                                {error.httpStatus && <span className="text-[9px] text-gray-600 dark:text-zinc-400 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded">HTTP {error.httpStatus}</span>}
+                                <span className="text-[9px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded">{formatTimeAgo(error.timestamp)}</span>
+                              </div>
                             </div>
                             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-400 dark:text-zinc-500 mt-1"><ChevronDown className="w-4 h-4" /></motion.div>
                           </div>
@@ -847,12 +917,121 @@ export function ActivityPanel({
                           {isExpanded && (
                             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-gray-200 dark:border-white/[0.04]">
                               <div className="p-3 space-y-2">
-                                {error.details && <div className="p-2 bg-gray-50 dark:bg-white/[0.02] rounded-lg text-[10px] text-gray-500 dark:text-zinc-400 font-mono break-words border border-gray-200 dark:border-white/[0.04]">{error.details}</div>}
-                                {error.suggestion && <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-lg"><Lightbulb className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" /><p className="text-[10px] text-blue-600 dark:text-blue-300">{error.suggestion}</p></div>}
+                                {/* What happened (user-facing) */}
+                                <div className="p-2 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
+                                  <div className="flex items-center gap-2">
+                                    <Bug className="w-3 h-3 text-gray-500 dark:text-zinc-400" />
+                                    <span className="text-[10px] font-semibold text-gray-700 dark:text-zinc-300">What happened</span>
+                                  </div>
+                                  <p className="mt-1 text-[10px] text-gray-600 dark:text-zinc-400">
+                                    {error.message}
+                                  </p>
+                                </div>
+
+                                {/* Suggested fix / next steps */}
+                                {suggestion && (
+                                  <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-lg">
+                                    <Lightbulb className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">How to fix</p>
+                                      <p className="text-[10px] text-blue-600 dark:text-blue-300 mt-0.5 break-words">{suggestion}</p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Technical details */}
+                                <div className="rounded-lg border border-gray-200 dark:border-white/[0.04] bg-gray-50 dark:bg-white/[0.02] overflow-hidden">
+                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-gray-700 dark:text-zinc-300 flex items-center gap-2">
+                                    <Info className="w-3 h-3 text-gray-500 dark:text-zinc-400" />
+                                    Technical details
+                                  </div>
+                                  <div className="px-2 pb-2 space-y-1.5">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="text-[9px] text-gray-500 dark:text-zinc-500">Node</div>
+                                      <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono break-all">{error.nodeId}</div>
+                                      {error.provider && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">Provider</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono break-all">{error.provider}</div>
+                                        </>
+                                      )}
+                                      {error.httpStatus && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">HTTP status</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono">{error.httpStatus}</div>
+                                        </>
+                                      )}
+                                      {error.errorCode && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">Code</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono break-all">{error.errorCode}</div>
+                                        </>
+                                      )}
+                                      {error.executionId && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">Execution ID</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono break-all">{error.executionId}</div>
+                                        </>
+                                      )}
+                                      {error.triggerRunId && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">Trigger run</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono break-all">{error.triggerRunId}</div>
+                                        </>
+                                      )}
+                                      {error.duration !== undefined && (
+                                        <>
+                                          <div className="text-[9px] text-gray-500 dark:text-zinc-500">Duration</div>
+                                          <div className="text-[9px] text-gray-700 dark:text-zinc-300 font-mono">{formatDurationMs(error.duration)}</div>
+                                        </>
+                                      )}
+                                    </div>
+                                    {error.details && (
+                                      <div className="mt-2">
+                                        <div className="text-[9px] text-gray-500 dark:text-zinc-500 mb-1">Details</div>
+                                        <pre className="p-2 rounded-lg bg-white dark:bg-black/30 border border-gray-200 dark:border-white/[0.06] text-[10px] text-gray-700 dark:text-zinc-300 font-mono whitespace-pre-wrap break-words max-h-40 overflow-auto">{error.details}</pre>
+                                      </div>
+                                    )}
+                                    {error.inputs && (
+                                      <div className="mt-2">
+                                        <div className="text-[9px] text-gray-500 dark:text-zinc-500 mb-1">Inputs (sanitized)</div>
+                                        <pre className="p-2 rounded-lg bg-white dark:bg-black/30 border border-gray-200 dark:border-white/[0.06] text-[10px] text-gray-700 dark:text-zinc-300 font-mono whitespace-pre-wrap break-words max-h-40 overflow-auto">{safeJson(error.inputs)}</pre>
+                                      </div>
+                                    )}
+                                    {error.rawResponse !== undefined && (
+                                      <div className="mt-2">
+                                        <div className="text-[9px] text-gray-500 dark:text-zinc-500 mb-1">Raw response (sanitized)</div>
+                                        <pre className="p-2 rounded-lg bg-white dark:bg-black/30 border border-gray-200 dark:border-white/[0.06] text-[10px] text-gray-700 dark:text-zinc-300 font-mono whitespace-pre-wrap break-words max-h-40 overflow-auto">{safeJson(error.rawResponse)}</pre>
+                                      </div>
+                                    )}
+                                    {error.stackTrace && (
+                                      <div className="mt-2">
+                                        <div className="text-[9px] text-gray-500 dark:text-zinc-500 mb-1">Stack trace</div>
+                                        <pre className="p-2 rounded-lg bg-white dark:bg-black/30 border border-gray-200 dark:border-white/[0.06] text-[10px] text-gray-700 dark:text-zinc-300 font-mono whitespace-pre-wrap break-words max-h-40 overflow-auto">{error.stackTrace}</pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
                                 <div className="flex items-center gap-1.5 pt-1">
                                   <button onClick={() => onNodeClick?.(error.nodeId)} className="h-6 px-2 text-[9px] font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-white/[0.03] hover:bg-gray-200 dark:hover:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] rounded flex items-center gap-1 transition-colors"><Target className="w-2.5 h-2.5" />Focus</button>
                                   {error.canRetry && onRetryNode && <button onClick={() => onRetryNode(error.nodeId)} className="h-6 px-2 text-[9px] font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-white/[0.03] hover:bg-gray-200 dark:hover:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] rounded flex items-center gap-1 transition-colors"><RefreshCw className="w-2.5 h-2.5" />Retry</button>}
                                   <button onClick={() => handleCopyId(error.id)} className="h-6 px-2 text-[9px] font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-white/[0.03] hover:bg-gray-200 dark:hover:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] rounded flex items-center gap-1 transition-colors">{copiedId === error.id ? <><Check className="w-2.5 h-2.5 text-emerald-500 dark:text-emerald-400" />Copied</> : <><Copy className="w-2.5 h-2.5" />ID</>}</button>
+                                  <button
+                                    onClick={async () => {
+                                      const payload = {
+                                        ...error,
+                                        timestamp: error.timestamp?.toISOString?.() ?? String(error.timestamp),
+                                      };
+                                      await navigator.clipboard.writeText(safeJson(payload));
+                                      setCopiedId(error.id);
+                                      setTimeout(() => setCopiedId(null), 2000);
+                                    }}
+                                    className="h-6 px-2 text-[9px] font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-white/[0.03] hover:bg-gray-200 dark:hover:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] rounded flex items-center gap-1 transition-colors"
+                                    title="Copy full error payload"
+                                  >
+                                    <Copy className="w-2.5 h-2.5" />Copy JSON
+                                  </button>
                                 </div>
                               </div>
                             </motion.div>
