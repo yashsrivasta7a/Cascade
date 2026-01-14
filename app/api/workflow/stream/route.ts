@@ -2,13 +2,11 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { executeWorkflow } from "@/app/trigger/workflow-executor";
-import { registerAllNodeExecutors } from "@/lib/engine";
 import type { Edge, Node } from "reactflow";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { estimateNodeCost } from "@/lib/credits";
 
-// Register executors
-registerAllNodeExecutors();
+// NOTE: Node executors run on Trigger.dev only - not imported here to avoid FFmpeg bundling
 
 // =============================================================================
 // SSE WORKFLOW STREAMING ENDPOINT

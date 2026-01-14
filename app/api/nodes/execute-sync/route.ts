@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateNodeInput, registerAllNodeExecutors } from "@/lib/engine";
 import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -9,8 +8,8 @@ import { checkCache, cacheResult } from "@/lib/cache";
 import { estimateNodeCost, formatCredits } from "@/lib/credits";
 import { Prisma } from "@prisma/client";
 
-// Register all node executors at module load (needed for validation)
-registerAllNodeExecutors();
+// NOTE: We do NOT register node executors here - they run on Trigger.dev only
+// This prevents FFmpeg and other heavy dependencies from being bundled for Vercel
 
 // Internal node types - these now run on Trigger.dev too
 const SYNC_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
@@ -79,13 +78,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate input using the node's schema
-    const inputValidation = validateNodeInput(nodeType as AINodeType, input);
-    if (!inputValidation.success) {
+    // Input validation happens on Trigger.dev side
+    // Basic check that input is an object
+    if (typeof input !== "object" || input === null) {
       return NextResponse.json(
         { 
           success: false,
-          error: inputValidation.error,
+          error: "Input must be an object",
         },
         { status: 400 }
       );
@@ -127,7 +126,7 @@ export async function POST(request: NextRequest) {
     // CHECK CACHE - Return cached result if identical inputs were run before
     // =========================================================================
     // Check if caching is enabled (default false)
-    const validatedInput = inputValidation.data as Record<string, unknown>;
+    const validatedInput = input as Record<string, unknown>;
     const useCache = validatedInput.useCache === true;
     console.log(`[Sync Execute] Node ${nodeType} - useCache flag:`, useCache, "raw value:", validatedInput.useCache);
     
@@ -194,7 +193,7 @@ export async function POST(request: NextRequest) {
       workflowExecutionId: `sync-workflow-${Date.now()}`,
       nodeId: nodeId || `sync-node-${Date.now()}`,
       nodeType: nodeType as AINodeType,
-      input: inputValidation.data as Record<string, unknown>,
+      input: input as Record<string, unknown>,
     };
 
     let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
