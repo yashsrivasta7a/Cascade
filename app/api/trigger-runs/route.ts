@@ -182,6 +182,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch runs from Trigger.dev API (for global view)
     let runsList: { data: any[] } = { data: [] };
+    let triggerFetchFailed = false;
     try {
       runsList = await runs.list({
         limit,
@@ -189,18 +190,27 @@ export async function GET(request: NextRequest) {
       });
     } catch (triggerError) {
       console.warn("[GET /api/trigger-runs] Trigger.dev fetch failed:", triggerError);
-      // Continue without trigger.dev data
+      triggerFetchFailed = true;
+      // Continue without trigger.dev data - will fallback to database only
     }
 
     // Get Trigger run IDs for database lookup
     const triggerRunIds = runsList.data.map(r => r.id);
     
     // Fetch corresponding workflow executions from our database
-    // These have the real node execution details with proper labels
+    // If Trigger.dev failed, fetch ALL recent executions from database instead
     const dbExecutions = await db.workflowExecution.findMany({
-      where: {
-        triggerRunId: { in: triggerRunIds },
-      },
+      where: triggerFetchFailed || triggerRunIds.length === 0
+        ? { 
+            // Fallback: get recent executions from database directly
+            ...(userId ? { userId } : {}),
+          }
+        : {
+            // Normal: match by Trigger.dev run IDs
+            triggerRunId: { in: triggerRunIds },
+          },
+      orderBy: { startedAt: "desc" },
+      take: limit,
       include: {
         workflow: { select: { name: true, id: true } },
         nodeExecutions: {
@@ -256,14 +266,62 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[trigger-runs] Trigger runs: ${runsList.data.length}, DB execs: ${dbExecutions.length}`);
+    console.log(`[trigger-runs] Trigger runs: ${runsList.data.length}, DB execs: ${dbExecutions.length}, fallback: ${triggerFetchFailed}`);
     if (dbExecutions.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       console.log(`[trigger-runs] DB exec triggerRunIds: ${dbExecutions.map((e: any) => e.triggerRunId).join(', ')}`);
     }
     
-    // Transform to match our history panel format
-    const executions = runsList.data.map((run) => {
+    // If Trigger.dev failed or returned no data, use database executions directly
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let executions: any[] = [];
+    
+    if (triggerFetchFailed || runsList.data.length === 0) {
+      // Build execution records from database
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      executions = dbExecutions.map((exec: any) => {
+        // Calculate effective workflow status based on node statuses
+        const nodeStatuses = exec.nodeExecutions.map((ne: any) => ne.status);
+        const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every((s: string) => s === "COMPLETED");
+        const anyFailed = nodeStatuses.some((s: string) => s === "FAILED");
+        const anyRunning = nodeStatuses.some((s: string) => s === "RUNNING" || s === "WAITING");
+        
+        let effectiveStatus = exec.status;
+        if (anyFailed) effectiveStatus = "FAILED";
+        else if (anyRunning) effectiveStatus = "RUNNING";
+        else if (allCompleted && effectiveStatus !== "COMPLETED") effectiveStatus = "COMPLETED";
+
+        return {
+          id: exec.id,
+          triggerRunId: exec.triggerRunId,
+          status: effectiveStatus,
+          createdAt: exec.createdAt.toISOString(),
+          startedAt: exec.startedAt?.toISOString(),
+          completedAt: exec.completedAt?.toISOString(),
+          taskIdentifier: "workflow-execution",
+          workflowName: exec.workflow?.name,
+          workflowId: exec.workflowId,
+          durationMs: exec.startedAt && exec.completedAt 
+            ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
+            : undefined,
+          nodeExecutions: exec.nodeExecutions.map((ne: any) => ({
+            id: ne.id,
+            nodeId: ne.nodeId,
+            nodeLabel: ne.nodeLabel || ne.nodeType,
+            nodeType: ne.nodeType,
+            status: ne.status,
+            providerUsed: ne.providerUsed,
+            error: ne.error,
+            startedAt: ne.startedAt?.toISOString(),
+            completedAt: ne.completedAt?.toISOString(),
+            actualCost: ne.actualCost || 0,
+          })),
+          error: exec.error,
+        };
+      });
+    } else {
+      // Transform Trigger.dev runs to match our history panel format
+      executions = runsList.data.map((run) => {
       // Map Trigger.dev status to our status
       let mappedStatus = "PENDING";
       if (run.status === "COMPLETED") mappedStatus = "COMPLETED";
@@ -332,6 +390,7 @@ export async function GET(request: NextRequest) {
         error: run.status === "FAILED" || run.status === "CRASHED" ? "Execution failed" : undefined,
       };
     });
+    } // End of else block for Trigger.dev data
 
     // Fetch QuickExecution records (utility nodes, OpenRouter, etc.)
     const quickExecutions = await db.quickExecution.findMany({
@@ -354,10 +413,11 @@ export async function GET(request: NextRequest) {
         completedAt: exec.completedAt?.toISOString(),
         taskIdentifier: `quick-${exec.nodeType}`,
         workflowName: exec.nodeLabel || nodeDef?.label || exec.nodeType,
+        workflowId: exec.workflowId,
         durationMs: exec.durationMs,
         nodeExecutions: [{
           id: exec.id,
-          nodeId: exec.id,
+          nodeId: exec.nodeId || exec.id, // Use nodeId if available, fallback to id
           nodeLabel: exec.nodeLabel || nodeDef?.label || exec.nodeType,
           nodeType: exec.nodeType,
           status: exec.status.toUpperCase(),
