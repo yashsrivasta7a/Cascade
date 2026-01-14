@@ -1322,14 +1322,17 @@ export async function runSingleNode(
   callbacks.onNodeStatus?.(node.id, "queued");
   callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
-  // For "run node", use current node.data + connected node's last output as context fallback.
-  const preview = getConnectedPreviewFromLastOutputs(nodes, edges, node.id);
-  const base = {
-    ...(node.data ?? {}),
-    context: (node.data as any)?.context ?? preview,
-  };
+  // Build input the same way full workflow runs do, so media inputs like
+  // `inputImage` become schema fields like `{ image: { url } }`.
+  const rawInput = buildNodeInput(node, edges, new Map(), nodes);
 
-  const parsed = inputSchema.safeParse(base);
+  // For "run node", also allow a context fallback from connected node output previews.
+  const preview = getConnectedPreviewFromLastOutputs(nodes, edges, node.id);
+  if (!(rawInput as any)?.context && preview) {
+    (rawInput as any).context = preview;
+  }
+
+  const parsed = inputSchema.safeParse(rawInput);
   if (!parsed.success) {
     callbacks.onNodeStatus?.(node.id, "failed", {
       error: parsed.error.issues.map((i) => i.message).join("; "),

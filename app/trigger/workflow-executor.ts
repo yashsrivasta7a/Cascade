@@ -110,9 +110,12 @@ const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
   "inputVideo2": "video2",
   "Video 1": "video1",
   "Video 2": "video2",
-  // Merge Audio + Video
+  // Common media inputs
+  "inputImage": "image",
   "inputVideo": "video",
   "inputAudio": "audio",
+  "inputFrame": "frame",
+  // Merge Audio + Video
   "Video*": "video",
   "Audio*": "audio",
   // Extract Audio
@@ -125,6 +128,7 @@ const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
   "video": "video",
   "audio": "audio",
   "image": "image",
+  "frame": "frame",
 };
 
 // Normalize URL string or object to AssetRef format { url: string, ... }

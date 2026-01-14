@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { NodeExecutor, NodeExecutionContext, NodeExecutionResult } from "../types";
 import { AssetRefSchema, ImageOutSchema } from "@/lib/workflow/node-schemas";
+import { isTransloaditConfigured, uploadMedia } from "@/lib/providers";
+import { randomUUID } from "crypto";
 
 // =============================================================================
 // CROP IMAGE - Internal Utility Node (via sharp)
@@ -93,17 +95,28 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
         })
         .toBuffer();
 
-      // Convert to base64 data URL for immediate use
+      // Convert to URL
       const mimeType = metadata.format === "png" ? "image/png" : "image/jpeg";
       const base64 = croppedBuffer.toString("base64");
       const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      // Prefer persisting to Transloadit when configured, so downstream nodes (e.g. OpenRouter vision)
+      // can access the image via a public HTTPS URL.
+      let finalUrl = dataUrl;
+      if (isTransloaditConfigured()) {
+        const uploaded = await uploadMedia(dataUrl, {
+          type: "image",
+          filename: `crop-${randomUUID()}.${mimeType === "image/png" ? "png" : "jpg"}`,
+        });
+        finalUrl = uploaded.url;
+      }
 
       return {
         success: true,
         output: {
           type: "image",
           image: {
-            url: dataUrl,
+            url: finalUrl,
             mimeType,
             width: safeWidth,
             height: safeHeight,
