@@ -19,16 +19,9 @@ export interface EnsuredUser {
  */
 export async function ensureCurrentUser(): Promise<EnsuredUser | null> {
   try {
-    const authResult = await auth();
-    const { userId } = authResult;
-    
-    console.log("[ensureCurrentUser] Auth result:", { 
-      userId: userId ? "present" : "null",
-      hasSessionClaims: !!authResult.sessionClaims,
-    });
+    const { userId } = await auth();
     
     if (!userId) {
-      console.log("[ensureCurrentUser] No userId in auth result");
       return null;
     }
 
@@ -59,11 +52,7 @@ export async function ensureCurrentUser(): Promise<EnsuredUser | null> {
 
     return user;
   } catch (error) {
-    console.error("[ensureCurrentUser] Auth error:", error);
-    console.error("[ensureCurrentUser] Error details:", {
-      name: error instanceof Error ? error.name : "unknown",
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.error("[ensureCurrentUser] Error:", error);
     return null;
   }
 }

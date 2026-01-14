@@ -2,7 +2,9 @@
 // Prisma Schema for PostgreSQL (Neon)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Include binary targets for local dev and Vercel serverless
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
