@@ -11,11 +11,31 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
+  // Exclude large binaries from serverless function traces (moved from experimental in Next.js 16)
+  outputFileTracingExcludes: {
+    "*": [
+      // FFmpeg binaries (very large)
+      "node_modules/ffmpeg-static/**",
+      "node_modules/@ffmpeg-installer/**",
+      "node_modules/@ffprobe-installer/**",
+      // Prisma unused engines
+      "node_modules/@prisma/engines/**",
+      "node_modules/prisma/libquery_engine-*",
+      "node_modules/.prisma/client/libquery_engine-*",
+      // Sharp unused platform binaries
+      "node_modules/sharp/vendor/**",
+      // Other large unused binaries
+      "node_modules/esbuild/bin/**",
+      "node_modules/esbuild-*/**",
+      "node_modules/turbo-*/**",
+    ],
+  },
   // External packages - don't bundle these (they have native binaries or unsupported file types)
   serverExternalPackages: [
     "punycode",
     "ffmpeg-static",
     "@ffprobe-installer/ffprobe",
+    "@ffmpeg-installer/ffmpeg",
   ],
 };
 
