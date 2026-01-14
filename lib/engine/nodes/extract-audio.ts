@@ -311,17 +311,25 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
     input: ExtractAudioInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
-    // Check if FFmpeg is available
-    const ffmpegAvailable = await isFFmpegAvailable();
-    if (!ffmpegAvailable) {
-      // Try Transloadit cloud processing as fallback
+    // ==========================================================================
+    // PREFER TRANSLOADIT (cloud processing) - avoids OOM on small machines
+    // ==========================================================================
+    if (isTransloaditConfigured()) {
+      console.log("[ExtractAudio] Transloadit configured - using cloud processing (recommended)");
       const transloaditResult = await extractAudioWithTransloadit(input);
       if (transloaditResult) {
-        console.log("[ExtractAudio] Used Transloadit cloud processing");
+        console.log("[ExtractAudio] Transloadit processing successful");
         return transloaditResult;
       }
-      
-      // No Transloadit - use mock in development
+      console.warn("[ExtractAudio] Transloadit failed, falling back to local FFmpeg");
+    }
+
+    // ==========================================================================
+    // FALLBACK: Local FFmpeg processing (uses more RAM, may OOM on small machines)
+    // ==========================================================================
+    const ffmpegAvailable = await isFFmpegAvailable();
+    if (!ffmpegAvailable) {
+      // No FFmpeg and no Transloadit - use mock in development
       if (process.env.NODE_ENV === "development") {
         console.log("[ExtractAudio] FFmpeg not found, using mock audio for development");
         const mockMimeType = FORMAT_MIMETYPES[input.format] ?? "audio/mpeg";
@@ -335,7 +343,7 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
             },
           },
           providerUsed: "mock",
-          actualCost: 2_000, // $0.002 for extract-audio operation
+          actualCost: 2_000,
         };
       }
       return {
@@ -344,6 +352,8 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
         providerUsed: "internal",
       };
     }
+    
+    console.log("[ExtractAudio] Using local FFmpeg (warning: may OOM on small machines)");
 
     const tempDir = tmpdir();
     const inputPath = join(tempDir, `input-${randomUUID()}.mp4`);

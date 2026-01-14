@@ -546,17 +546,25 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
     input: MergeVideosInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
-    // Check if FFmpeg is available
-    const ffmpegAvailable = await isFFmpegAvailable();
-    if (!ffmpegAvailable) {
-      // Try Transloadit cloud processing as fallback
+    // ==========================================================================
+    // PREFER TRANSLOADIT (cloud processing) - avoids OOM on small machines
+    // ==========================================================================
+    if (isTransloaditConfigured()) {
+      console.log("[MergeVideos] Transloadit configured - using cloud processing (recommended)");
       const transloaditResult = await mergeVideosWithTransloadit(input);
       if (transloaditResult) {
-        console.log("[MergeVideos] Used Transloadit cloud processing");
+        console.log("[MergeVideos] Transloadit processing successful");
         return transloaditResult;
       }
-      
-      // No Transloadit - use mock in development
+      console.warn("[MergeVideos] Transloadit failed, falling back to local FFmpeg");
+    }
+
+    // ==========================================================================
+    // FALLBACK: Local FFmpeg processing (uses more RAM, may OOM on small machines)
+    // ==========================================================================
+    const ffmpegAvailable = await isFFmpegAvailable();
+    if (!ffmpegAvailable) {
+      // No FFmpeg and no Transloadit - use mock in development
       if (process.env.NODE_ENV === "development") {
         console.log("[MergeVideos] FFmpeg not found, using mock for development");
         return {
@@ -569,7 +577,7 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
             },
           },
           providerUsed: "mock",
-          actualCost: 5_000, // $0.005 for merge-videos operation
+          actualCost: 5_000,
         };
       }
       return {
@@ -578,6 +586,8 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
         providerUsed: "internal",
       };
     }
+    
+    console.log("[MergeVideos] Using local FFmpeg (warning: may OOM on small machines)");
 
     const tempDir = tmpdir();
     const uuid = randomUUID();

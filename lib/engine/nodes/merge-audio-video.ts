@@ -302,17 +302,25 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
     input: MergeAudioVideoInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
-    // Check if FFmpeg is available
-    const ffmpegAvailable = await isFFmpegAvailable();
-    if (!ffmpegAvailable) {
-      // Try Transloadit cloud processing as fallback
+    // ==========================================================================
+    // PREFER TRANSLOADIT (cloud processing) - avoids OOM on small machines
+    // ==========================================================================
+    if (isTransloaditConfigured()) {
+      console.log("[MergeAudioVideo] Transloadit configured - using cloud processing (recommended)");
       const transloaditResult = await mergeAudioVideoWithTransloadit(input);
       if (transloaditResult) {
-        console.log("[MergeAudioVideo] Used Transloadit cloud processing");
+        console.log("[MergeAudioVideo] Transloadit processing successful");
         return transloaditResult;
       }
-      
-      // No Transloadit - use mock in development
+      console.warn("[MergeAudioVideo] Transloadit failed, falling back to local FFmpeg");
+    }
+
+    // ==========================================================================
+    // FALLBACK: Local FFmpeg processing (uses more RAM, may OOM on small machines)
+    // ==========================================================================
+    const ffmpegAvailable = await isFFmpegAvailable();
+    if (!ffmpegAvailable) {
+      // No FFmpeg and no Transloadit - use mock in development
       if (process.env.NODE_ENV === "development") {
         console.log("[MergeAudioVideo] FFmpeg not found, using mock for development");
         return {
@@ -325,7 +333,7 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
             },
           },
           providerUsed: "mock",
-          actualCost: 3_000, // $0.003 for merge-audio-video operation
+          actualCost: 3_000,
         };
       }
       return {
@@ -334,6 +342,8 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
         providerUsed: "internal",
       };
     }
+    
+    console.log("[MergeAudioVideo] Using local FFmpeg (warning: may OOM on small machines)");
 
     const tempDir = tmpdir();
     const videoPath = join(tempDir, `video-${randomUUID()}.mp4`);
