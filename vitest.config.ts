@@ -6,6 +6,13 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
     css: true,
+    exclude: [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/e2e/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
