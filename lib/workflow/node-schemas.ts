@@ -18,7 +18,14 @@ import {
 // -----------------------------------------------------------------------------
 
 export const AssetRefSchema = z.object({
-  url: z.string().url(),
+  url: z.string().min(1).refine(
+    (v) =>
+      v.startsWith("http://") ||
+      v.startsWith("https://") ||
+      v.startsWith("data:") ||
+      v.startsWith("blob:"),
+    { message: "Invalid URL" }
+  ),
   mimeType: z.string().min(1).optional(),
   sizeBytes: z.number().int().nonnegative().optional(),
   width: z.number().int().positive().optional(),

@@ -319,7 +319,8 @@ export function ActivityPanel({
     try {
       const params = new URLSearchParams();
       params.set("limit", "20");
-      if (workflowId && workflowId !== "new") params.set("workflowId", workflowId);
+      // Pass through workflowId, including "new" (unsaved workflows)
+      if (workflowId) params.set("workflowId", workflowId);
       // Add cache-busting timestamp to ensure fresh data
       params.set("_t", Date.now().toString());
       

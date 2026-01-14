@@ -218,14 +218,19 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
         }),
       });
 
-      // Handle response parsing errors (can happen with very large payloads)
-      let result;
+      // Handle non-JSON responses gracefully (e.g. Vercel 413 "Request Entity Too Large")
+      const rawText = await response.text();
+      let result: any = null;
       try {
-        result = await response.json();
-      } catch (parseError) {
-        updateNode(id, { 
-          status: "failed", 
-          error: "Response too large or malformed. Try with smaller files." 
+        result = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        // Not JSON
+      }
+
+      if (!response.ok) {
+        updateNode(id, {
+          status: "failed",
+          error: (result?.error as string) || rawText || `Request failed (${response.status})`,
         });
         return;
       }

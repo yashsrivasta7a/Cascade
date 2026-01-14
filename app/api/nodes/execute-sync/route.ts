@@ -26,14 +26,8 @@ export async function POST(request: NextRequest) {
   let executionId: string | null = null;
 
   try {
-    // Try to get user ID (optional - may not have auth in dev)
-    let userId: string | null = null;
-    try {
-      const userResult = await getUserIdForApi();
-      userId = userResult.userId;
-    } catch {
-      // User auth is optional for utility nodes
-    }
+    // Get user ID (falls back to dev user if unauthenticated)
+    const { userId } = await getUserIdForApi();
 
     // Read the raw body text first to handle large payloads (base64 media can be 10MB+)
     let body: { nodeType?: string; input?: Record<string, unknown>; nodeId?: string; nodeLabel?: string; workflowId?: string };
@@ -95,31 +89,29 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     const estimatedCost = estimateNodeCost(nodeType, input);
     
-    if (userId) {
-      try {
-        const user = await db.user.findUnique({
-          where: { id: userId },
-          select: { credits: true },
-        });
-        
-        if (user && user.credits < estimatedCost) {
-          console.log(`[Sync Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Insufficient credits. You have ${formatCredits(user.credits)} but need ${formatCredits(estimatedCost)} to run this node.`,
-              insufficientCredits: true,
-              balance: user.credits,
-              required: estimatedCost,
-            },
-            { status: 402 } // Payment Required
-          );
-        }
-        
-        console.log(`[Sync Execute] Credit check passed. Balance: ${user?.credits ?? 0}, Required: ${estimatedCost}`);
-      } catch (creditError) {
-        console.warn("[Sync Execute] Credit check failed, proceeding:", creditError);
+    try {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { credits: true },
+      });
+
+      if (user && user.credits < estimatedCost) {
+        console.log(`[Sync Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insufficient credits. You have ${formatCredits(user.credits)} but need ${formatCredits(estimatedCost)} to run this node.`,
+            insufficientCredits: true,
+            balance: user.credits,
+            required: estimatedCost,
+          },
+          { status: 402 } // Payment Required
+        );
       }
+
+      console.log(`[Sync Execute] Credit check passed. Balance: ${user?.credits ?? 0}, Required: ${estimatedCost}`);
+    } catch (creditError) {
+      console.warn("[Sync Execute] Credit check failed, proceeding:", creditError);
     }
 
     // =========================================================================

@@ -130,7 +130,13 @@ const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
 // Normalize URL string or object to AssetRef format { url: string, ... }
 function normalizeAsset(value: unknown): { url: string; mimeType?: string } | undefined {
   if (!value) return undefined;
-  if (typeof value === "string" && value.startsWith("http")) {
+  if (
+    typeof value === "string" &&
+    (value.startsWith("http://") ||
+      value.startsWith("https://") ||
+      value.startsWith("data:") ||
+      value.startsWith("blob:"))
+  ) {
     return { url: value };
   }
   if (typeof value === "object" && value !== null && "url" in value) {

@@ -177,7 +177,22 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
         }),
       });
 
-      const result = await response.json();
+      const rawText = await response.text();
+      let result: any = null;
+      try {
+        result = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        // Not JSON
+      }
+
+      if (!response.ok) {
+        updateNode(id, {
+          status: "failed",
+          error: (result?.error as string) || rawText || `Request failed (${response.status})`,
+        });
+        return;
+      }
+
       if (result.success && result.output?.audio?.url) {
         updateNode(id, { result: result.output.audio.url, status: "completed" });
         // Propagate to connected nodes
