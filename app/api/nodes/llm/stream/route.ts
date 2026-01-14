@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { getUserIdForApi } from "@/lib/user";
 import { getNodeCost, calculateOpenrouterCost } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
                 status: "COMPLETED",
                 completedAt: new Date(),
                 durationMs: Date.now() - startTime,
-                outputJson: cacheCheck.result,
+                outputJson: cacheCheck.result as Prisma.InputJsonValue,
                 actualCost: 0, // No cost for cached results
                 providerUsed: "cache",
               },
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
               // Deduct credits from user
               if (execUserId && creditCost > 0) {
                 try {
-                  await db.$transaction(async (tx) => {
+                  await db.$transaction(async (tx: Prisma.TransactionClient) => {
                     const user = await tx.user.findUnique({
                       where: { id: execUserId },
                       select: { credits: true },

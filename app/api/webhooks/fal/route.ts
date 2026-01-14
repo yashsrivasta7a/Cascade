@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runs } from "@trigger.dev/sdk";
+import { wait } from "@trigger.dev/sdk/v3";
 import { db } from "@/lib/db";
 import { falProvider } from "@/lib/providers";
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Resume the waiting task with the webhook result
-    await runs.resumeWithToken(nodeExecution.waitToken, {
+    await wait.completeToken(nodeExecution.waitToken, {
       success: parsed.status === "completed",
       result: parsed.result,
       error: parsed.error,

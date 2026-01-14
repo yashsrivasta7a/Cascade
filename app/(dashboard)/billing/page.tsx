@@ -295,7 +295,7 @@ export default function BillingPage() {
                       <p className="text-sm">No transactions yet</p>
                     </div>
                   ) : (
-                    transactions.slice(0, 5).map((tx) => {
+                    transactions.slice(0, 5).map((tx: typeof transactions[number]) => {
                       const config = transactionTypeConfig[tx.type as keyof typeof transactionTypeConfig] ?? transactionTypeConfig.EXECUTION;
                       const isPositive = tx.amount > 0;
                       return (

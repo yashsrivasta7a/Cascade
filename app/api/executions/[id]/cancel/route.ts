@@ -79,7 +79,7 @@ export async function POST(
           status: { in: ["RUNNING", "WAITING", "QUEUED", "PENDING"] },
         },
         data: {
-          status: "CANCELLED",
+          status: "FAILED",
           completedAt: new Date(),
           error: "Cancelled by user",
         },

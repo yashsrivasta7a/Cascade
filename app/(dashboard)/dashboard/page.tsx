@@ -177,7 +177,7 @@ export default function DashboardPage() {
                     No recent activity. Run a workflow to see results here.
                   </div>
                 ) : (
-                  recentActivity.map((activity, i) => (
+                  recentActivity.map((activity: { id: string; workflow: string; status: string; time: string; duration?: string }, i: number) => (
                     <motion.div
                       key={activity.id}
                       initial={{ opacity: 0, x: -10 }}

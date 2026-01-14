@@ -122,19 +122,19 @@ export async function GET() {
 
     // Calculate average runtime (only completed)
     const completedWeekExecutions = weekExecutions.filter(
-      (e) => e.status === "COMPLETED" && e.completedAt && e.startedAt
+      (e: { status: string; startedAt: Date | null; completedAt: Date | null }) => e.status === "COMPLETED" && e.completedAt && e.startedAt
     );
     const avgRuntimeMs = completedWeekExecutions.length > 0
-      ? completedWeekExecutions.reduce((sum, e) => {
+      ? completedWeekExecutions.reduce((sum: number, e: { completedAt: Date | null; startedAt: Date | null }) => {
           return sum + (new Date(e.completedAt!).getTime() - new Date(e.startedAt!).getTime());
         }, 0) / completedWeekExecutions.length
       : 0;
 
     const completedLastWeekExecutions = lastWeekExecutions.filter(
-      (e) => e.status === "COMPLETED" && e.completedAt && e.startedAt
+      (e: { status: string; startedAt: Date | null; completedAt: Date | null }) => e.status === "COMPLETED" && e.completedAt && e.startedAt
     );
     const lastWeekAvgRuntimeMs = completedLastWeekExecutions.length > 0
-      ? completedLastWeekExecutions.reduce((sum, e) => {
+      ? completedLastWeekExecutions.reduce((sum: number, e: { completedAt: Date | null; startedAt: Date | null }) => {
           return sum + (new Date(e.completedAt!).getTime() - new Date(e.startedAt!).getTime());
         }, 0) / completedLastWeekExecutions.length
       : 0;
@@ -142,12 +142,12 @@ export async function GET() {
     const runtimeChangeMs = lastWeekAvgRuntimeMs - avgRuntimeMs; // Positive = improvement
 
     // Success rate
-    const successfulWeek = weekExecutions.filter((e) => e.status === "COMPLETED").length;
+    const successfulWeek = weekExecutions.filter((e: { status: string }) => e.status === "COMPLETED").length;
     const successRateWeek = weekExecutions.length > 0
       ? (successfulWeek / weekExecutions.length) * 100
       : 100;
 
-    const successfulLastWeek = lastWeekExecutions.filter((e) => e.status === "COMPLETED").length;
+    const successfulLastWeek = lastWeekExecutions.filter((e: { status: string }) => e.status === "COMPLETED").length;
     const successRateLastWeek = lastWeekExecutions.length > 0
       ? (successfulLastWeek / lastWeekExecutions.length) * 100
       : 100;
@@ -155,7 +155,7 @@ export async function GET() {
     const successRateChange = successRateWeek - successRateLastWeek;
 
     // Format recent activity
-    const recentActivity = recentExecutions.map((exec) => {
+    const recentActivity = recentExecutions.map((exec: typeof recentExecutions[number]) => {
       const duration = exec.completedAt && exec.startedAt
         ? formatDuration(new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime())
         : undefined;
@@ -164,13 +164,13 @@ export async function GET() {
         id: exec.id,
         workflow: exec.workflow.name,
         status: exec.status === "COMPLETED" ? "success" : exec.status === "FAILED" ? "error" : "warning",
-        time: formatTimeAgo(exec.startedAt),
+        time: exec.startedAt ? formatTimeAgo(exec.startedAt) : "—",
         duration,
       };
     });
 
     // Count running executions
-    const runningCount = recentExecutions.filter((e) => e.status === "RUNNING").length;
+    const runningCount = recentExecutions.filter((e: { status: string }) => e.status === "RUNNING").length;
 
     return NextResponse.json({
       stats: {

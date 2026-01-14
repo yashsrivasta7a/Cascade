@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { getUserIdForApi } from "@/lib/user";
 import { estimateNodeCost } from "@/lib/credits";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -12,10 +13,10 @@ import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 export async function POST(request: NextRequest) {
   try {
     // Get authenticated user
-    const { userId, error } = await getUserIdForApi();
+    const { userId } = await getUserIdForApi();
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: error || "Not authenticated" },
+        { success: false, error: "Not authenticated" },
         { status: 401 }
       );
     }
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     const displayLabel = nodeLabel || nodeDef?.label || nodeType;
 
     // Deduct credits and create QuickExecution in a transaction
-    const result = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Get current user balance
       const user = await tx.user.findUnique({
         where: { id: userId },

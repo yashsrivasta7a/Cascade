@@ -65,7 +65,7 @@ export default function WorkflowsPage() {
     return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const filteredWorkflows = workflows.filter((w) =>
+  const filteredWorkflows = workflows.filter((w: { name: string; description: string | null }) =>
     w.name.toLowerCase().includes(filter.toLowerCase()) ||
     (w.description && w.description.toLowerCase().includes(filter.toLowerCase()))
   );
@@ -141,7 +141,7 @@ export default function WorkflowsPage() {
 
           {!isLoading && filteredWorkflows.length > 0 && (
             <div className="space-y-2">
-              {filteredWorkflows.map((workflow, idx) => {
+              {filteredWorkflows.map((workflow: typeof filteredWorkflows[number], idx: number) => {
                 const isPublished = workflow.isPublished;
 
                 return (

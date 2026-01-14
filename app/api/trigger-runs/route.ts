@@ -69,13 +69,15 @@ export async function GET(request: NextRequest) {
       });
 
       // Transform workflow executions
-      const workflowExecs = dbExecutions.map((exec) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const workflowExecs = dbExecutions.map((exec: any) => {
         // Calculate effective workflow status based on node statuses
-        const nodeStatuses = exec.nodeExecutions.map(ne => ne.status);
-        const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every(s => s === "COMPLETED");
-        const anyFailed = nodeStatuses.some(s => s === "FAILED");
-        const anyRunning = nodeStatuses.some(s => s === "RUNNING" || s === "WAITING");
-        const anyQueued = nodeStatuses.some(s => s === "QUEUED");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nodeStatuses = exec.nodeExecutions.map((ne: any) => ne.status);
+        const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every((s: string) => s === "COMPLETED");
+        const anyFailed = nodeStatuses.some((s: string) => s === "FAILED");
+        const anyRunning = nodeStatuses.some((s: string) => s === "RUNNING" || s === "WAITING");
+        const anyQueued = nodeStatuses.some((s: string) => s === "QUEUED");
         
         // Derive workflow status from nodes if the stored status doesn't match reality
         let effectiveStatus = exec.status;
@@ -104,7 +106,8 @@ export async function GET(request: NextRequest) {
           durationMs: exec.startedAt && exec.completedAt 
             ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
             : undefined,
-          nodeExecutions: exec.nodeExecutions.map((ne) => ({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          nodeExecutions: exec.nodeExecutions.map((ne: any) => ({
             id: ne.id,
             nodeId: ne.nodeId,
             nodeLabel: ne.nodeLabel || ne.nodeType,
@@ -121,7 +124,8 @@ export async function GET(request: NextRequest) {
       });
 
       // Transform quick executions (individual node runs via Play button)
-      const quickExecs = quickExecutions.map((exec) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const quickExecs = quickExecutions.map((exec: any) => {
         const nodeDef = NODE_DEFINITIONS[exec.nodeType as AINodeType];
         return {
           id: exec.id,
@@ -239,7 +243,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Create lookup maps
-    const dbExecByTriggerId = new Map(dbExecutions.map(e => [e.triggerRunId, e]));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbExecByTriggerId = new Map<string | null, any>(dbExecutions.map((e: any) => [e.triggerRunId, e]));
     const nodeExecsByTriggerId = new Map<string, typeof standaloneNodeExecutions>();
     for (const ne of standaloneNodeExecutions) {
       const triggerId = ne.workflowExecution?.triggerRunId;
@@ -253,7 +258,8 @@ export async function GET(request: NextRequest) {
 
     console.log(`[trigger-runs] Trigger runs: ${runsList.data.length}, DB execs: ${dbExecutions.length}`);
     if (dbExecutions.length > 0) {
-      console.log(`[trigger-runs] DB exec triggerRunIds: ${dbExecutions.map(e => e.triggerRunId).join(', ')}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      console.log(`[trigger-runs] DB exec triggerRunIds: ${dbExecutions.map((e: any) => e.triggerRunId).join(', ')}`);
     }
     
     // Transform to match our history panel format
@@ -335,7 +341,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Transform quick executions to match our format
-    const quickExecutionRecords = quickExecutions.map((exec) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const quickExecutionRecords = quickExecutions.map((exec: any) => {
       const nodeDef = NODE_DEFINITIONS[exec.nodeType as AINodeType];
       
       return {

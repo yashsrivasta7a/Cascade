@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
+import type { ExecutionStatus } from "@prisma/client";
 
 // =============================================================================
 // EXECUTIONS API
@@ -18,15 +19,14 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: {
-      workflow: { userId: string };
-      status?: string;
-      workflow?: { userId: string; name?: { contains: string; mode: "insensitive" } };
+      workflow: { userId: string; name?: { contains: string; mode: "insensitive" } };
+      status?: ExecutionStatus;
     } = {
       workflow: { userId },
     };
 
     if (status && status !== "all") {
-      where.status = status.toUpperCase();
+      where.status = status.toUpperCase() as ExecutionStatus;
     }
 
     if (search) {
@@ -98,13 +98,13 @@ export async function GET(request: NextRequest) {
     const totalCreditsUsed = allNodeExecutions._sum.actualCost ?? 0;
 
     // Calculate success rate
-    const successfulRuns = weekStats.filter((e) => e.status === "COMPLETED").length;
+    const successfulRuns = weekStats.filter((e: { status: string }) => e.status === "COMPLETED").length;
     const successRate = weekStats.length > 0 ? (successfulRuns / weekStats.length) * 100 : 100;
 
     // Calculate avg duration
-    const completedRuns = weekStats.filter((e) => e.completedAt && e.startedAt);
+    const completedRuns = weekStats.filter((e: { startedAt: Date | null; completedAt: Date | null }) => e.completedAt && e.startedAt);
     const avgDurationMs = completedRuns.length > 0
-      ? completedRuns.reduce((sum, e) => {
+      ? completedRuns.reduce((sum: number, e: { startedAt: Date | null; completedAt: Date | null }) => {
           return sum + (new Date(e.completedAt!).getTime() - new Date(e.startedAt!).getTime());
         }, 0) / completedRuns.length
       : 0;
@@ -117,7 +117,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Format workflow executions
-    const formattedWorkflowExecutions = executions.map((exec) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const formattedWorkflowExecutions = executions.map((exec: any) => {
       const durationMs = exec.completedAt && exec.startedAt
         ? new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime()
         : undefined;
@@ -132,9 +133,10 @@ export async function GET(request: NextRequest) {
         completedAt: exec.completedAt?.toISOString(),
         createdAt: exec.createdAt?.toISOString(),
         duration: durationMs ? formatDuration(durationMs) : undefined,
-        totalCost: exec.nodeExecutions.reduce((sum, n) => sum + (n.actualCost ?? 0), 0),
+        totalCost: exec.nodeExecutions.reduce((sum: number, n: { actualCost?: number | null }) => sum + (n.actualCost ?? 0), 0),
         nodeCount: exec.nodeExecutions.length,
-        nodes: exec.nodeExecutions.map((node) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        nodes: exec.nodeExecutions.map((node: any) => {
           const nodeDurationMs = node.completedAt && node.startedAt
             ? new Date(node.completedAt).getTime() - new Date(node.startedAt).getTime()
             : undefined;
@@ -163,7 +165,8 @@ export async function GET(request: NextRequest) {
     });
 
     // Format quick executions
-    const formattedQuickExecutions = quickExecutions.map((exec) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const formattedQuickExecutions = quickExecutions.map((exec: any) => {
       const output = exec.outputJson as { type?: string; text?: string } | null;
       
       return {

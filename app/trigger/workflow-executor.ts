@@ -222,7 +222,8 @@ export const executeWorkflow = task({
 
       // Execute all nodes in this wave in parallel as child tasks
       // batchTriggerAndWait creates parent-child relationship in Trigger.dev dashboard
-      const results = await executeNode.batchTriggerAndWait(batchPayloads);
+      const batchResult = await executeNode.batchTriggerAndWait(batchPayloads);
+      const results = batchResult.runs;
 
       // Process results
       for (let i = 0; i < results.length; i++) {

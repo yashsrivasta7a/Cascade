@@ -1,5 +1,6 @@
 import { task, wait } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import {
   getNodeExecutor,
   validateNodeInput,
@@ -44,7 +45,8 @@ export interface NodeExecutorPayload {
 async function safeUpdateNodeExecution(
   nodeExecutionId: string,
   workflowExecutionId: string,
-  data: Parameters<typeof db.nodeExecution.update>[0]["data"]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any
 ): Promise<boolean> {
   // Skip if this is a sync execution (utility nodes run individually)
   // Sync executions have workflowExecutionId starting with "sync-"
@@ -448,7 +450,7 @@ async function deductCreditsForNode(
     console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits (sync: ${isSyncExecution})`);
 
     // Deduct credits in a transaction
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Get current user balance
       const user = await tx.user.findUnique({
         where: { id: userId! },

@@ -27,6 +27,7 @@ import { NodePalette, VersionHistoryPanel, ActivityPanel, AssetManagerPanel, Cre
 import type { WorkflowError } from "@/components/flow";
 import { WorkflowSidebar } from "@/components/flow/workflow-sidebar";
 import { useFlowStore } from "@/store";
+import type { Node, Edge } from "reactflow";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
@@ -358,8 +359,8 @@ export default function WorkflowEditorPage() {
       setWorkflowId(workflow.id); // Set in store for Activity tracking
       setWorkflowName(workflow.name);
       loadFlow(
-        (workflow.nodesJson as unknown[]) || [],
-        (workflow.edgesJson as unknown[]) || []
+        (workflow.nodesJson as unknown as Node[]) || [],
+        (workflow.edgesJson as unknown as Edge[]) || []
       );
     }
   }, [workflowId, workflowData, loadFlow, setWorkflowId]);
@@ -631,7 +632,7 @@ export default function WorkflowEditorPage() {
   // Merge database errors with local errors
   useEffect(() => {
     if (dbErrorsData?.errors) {
-      const dbErrors: WorkflowError[] = dbErrorsData.errors.map((e) => ({
+      const dbErrors: WorkflowError[] = dbErrorsData.errors.map((e: { id: string; nodeId: string; nodeName: string; nodeType: string; message: string; providerUsed?: string | null; timestamp: string; inputs?: Record<string, unknown> | null }) => ({
         id: `db-${e.id}`,
         nodeId: e.nodeId,
         nodeName: e.nodeName,
@@ -1027,7 +1028,7 @@ export default function WorkflowEditorPage() {
     await runWorkflowSSE(
       nodes as Parameters<typeof runWorkflowSSE>[0], 
       edges as Parameters<typeof runWorkflowSSE>[1],
-      effectiveWorkflowId
+      effectiveWorkflowId ?? undefined
     );
   }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowSSE]);
 
@@ -1508,7 +1509,7 @@ export default function WorkflowEditorPage() {
           isOpen={versionsOpen}
           onClose={() => setVersionsOpen(false)}
           onRestore={(nodesJson, edgesJson, viewportJson) => {
-            loadFlow(nodesJson, edgesJson);
+            loadFlow(nodesJson as Node[], edgesJson as Edge[]);
             // Reload the page data
             window.location.reload();
           }}
@@ -1551,7 +1552,6 @@ export default function WorkflowEditorPage() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSelect={handleAddNode}
-        intent="add"
       />
 
       <RunModal

@@ -413,7 +413,7 @@ function WorkflowRun({
           <StatusIcon className={cn(
             "w-4 h-4",
             status.text,
-            status.spin && "animate-spin"
+            "spin" in status && status.spin && "animate-spin"
           )} />
                           </div>
 

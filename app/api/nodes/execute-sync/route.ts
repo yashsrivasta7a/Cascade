@@ -7,6 +7,7 @@ import { executeNode } from "@/app/trigger/node-executor";
 import { runs } from "@trigger.dev/sdk/v3";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { estimateNodeCost, formatCredits } from "@/lib/credits";
+import { Prisma } from "@prisma/client";
 
 // Register all node executors at module load (needed for validation)
 registerAllNodeExecutors();
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate input using the node's schema
-    const inputValidation = validateNodeInput(nodeType, input);
+    const inputValidation = validateNodeInput(nodeType as AINodeType, input);
     if (!inputValidation.success) {
       return NextResponse.json(
         { 
@@ -200,7 +201,8 @@ export async function POST(request: NextRequest) {
     console.log(`[Sync Execute] Trigger.dev task started: ${handle.id}`);
 
     // Wait for completion using SSE subscription
-    let finalRun: Awaited<ReturnType<typeof runs.retrieve>> | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let finalRun: any = null;
     for await (const run of runs.subscribeToRun(handle.id)) {
       console.log(`[Sync Execute] Run ${handle.id} status: ${run.status}`);
       if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
@@ -239,7 +241,7 @@ export async function POST(request: NextRequest) {
             status: result.success ? "COMPLETED" : "FAILED",
             completedAt: new Date(),
             durationMs,
-            outputJson: result.success ? sanitizeOutputForStorage(result.output) : null,
+            outputJson: result.success ? sanitizeOutputForStorage(result.output) ?? Prisma.DbNull : Prisma.DbNull,
             actualCost: result.actualCost ?? 0,
             error: result.success ? null : (result.error || "Execution failed"),
           },
@@ -309,8 +311,8 @@ export async function POST(request: NextRequest) {
 }
 
 // Sanitize input for storage (remove large base64 data)
-function sanitizeInputForStorage(input: Record<string, unknown>): Record<string, unknown> {
-  const sanitized: Record<string, unknown> = {};
+function sanitizeInputForStorage(input: Record<string, unknown>): Prisma.InputJsonValue {
+  const sanitized: Record<string, Prisma.InputJsonValue | null> = {};
   for (const [key, value] of Object.entries(input)) {
     if (typeof value === "string" && value.startsWith("data:")) {
       // Store just a placeholder for base64 data
@@ -318,23 +320,23 @@ function sanitizeInputForStorage(input: Record<string, unknown>): Record<string,
     } else if (typeof value === "object" && value !== null && "url" in value) {
       const obj = value as { url?: string };
       if (typeof obj.url === "string" && obj.url.startsWith("data:")) {
-        sanitized[key] = { ...obj, url: "[base64 data]" };
+        sanitized[key] = { ...obj, url: "[base64 data]" } as Prisma.InputJsonValue;
       } else {
-        sanitized[key] = value;
+        sanitized[key] = value as Prisma.InputJsonValue;
       }
     } else {
-      sanitized[key] = value;
+      sanitized[key] = value as Prisma.InputJsonValue | null;
     }
   }
-  return sanitized;
+  return sanitized as Prisma.InputJsonValue;
 }
 
 // Sanitize output for storage (remove large base64 data)
-function sanitizeOutputForStorage(output: unknown): unknown {
-  if (!output || typeof output !== "object") return output;
+function sanitizeOutputForStorage(output: unknown): Prisma.InputJsonValue | null {
+  if (!output || typeof output !== "object") return output as Prisma.InputJsonValue | null;
   
   const obj = output as Record<string, unknown>;
-  const sanitized: Record<string, unknown> = { type: obj.type };
+  const sanitized: Record<string, Prisma.InputJsonValue | null> = { type: obj.type as Prisma.InputJsonValue };
   
   // Store type info but truncate URLs
   for (const [key, value] of Object.entries(obj)) {
@@ -342,15 +344,15 @@ function sanitizeOutputForStorage(output: unknown): unknown {
     if (typeof value === "object" && value !== null && "url" in value) {
       const asset = value as { url?: string; mimeType?: string };
       if (typeof asset.url === "string" && asset.url.startsWith("data:")) {
-        sanitized[key] = { url: "[base64 output]", mimeType: asset.mimeType };
+        sanitized[key] = { url: "[base64 output]", mimeType: asset.mimeType } as Prisma.InputJsonValue;
       } else {
-        sanitized[key] = value;
+        sanitized[key] = value as Prisma.InputJsonValue;
       }
     } else {
-      sanitized[key] = value;
+      sanitized[key] = value as Prisma.InputJsonValue | null;
     }
   }
-  return sanitized;
+  return sanitized as Prisma.InputJsonValue;
 }
 
 export async function GET() {
