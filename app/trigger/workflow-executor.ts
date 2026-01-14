@@ -103,6 +103,30 @@ function computeExecutionWaves(
   return waves;
 }
 
+// Map handle IDs to schema field names
+const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
+  // Merge Videos
+  "inputVideo1": "video1",
+  "inputVideo2": "video2",
+  "Video 1": "video1",
+  "Video 2": "video2",
+  // Merge Audio + Video
+  "inputVideo": "video",
+  "inputAudio": "audio",
+  "Video*": "video",
+  "Audio*": "audio",
+  // Extract Audio
+  "videoInput": "video",
+  "Video Input": "video",
+  // Lipsync
+  "audioInput": "audio",
+  "videoInput": "video",
+  // Generic
+  "video": "video",
+  "audio": "audio",
+  "image": "image",
+};
+
 // Build input for a node
 function buildNodeInput(
   node: Node,
@@ -116,34 +140,62 @@ function buildNodeInput(
   for (const edge of incomingEdges) {
     const upstreamOutput = outputs.get(edge.source);
     if (upstreamOutput) {
+      // Get the handle name and map to schema field
+      const rawHandle = edge.targetHandle ?? "";
+      const schemaField = HANDLE_TO_SCHEMA_FIELD[rawHandle] ?? rawHandle;
+      
       if (upstreamOutput.type === "text" && "text" in upstreamOutput) {
+        // Text always goes to context for now
         input.context = upstreamOutput.text;
+        // Also set prompt if it's a prompt handle
+        if (rawHandle === "prompt" || rawHandle === "Prompt") {
+          input.prompt = upstreamOutput.text;
+        }
       }
       if (upstreamOutput.type === "image" && "image" in upstreamOutput) {
-        const handle = edge.targetHandle;
         const imageAsset = upstreamOutput.image as { url?: string };
         
-        if (handle === "image" || handle === "frame") {
-          input[handle] = upstreamOutput.image;
-        } else if (handle === "inputImage") {
+        // Set the mapped field
+        input[schemaField] = upstreamOutput.image;
+        
+        // Also set common aliases
+        if (schemaField === "image" || schemaField === "frame") {
+          input.imageUrl = imageAsset?.url;
           input.inputImage = imageAsset?.url;
-          input.image = upstreamOutput.image;
-          input.imageUrl = imageAsset?.url;
-        } else {
-          input.image = upstreamOutput.image;
-          input.imageUrl = imageAsset?.url;
         }
       }
       if (upstreamOutput.type === "video" && "video" in upstreamOutput) {
-        const handle = edge.targetHandle ?? "video";
-        input[handle] = upstreamOutput.video;
+        const videoAsset = upstreamOutput.video as { url?: string; mimeType?: string };
+        
+        // Set the mapped field with full asset object
+        input[schemaField] = upstreamOutput.video;
+        
+        // Also set URL aliases for nodes that expect just URLs
+        const urlField = schemaField + "Url";
+        input[urlField] = videoAsset?.url;
+        
+        // Set common aliases
+        if (schemaField === "video") {
+          input.videoUrl = videoAsset?.url;
+        }
+        
+        console.log(`[BuildInput] Set ${schemaField} from handle ${rawHandle}:`, { url: videoAsset?.url?.slice(0, 50) });
       }
       if (upstreamOutput.type === "audio" && "audio" in upstreamOutput) {
-        input.audio = upstreamOutput.audio;
+        const audioAsset = upstreamOutput.audio as { url?: string; mimeType?: string };
+        
+        // Set the mapped field
+        input[schemaField] = upstreamOutput.audio;
+        
+        // Set URL alias
+        input.audioUrl = audioAsset?.url;
+        
+        console.log(`[BuildInput] Set ${schemaField} from handle ${rawHandle}:`, { url: audioAsset?.url?.slice(0, 50) });
       }
     }
   }
 
+  console.log(`[BuildInput] Node ${node.id} (${node.type}) input keys:`, Object.keys(input).filter(k => input[k] !== undefined));
   return input;
 }
 
