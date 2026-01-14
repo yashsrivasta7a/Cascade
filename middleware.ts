@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/test(.*)", // Test endpoints for development
   "/api/trigger-test(.*)", // Trigger.dev test endpoint
   "/api/nodes(.*)", // All node execution endpoints
+  "/api/debug-auth(.*)", // Temporary debug endpoint
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
