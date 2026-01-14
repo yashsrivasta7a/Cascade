@@ -127,6 +127,27 @@ const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
   "image": "image",
 };
 
+// Normalize URL string or object to AssetRef format { url: string, ... }
+function normalizeAsset(value: unknown): { url: string; mimeType?: string } | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string" && value.startsWith("http")) {
+    return { url: value };
+  }
+  if (typeof value === "object" && value !== null && "url" in value) {
+    return value as { url: string; mimeType?: string };
+  }
+  return undefined;
+}
+
+// Map node data fields (like inputVideo1) to schema fields (like video1)
+const NODE_DATA_TO_SCHEMA: Record<string, string> = {
+  "inputVideo1": "video1",
+  "inputVideo2": "video2",
+  "inputVideo": "video",
+  "inputAudio": "audio",
+  "inputImage": "image",
+};
+
 // Build input for a node
 function buildNodeInput(
   node: Node,
@@ -134,9 +155,40 @@ function buildNodeInput(
   outputs: Map<string, Record<string, unknown>>
 ): Record<string, unknown> {
   const nodeData = (node.data ?? {}) as Record<string, unknown>;
+  const nodeType = node.type as string;
   const incomingEdges = edges.filter((e) => e.target === node.id);
   const input: Record<string, unknown> = { ...nodeData };
 
+  // =========================================================================
+  // STEP 1: Normalize node data (uploaded videos/audio/images) to schema format
+  // =========================================================================
+  // Convert inputVideo1 → video1, inputAudio → audio, etc.
+  // Also convert string URLs to { url: string } objects
+  for (const [dataField, schemaField] of Object.entries(NODE_DATA_TO_SCHEMA)) {
+    const value = nodeData[dataField];
+    if (value) {
+      const normalized = normalizeAsset(value);
+      if (normalized) {
+        input[schemaField] = normalized;
+        console.log(`[BuildInput] Normalized ${dataField} → ${schemaField}:`, { url: normalized.url?.slice(0, 60) });
+      }
+    }
+  }
+
+  // Special handling for direct video/audio fields that might be strings
+  if (typeof nodeData.video === "string") {
+    input.video = normalizeAsset(nodeData.video);
+  }
+  if (typeof nodeData.audio === "string") {
+    input.audio = normalizeAsset(nodeData.audio);
+  }
+  if (typeof nodeData.image === "string") {
+    input.image = normalizeAsset(nodeData.image);
+  }
+
+  // =========================================================================
+  // STEP 2: Override with outputs from connected upstream nodes
+  // =========================================================================
   for (const edge of incomingEdges) {
     const upstreamOutput = outputs.get(edge.source);
     if (upstreamOutput) {
