@@ -21,7 +21,22 @@ export interface RunCallbacks {
 
 type OutputByNode = Map<string, AnyOut>;
 
-const DEFAULT_NODE_TIMEOUT_MS = 60_000;
+// Default timeout for node execution (10 minutes for video processing)
+const DEFAULT_NODE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+// Per-node-type timeouts (some nodes need longer)
+const NODE_TIMEOUT_MS: Record<string, number> = {
+  "openrouter": 2 * 60 * 1000,      // 2 minutes for LLM
+  "seedream": 5 * 60 * 1000,        // 5 minutes for image gen
+  "seedvr": 5 * 60 * 1000,          // 5 minutes for video repainting
+  "seedance": 10 * 60 * 1000,       // 10 minutes for video gen
+  "elevenlabs": 2 * 60 * 1000,      // 2 minutes for TTS
+  "lipsync": 10 * 60 * 1000,        // 10 minutes for lipsync
+  "crop-image": 2 * 60 * 1000,      // 2 minutes for crop
+  "merge-videos": 10 * 60 * 1000,   // 10 minutes for video merge
+  "merge-audio-video": 10 * 60 * 1000, // 10 minutes for A/V merge
+  "extract-audio": 5 * 60 * 1000,   // 5 minutes for audio extraction
+};
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   let t: ReturnType<typeof setTimeout> | undefined;
@@ -745,6 +760,7 @@ export async function runWorkflow(
       parseDurationMs(data.timeout) ??
       parseDurationMs(data.timeoutMs) ??
       parseDurationMs(data.nodeTimeout) ??
+      NODE_TIMEOUT_MS[type] ??
       DEFAULT_NODE_TIMEOUT_MS;
 
     let lastError: string | undefined;
@@ -1145,6 +1161,7 @@ async function runWorkflowSubset(
       parseDurationMs(data.timeout) ??
       parseDurationMs(data.timeoutMs) ??
       parseDurationMs(data.nodeTimeout) ??
+      NODE_TIMEOUT_MS[type] ??
       DEFAULT_NODE_TIMEOUT_MS;
 
     let lastError: string | undefined;
@@ -1393,6 +1410,7 @@ export async function runSingleNode(
     parseDurationMs(data.timeout) ??
     parseDurationMs(data.timeoutMs) ??
     parseDurationMs(data.nodeTimeout) ??
+    NODE_TIMEOUT_MS[type] ??
     DEFAULT_NODE_TIMEOUT_MS;
 
   let lastError: string | undefined;
