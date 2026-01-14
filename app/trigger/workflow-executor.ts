@@ -3,10 +3,9 @@ import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
-import { registerAllNodeExecutors } from "@/lib/engine";
 
-// Register all node executors
-registerAllNodeExecutors();
+// NOTE: Node executors are registered inside executeNode task
+// No engine import here to avoid FFmpeg bundling for Vercel
 
 // =============================================================================
 // WORKFLOW EXECUTOR TASK - DAG Orchestration with Parent-Child Hierarchy

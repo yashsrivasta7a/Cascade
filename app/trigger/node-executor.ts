@@ -1,20 +1,6 @@
 import { task, wait } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
-import {
-  getNodeExecutor,
-  validateNodeInput,
-  validateNodeOutput,
-  type NodeExecutionContext,
-  type NodeExecutionResult,
-  registerAllNodeExecutors,
-  parseSeedreamResult,
-  parseSeedvrResult,
-  parseSeedanceResult,
-  parseElevenlabsResult,
-  parseOpenrouterResult,
-  parseLipsyncResult,
-} from "@/lib/engine";
 import type { AINodeType } from "@/types/nodes";
 import { 
   getNodeCost, 
@@ -26,8 +12,9 @@ import {
 } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 
-// Register all node executors at module load
-registerAllNodeExecutors();
+// NOTE: Engine imports are done dynamically inside the run() function
+// This prevents FFmpeg from being bundled for Vercel API routes
+// The engine module (with FFmpeg) only loads on Trigger.dev workers
 
 // =============================================================================
 // NODE EXECUTOR TASK
@@ -78,6 +65,25 @@ export const executeNode = task({
 
   run: async (payload: NodeExecutorPayload) => {
     const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input } = payload;
+
+    // Dynamic import of engine module - only loads on Trigger.dev workers
+    // This prevents FFmpeg from being bundled for Vercel API routes
+    const engine = await import("@/lib/engine");
+    const {
+      getNodeExecutor,
+      validateNodeInput,
+      validateNodeOutput,
+      registerAllNodeExecutors,
+      parseSeedreamResult,
+      parseSeedvrResult,
+      parseSeedanceResult,
+      parseElevenlabsResult,
+      parseOpenrouterResult,
+      parseLipsyncResult,
+    } = engine;
+
+    // Register all node executors (must be done before getNodeExecutor)
+    registerAllNodeExecutors();
 
     try {
       // Check current status - don't overwrite FAILED on retry
@@ -234,7 +240,24 @@ export const executeNode = task({
       }
 
       // Parse the provider result into our output format
-      const parsedOutput = parseProviderResult(nodeType, webhookData.result);
+      const parsedOutput = (() => {
+        switch (nodeType) {
+          case "seedream":
+            return parseSeedreamResult(webhookData.result);
+          case "seedvr":
+            return parseSeedvrResult(webhookData.result);
+          case "seedance":
+            return parseSeedanceResult(webhookData.result);
+          case "elevenlabs":
+            return parseElevenlabsResult(webhookData.result);
+          case "openrouter":
+            return parseOpenrouterResult(webhookData.result);
+          case "lipsync":
+            return parseLipsyncResult(webhookData.result);
+          default:
+            return webhookData.result;
+        }
+      })();
 
       // Validate output
       const outputValidation = validateNodeOutput(nodeType, parsedOutput);
@@ -575,29 +598,6 @@ async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: stri
   }
 }
 
-function parseProviderResult(nodeType: AINodeType, result: unknown): unknown {
-  switch (nodeType) {
-    case "seedream":
-      return parseSeedreamResult(result);
-    case "seedvr":
-      return parseSeedvrResult(result);
-    case "seedance":
-      return parseSeedanceResult(result);
-    case "elevenlabs":
-      return parseElevenlabsResult(result);
-    case "openrouter":
-      return parseOpenrouterResult(result);
-    case "lipsync":
-      return parseLipsyncResult(result);
-    // Utility nodes return output directly (no webhook parsing needed)
-    case "crop-image":
-    case "merge-audio-video":
-    case "merge-videos":
-    case "extract-audio":
-      return result;
-    default:
-      // For other nodes, return result as-is
-      return result;
-  }
-}
+// parseProviderResult is now defined inline where it's used
+// since it needs access to dynamically imported functions
 
