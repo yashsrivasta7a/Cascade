@@ -340,54 +340,22 @@ ${data.prompt}`;
         return;
       }
 
-      // Check if response is cached (JSON) or streaming
-      const contentType = response.headers.get("content-type");
-      if (contentType?.includes("application/json")) {
-        // Cached response - parse JSON directly
-        const cachedResult = await response.json();
-        if (cachedResult.cached && cachedResult.text) {
-          updateNode(id, { result: cachedResult.text, status: "completed" });
-          setIsStreaming(false);
-          return;
-        }
+      // Response is JSON (runs on Trigger.dev, no streaming)
+      const result = await response.json();
+      
+      if (result.text) {
+        updateNode(id, { result: result.text, status: "completed" });
+        // Propagate to connected nodes
+        propagateOutput(id, result.text);
+      } else if (result.error) {
+        updateNode(id, { 
+          result: `Error: ${result.error}`,
+          status: "failed",
+          error: result.error
+        });
+      } else {
+        updateNode(id, { result: "No response received", status: "failed" });
       }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        updateNode(id, { result: "Error: No response stream", status: "failed" });
-        setIsStreaming(false);
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const jsonData = line.slice(6);
-            if (jsonData === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(jsonData);
-              if (parsed.content) {
-                fullText += parsed.content;
-                updateNode(id, { result: fullText });
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
-        }
-      }
-
-      updateNode(id, { result: fullText, status: "completed" });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         updateNode(id, { status: "idle" });

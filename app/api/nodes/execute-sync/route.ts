@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Sync Execute] Starting ${nodeType} execution via Trigger.dev`);
+    console.log(`[Sync Execute] TRIGGER_SECRET_KEY present: ${!!process.env.TRIGGER_SECRET_KEY}`);
 
     // Execute via Trigger.dev
     const payload = {
@@ -196,39 +197,69 @@ export async function POST(request: NextRequest) {
       input: inputValidation.data as Record<string, unknown>,
     };
 
-    // Start the Trigger.dev task
-    const handle = await executeNode.trigger(payload);
-    console.log(`[Sync Execute] Trigger.dev task started: ${handle.id}`);
+    let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
+    
+    try {
+      // Start the Trigger.dev task
+      const handle = await executeNode.trigger(payload);
+      console.log(`[Sync Execute] Trigger.dev task started: ${handle.id}`);
 
-    // Wait for completion using SSE subscription
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let finalRun: any = null;
-    for await (const run of runs.subscribeToRun(handle.id)) {
-      console.log(`[Sync Execute] Run ${handle.id} status: ${run.status}`);
-      if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
-        finalRun = run;
-        break;
+      // Poll for completion instead of using subscribeToRun
+      const maxWaitTime = 5 * 60 * 1000; // 5 minutes
+      const pollInterval = 1000; // 1 second
+      const pollStartTime = Date.now();
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let finalRun: any = null;
+      
+      while (Date.now() - pollStartTime < maxWaitTime) {
+        try {
+          const run = await runs.retrieve(handle.id);
+          console.log(`[Sync Execute] Run ${handle.id} status: ${run.status}`);
+          
+          if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
+            finalRun = run;
+            break;
+          }
+          
+          // Wait before next poll
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        } catch (pollError) {
+          console.error(`[Sync Execute] Poll error:`, pollError);
+          // Continue polling
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
       }
+
+      // Extract result
+      if (finalRun?.status === "COMPLETED" && finalRun.output) {
+        const output = finalRun.output as { output?: unknown; providerUsed?: string; actualCost?: number };
+        result = { 
+          success: true, 
+          output: output.output,
+          providerUsed: output.providerUsed,
+          actualCost: output.actualCost,
+        };
+      } else if (finalRun?.status === "FAILED") {
+        result = { 
+          success: false, 
+          error: "Task execution failed on Trigger.dev",
+        };
+      } else {
+        result = { 
+          success: false, 
+          error: finalRun ? "Task was canceled" : "Task timed out",
+        };
+      }
+    } catch (triggerError) {
+      console.error(`[Sync Execute] Trigger.dev error:`, triggerError);
+      result = {
+        success: false,
+        error: triggerError instanceof Error ? triggerError.message : "Failed to execute on Trigger.dev",
+      };
     }
 
     const durationMs = Date.now() - startTime;
-
-    // Extract result from Trigger.dev run
-    let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
-    if (finalRun?.status === "COMPLETED" && finalRun.output) {
-      const output = finalRun.output as { output?: unknown; providerUsed?: string; actualCost?: number };
-      result = { 
-        success: true, 
-        output: output.output,
-        providerUsed: output.providerUsed,
-        actualCost: output.actualCost,
-      };
-    } else {
-      result = { 
-        success: false, 
-        error: finalRun?.status === "FAILED" ? "Task execution failed on Trigger.dev" : "Task was canceled",
-      };
-    }
 
     console.log(`[Sync Execute] ${nodeType} completed:`, result.success ? "success" : "failed", `(${durationMs}ms)`);
 

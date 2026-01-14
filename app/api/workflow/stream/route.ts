@@ -174,15 +174,33 @@ export async function POST(request: NextRequest) {
 
         // Trigger the workflow executor task (creates parent-child hierarchy)
         console.log(`[WorkflowStream] Triggering executeWorkflow task...`);
-        const handle = await executeWorkflow.trigger({
-          workflowExecutionId: workflowExecution.id,
-          workflowId: workflow.id,
-          userId: user.id,
-          nodes,
-          edges,
-        });
-
-        console.log(`[WorkflowStream] Workflow task started with run ID: ${handle.id}`);
+        console.log(`[WorkflowStream] TRIGGER_SECRET_KEY present: ${!!process.env.TRIGGER_SECRET_KEY}`);
+        
+        let handle;
+        try {
+          handle = await executeWorkflow.trigger({
+            workflowExecutionId: workflowExecution.id,
+            workflowId: workflow.id,
+            userId: user.id,
+            nodes,
+            edges,
+          });
+          console.log(`[WorkflowStream] Workflow task started with run ID: ${handle.id}`);
+        } catch (triggerError) {
+          console.error(`[WorkflowStream] Failed to trigger workflow task:`, triggerError);
+          sendEvent(controller, "error", { 
+            message: `Failed to start workflow: ${triggerError instanceof Error ? triggerError.message : 'Unknown error'}` 
+          });
+          
+          // Mark workflow as failed
+          await db.workflowExecution.update({
+            where: { id: workflowExecution.id },
+            data: { status: "FAILED", error: "Failed to trigger workflow task" },
+          });
+          
+          controller.close();
+          return;
+        }
 
         // Track which nodes we've already sent events for
         const sentStarted = new Set<string>();
@@ -192,8 +210,16 @@ export async function POST(request: NextRequest) {
         // Poll database for node execution updates and stream them
         // This runs while the workflow task executes
         let workflowDone = false;
+        const maxPollTime = 10 * 60 * 1000; // 10 minutes max
+        const pollStartTime = Date.now();
 
         while (!workflowDone) {
+          // Timeout check
+          if (Date.now() - pollStartTime > maxPollTime) {
+            console.log(`[WorkflowStream] Polling timeout reached`);
+            sendEvent(controller, "error", { message: "Workflow execution timeout" });
+            break;
+          }
           // Check workflow status
           const currentWorkflow = await db.workflowExecution.findUnique({
             where: { id: workflowExecution.id },
