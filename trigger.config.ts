@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -57,6 +58,11 @@ export default defineConfig({
     external: [
       "ffmpeg-static",
       "@ffprobe-installer/ffprobe",
+    ],
+    extensions: [
+      prismaExtension({
+        schema: "prisma/schema.prisma",
+      }),
     ],
   },
 

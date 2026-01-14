@@ -3,8 +3,8 @@
 
 generator client {
   provider      = "prisma-client-js"
-  // Include binary targets for local dev and Vercel serverless
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  // Include binary targets for local dev, Vercel serverless, and Trigger.dev
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
