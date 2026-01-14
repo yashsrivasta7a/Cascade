@@ -422,7 +422,13 @@ async function pollNodeStatus(nodeId: string, timeoutMs: number = 300000): Promi
   return { status: "failed", error: "Execution timed out" };
 }
 
-async function executeWithProvider(type: AINodeType, provider: ProviderId, input: unknown): Promise<AnyOut> {
+interface ExecutionContext {
+  workflowId?: string;
+  nodeId?: string;
+  nodeLabel?: string;
+}
+
+async function executeWithProvider(type: AINodeType, provider: ProviderId, input: unknown, context?: ExecutionContext): Promise<AnyOut> {
   void provider;
   
   console.log(`[executeWithProvider] Executing ${type} with provider ${provider}`);
@@ -438,6 +444,10 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
         body: JSON.stringify({
           nodeType: type,
           input,
+          // Include workflow context for Activity tab filtering
+          workflowId: context?.workflowId,
+          nodeId: context?.nodeId,
+          nodeLabel: context?.nodeLabel,
         }),
       });
 
@@ -460,8 +470,8 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
     try {
       console.log(`[executeWithProvider] Calling Trigger.dev API for ${type}`);
       
-      // Generate a unique nodeId for this execution
-      const nodeId = (input as { nodeId?: string })?.nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // Use context nodeId or generate a unique one for this execution
+      const nodeId = context?.nodeId || (input as { nodeId?: string })?.nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       
       const response = await fetch("/api/nodes/execute", {
         method: "POST",
@@ -469,6 +479,10 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
         body: JSON.stringify({
           nodeType: type,
           input: { ...input as object, nodeId },
+          // Include workflow context for Activity tab filtering
+          workflowId: context?.workflowId,
+          nodeId,
+          nodeLabel: context?.nodeLabel,
         }),
       });
 
@@ -604,7 +618,8 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
 export async function runWorkflow(
   nodes: Node[],
   edges: Edge[],
-  callbacks: RunCallbacks = {}
+  callbacks: RunCallbacks = {},
+  workflowId?: string
 ): Promise<void> {
   console.log("[RunWorkflow] Starting PARALLEL workflow execution");
   console.log("[RunWorkflow] Nodes:", nodes.map(n => ({ id: n.id, type: n.type })));
@@ -781,7 +796,11 @@ export async function runWorkflow(
 
         try {
           const out = await withTimeout(
-            executeWithProvider(type, p as any, parsed.data),
+            executeWithProvider(type, p as any, parsed.data, {
+              workflowId,
+              nodeId: node.id,
+              nodeLabel: data.label || NODE_DEFINITIONS[type]?.label || type,
+            }),
             timeoutMs,
             `${type} (${p})`
           );
@@ -1182,7 +1201,11 @@ async function runWorkflowSubset(
 
         try {
           const out = await withTimeout(
-            executeWithProvider(type, p as any, parsed.data),
+            executeWithProvider(type, p as any, parsed.data, {
+              workflowId,
+              nodeId: node.id,
+              nodeLabel: data.label || NODE_DEFINITIONS[type]?.label || type,
+            }),
             timeoutMs,
             `${type} (${p})`
           );
@@ -1364,6 +1387,9 @@ export async function runSingleNode(
         body: JSON.stringify({
           nodeType: type,
           input: { ...parsed.data, nodeId }, // Include nodeId so polling can match
+          workflowId, // Link to workflow for Activity tab filtering
+          nodeId, // React Flow node ID
+          nodeLabel: data.label || NODE_DEFINITIONS[type]?.label || type,
         }),
       });
 
@@ -1431,7 +1457,11 @@ export async function runSingleNode(
 
       try {
         const out = await withTimeout(
-          executeWithProvider(type, p as any, parsed.data),
+          executeWithProvider(type, p as any, parsed.data, {
+            workflowId,
+            nodeId: node.id,
+            nodeLabel: (data.label as string) || NODE_DEFINITIONS[type]?.label || type,
+          }),
           timeoutMs,
           `${type} (${p})`
         );
