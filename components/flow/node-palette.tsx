@@ -106,7 +106,7 @@ const categoryColors: Record<NodeCategory, {
     text: "text-emerald-400", 
     accent: "from-emerald-500/20",
     solid: "#10b981",
-    gradient: "from-emerald-500 to-teal-500",
+    gradient: "from-emerald-500 to-green-500",
   },
   video: { 
     bg: "bg-violet-500/15", 
@@ -117,12 +117,12 @@ const categoryColors: Record<NodeCategory, {
     gradient: "from-violet-500 to-purple-500",
   },
   audio: { 
-    bg: "bg-amber-500/15", 
-    border: "border-amber-500/30", 
-    text: "text-amber-400", 
-    accent: "from-amber-500/20",
-    solid: "#f59e0b",
-    gradient: "from-amber-500 to-orange-500",
+    bg: "bg-teal-500/15", 
+    border: "border-teal-500/30", 
+    text: "text-teal-400", 
+    accent: "from-teal-500/20",
+    solid: "#14b8a6",
+    gradient: "from-teal-500 to-cyan-500",
   },
   llm: { 
     bg: "bg-blue-500/15", 
@@ -130,15 +130,15 @@ const categoryColors: Record<NodeCategory, {
     text: "text-blue-400", 
     accent: "from-blue-500/20",
     solid: "#3b82f6",
-    gradient: "from-blue-500 to-cyan-500",
+    gradient: "from-blue-500 to-sky-500",
   },
   utility: { 
-    bg: "bg-zinc-500/15", 
-    border: "border-zinc-500/30", 
-    text: "text-zinc-400", 
-    accent: "from-zinc-500/20",
-    solid: "#71717a",
-    gradient: "from-zinc-500 to-slate-500",
+    bg: "bg-amber-500/15", 
+    border: "border-amber-500/30", 
+    text: "text-amber-400", 
+    accent: "from-amber-500/20",
+    solid: "#f59e0b",
+    gradient: "from-amber-500 to-yellow-500",
   },
 };
 
@@ -150,14 +150,14 @@ const outputTypeBadge: Record<DataType, { bg: string; text: string }> = {
   text: { bg: "bg-blue-500/20", text: "text-blue-400" },
   image: { bg: "bg-emerald-500/20", text: "text-emerald-400" },
   video: { bg: "bg-violet-500/20", text: "text-violet-400" },
-  audio: { bg: "bg-amber-500/20", text: "text-amber-400" },
+  audio: { bg: "bg-teal-500/20", text: "text-teal-400" },
   any: { bg: "bg-zinc-500/20", text: "text-zinc-400" },
   // Settings types
   prompt: { bg: "bg-sky-500/20", text: "text-sky-400" },
   negative: { bg: "bg-red-500/20", text: "text-red-400" },
   seed: { bg: "bg-lime-500/20", text: "text-lime-400" },
   aspectRatio: { bg: "bg-indigo-500/20", text: "text-indigo-400" },
-  duration: { bg: "bg-teal-500/20", text: "text-teal-400" },
+  duration: { bg: "bg-amber-500/20", text: "text-amber-400" },
   model: { bg: "bg-rose-500/20", text: "text-rose-400" },
   temperature: { bg: "bg-orange-500/20", text: "text-orange-400" },
   number: { bg: "bg-pink-500/20", text: "text-pink-400" },
@@ -449,98 +449,76 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
                   top: popupPosition.top,
                   left: popupPosition.left,
                 }}
-                className="w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl shadow-black/40 z-[9999] overflow-hidden"
+                className="w-64 bg-[#161616] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 z-[9999] overflow-hidden backdrop-blur-xl"
               >
                 {/* Header */}
-                <div className="px-3 py-2.5 border-b border-zinc-800 flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-zinc-800 flex items-center justify-center">
-                    <Layers className="w-3.5 h-3.5 text-zinc-400" />
+                <div className="px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.02] flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+                    <Palette className="w-3.5 h-3.5 text-white/70" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-medium text-zinc-200">Color Guide</h4>
-                    <p className="text-[10px] text-zinc-600">Connection reference</p>
+                    <h4 className="text-xs font-medium text-white/90">Color Guide</h4>
+                    <p className="text-[10px] text-white/40">Understanding node connections</p>
                   </div>
                 </div>
 
-                {/* Node Types */}
-                <div className="p-3 border-b border-zinc-800/60">
-                  <p className="text-[10px] text-zinc-500 mb-2">Node Categories</p>
-                  <div className="flex gap-1">
-                    {[
-                      { icon: Brain, label: "LLM", color: "bg-blue-500" },
-                      { icon: Image, label: "Image", color: "bg-emerald-500" },
-                      { icon: Film, label: "Video", color: "bg-violet-500" },
-                      { icon: Volume2, label: "Audio", color: "bg-amber-500" },
-                      { icon: Wrench, label: "Utility", color: "bg-zinc-500" },
-                    ].map((item) => (
-                      <div 
-                        key={item.label}
-                        title={item.label}
-                        className="flex-1 h-9 rounded-lg bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 flex flex-col items-center justify-center gap-0.5 cursor-default transition-colors"
-                      >
-                        <div className="relative">
-                          <item.icon className="w-3.5 h-3.5 text-zinc-500" />
-                          <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full", item.color)} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Data Types */}
-                <div className="p-3 border-b border-zinc-800/60">
-                  <p className="text-[10px] text-zinc-500 mb-2">Data Types</p>
+                {/* Node Categories */}
+                <div className="p-3 border-b border-white/[0.06]">
+                  <p className="text-[10px] text-white/40 mb-2.5">Node Categories</p>
                   <div className="space-y-1.5">
                     {[
-                      { label: "Text", color: "bg-blue-500", barColor: "bg-blue-500/20" },
-                      { label: "Image", color: "bg-emerald-500", barColor: "bg-emerald-500/20" },
-                      { label: "Video", color: "bg-violet-500", barColor: "bg-violet-500/20" },
-                      { label: "Audio", color: "bg-amber-500", barColor: "bg-amber-500/20" },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center gap-2">
-                        <div className={cn("w-2 h-2 rounded-full", item.color)} />
-                        <div className={cn("flex-1 h-1 rounded-full", item.barColor)} />
-                        <span className="text-[10px] text-zinc-500 w-10 text-right">{item.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Settings */}
-                <div className="p-3 border-b border-zinc-800/60">
-                  <p className="text-[10px] text-zinc-500 mb-2">Settings</p>
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      { label: "Prompt", color: "#0ea5e9" },
-                      { label: "Seed", color: "#84cc16" },
-                      { label: "Neg", color: "#ef4444" },
-                      { label: "Aspect", color: "#6366f1" },
-                      { label: "Duration", color: "#14b8a6" },
-                      { label: "Model", color: "#f43f5e" },
-                      { label: "Temp", color: "#f97316" },
-                      { label: "Num", color: "#ec4899" },
+                      { icon: Brain, label: "LLM / Vision", desc: "AI text & vision", color: "#3b82f6" },
+                      { icon: Image, label: "Image", desc: "Generate images", color: "#10b981" },
+                      { icon: Film, label: "Video", desc: "Generate videos", color: "#8b5cf6" },
+                      { icon: Volume2, label: "Audio", desc: "Text to speech", color: "#14b8a6" },
+                      { icon: Wrench, label: "Utility", desc: "Process media", color: "#f59e0b" },
                     ].map((item) => (
                       <div 
                         key={item.label}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-800/60 hover:bg-zinc-800 transition-colors cursor-default"
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-[#0f0f0f] hover:bg-white/[0.04] transition-colors cursor-default border border-white/[0.04]"
                       >
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-[9px] text-zinc-500">{item.label}</span>
+                        <div 
+                          className="w-6 h-6 rounded-md flex items-center justify-center"
+                          style={{ backgroundColor: `${item.color}15` }}
+                        >
+                          <item.icon className="w-3.5 h-3.5" style={{ color: item.color }} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-[11px] font-medium text-white/80">{item.label}</p>
+                          <p className="text-[9px] text-white/30">{item.desc}</p>
+                        </div>
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Running */}
-                <div className="px-3 py-2.5 flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-600">Running</span>
-                  <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
-                    <motion.div
-                      className="h-full w-1/3 rounded-full bg-zinc-600"
-                      animate={{ x: ["-100%", "400%"] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    />
+                {/* Data Types - What connections carry */}
+                <div className="p-3 border-b border-white/[0.06]">
+                  <p className="text-[10px] text-white/40 mb-2.5">Connection Types</p>
+                  <p className="text-[9px] text-white/30 mb-2">Colors show what data flows between nodes</p>
+                  <div className="space-y-1.5">
+                    {[
+                      { label: "Text", desc: "Prompts, responses", color: "#3b82f6" },
+                      { label: "Image", desc: "Image files", color: "#10b981" },
+                      { label: "Video", desc: "Video files", color: "#8b5cf6" },
+                      { label: "Audio", desc: "Audio files", color: "#14b8a6" },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center gap-2 px-2 py-1 rounded bg-[#0f0f0f]">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-[10px] text-white/60 flex-1">{item.label}</span>
+                        <span className="text-[9px] text-white/30">{item.desc}</span>
+                      </div>
+                    ))}
                   </div>
+                </div>
+
+                {/* Tip */}
+                <div className="p-3 bg-white/[0.02]">
+                  <p className="text-[9px] text-white/40 leading-relaxed">
+                    <span className="text-white/50">Tip:</span> Connect matching colors for compatible data types. 
+                    The colored dots on inputs show what type of data they accept.
+                  </p>
                 </div>
               </motion.div>
             </>

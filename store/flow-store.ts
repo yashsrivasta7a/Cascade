@@ -12,6 +12,7 @@ import {
   Connection,
 } from "reactflow";
 import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workflow";
+import { showCancelled, showNodeError, showError, showTimeoutError, showProviderError, showInsufficientCredits, showNetworkError } from "@/lib/toast";
 
 // =============================================================================
 // Setting Value Clamping - ensures values stay within valid ranges
@@ -58,6 +59,7 @@ export interface FlowState {
   nodes: Node[];
   edges: Edge[];
   selectedNode: Node | null;
+  contextMenuPosition: { x: number; y: number } | null; // Position for right-click menu
   viewport?: { x: number; y: number; zoom: number };
   isWorkflowRunning: boolean;
   focusNodeId: string | null;
@@ -102,6 +104,7 @@ export interface FlowState {
   duplicateNode: (id: string) => void;
   
   selectNode: (node: Node | null) => void;
+  setContextMenuPosition: (position: { x: number; y: number } | null) => void;
   focusNode: (nodeId: string | null) => void;
   
   // Pipeline highlighting (for Activity panel)
@@ -132,6 +135,7 @@ export const useFlowStore = create<FlowState>()(
         nodes: [],
         edges: [],
         selectedNode: null,
+        contextMenuPosition: null,
         viewport: undefined,
         isWorkflowRunning: false,
         focusNodeId: null,
@@ -192,6 +196,7 @@ export const useFlowStore = create<FlowState>()(
           if (!response.ok) {
             const error = await response.json();
             console.error("[cancelWorkflow] Failed:", error);
+            showError("Failed to cancel workflow");
             return false;
           }
           
@@ -210,9 +215,11 @@ export const useFlowStore = create<FlowState>()(
           }));
           
           console.log("[cancelWorkflow] Workflow cancelled successfully");
+          showCancelled("Workflow");
           return true;
         } catch (error) {
           console.error("[cancelWorkflow] Error:", error);
+          showError("Failed to cancel workflow");
           return false;
         }
       },
@@ -259,6 +266,9 @@ export const useFlowStore = create<FlowState>()(
         }
 
         // Update node status to cancelled
+        const nodeToCancel = state.nodes.find((n) => n.id === nodeId);
+        const nodeName = (nodeToCancel?.data as Record<string, unknown>)?.label as string || "Node";
+        
         set((prev) => ({
           nodes: prev.nodes.map((n) =>
             n.id === nodeId
@@ -268,6 +278,7 @@ export const useFlowStore = create<FlowState>()(
         }));
 
         console.log("[cancelNode] Node cancelled successfully");
+        showCancelled(nodeName);
         return true;
       },
 
@@ -288,38 +299,78 @@ export const useFlowStore = create<FlowState>()(
         const state = get();
         const newEdges = applyEdgeChanges(changes, state.edges);
         
-        // Check for removed edges that were inheritance connections
+        // Check for removed edges
         const removedChanges = changes.filter((c) => c.type === "remove");
         if (removedChanges.length > 0) {
           const removedEdgeIds = new Set(removedChanges.map((c) => c.id));
           const removedEdges = state.edges.filter((e) => removedEdgeIds.has(e.id));
           
-          // Find edges that were settings or full inheritance connections
-          const inheritanceEdges = removedEdges.filter((e) => {
-            const edgeData = e.data as Record<string, unknown> | undefined;
-            return edgeData?.isFullInheritance === true || edgeData?.isSettingsConnection === true;
-          });
+          // Map of target handle to the input field it corresponds to
+          const handleToInputField: Record<string, string[]> = {
+            "video": ["inputVideo", "video"],
+            "inputVideo": ["inputVideo", "video"],
+            "video1": ["inputVideo1", "video1"],
+            "inputVideo1": ["inputVideo1", "video1"],
+            "video2": ["inputVideo2", "video2"],
+            "inputVideo2": ["inputVideo2", "video2"],
+            "audio": ["inputAudio", "audio"],
+            "inputAudio": ["inputAudio", "audio"],
+            "image": ["inputImage", "image"],
+            "inputImage": ["inputImage", "image"],
+            "frame": ["inputFrame", "frame"],
+            "inputFrame": ["inputFrame", "frame"],
+            "referenceImages": ["referenceImages"],
+          };
           
-          // Clear inheritance from affected target nodes
-          if (inheritanceEdges.length > 0) {
-            const updatedNodes = state.nodes.map((n) => {
-              const edgesForNode = inheritanceEdges.filter((e) => e.target === n.id);
-              if (edgesForNode.length === 0) return n;
-              
-              const nodeData = { ...(n.data as Record<string, unknown>) };
-              const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
-              
-              // For full inheritance, remove all
-              const hasFullInheritance = edgesForNode.some((e) => {
+          // Update nodes affected by removed edges
+          const updatedNodes = state.nodes.map((n) => {
+            const edgesForNode = removedEdges.filter((e) => e.target === n.id);
+            if (edgesForNode.length === 0) return n;
+            
+            const nodeData = { ...(n.data as Record<string, unknown>) };
+            let hasChanges = false;
+            
+            // Clear the input field and result for each removed edge
+            for (const edge of edgesForNode) {
+              const targetHandle = edge.targetHandle;
+              if (targetHandle) {
+                const fieldsToClean = handleToInputField[targetHandle] || [targetHandle];
+                for (const field of fieldsToClean) {
+                  if (nodeData[field] !== undefined) {
+                    nodeData[field] = undefined;
+                    hasChanges = true;
+                    console.log(`[onEdgesChange] Cleared ${field} from ${n.id} due to edge removal`);
+                  }
+                }
+              }
+            }
+            
+            // If any media input was cleared, also clear the result
+            if (hasChanges) {
+              nodeData.result = undefined;
+              nodeData.status = undefined;
+              nodeData.error = undefined;
+              console.log(`[onEdgesChange] Cleared result from ${n.id} due to edge removal`);
+            }
+            
+            // Handle inheritance metadata cleanup
+            const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
+            const inheritanceEdges = edgesForNode.filter((e) => {
+              const edgeData = e.data as Record<string, unknown> | undefined;
+              return edgeData?.isFullInheritance === true || edgeData?.isSettingsConnection === true;
+            });
+            
+            if (inheritanceEdges.length > 0) {
+              const hasFullInheritance = inheritanceEdges.some((e) => {
                 const edgeData = e.data as Record<string, unknown> | undefined;
                 return edgeData?.isFullInheritance === true;
               });
               
               if (hasFullInheritance) {
                 delete nodeData._inheritedFrom;
-              } else {
+              } else if (existingInherited) {
                 // For settings connections, remove only the specific settings
-                const settingsToRemove = edgesForNode
+                const settingsToRemove = inheritanceEdges
                   .filter((e) => {
                     const edgeData = e.data as Record<string, unknown> | undefined;
                     return edgeData?.isSettingsConnection === true;
@@ -327,29 +378,28 @@ export const useFlowStore = create<FlowState>()(
                   .map((e) => e.targetHandle)
                   .filter(Boolean) as string[];
                 
-                if (existingInherited && settingsToRemove.length > 0) {
-                  const existingSettings = (existingInherited.settings as Record<string, unknown>) || {};
-                  const newSettings = { ...existingSettings };
-                  for (const key of settingsToRemove) {
-                    delete newSettings[key];
-                  }
-                  
-                  if (Object.keys(newSettings).length === 0) {
-                    delete nodeData._inheritedFrom;
-                  } else {
-                    nodeData._inheritedFrom = {
-                      ...existingInherited,
-                      settings: newSettings,
-                    };
-                  }
+                const existingSettings = (existingInherited.settings as Record<string, unknown>) || {};
+                const newSettings = { ...existingSettings };
+                for (const key of settingsToRemove) {
+                  delete newSettings[key];
+                }
+                
+                if (Object.keys(newSettings).length === 0) {
+                  delete nodeData._inheritedFrom;
+                } else {
+                  nodeData._inheritedFrom = {
+                    ...existingInherited,
+                    settings: newSettings,
+                  };
                 }
               }
-              
-              return { ...n, data: nodeData };
-            });
-            set({ edges: newEdges, nodes: updatedNodes });
-            return;
-          }
+            }
+            
+            return hasChanges || inheritanceEdges.length > 0 ? { ...n, data: nodeData } : n;
+          });
+          
+          set({ edges: newEdges, nodes: updatedNodes });
+          return;
         }
         
         set({ edges: newEdges });
@@ -391,16 +441,29 @@ export const useFlowStore = create<FlowState>()(
         const oldData = node.data as Record<string, unknown>;
         let newData = { ...oldData, ...data };
 
-        // Auto-clear result when input media changes
-        const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages"];
-        const mediaInputChanged = mediaInputFields.some(field => 
-          data[field] !== undefined && data[field] !== oldData[field]
-        );
+        // Auto-clear result when input media changes OR is removed
+        const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages", "video", "audio", "image", "video1", "video2"];
+        const mediaInputChanged = mediaInputFields.some(field => {
+          // Check if this field is being updated
+          if (!(field in data)) return false;
+          const newValue = data[field];
+          const oldValue = oldData[field];
+          // Changed if: value is different (including being cleared/removed)
+          return newValue !== oldValue;
+        });
         
-        if (mediaInputChanged && oldData.result !== undefined) {
-          // Clear the result when input media changes
-          newData = { ...newData, result: undefined };
-          console.log(`[updateNode] Cleared result for ${id} due to input media change`);
+        // Also check if any media input is being explicitly removed (set to null, undefined, or empty string)
+        const mediaInputRemoved = mediaInputFields.some(field => {
+          if (!(field in data)) return false;
+          const newValue = data[field];
+          // Considered "removed" if set to null, undefined, or empty string
+          return newValue === null || newValue === undefined || newValue === "";
+        });
+        
+        if ((mediaInputChanged || mediaInputRemoved) && oldData.result !== undefined) {
+          // Clear the result when input media changes or is removed
+          newData = { ...newData, result: undefined, status: undefined, error: undefined };
+          console.log(`[updateNode] Cleared result for ${id} due to input media ${mediaInputRemoved ? "removal" : "change"}`);
         }
 
         // Find all outgoing edges from this node for real-time propagation
@@ -583,6 +646,8 @@ export const useFlowStore = create<FlowState>()(
       },
 
       selectNode: (node) => set({ selectedNode: node }),
+
+      setContextMenuPosition: (position) => set({ contextMenuPosition: position }),
 
       focusNode: (nodeId) => {
         if (!nodeId) {
@@ -979,6 +1044,30 @@ export const useFlowStore = create<FlowState>()(
                 // If async node finished (completed/failed), stop polling
                 if (id === nodeId && isAsyncNode && (status === "completed" || status === "failed")) {
                   set({ isWorkflowRunning: false });
+                }
+                // Show appropriate error toast when a node fails
+                if (status === "failed" && patch?.error) {
+                  const failedNode = get().nodes.find((n) => n.id === id);
+                  const nodeName = (failedNode?.data as Record<string, unknown>)?.label as string || "Node";
+                  const errorMsg = String(patch.error).toLowerCase();
+                  
+                  // Detect specific error types and show appropriate toast
+                  if (errorMsg.includes("timed out") || errorMsg.includes("timeout")) {
+                    showTimeoutError(nodeName);
+                  } else if (errorMsg.includes("insufficient credits") || errorMsg.includes("not enough credits")) {
+                    // Extract credit amounts if available
+                    showInsufficientCredits();
+                  } else if (errorMsg.includes("network") || errorMsg.includes("econnrefused") || errorMsg.includes("fetch failed")) {
+                    showNetworkError(String(patch.error));
+                  } else if (errorMsg.includes("all providers failed") || patch.attemptedProviders) {
+                    const providers = patch.attemptedProviders as string[] | undefined;
+                    showProviderError(
+                      providers?.join(", ") || "Provider",
+                      String(patch.error)
+                    );
+                  } else {
+                    showNodeError(nodeName, String(patch.error));
+                  }
                 }
               },
               onNodeResult: (id, resultText) => {

@@ -119,4 +119,55 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE /api/workflow-executions - Delete all executions (optionally for a specific workflow)
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await ensureCurrentUser();
 
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const workflowId = searchParams.get("workflowId");
+
+    // First delete all node executions for these workflow executions
+    const executionsToDelete = await db.workflowExecution.findMany({
+      where: {
+        userId: user.id,
+        ...(workflowId && workflowId !== "new" ? { workflowId } : {}),
+      },
+      select: { id: true },
+    });
+
+    const executionIds = executionsToDelete.map(e => e.id);
+
+    if (executionIds.length > 0) {
+      // Delete node executions first (foreign key constraint)
+      await db.nodeExecution.deleteMany({
+        where: {
+          workflowExecutionId: { in: executionIds },
+        },
+      });
+
+      // Then delete workflow executions
+      const result = await db.workflowExecution.deleteMany({
+        where: {
+          userId: user.id,
+          ...(workflowId && workflowId !== "new" ? { workflowId } : {}),
+        },
+      });
+
+      console.log(`[DELETE /api/workflow-executions] Deleted ${result.count} executions for user ${user.id}`);
+      return NextResponse.json({ deleted: result.count });
+    }
+
+    return NextResponse.json({ deleted: 0 });
+  } catch (error) {
+    console.error("[DELETE /api/workflow-executions] Error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete executions" },
+      { status: 500 }
+    );
+  }
+}

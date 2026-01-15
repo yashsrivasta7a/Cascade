@@ -2068,7 +2068,7 @@ html.light .react-flow__background circle,
 html.light .react-flow__background pattern circle,
 html.light .react-flow__background svg circle,
 html.light .react-flow__background svg pattern circle {
-  fill: #9ca3af !important;
+  fill: #47494b !important;
 }
 
 /* Dark mode - visible white dots */
@@ -2080,7 +2080,7 @@ html.dark .react-flow__background svg pattern circle,
 .dark .react-flow__background pattern circle,
 .dark .react-flow__background svg circle,
 .dark .react-flow__background svg pattern circle {
-  fill: #3f3f46 !important;
+  fill: #373737 !important;
 }
 
 /* Fallback for default/no theme class */

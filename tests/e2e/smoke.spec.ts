@@ -5,3 +5,4 @@ test("app boots and routes to auth/dashboard", async ({ page }) => {
   await expect(page).toHaveTitle(/Flowsmith/i);
   await expect(page).toHaveURL(/\/(sign-in|dashboard)/);
 });
+

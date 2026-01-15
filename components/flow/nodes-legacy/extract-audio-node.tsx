@@ -314,7 +314,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
               <select
                 value={data.format || "mp3"}
                 onChange={(e) => updateNode(id, { format: e.target.value as any })}
-                className="nodrag nowheel w-full h-8 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+                className="nodrag nowheel fs-select w-full h-8 px-2 rounded-lg text-[10px]"
               >
                 {Object.entries(FORMAT_INFO).map(([key, { name }]) => (
                   <option key={key} value={key}>{name}</option>
@@ -326,7 +326,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
               <select
                 value={data.bitrate || "192k"}
                 onChange={(e) => updateNode(id, { bitrate: e.target.value as any })}
-                className="nodrag nowheel w-full h-8 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+                className="nodrag nowheel fs-select w-full h-8 px-2 rounded-lg text-[10px]"
               >
                 {Object.entries(BITRATE_INFO).map(([key, { name }]) => (
                   <option key={key} value={key}>{name}</option>
@@ -406,7 +406,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
                       <select
                         value={data.sampleRate || "44100"}
                         onChange={(e) => updateNode(id, { sampleRate: e.target.value as any })}
-                        className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                        className="nodrag nowheel fs-select w-full h-7 px-2 rounded-lg text-[10px]"
                       >
                         <option value="22050">22.05 kHz</option>
                         <option value="44100">44.1 kHz (CD)</option>
@@ -418,7 +418,7 @@ function ExtractAudioNodeComponent(props: NodeProps<ExtractAudioNodeData>) {
                       <select
                         value={data.channels || "2"}
                         onChange={(e) => updateNode(id, { channels: e.target.value as any })}
-                        className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                        className="nodrag nowheel fs-select w-full h-7 px-2 rounded-lg text-[10px]"
                       >
                         <option value="1">Mono</option>
                         <option value="2">Stereo</option>

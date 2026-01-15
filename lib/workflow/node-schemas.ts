@@ -125,7 +125,16 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
       // Optional text context from previous nodes
       context: z.string().optional(),
     })
-    .merge(SeedreamConfigSchema.partial()),
+    // Avoid overriding stricter input limits (e.g., prompt max length) with the
+    // looser config schemas.
+    .merge(
+      SeedreamConfigSchema.partial().omit({
+        prompt: true,
+        negativePrompt: true,
+        aspectRatio: true,
+        seed: true,
+      })
+    ),
 
   seedvr: z
     .object({
@@ -140,14 +149,14 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
       frame: withAssetLimits("image").optional(),
       context: z.string().optional(),
     })
-    .merge(SeedanceConfigSchema.partial()),
+    .merge(SeedanceConfigSchema.partial().omit({ prompt: true })),
 
   elevenlabs: z
     .object({
       text: z.string().min(1).max(LIMITS.text.maxPromptChars),
       context: z.string().optional(),
     })
-    .merge(ElevenLabsConfigSchema.partial()),
+    .merge(ElevenLabsConfigSchema.partial().omit({ text: true })),
 
   openrouter: z
     .object({

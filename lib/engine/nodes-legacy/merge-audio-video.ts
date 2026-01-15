@@ -154,6 +154,9 @@ async function mergeAudioVideoWithTransloadit(
 
   try {
     console.log("[MergeAudioVideo] Using Transloadit cloud processing");
+    console.log("[MergeAudioVideo] Input video URL:", input.video.url.slice(0, 100));
+    console.log("[MergeAudioVideo] Input audio URL:", input.audio.url.slice(0, 100));
+    console.log("[MergeAudioVideo] Replace audio:", input.replaceAudio);
     
     const client = new Transloadit({
       authKey: process.env.TRANSLOADIT_AUTH_KEY!,
@@ -185,7 +188,7 @@ async function mergeAudioVideoWithTransloadit(
             url: audioUrl,
             ignore_errors: ["meta"],
           },
-          // Merge audio with video
+          // Merge audio with video using /video/encode with custom FFmpeg
           merged: {
             robot: "/video/encode",
             use: {
@@ -196,13 +199,24 @@ async function mergeAudioVideoWithTransloadit(
             },
             preset: "iphone-high",
             ffmpeg_stack: "v6.0.0",
-            // Replace audio entirely
-            ...(input.replaceAudio && {
-              ffmpeg: {
-                an: false, // Remove original audio
-                map: ["0:v", "1:a"], // Map video from first input, audio from second
-              },
-            }),
+            // Custom FFmpeg options to replace audio
+            ffmpeg: input.replaceAudio ? {
+              // -map 0:v = video from first input (video file)
+              // -map 1:a = audio from second input (audio file) 
+              // This replaces the original audio track
+              "-map": "0:v -map 1:a",
+              "-c:a": "aac",
+              "-b:a": "192k",
+              "-shortest": true,
+            } : {
+              // Mix both audio tracks
+              "-filter_complex": "[0:a][1:a]amerge=inputs=2[a]",
+              "-map": "0:v -map [a]",
+              "-c:a": "aac",
+              "-b:a": "192k",
+              "-ac": "2",
+              "-shortest": true,
+            },
           },
         },
       },
@@ -344,6 +358,9 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
     }
     
     console.log("[MergeAudioVideo] Using local FFmpeg (warning: may OOM on small machines)");
+    console.log("[MergeAudioVideo] FFmpeg Input video URL:", input.video.url.slice(0, 100));
+    console.log("[MergeAudioVideo] FFmpeg Input audio URL:", input.audio.url.slice(0, 100));
+    console.log("[MergeAudioVideo] FFmpeg Replace audio:", input.replaceAudio);
 
     const tempDir = tmpdir();
     const videoPath = join(tempDir, `video-${randomUUID()}.mp4`);
@@ -353,25 +370,31 @@ export const mergeAudioVideoExecutor: NodeExecutor<MergeAudioVideoInput, MergeAu
     try {
       // Helper to get buffer from URL or data URL
       const getBuffer = async (url: string, type: string): Promise<Buffer> => {
+        console.log(`[MergeAudioVideo] Fetching ${type} from: ${url.slice(0, 80)}...`);
         if (url.startsWith("data:")) {
           const base64Data = url.split(",")[1];
           if (!base64Data) throw new Error(`Invalid ${type} data URL format`);
+          console.log(`[MergeAudioVideo] ${type} is base64, length: ${base64Data.length}`);
           return Buffer.from(base64Data, "base64");
         } else if (url.startsWith("blob:")) {
           throw new Error(`Blob URLs cannot be processed on the server. Please use a file upload for ${type}.`);
         } else {
           const response = await fetch(url);
           if (!response.ok) throw new Error(`Failed to fetch ${type}: ${response.statusText}`);
-          return Buffer.from(await response.arrayBuffer());
+          const buffer = Buffer.from(await response.arrayBuffer());
+          console.log(`[MergeAudioVideo] ${type} fetched, size: ${buffer.length} bytes`);
+          return buffer;
         }
       };
 
       // Get video and audio buffers
       const videoBuffer = await getBuffer(input.video.url, "video");
       await fs.writeFile(videoPath, videoBuffer);
+      console.log(`[MergeAudioVideo] Video written to: ${videoPath}`);
 
       const audioBuffer = await getBuffer(input.audio.url, "audio");
       await fs.writeFile(audioPath, audioBuffer);
+      console.log(`[MergeAudioVideo] Audio written to: ${audioPath}`);
 
       // Build FFmpeg command
       let args: string[];

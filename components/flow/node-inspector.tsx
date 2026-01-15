@@ -168,7 +168,7 @@ export function NodeInspector() {
                     <select
                       value={selectedNode.data?.aspectRatio || "1:1"}
                       onChange={(e) => updateNode(selectedNode.id, { aspectRatio: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/10 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-white/20 cursor-pointer"
+                      className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                     >
                       <option value="1:1">1:1 (Square)</option>
                       <option value="16:9">16:9 (Landscape)</option>
@@ -236,7 +236,7 @@ export function NodeInspector() {
                       <select
                         value={selectedNode.data?.duration || "4s"}
                         onChange={(e) => updateNode(selectedNode.id, { duration: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/10 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-white/20 cursor-pointer"
+                        className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                       >
                         <option value="4s">4 seconds</option>
                         <option value="8s">8 seconds</option>
@@ -248,7 +248,7 @@ export function NodeInspector() {
                       <select
                         value={selectedNode.data?.aspectRatio || "16:9"}
                         onChange={(e) => updateNode(selectedNode.id, { aspectRatio: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/10 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-white/20 cursor-pointer"
+                        className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                       >
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
@@ -267,7 +267,7 @@ export function NodeInspector() {
                     <select
                       value={selectedNode.data?.voiceId || ""}
                       onChange={(e) => updateNode(selectedNode.id, { voiceId: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/10 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-white/20 cursor-pointer"
+                      className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                     >
                       <option value="">Select a voice...</option>
                       <option value="rachel">Rachel (Female, Calm)</option>
@@ -325,7 +325,7 @@ export function NodeInspector() {
                     <select
                       value={selectedNode.data?.model || "openai/gpt-4o-mini"}
                       onChange={(e) => updateNode(selectedNode.id, { model: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/10 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-white/20 cursor-pointer"
+                      className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                     >
                       <optgroup label="OpenAI">
                         <option value="openai/gpt-4o">GPT-4o</option>
@@ -461,7 +461,7 @@ export function NodeInspector() {
                     <select
                       value={selectedNode.data?.transition || "none"}
                       onChange={(e) => updateNode(selectedNode.id, { transition: e.target.value })}
-                      className="w-full h-9 px-3 rounded-lg bg-zinc-900/50 border border-white/5 text-sm text-zinc-100 appearance-none focus:outline-none focus:border-zinc-500/30 cursor-pointer"
+                      className="fs-select w-full h-9 px-3 rounded-lg text-sm cursor-pointer"
                     >
                       <option value="none">None (Cut)</option>
                       <option value="fade">Fade</option>

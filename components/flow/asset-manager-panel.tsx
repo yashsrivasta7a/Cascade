@@ -80,17 +80,17 @@ function getNodeIcon(nodeType: string) {
 
 function getNodeColor(nodeType: string): string {
   switch (nodeType) {
-    case "openrouter": return "bg-gradient-to-r from-blue-50 to-indigo-50 dark:bg-blue-500/15 border-l-4 border-l-blue-500 border-y border-r border-blue-200 dark:border-blue-500/30";
-    case "seedream": return "bg-gradient-to-r from-emerald-50 to-teal-50 dark:bg-emerald-500/15 border-l-4 border-l-emerald-500 border-y border-r border-emerald-200 dark:border-emerald-500/30";
-    case "seedance": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:bg-violet-500/15 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
-    case "seedvr": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:bg-violet-500/15 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
-    case "lipsync": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:bg-amber-500/15 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
-    case "elevenlabs": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:bg-amber-500/15 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
-    case "crop-image": return "bg-gradient-to-r from-emerald-50 to-teal-50 dark:bg-emerald-500/15 border-l-4 border-l-emerald-500 border-y border-r border-emerald-200 dark:border-emerald-500/30";
-    case "merge-videos": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:bg-violet-500/15 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
-    case "merge-audio-video": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:bg-violet-500/15 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
-    case "extract-audio": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:bg-amber-500/15 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
-    default: return "bg-gradient-to-r from-gray-50 to-slate-50 dark:bg-zinc-500/15 border-l-4 border-l-gray-400 border-y border-r border-gray-200 dark:border-zinc-500/30";
+    case "openrouter": return "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-500/15 dark:to-blue-600/10 border-l-4 border-l-blue-500 border-y border-r border-blue-200 dark:border-blue-500/30";
+    case "seedream": return "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/15 dark:to-emerald-600/10 border-l-4 border-l-emerald-500 border-y border-r border-emerald-200 dark:border-emerald-500/30";
+    case "seedance": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-500/15 dark:to-violet-600/10 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
+    case "seedvr": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-500/15 dark:to-violet-600/10 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
+    case "lipsync": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-500/15 dark:to-amber-600/10 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
+    case "elevenlabs": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-500/15 dark:to-amber-600/10 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
+    case "crop-image": return "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/15 dark:to-emerald-600/10 border-l-4 border-l-emerald-500 border-y border-r border-emerald-200 dark:border-emerald-500/30";
+    case "merge-videos": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-500/15 dark:to-violet-600/10 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
+    case "merge-audio-video": return "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-500/15 dark:to-violet-600/10 border-l-4 border-l-violet-500 border-y border-r border-violet-200 dark:border-violet-500/30";
+    case "extract-audio": return "bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-500/15 dark:to-amber-600/10 border-l-4 border-l-amber-500 border-y border-r border-amber-200 dark:border-amber-500/30";
+    default: return "bg-gradient-to-r from-gray-50 to-slate-50 dark:from-zinc-500/15 dark:to-zinc-600/10 border-l-4 border-l-gray-400 border-y border-r border-gray-200 dark:border-zinc-500/30";
   }
 }
 

@@ -3,48 +3,72 @@ export { BaseNode } from "./base-node";
 export type { BaseNodeData } from "./base-node";
 
 // ============================================================================
-// AI PIPELINE NODES (10 Total)
+// GENERIC NODE (Config-Driven)
+// ============================================================================
+
+export { GenericNode, createNodeComponent, createAllNodeComponents } from "./generic-node";
+import { createAllNodeComponents } from "./generic-node";
+export type { GenericNodeData } from "./generic-node";
+
+// ============================================================================
+// FIELD RENDERERS (for custom node implementations)
+// ============================================================================
+
+export {
+  TextField,
+  SelectField,
+  FileField,
+  NumberField,
+  SliderField,
+  ToggleField,
+  OutputDisplay,
+  MediaSkeleton,
+} from "./field-renderers";
+
+// ============================================================================
+// LEGACY AI PIPELINE NODES (10 Total)
+// These are kept for backward compatibility - new nodes should use GenericNode
 // ============================================================================
 
 // Image Nodes
-import { SeedreamNode } from "./nodes/seedream-node";
-import { SeedVRNode } from "./nodes/seedvr-node";
+import { SeedreamNode } from "./nodes-legacy/seedream-node";
+import { SeedVRNode } from "./nodes-legacy/seedvr-node";
 export { SeedreamNode };
 export { SeedVRNode };
-export type { SeedreamNodeData } from "./nodes/seedream-node";
-export type { SeedVRNodeData } from "./nodes/seedvr-node";
+export type { SeedreamNodeData } from "./nodes-legacy/seedream-node";
+export type { SeedVRNodeData } from "./nodes-legacy/seedvr-node";
 
 // Video Nodes
-import { SeedanceNode } from "./nodes/seedance-node";
-import { LipsyncNode } from "./nodes/lipsync-node";
+import { SeedanceNode } from "./nodes-legacy/seedance-node";
+import { LipsyncNode } from "./nodes-legacy/lipsync-node";
 export { SeedanceNode };
 export { LipsyncNode };
-export type { SeedanceNodeData } from "./nodes/seedance-node";
-export type { LipsyncNodeData } from "./nodes/lipsync-node";
+export type { SeedanceNodeData } from "./nodes-legacy/seedance-node";
+export type { LipsyncNodeData } from "./nodes-legacy/lipsync-node";
 
 // Audio Nodes
-import { ElevenLabsNode } from "./nodes/elevenlabs-node";
+import { ElevenLabsNode } from "./nodes-legacy/elevenlabs-node";
 export { ElevenLabsNode };
-export type { ElevenLabsNodeData } from "./nodes/elevenlabs-node";
+export type { ElevenLabsNodeData } from "./nodes-legacy/elevenlabs-node";
 
 // LLM / Vision Nodes
-import { OpenRouterNode } from "./nodes/openrouter-node";
+import { OpenRouterNode } from "./nodes-legacy/openrouter-node";
 export { OpenRouterNode };
-export type { OpenRouterNodeData } from "./nodes/openrouter-node";
+export type { OpenRouterNodeData } from "./nodes-legacy/openrouter-node";
 
 // Utility Nodes
-import { CropImageNode } from "./nodes/crop-image-node";
-import { MergeAudioVideoNode } from "./nodes/merge-audio-video-node";
-import { MergeVideosNode } from "./nodes/merge-videos-node";
-import { ExtractAudioNode } from "./nodes/extract-audio-node";
+import { CropImageNode } from "./nodes-legacy/crop-image-node";
+import { MergeAudioVideoNode } from "./nodes-legacy/merge-audio-video-node";
+import { MergeVideosNode } from "./nodes-legacy/merge-videos-node";
+import { ExtractAudioNode } from "./nodes-legacy/extract-audio-node";
 export { CropImageNode };
 export { MergeAudioVideoNode };
 export { MergeVideosNode };
 export { ExtractAudioNode };
-export type { CropImageNodeData } from "./nodes/crop-image-node";
-export type { MergeAudioVideoNodeData } from "./nodes/merge-audio-video-node";
-export type { MergeVideosNodeData } from "./nodes/merge-videos-node";
-export type { ExtractAudioNodeData } from "./nodes/extract-audio-node";
+export type { CropImageNodeData } from "./nodes-legacy/crop-image-node";
+export type { MergeAudioVideoNodeData } from "./nodes-legacy/merge-audio-video-node";
+export type { MergeVideosNodeData } from "./nodes-legacy/merge-videos-node";
+export type { ExtractAudioNodeData } from "./nodes-legacy/extract-audio-node";
 
 // ============================================================================
 // FLOW COMPONENTS
@@ -76,19 +100,5 @@ export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node
 // ============================================================================
 
 export const nodeTypes = {
-  // Image
-  seedream: SeedreamNode,
-  seedvr: SeedVRNode,
-  // Video
-  seedance: SeedanceNode,
-  lipsync: LipsyncNode,
-  // Audio
-  elevenlabs: ElevenLabsNode,
-  // LLM / Vision
-  openrouter: OpenRouterNode,
-  // Utility
-  "crop-image": CropImageNode,
-  "merge-audio-video": MergeAudioVideoNode,
-  "merge-videos": MergeVideosNode,
-  "extract-audio": ExtractAudioNode,
+  ...createAllNodeComponents(),
 } as const;

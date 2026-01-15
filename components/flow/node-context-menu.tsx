@@ -6,8 +6,6 @@ import {
   X,
   Trash2,
   Copy,
-  Settings,
-  Play,
   Unlink,
   Image,
   Film,
@@ -33,33 +31,48 @@ interface NodeContextMenuProps {
 }
 
 export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
-  const { selectedNode, deleteNode, selectNode, duplicateNode, edges, setEdges } = useFlowStore();
+  const { selectedNode, contextMenuPosition, deleteNode, selectNode, setContextMenuPosition, duplicateNode, edges, setEdges } = useFlowStore();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu helper
+  const closeMenu = useCallback(() => {
+    selectNode(null);
+    setContextMenuPosition(null);
+  }, [selectNode, setContextMenuPosition]);
 
   // Close on click outside
   useEffect(() => {
-    if (!selectedNode) return;
+    if (!selectedNode || !contextMenuPosition) return;
 
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        // Check if clicking on a node or the menu itself
+        // Check if clicking on the menu itself
         const target = e.target as HTMLElement;
-        if (!target.closest(".react-flow__node") && !target.closest("[data-context-menu]")) {
-          selectNode(null);
+        if (!target.closest("[data-context-menu]")) {
+          closeMenu();
         }
+      }
+    };
+
+    // Close on Escape
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closeMenu();
       }
     };
 
     // Delay to prevent immediate close on selection
     const timer = setTimeout(() => {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
     }, 100);
 
     return () => {
       clearTimeout(timer);
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedNode, selectNode]);
+  }, [selectedNode, contextMenuPosition, closeMenu]);
 
   // Disconnect all edges from this node
   const handleDisconnect = useCallback(() => {
@@ -68,20 +81,23 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
       (edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id
     );
     setEdges(newEdges);
-  }, [selectedNode, edges, setEdges]);
+    closeMenu();
+  }, [selectedNode, edges, setEdges, closeMenu]);
 
   const handleDelete = useCallback(() => {
     if (!selectedNode) return;
     deleteNode(selectedNode.id);
-    selectNode(null);
-  }, [selectedNode, deleteNode, selectNode]);
+    closeMenu();
+  }, [selectedNode, deleteNode, closeMenu]);
 
   const handleDuplicate = useCallback(() => {
     if (!selectedNode) return;
     duplicateNode(selectedNode.id);
-  }, [selectedNode, duplicateNode]);
+    closeMenu();
+  }, [selectedNode, duplicateNode, closeMenu]);
 
-  if (!selectedNode) return null;
+  // Don't render if no node selected or no position
+  if (!selectedNode || !contextMenuPosition) return null;
 
   const nodeType = selectedNode.type as AINodeType;
   const nodeDef = NODE_DEFINITIONS[nodeType];
@@ -92,57 +108,41 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
     (edge) => edge.source === selectedNode.id || edge.target === selectedNode.id
   ).length;
 
-  // Calculate position near the node
-  const nodePosition = selectedNode.position;
-
   return (
     <AnimatePresence>
       <motion.div
         ref={menuRef}
         data-context-menu
-        initial={{ opacity: 0, scale: 0.9, y: -10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: -10 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ type: "spring", damping: 25, stiffness: 400 }}
-        className="absolute z-50 pointer-events-auto"
+        className="fixed z-[100] pointer-events-auto"
         style={{
-          left: nodePosition.x + 200,
-          top: nodePosition.y - 20,
+          left: contextMenuPosition.x,
+          top: contextMenuPosition.y,
         }}
       >
-        <div className="bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden min-w-[180px]">
+        <div className="bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden min-w-[180px] shadow-2xl shadow-black/50">
           {/* Header */}
-          <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2">
+          <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 bg-white/5">
             <span className="text-zinc-400">{categoryIcons[nodeDef.category]}</span>
             <span className="text-xs font-medium text-zinc-200 truncate flex-1">
               {nodeDef.label}
             </span>
             <button
-              onClick={() => selectNode(null)}
-              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors"
+              onClick={closeMenu}
+              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/10 transition-colors"
             >
               <X className="w-3 h-3" />
             </button>
           </div>
 
           {/* Actions */}
-          <div className="p-1">
-            {onOpenSettings && (
-              <button
-                onClick={() => {
-                  onOpenSettings();
-                  selectNode(null);
-                }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:bg-white/5 transition-colors"
-              >
-                <Settings className="w-3.5 h-3.5 text-zinc-500" />
-                Configure
-              </button>
-            )}
-
+          <div className="p-1.5">
             <button
               onClick={handleDuplicate}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:bg-white/5 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-300 hover:bg-white/10 transition-colors"
             >
               <Copy className="w-3.5 h-3.5 text-zinc-500" />
               Duplicate
@@ -151,18 +151,18 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
             {connectedEdgesCount > 0 && (
               <button
                 onClick={handleDisconnect}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-amber-300 hover:bg-amber-500/10 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-amber-300 hover:bg-amber-500/10 transition-colors"
               >
                 <Unlink className="w-3.5 h-3.5 text-amber-500" />
                 Disconnect All ({connectedEdgesCount})
               </button>
             )}
 
-            <div className="my-1 h-px bg-white/5" />
+            <div className="my-1.5 h-px bg-white/10" />
 
             <button
               onClick={handleDelete}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete Node

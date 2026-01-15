@@ -253,7 +253,7 @@ function SeedVRNodeComponent(props: NodeProps<SeedVRNodeData>) {
             <select
               value={data.scale || "2x"}
               onChange={(e) => updateNode(id, { scale: e.target.value as "2x" | "4x" })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300 focus:outline-none"
+              className="nodrag nowheel fs-select flex-1 h-7 px-2 rounded-lg text-[10px]"
             >
               <option value="2x">2x Upscale</option>
               <option value="4x">4x Upscale</option>

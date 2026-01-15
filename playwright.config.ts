@@ -5,11 +5,17 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 // Provide safe defaults so the app can boot in CI.
 const CLERK_PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "pk_test_ci_dummy";
-const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "sk_test_ci_dummy";
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ??
+  // Clerk expects a pk_test_* shaped value; use a valid-looking placeholder
+  // so Next/Clerk can initialize in CI without real secrets.
+  "pk_test_00000000000000000000000000000000";
+const CLERK_SECRET_KEY =
+  process.env.CLERK_SECRET_KEY ??
+  // Valid-looking placeholder for server-side init.
+  "sk_test_00000000000000000000000000000000";
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
@@ -37,7 +43,8 @@ export default defineConfig({
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: CLERK_PUBLISHABLE_KEY,
       CLERK_SECRET_KEY,
       // Some environments/tools look for this if webhook routes are hit:
-      CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET ?? "whsec_ci_dummy",
+      CLERK_WEBHOOK_SECRET:
+        process.env.CLERK_WEBHOOK_SECRET ?? "whsec_0000000000000000000000000000",
     },
   },
 });

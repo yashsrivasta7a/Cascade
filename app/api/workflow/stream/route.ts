@@ -253,14 +253,30 @@ export async function POST(request: NextRequest) {
               sentStarted.add(nodeExec.nodeId);
             }
 
-            // Send completed event
+            // Send completed event - ONLY if outputJson is available
+            // This prevents sending empty output due to timing issues where
+            // status is COMPLETED but outputJson hasn't been saved yet
             if (nodeExec.status === "COMPLETED" && !sentCompleted.has(nodeExec.nodeId)) {
-              sendEvent(controller, "node-completed", {
-                nodeId: nodeExec.nodeId,
-                nodeType: nodeExec.nodeType,
-                output: nodeExec.outputJson,
+              const outputJson = nodeExec.outputJson as object | null;
+              const hasOutput = outputJson && Object.keys(outputJson).length > 0;
+              console.log(`[WorkflowStream] Node ${nodeExec.nodeId} COMPLETED check:`, {
+                hasOutput,
+                outputJsonType: typeof nodeExec.outputJson,
+                outputJsonKeys: outputJson ? Object.keys(outputJson) : [],
               });
-              sentCompleted.add(nodeExec.nodeId);
+              if (hasOutput) {
+                console.log(`[WorkflowStream] Sending node-completed for ${nodeExec.nodeId} with output:`, 
+                  JSON.stringify(nodeExec.outputJson).slice(0, 200));
+                sendEvent(controller, "node-completed", {
+                  nodeId: nodeExec.nodeId,
+                  nodeType: nodeExec.nodeType,
+                  output: nodeExec.outputJson,
+                });
+                sentCompleted.add(nodeExec.nodeId);
+              } else {
+                // Output not available yet - will retry in next poll
+                console.log(`[WorkflowStream] Node ${nodeExec.nodeId} COMPLETED but outputJson empty/null, waiting...`);
+              }
             }
 
             // Send failed event
@@ -278,6 +294,79 @@ export async function POST(request: NextRequest) {
           if (!workflowDone) {
             await sleep(500);
           }
+        }
+
+        // IMPORTANT: After workflow is done, poll multiple times to ensure all outputs are captured
+        // This handles race conditions where DB updates weren't visible in the last poll
+        console.log(`[WorkflowStream] Workflow done, doing final polls for any missed events...`);
+        
+        // Poll a few more times to catch any late outputJson updates
+        const maxFinalPolls = 5;
+        for (let pollAttempt = 0; pollAttempt < maxFinalPolls; pollAttempt++) {
+          // Check if all completed nodes have been sent
+          const pendingCompletedNodes = nodes.filter(n => 
+            !sentCompleted.has(n.id) && !sentFailed.has(n.id)
+          );
+          
+          if (pendingCompletedNodes.length === 0) {
+            console.log(`[WorkflowStream] All node events sent, finishing`);
+            break;
+          }
+          
+          await sleep(500); // Wait for DB writes to complete
+          
+          const finalNodeExecutions = await db.nodeExecution.findMany({
+            where: { workflowExecutionId: workflowExecution.id },
+            select: {
+              nodeId: true,
+              nodeType: true,
+              nodeLabel: true,
+              status: true,
+              outputJson: true,
+              error: true,
+            },
+          });
+
+          for (const nodeExec of finalNodeExecutions) {
+            // Send completed event if not already sent AND has output
+            if (nodeExec.status === "COMPLETED" && !sentCompleted.has(nodeExec.nodeId)) {
+              const outputJson = nodeExec.outputJson as object | null;
+              const hasOutput = outputJson && Object.keys(outputJson).length > 0;
+              console.log(`[WorkflowStream] Final poll ${pollAttempt + 1}: ${nodeExec.nodeId} check:`, {
+                hasOutput,
+                outputJsonKeys: outputJson ? Object.keys(outputJson) : [],
+              });
+              if (hasOutput) {
+                console.log(`[WorkflowStream] Final poll ${pollAttempt + 1}: sending node-completed for ${nodeExec.nodeId}`);
+                sendEvent(controller, "node-completed", {
+                  nodeId: nodeExec.nodeId,
+                  nodeType: nodeExec.nodeType,
+                  output: nodeExec.outputJson,
+                });
+                sentCompleted.add(nodeExec.nodeId);
+              } else {
+                console.log(`[WorkflowStream] Final poll ${pollAttempt + 1}: ${nodeExec.nodeId} still has no outputJson`);
+              }
+            }
+
+            // Send failed event if not already sent
+            if (nodeExec.status === "FAILED" && !sentFailed.has(nodeExec.nodeId)) {
+              console.log(`[WorkflowStream] Final poll ${pollAttempt + 1}: sending node-failed for ${nodeExec.nodeId}`);
+              sendEvent(controller, "node-failed", {
+                nodeId: nodeExec.nodeId,
+                nodeType: nodeExec.nodeType,
+                error: nodeExec.error || "Unknown error",
+              });
+              sentFailed.add(nodeExec.nodeId);
+            }
+          }
+        }
+        
+        // Log warning if any nodes didn't get their events sent
+        const missedNodes = nodes.filter(n => !sentCompleted.has(n.id) && !sentFailed.has(n.id));
+        if (missedNodes.length > 0) {
+          console.warn(`[WorkflowStream] WARNING: ${missedNodes.length} nodes never sent completion events:`, 
+            missedNodes.map(n => n.id));
         }
 
         // Final workflow status

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NODE_CONFIG } from "@/lib/config";
 
 // ============================================================================
 // NODE CATEGORIES & TYPES
@@ -94,11 +95,11 @@ export const dataTypeColors: Record<DataType, { bg: string; border: string; text
     glow: "0 0 12px rgba(139, 92, 246, 0.6)" 
   },
   audio: { 
-    bg: "bg-amber-500", 
-    border: "border-amber-400", 
-    text: "text-amber-400", 
-    solid: "#f59e0b", 
-    glow: "0 0 12px rgba(245, 158, 11, 0.6)" 
+    bg: "bg-teal-500", 
+    border: "border-teal-400", 
+    text: "text-teal-400", 
+    solid: "#14b8a6", 
+    glow: "0 0 12px rgba(20, 184, 166, 0.6)" 
   },
   any: { 
     bg: "bg-zinc-400", 
@@ -202,203 +203,147 @@ export interface NodeDefinition {
   providerIcon?: string; // Provider icon identifier
 }
 
+const DATA_TYPE_LABELS: Record<DataType, string> = {
+  text: "Text",
+  image: "Image",
+  video: "Video",
+  audio: "Audio",
+  any: "Any",
+  prompt: "Prompt",
+  negative: "Negative",
+  seed: "Seed",
+  aspectRatio: "Aspect",
+  duration: "Duration",
+  model: "Model",
+  temperature: "Temp",
+  number: "Number",
+  boolean: "Toggle",
+};
+
+const MEDIA_TYPES: DataType[] = ["text", "image", "video", "audio", "any"];
+
+function inferDataTypeFromFieldId(fieldId: string, nodeType?: AINodeType): DataType | undefined {
+  const id = fieldId.toLowerCase();
+  if (id.includes("negative")) return "negative";
+  if (id.includes("prompt")) return "prompt";
+  if (id === "text" || id.includes("systemprompt") || id.includes("script")) return "prompt";
+  if (id.includes("seed")) return "seed";
+  if (id.includes("aspect")) return "aspectRatio";
+  if (id.includes("duration")) return "duration";
+  if (id.includes("model")) return "model";
+  if (id.includes("temp")) return "temperature";
+  if (id.includes("image") || id.includes("frame")) return "image";
+  if (id.includes("video")) return "video";
+  if (id.includes("audio")) return "audio";
+  if (id.includes("text")) return "text";
+  if (id.includes("steps") || id.includes("scale") || id.includes("tokens") || id.includes("penalty") || id.includes("bitrate") || id.includes("sample") || id.includes("channels")) return "number";
+  if (id.includes("replace") || id.includes("enhance") || id.includes("normalize") || id.includes("truncate") || id.includes("sync")) return "boolean";
+  return undefined;
+}
+
+function inferDataTypeFromField(
+  nodeType: AINodeType,
+  field: { id: string; type: string }
+): DataType {
+  // Prefer explicit mapping by field ID
+  const mapped = inferDataTypeFromFieldId(field.id, nodeType);
+  if (mapped) return mapped;
+
+  // Fallback by field type
+  if (field.type === "toggle") return "boolean";
+  if (field.type === "slider" || field.type === "number") return "number";
+  if (field.type === "textarea" || field.type === "text") return "text";
+
+  if (field.type === "file") {
+    // Default to category primary media type
+    const config = NODE_CONFIG[nodeType];
+    switch (config?.category) {
+      case "image":
+        return "image";
+      case "video":
+        return "video";
+      case "audio":
+        return "audio";
+      case "llm":
+        return "text";
+      default:
+        return "any";
+    }
+  }
+
+  return "any";
+}
+
+function isMediaInput(field: { id: string; type: string }, dataType: DataType): boolean {
+  if (field.id === "context") return true;
+  if (field.type === "file") return true;
+  return dataType === "image" || dataType === "video" || dataType === "audio";
+}
+
+function buildAction(inputs: { type: DataType }[], outputs: { type: DataType }[]): string {
+  const inputType = inputs.find((i) => MEDIA_TYPES.includes(i.type))?.type ?? inputs[0]?.type;
+  const outputType = outputs[0]?.type ?? "any";
+  const inputLabel = inputType ? DATA_TYPE_LABELS[inputType] : "Input";
+  const outputLabel = DATA_TYPE_LABELS[outputType] ?? "Output";
+  return `${inputLabel} → ${outputLabel}`;
+}
+
+function buildNodeDefinition(nodeType: AINodeType): NodeDefinition {
+  const config = NODE_CONFIG[nodeType];
+  if (!config) {
+    throw new Error(`Missing node config for ${nodeType}`);
+  }
+
+  const inputs = config.ui.inputs
+    .filter((field) => field.type !== "hidden")
+    .map((field) => ({
+      type: inferDataTypeFromField(nodeType, field),
+      label: field.label,
+    }));
+
+  const outputs = config.ui.outputs.map((output) => ({
+    type: output.type,
+    label: output.label,
+  }));
+
+  const providerOrder = config.providers.map((p) => p.id).join(" → ");
+  const action = buildAction(inputs, outputs);
+
+  // Derive model list from the model select field if present
+  const modelField = config.ui.inputs.find((field) => field.id === "model" && field.type === "select");
+  const models = modelField && "options" in modelField
+    ? modelField.options.map((opt) => (typeof opt === "string" ? opt : opt.label))
+    : undefined;
+
+  return {
+    type: nodeType,
+    category: config.category,
+    label: config.label,
+    description: config.description,
+    provider: providerOrder || "internal",
+    action,
+    inputs,
+    outputs,
+    estimatedCost: config.estimatedCost,
+    isUtility: config.category === "utility",
+    color: config.color,
+    estimatedTime: config.estimatedTime,
+    features: config.features,
+    models,
+  };
+}
+
 export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
-  // ─────────────────────────────────────────────────────────────────────────
-  // IMAGE NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  seedream: {
-    type: "seedream",
-    category: "image",
-    label: "Seedream 4.5",
-    description: "High-quality text-to-image generation with advanced prompt understanding and image editing capabilities",
-    provider: "ByteDance",
-    action: "Text → Image",
-    inputs: [
-      { type: "text", label: "Prompt" },
-      { type: "image", label: "Reference Images (up to 14)" },
-    ],
-    outputs: [{ type: "image", label: "Generated Image" }],
-    estimatedCost: 40_000, // $0.04 per image
-    isUtility: false,
-    color: "emerald",
-    estimatedTime: "~10s",
-    aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
-    resolutions: ["1K", "2K"],
-    features: ["Negative Prompt", "Prompt Enhancer", "Image Editing", "Multi-Reference (up to 14)"],
-  },
-  seedvr: {
-    type: "seedvr",
-    category: "image",
-    label: "SeedVR 2",
-    description: "AI-powered image upscaling with face enhancement and detail preservation",
-    provider: "ByteDance",
-    action: "Image Upscaler",
-    inputs: [{ type: "image", label: "Input Image" }],
-    outputs: [{ type: "image", label: "Upscaled Image" }],
-    estimatedCost: 2_000, // ~$0.002 per 1-2 megapixel (variable)
-    isUtility: false,
-    color: "emerald",
-    estimatedTime: "~5s",
-    features: ["2x/4x Upscale", "Face Enhancement"],
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // VIDEO NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  seedance: {
-    type: "seedance",
-    category: "video",
-    label: "Seedance 1.5",
-    description: "Generate cinematic videos from text prompts or animate still images with AI motion",
-    provider: "ByteDance",
-    action: "Text/Image → Video",
-    inputs: [
-      { type: "text", label: "Prompt" },
-      { type: "image", label: "Start Frame (optional)" },
-    ],
-    outputs: [{ type: "video", label: "Generated Video" }],
-    estimatedCost: 260_000, // ~$0.26 for 720p 5s with audio (variable)
-    isUtility: false,
-    color: "violet",
-    estimatedTime: "~45s",
-    aspectRatios: ["16:9", "9:16", "1:1"],
-    features: ["4s/8s/16s Duration", "Image-to-Video", "Motion Control"],
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // AUDIO NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  elevenlabs: {
-    type: "elevenlabs",
-    category: "audio",
-    label: "ElevenLabs V3",
-    description: "Ultra-realistic text-to-speech with emotion control and voice cloning capabilities",
-    provider: "ElevenLabs",
-    action: "Text → Speech",
-    inputs: [{ type: "text", label: "Script" }],
-    outputs: [{ type: "audio", label: "Voice Audio" }],
-    estimatedCost: 50_000, // ~$0.05 for ~500 characters (variable: $0.1/1000 chars)
-    isUtility: false,
-    color: "amber",
-    estimatedTime: "~3s",
-    features: ["50+ Voices", "Stability Control", "Clarity Control"],
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // LLM / VISION NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  openrouter: {
-    type: "openrouter",
-    category: "llm",
-    label: "OpenRouter LLM",
-    description: "Access GPT-4, Claude, Gemini and more through a unified API with vision capabilities",
-    provider: "OpenRouter",
-    action: "AI Chat & Vision",
-    inputs: [
-      { type: "text", label: "Prompt" },
-      { type: "any", label: "Context (optional)" },
-    ],
-    outputs: [{ type: "text", label: "Response" }],
-    estimatedCost: 50_000, // ~$0.05 estimate (varies by model and tokens)
-    isUtility: false,
-    color: "blue",
-    estimatedTime: "~2s",
-    models: ["GPT-4o", "Claude 3.5", "Gemini 1.5"],
-    features: ["Vision Input", "Streaming", "System Prompts"],
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // VIDEO + AUDIO NODES
-  // ─────────────────────────────────────────────────────────────────────────
-  lipsync: {
-    type: "lipsync",
-    category: "video",
-    label: "Sync Lipsync",
-    description: "AI-powered lip synchronization that matches any audio to video with realistic mouth movements",
-    provider: "Sync Labs",
-    action: "Audio + Video → Lipsync",
-    inputs: [
-      { type: "video", label: "Source Video" },
-      { type: "audio", label: "Voice Audio" },
-    ],
-    outputs: [{ type: "video", label: "Synced Video" }],
-    estimatedCost: 350_000, // ~$0.35 for ~30 seconds (variable: $0.7/min)
-    isUtility: false,
-    color: "violet",
-    estimatedTime: "~30s",
-    models: ["Sync 1.5", "Sync 1.6 Beta"],
-    features: ["HD Output", "Multi-language"],
-  },
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // UTILITY NODES (Internal - FFmpeg / Transloadit)
-  // ─────────────────────────────────────────────────────────────────────────
-  "crop-image": {
-    type: "crop-image",
-    category: "utility",
-    label: "Crop Image",
-    description: "Precisely crop images using percentage-based coordinates for consistent results",
-    provider: "Internal",
-    action: "Image Editor",
-    inputs: [{ type: "image", label: "Input Image" }],
-    outputs: [{ type: "image", label: "Cropped Image" }],
-    estimatedCost: 1_000, // $0.001 - basic image processing
-    isUtility: true,
-    color: "zinc",
-    estimatedTime: "<1s",
-    features: ["Percentage Crop", "Preserve Quality"],
-  },
-  "merge-audio-video": {
-    type: "merge-audio-video",
-    category: "utility",
-    label: "Merge Audio + Video",
-    description: "Combine or replace audio tracks in video files with perfect synchronization",
-    provider: "Internal",
-    action: "Audio + Video Merge",
-    inputs: [
-      { type: "video", label: "Video" },
-      { type: "audio", label: "Audio" },
-    ],
-    outputs: [{ type: "video", label: "Combined Video" }],
-    estimatedCost: 3_000, // $0.003 - FFmpeg processing
-    isUtility: true,
-    color: "zinc",
-    estimatedTime: "~5s",
-    features: ["Replace Audio", "Mix Audio"],
-  },
-  "merge-videos": {
-    type: "merge-videos",
-    category: "utility",
-    label: "Merge Videos",
-    description: "Seamlessly concatenate multiple videos with optional transitions",
-    provider: "Internal",
-    action: "Video Concatenate",
-    inputs: [
-      { type: "video", label: "Video 1" },
-      { type: "video", label: "Video 2" },
-    ],
-    outputs: [{ type: "video", label: "Merged Video" }],
-    estimatedCost: 5_000, // $0.005 - FFmpeg processing
-    isUtility: true,
-    color: "zinc",
-    estimatedTime: "~5s",
-    features: ["Fade Transition", "Dissolve"],
-  },
-  "extract-audio": {
-    type: "extract-audio",
-    category: "utility",
-    label: "Extract Audio",
-    description: "Extract and convert audio tracks from video with format options",
-    provider: "Internal",
-    action: "Video → Audio",
-    inputs: [{ type: "video", label: "Video" }],
-    outputs: [{ type: "audio", label: "Audio Track" }],
-    estimatedCost: 2_000, // $0.002 - FFmpeg processing
-    isUtility: true,
-    color: "zinc",
-    estimatedTime: "~3s",
-    features: ["MP3/WAV/AAC", "Bitrate Control", "Normalize"],
-  },
+  seedream: buildNodeDefinition("seedream"),
+  seedvr: buildNodeDefinition("seedvr"),
+  seedance: buildNodeDefinition("seedance"),
+  elevenlabs: buildNodeDefinition("elevenlabs"),
+  openrouter: buildNodeDefinition("openrouter"),
+  lipsync: buildNodeDefinition("lipsync"),
+  "crop-image": buildNodeDefinition("crop-image"),
+  "merge-audio-video": buildNodeDefinition("merge-audio-video"),
+  "merge-videos": buildNodeDefinition("merge-videos"),
+  "extract-audio": buildNodeDefinition("extract-audio"),
 };
 
 // ============================================================================
@@ -408,9 +353,9 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
 export const CATEGORY_META: Record<NodeCategory, { label: string; icon: string; color: string }> = {
   image: { label: "Image", icon: "Image", color: "emerald" },
   video: { label: "Video", icon: "Film", color: "violet" },
-  audio: { label: "Audio", icon: "Volume2", color: "amber" },
+  audio: { label: "Audio", icon: "Volume2", color: "teal" },
   llm: { label: "LLM / Vision", icon: "Brain", color: "blue" },
-  utility: { label: "Utility", icon: "Wrench", color: "zinc" },
+  utility: { label: "Utility", icon: "Wrench", color: "amber" },
 };
 
 // ============================================================================
@@ -564,138 +509,50 @@ export interface NodeContract {
  * Complete contracts for all node types.
  * Defines what settings each node can export and what media it accepts.
  */
+function buildNodeContract(nodeType: AINodeType): NodeContract {
+  const config = NODE_CONFIG[nodeType];
+  const outputs = config?.ui.outputs ?? [];
+  const primaryOutput = outputs[0];
+
+  const mediaInputs: HandleDefinition[] = [];
+  const settings: HandleDefinition[] = [];
+
+  for (const field of config.ui.inputs) {
+    if (field.type === "hidden") continue;
+    const dataType = inferDataTypeFromField(nodeType, field);
+    const entry: HandleDefinition = {
+      id: field.id,
+      type: dataType,
+      label: field.label,
+      required: field.required,
+    };
+
+    if (isMediaInput(field, dataType)) {
+      mediaInputs.push({ ...entry, isMedia: true });
+    } else {
+      settings.push({ ...entry, isSettings: true });
+    }
+  }
+
+  return {
+    primaryOutputType: (primaryOutput?.type ?? "any") as DataType,
+    primaryOutputId: primaryOutput?.id ?? "output",
+    mediaInputs,
+    settings,
+  };
+}
+
 export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
-  seedream: {
-    primaryOutputType: "image",
-    primaryOutputId: "image",
-    mediaInputs: [
-      // Seedream supports up to 14 reference images via fal.ai API
-      { id: "referenceImages", type: "image", label: "Reference Images (max 14)", isMedia: true },
-    ],
-    settings: [
-      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
-      { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
-      { id: "aspectRatio", type: "aspectRatio", label: "Aspect", isSettings: true },
-      { id: "seed", type: "seed", label: "Seed", isSettings: true },
-      { id: "numInferenceSteps", type: "number", label: "Steps", isSettings: true },
-      { id: "guidanceScale", type: "number", label: "Guidance", isSettings: true },
-      { id: "truncatePrompt", type: "boolean", label: "Truncate", isSettings: true },
-      { id: "promptEnhancer", type: "boolean", label: "Enhancer", isSettings: true },
-      { id: "syncMode", type: "boolean", label: "Sync", isSettings: true },
-    ],
-  },
-  seedvr: {
-    primaryOutputType: "image",
-    primaryOutputId: "upscaled",
-    mediaInputs: [
-      { id: "inputImage", type: "image", label: "Image", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "scale", type: "number", label: "Scale", isSettings: true },
-      { id: "enhanceFaces", type: "boolean", label: "Faces", isSettings: true },
-    ],
-  },
-  seedance: {
-    primaryOutputType: "video",
-    primaryOutputId: "video",
-    mediaInputs: [
-      { id: "inputFrame", type: "image", label: "Start Frame", isMedia: true },
-    ],
-    settings: [
-      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
-      { id: "duration", type: "duration", label: "Duration", isSettings: true },
-      { id: "aspectRatio", type: "aspectRatio", label: "Aspect", isSettings: true },
-      { id: "seed", type: "seed", label: "Seed", isSettings: true },
-    ],
-  },
-  elevenlabs: {
-    primaryOutputType: "audio",
-    primaryOutputId: "audio",
-    mediaInputs: [],
-    settings: [
-      { id: "text", type: "prompt", label: "Script", isSettings: true, required: true },
-      { id: "voiceId", type: "model", label: "Voice", isSettings: true },
-      { id: "stability", type: "number", label: "Stability", isSettings: true },
-      { id: "clarity", type: "number", label: "Clarity", isSettings: true },
-    ],
-  },
-  openrouter: {
-    primaryOutputType: "text",
-    primaryOutputId: "response",
-    mediaInputs: [
-      { id: "inputImage", type: "image", label: "Image", isMedia: true },
-      { id: "context", type: "text", label: "Context", isMedia: true },
-    ],
-    settings: [
-      { id: "prompt", type: "prompt", label: "Prompt", isSettings: true, required: true },
-      { id: "systemPrompt", type: "prompt", label: "System", isSettings: true },
-      { id: "model", type: "model", label: "Model", isSettings: true },
-      { id: "temperature", type: "temperature", label: "Temp", isSettings: true },
-      { id: "maxTokens", type: "number", label: "MaxTok", isSettings: true },
-      { id: "topP", type: "number", label: "Top P", isSettings: true },
-      { id: "frequencyPenalty", type: "number", label: "FreqPen", isSettings: true },
-      { id: "presencePenalty", type: "number", label: "PresPen", isSettings: true },
-      { id: "negativePrompt", type: "negative", label: "Negative", isSettings: true },
-    ],
-  },
-  lipsync: {
-    primaryOutputType: "video",
-    primaryOutputId: "synced",
-    mediaInputs: [
-      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
-      { id: "inputAudio", type: "audio", label: "Audio", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "model", type: "model", label: "Model", isSettings: true },
-    ],
-  },
-  "crop-image": {
-    primaryOutputType: "image",
-    primaryOutputId: "cropped",
-    mediaInputs: [
-      { id: "inputImage", type: "image", label: "Image", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "xPercent", type: "number", label: "X %", isSettings: true },
-      { id: "yPercent", type: "number", label: "Y %", isSettings: true },
-      { id: "widthPercent", type: "number", label: "Width %", isSettings: true },
-      { id: "heightPercent", type: "number", label: "Height %", isSettings: true },
-    ],
-  },
-  "merge-audio-video": {
-    primaryOutputType: "video",
-    primaryOutputId: "combined",
-    mediaInputs: [
-      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
-      { id: "inputAudio", type: "audio", label: "Audio", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "replaceAudio", type: "boolean", label: "Replace Audio", isSettings: true },
-    ],
-  },
-  "merge-videos": {
-    primaryOutputType: "video",
-    primaryOutputId: "merged",
-    mediaInputs: [
-      { id: "inputVideo1", type: "video", label: "Video 1", isMedia: true, required: true },
-      { id: "inputVideo2", type: "video", label: "Video 2", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "transition", type: "text", label: "Transition", isSettings: true },
-      { id: "transitionDuration", type: "duration", label: "Duration", isSettings: true },
-    ],
-  },
-  "extract-audio": {
-    primaryOutputType: "audio",
-    primaryOutputId: "extracted",
-    mediaInputs: [
-      { id: "inputVideo", type: "video", label: "Video", isMedia: true, required: true },
-    ],
-    settings: [
-      { id: "format", type: "text", label: "Format", isSettings: true },
-      { id: "bitrate", type: "text", label: "Bitrate", isSettings: true },
-    ],
-  },
+  seedream: buildNodeContract("seedream"),
+  seedvr: buildNodeContract("seedvr"),
+  seedance: buildNodeContract("seedance"),
+  elevenlabs: buildNodeContract("elevenlabs"),
+  openrouter: buildNodeContract("openrouter"),
+  lipsync: buildNodeContract("lipsync"),
+  "crop-image": buildNodeContract("crop-image"),
+  "merge-audio-video": buildNodeContract("merge-audio-video"),
+  "merge-videos": buildNodeContract("merge-videos"),
+  "extract-audio": buildNodeContract("extract-audio"),
 };
 
 /**
@@ -776,4 +633,93 @@ export function getExportableSettings(
   if (!contract) return undefined;
   
   return contract.settings.find((s: HandleDefinition) => s.id === targetHandle);
+}
+
+// ============================================================================
+// TYPE COMPATIBILITY - Centralized logic for connection validation
+// ============================================================================
+
+/**
+ * Type compatibility groups - types in the same group can connect to each other.
+ * This is the single source of truth for type compatibility.
+ */
+export const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
+  // Number types can connect to each other
+  number: ["number", "seed", "duration", "temperature"],
+  seed: ["number", "seed", "duration", "temperature"],
+  duration: ["number", "seed", "duration", "temperature"],
+  temperature: ["temperature", "number", "seed", "duration"],
+
+  // Text types can connect to each other
+  text: ["text", "prompt", "negative"],
+  prompt: ["text", "prompt", "negative"],
+  negative: ["text", "prompt", "negative"],
+
+  // Strict types: only connect to same type
+  boolean: ["boolean"],
+  aspectRatio: ["aspectRatio"],
+  image: ["image"],
+  video: ["video"],
+  audio: ["audio"],
+  model: ["model"],
+  
+  // Any connects to anything
+  any: [],
+};
+
+/**
+ * Check if two data types are compatible for connection.
+ */
+export function isTypeCompatible(from: DataType | string | undefined, to: DataType | string | undefined): boolean {
+  if (!from || !to) return false;
+  if (from === to) return true;
+  if (from === "any" || to === "any") return true;
+
+  const compatibleTypes = TYPE_COMPATIBILITY_GROUPS[from];
+  if (compatibleTypes && compatibleTypes.includes(to)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Get the data type for a specific handle on a node.
+ * Uses NODE_CONTRACTS to derive types from config.
+ */
+export function getHandleDataType(
+  nodeType: AINodeType | undefined,
+  direction: "inputs" | "outputs",
+  handleId: string | null | undefined
+): DataType | undefined {
+  if (!nodeType) return undefined;
+  
+  const contract = NODE_CONTRACTS[nodeType];
+  if (!contract) return undefined;
+
+  if (direction === "outputs") {
+    // For outputs, check if it matches the primary output
+    if (!handleId || handleId === contract.primaryOutputId) {
+      return contract.primaryOutputType;
+    }
+    // Settings outputs use the setting type
+    const setting = contract.settings.find((s: HandleDefinition) => s.id === handleId || `${s.id}-setting` === handleId);
+    if (setting) return setting.type;
+    return undefined;
+  }
+
+  // For inputs, check media inputs first
+  const mediaInput = contract.mediaInputs.find((m: HandleDefinition) => m.id === handleId);
+  if (mediaInput) return mediaInput.type;
+
+  // Then check settings
+  const setting = contract.settings.find((s: HandleDefinition) => s.id === handleId);
+  if (setting) return setting.type;
+
+  // Default to first media input if no handleId
+  if (!handleId && contract.mediaInputs.length > 0) {
+    return contract.mediaInputs[0].type;
+  }
+
+  return undefined;
 }

@@ -67,7 +67,7 @@ export interface WorkflowStreamCallbacks {
   onNodeProgress?: (nodeId: string, progress: number) => void;
   onNodeCompleted?: (nodeId: string, nodeType: string, output: unknown) => void;
   onNodeFailed?: (nodeId: string, nodeType: string, error: string) => void;
-  onWorkflowCompleted?: (data: { successCount: number; failCount: number; status: string }) => void;
+  onWorkflowCompleted?: (data: { successCount: number; failCount: number; status: string; workflowExecutionId?: string }) => void;
   onError?: (error: string) => void;
 }
 
@@ -128,19 +128,27 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
         throw new Error("No response body");
       }
 
+      console.log("[useWorkflowStream] Starting to read stream...");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let eventCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
-          console.log("[useWorkflowStream] Stream ended");
+          console.log("[useWorkflowStream] Stream ended after", eventCount, "events");
           break;
         }
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
+        // Log raw chunks for debugging (truncated)
+        if (chunk.length > 0) {
+          console.log("[useWorkflowStream] Received chunk:", chunk.length, "bytes");
+        }
         
         // Process complete events from buffer
         const lines = buffer.split("\n");
@@ -156,11 +164,13 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
             currentData = line.slice(6);
           } else if (line === "" && currentEvent && currentData) {
             // End of event, process it
+            eventCount++;
             try {
               const data = JSON.parse(currentData);
+              console.log("[useWorkflowStream] Processing event #" + eventCount + ":", currentEvent);
               processEvent(currentEvent, data);
             } catch (e) {
-              console.error("[useWorkflowStream] Failed to parse event data:", e);
+              console.error("[useWorkflowStream] Failed to parse event data:", e, "Raw data:", currentData.slice(0, 200));
             }
             currentEvent = "";
             currentData = "";
@@ -238,12 +248,15 @@ export function useWorkflowStream({ workflowId, callbacks }: UseWorkflowStreamOp
         }
 
         case "workflow-completed": {
-          const { successCount, failCount, status } = data as { 
+          const { successCount, failCount, status, workflowExecutionId: execId } = data as { 
             successCount: number; 
             failCount: number; 
             status: string;
+            workflowExecutionId?: string;
           };
-          callbacks?.onWorkflowCompleted?.({ successCount, failCount, status });
+          // Pass workflowExecutionId so caller can fetch outputs if SSE events were missed
+          const actualExecId = execId || workflowExecutionId;
+          callbacks?.onWorkflowCompleted?.({ successCount, failCount, status, workflowExecutionId: actualExecId ?? undefined });
           break;
         }
 

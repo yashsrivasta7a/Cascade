@@ -375,7 +375,7 @@ function LipsyncNodeComponent(props: NodeProps<LipsyncNodeData>) {
                     <select
                       value={data.model || "sync-1.5"}
                       onChange={(e) => updateNode(id, { model: e.target.value as "sync-1.5" | "sync-1.6-beta" })}
-                      className="nodrag nowheel w-full h-7 px-2 rounded-lg bg-zinc-900/60 border border-white/10 text-[10px] text-zinc-300"
+                      className="nodrag nowheel fs-select w-full h-7 px-2 rounded-lg text-[10px]"
                     >
                       <option value="sync-1.5">Sync 1.5 (Stable)</option>
                       <option value="sync-1.6-beta">Sync 1.6 Beta</option>

@@ -11,6 +11,7 @@ import {
   calculateSeedvrCost,
 } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
+import { persistNodeOutput, isTransloaditConfigured } from "@/lib/providers";
 
 // NOTE: Engine imports are done dynamically inside the run() function
 // This prevents FFmpeg from being bundled for Vercel API routes
@@ -46,10 +47,12 @@ async function safeUpdateNodeExecution(
       where: { id: nodeExecutionId },
       data,
     });
+    console.log(`[NodeExecutor] Updated nodeExecution ${nodeExecutionId}:`, Object.keys(data));
     return true;
   } catch (error) {
-    // Record doesn't exist - this is OK for single node runs
-    console.log(`[NodeExecutor] nodeExecution ${nodeExecutionId} not found (single node run?)`);
+    // Log the actual error for debugging
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[NodeExecutor] Failed to update nodeExecution ${nodeExecutionId}: ${errorMsg}`);
     return false;
   }
 }
@@ -74,12 +77,7 @@ export const executeNode = task({
       validateNodeInput,
       validateNodeOutput,
       registerAllNodeExecutors,
-      parseSeedreamResult,
-      parseSeedvrResult,
-      parseSeedanceResult,
-      parseElevenlabsResult,
-      parseOpenrouterResult,
-      parseLipsyncResult,
+      parseWebhookResult,
     } = engine;
 
     // Register all node executors (must be done before getNodeExecutor)
@@ -240,24 +238,7 @@ export const executeNode = task({
       }
 
       // Parse the provider result into our output format
-      const parsedOutput = (() => {
-        switch (nodeType) {
-          case "seedream":
-            return parseSeedreamResult(webhookData.result);
-          case "seedvr":
-            return parseSeedvrResult(webhookData.result);
-          case "seedance":
-            return parseSeedanceResult(webhookData.result);
-          case "elevenlabs":
-            return parseElevenlabsResult(webhookData.result);
-          case "openrouter":
-            return parseOpenrouterResult(webhookData.result);
-          case "lipsync":
-            return parseLipsyncResult(webhookData.result);
-          default:
-            return webhookData.result;
-        }
-      })();
+      const parsedOutput = parseWebhookResult(nodeType, webhookData.result);
 
       // Validate output
       const outputValidation = validateNodeOutput(nodeType, parsedOutput);
@@ -266,11 +247,23 @@ export const executeNode = task({
         throw new Error(outputValidation.error);
       }
 
+      // Persist media to CDN (upload base64 to HTTP URLs) for SSE streaming
+      let persistedOutput = outputValidation.data;
+      if (isTransloaditConfigured()) {
+        try {
+          persistedOutput = await persistNodeOutput(outputValidation.data);
+          console.log(`[NodeExecutor] Persisted webhook output to CDN for ${nodeType}`);
+        } catch (persistError) {
+          console.warn(`[NodeExecutor] Failed to persist output to CDN:`, persistError);
+          // Continue with original output - fallback will handle it
+        }
+      }
+
       // Mark as completed
       await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
         status: "COMPLETED",
         completedAt: new Date(),
-        outputJson: outputValidation.data as object,
+        outputJson: persistedOutput as object,
       });
 
       // Deduct credits after successful execution
@@ -278,9 +271,10 @@ export const executeNode = task({
       await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input);
 
       // Cache the successful result for future identical executions (only if caching enabled)
-      if (useCache && cacheHash && outputValidation.data) {
+      // Use persistedOutput (with CDN URLs) so cache hits also get HTTP URLs
+      if (useCache && cacheHash && persistedOutput) {
         try {
-          await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
+          await cacheResult(cacheHash, nodeType, persistedOutput as Record<string, unknown>);
           console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
         } catch (cacheWriteError) {
           console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
@@ -290,7 +284,7 @@ export const executeNode = task({
       return {
         success: true,
         nodeExecutionId,
-        output: outputValidation.data,
+        output: persistedOutput,
         providerUsed: result.providerUsed,
         actualCost: webhookCost,
       };
@@ -309,14 +303,44 @@ export const executeNode = task({
       throw new Error(outputValidation.error);
     }
 
+    // Persist media to CDN (upload base64 to HTTP URLs) for SSE streaming
+    // This ensures the SSE stream can send HTTP URLs instead of base64 data
+    let persistedOutput = outputValidation.data;
+    if (isTransloaditConfigured()) {
+      try {
+        const outputData = outputValidation.data as { type?: string; image?: { url?: string }; video?: { url?: string }; audio?: { url?: string } };
+        const mediaUrl = outputData?.image?.url || outputData?.video?.url || outputData?.audio?.url || "";
+        
+        // Only persist if output contains base64 data
+        if (mediaUrl.startsWith("data:")) {
+          console.log(`[NodeExecutor] Uploading ${nodeType} base64 output to CDN...`);
+          persistedOutput = await persistNodeOutput(outputValidation.data);
+          const persistedData = persistedOutput as { image?: { url?: string }; video?: { url?: string }; audio?: { url?: string } };
+          const newUrl = persistedData?.image?.url || persistedData?.video?.url || persistedData?.audio?.url || "";
+          console.log(`[NodeExecutor] Uploaded to CDN: ${newUrl.slice(0, 80)}...`);
+        }
+      } catch (persistError) {
+        console.warn(`[NodeExecutor] Failed to persist output to CDN:`, persistError);
+        // Continue with original output - fallback will handle it
+      }
+    }
+
+    // Log the validated output for debugging
+    console.log(`[NodeExecutor] ${nodeType} output validated:`, {
+      type: (persistedOutput as Record<string, unknown>)?.type,
+      keys: Object.keys(persistedOutput as object),
+      preview: JSON.stringify(persistedOutput).slice(0, 300),
+    });
+
     // Mark as completed
-    await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
+    const updateResult = await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
       status: "COMPLETED",
       completedAt: new Date(),
-      outputJson: outputValidation.data as object,
+      outputJson: persistedOutput as object,
       providerUsed: result.providerUsed,
       actualCost: result.actualCost ?? 0,
     });
+    console.log(`[NodeExecutor] safeUpdateNodeExecution result: ${updateResult}`);
 
     // Deduct credits after successful execution
     // Use result.actualCost if provided (> 0), otherwise calculate
@@ -326,9 +350,10 @@ export const executeNode = task({
     await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, syncCost);
 
     // Cache the successful result for future identical executions (only if caching enabled)
-    if (useCache && cacheHash && outputValidation.data) {
+    // Use persistedOutput (with CDN URLs) so cache hits also get HTTP URLs
+    if (useCache && cacheHash && persistedOutput) {
       try {
-        await cacheResult(cacheHash, nodeType, outputValidation.data as Record<string, unknown>);
+        await cacheResult(cacheHash, nodeType, persistedOutput as Record<string, unknown>);
         console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
       } catch (cacheWriteError) {
         console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
@@ -338,7 +363,7 @@ export const executeNode = task({
     return {
       success: true,
       nodeExecutionId,
-      output: outputValidation.data,
+      output: persistedOutput,
       providerUsed: result.providerUsed,
       actualCost: syncCost,
     };
@@ -473,72 +498,80 @@ async function deductCreditsForNode(
     console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits (sync: ${isSyncExecution})`);
 
     // Deduct credits in a transaction
-    await db.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Get current user balance
-      const user = await tx.user.findUnique({
-        where: { id: userId! },
-        select: { credits: true },
-      });
-
-      if (!user) {
-        console.log(`[NodeExecutor] User ${userId} not found, skipping credit deduction`);
-        return;
-      }
-
-      const newBalance = Math.max(0, user.credits - cost);
-
-      // Update user balance
-      await tx.user.update({
-        where: { id: userId! },
-        data: { credits: newBalance },
-      });
-
-      // Create ledger entry (workflowExecutionId may be null for sync executions)
-      await tx.creditTransaction.create({
-        data: {
-          userId: userId!,
-          amount: -cost,
-          balanceAfter: newBalance,
-          type: "EXECUTION",
-          workflowExecutionId: isSyncExecution ? null : workflowExecutionId,
-          nodeExecutionId: isSyncExecution ? null : nodeExecutionId,
-          description: `${nodeType} node execution`,
-          metadata: {
-            nodeType,
-            estimatedCost: getNodeCost(nodeType),
-            actualCost: cost,
-            quickExecutionId: isSyncExecution ? nodeExecutionId : undefined,
-          },
-        },
-      });
-
-      // Update execution record with actual cost
-      if (isSyncExecution) {
-        // Update QuickExecution for sync (utility) nodes
-        await tx.quickExecution.update({
-          where: { id: nodeExecutionId },
-          data: { actualCost: cost },
+    // Use longer timeout (30s) since node execution can take a while and 
+    // the default 5s timeout causes "Transaction not found" errors
+    await db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        // Get current user balance
+        const user = await tx.user.findUnique({
+          where: { id: userId! },
+          select: { credits: true },
         });
-      } else {
-        // Update NodeExecution for workflow nodes
-        await tx.nodeExecution.update({
-          where: { id: nodeExecutionId },
-          data: { actualCost: cost },
-        });
-      }
 
-      // Update workflowExecution actualCost (only for real workflow executions)
-      if (!isSyncExecution) {
-        await tx.workflowExecution.update({
-          where: { id: workflowExecutionId },
+        if (!user) {
+          console.log(`[NodeExecutor] User ${userId} not found, skipping credit deduction`);
+          return;
+        }
+
+        const newBalance = Math.max(0, user.credits - cost);
+
+        // Update user balance
+        await tx.user.update({
+          where: { id: userId! },
+          data: { credits: newBalance },
+        });
+
+        // Create ledger entry (workflowExecutionId may be null for sync executions)
+        await tx.creditTransaction.create({
           data: {
-            actualCost: { increment: cost },
+            userId: userId!,
+            amount: -cost,
+            balanceAfter: newBalance,
+            type: "EXECUTION",
+            workflowExecutionId: isSyncExecution ? null : workflowExecutionId,
+            nodeExecutionId: isSyncExecution ? null : nodeExecutionId,
+            description: `${nodeType} node execution`,
+            metadata: {
+              nodeType,
+              estimatedCost: getNodeCost(nodeType),
+              actualCost: cost,
+              quickExecutionId: isSyncExecution ? nodeExecutionId : undefined,
+            },
           },
         });
-      }
 
-      console.log(`[NodeExecutor] Deducted ${cost} credits from user ${userId}, new balance: ${newBalance}`);
-    });
+        // Update execution record with actual cost
+        if (isSyncExecution) {
+          // Update QuickExecution for sync (utility) nodes
+          await tx.quickExecution.update({
+            where: { id: nodeExecutionId },
+            data: { actualCost: cost },
+          });
+        } else {
+          // Update NodeExecution for workflow nodes
+          await tx.nodeExecution.update({
+            where: { id: nodeExecutionId },
+            data: { actualCost: cost },
+          });
+        }
+
+        // Update workflowExecution actualCost (only for real workflow executions)
+        if (!isSyncExecution) {
+          await tx.workflowExecution.update({
+            where: { id: workflowExecutionId },
+            data: {
+              actualCost: { increment: cost },
+            },
+          });
+        }
+
+        console.log(`[NodeExecutor] Deducted ${cost} credits from user ${userId}, new balance: ${newBalance}`);
+      },
+      {
+        timeout: 30000, // 30 second timeout (default is 5s)
+        maxWait: 10000, // Max 10s wait to acquire transaction
+      }
+    );
   } catch (error) {
     // Log but don't fail the node execution if credit deduction fails
     console.error(`[NodeExecutor] Failed to deduct credits:`, error);
@@ -581,17 +614,10 @@ async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: stri
 
     console.log(`[NodeExecutor] Node ${nodeExec.nodeId} (${nodeExec.nodeType}) marked FAILED in DB`);
 
-    // Also update the workflow execution status
-    if (nodeExec.workflowExecutionId) {
-      await db.workflowExecution.update({
-        where: { id: nodeExec.workflowExecutionId },
-        data: {
-          status: "FAILED",
-          completedAt: new Date(),
-        },
-      });
-      console.log(`[NodeExecutor] Workflow ${nodeExec.workflowExecutionId} marked FAILED`);
-    }
+    // NOTE: We do NOT mark the workflow as FAILED here!
+    // The workflow executor is responsible for determining the final workflow status
+    // after all chains have completed/failed. This allows partial completion
+    // (some chains succeed, some fail) without blocking other chains.
   } catch (dbError) {
     // Record doesn't exist - this is OK for single node runs
     console.log(`[NodeExecutor] nodeExecution ${nodeExecutionId} not found (single node run?)`);

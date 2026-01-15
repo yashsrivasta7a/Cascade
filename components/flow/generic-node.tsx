@@ -1,0 +1,809 @@
+"use client";
+
+import { memo, useState, useCallback, useMemo, useRef } from "react";
+import { NodeProps, Handle, Position } from "reactflow";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { BaseNode, type BaseNodeData } from "./base-node";
+import { useFlowStore } from "@/store";
+import { getNodeConfig } from "@/lib/config";
+import type { NodeConfig, FieldConfig } from "@/lib/config/types";
+import { dataTypeColors, type DataType, isTypeCompatible } from "@/types/nodes";
+import { cn } from "@/lib/utils";
+import {
+  TextField,
+  SelectField,
+  FileField,
+  NumberField,
+  SliderField,
+  ToggleField,
+  OutputDisplay,
+} from "./field-renderers";
+
+// =============================================================================
+// GENERIC NODE DATA TYPE
+// =============================================================================
+
+export interface GenericNodeData extends BaseNodeData {
+  nodeType: string;
+  result?: unknown;
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// ICON MAPPING (based on category)
+// =============================================================================
+
+import {
+  Image as ImageIcon,
+  Film,
+  Volume2,
+  Brain,
+  Wrench,
+} from "lucide-react";
+
+const categoryIcons = {
+  image: ImageIcon,
+  video: Film,
+  audio: Volume2,
+  llm: Brain,
+  utility: Wrench,
+};
+
+// Node types that use async (Trigger.dev/fal.ai) execution
+const ASYNC_NODE_TYPES = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
+
+// Node types that run locally/synchronously
+const LOCAL_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
+
+// =============================================================================
+// FIELD RENDERER - Renders a single form field based on config
+// =============================================================================
+
+interface FieldRendererProps {
+  field: FieldConfig;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  isConnected?: boolean;
+  disabled?: boolean;
+}
+
+function FieldRenderer({ field, value, onChange, isConnected, disabled }: FieldRendererProps) {
+  switch (field.type) {
+    case "textarea":
+    case "text":
+      return (
+        <TextField
+          config={field}
+          value={(value as string) ?? ""}
+          onChange={onChange}
+          isConnected={isConnected}
+          disabled={disabled}
+        />
+      );
+
+    case "select":
+      return (
+        <SelectField
+          config={field}
+          value={(value as string) ?? (field.defaultValue as string) ?? ""}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      );
+
+    case "file":
+      return (
+        <FileField
+          config={field}
+          value={(value as string) ?? null}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
+      );
+
+    case "number":
+      return (
+        <NumberField
+          config={field}
+          value={value as number | undefined}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      );
+
+    case "slider":
+      return (
+        <SliderField
+          config={field}
+          value={(value as number) ?? (field.defaultValue as number) ?? field.min}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      );
+
+    case "toggle":
+      return (
+        <ToggleField
+          config={field}
+          value={(value as boolean) ?? (field.defaultValue as boolean) ?? false}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      );
+
+    case "hidden":
+      return null;
+
+    default:
+      return (
+        <div className="text-[10px] text-red-500">
+          Unknown field type: {(field as FieldConfig).type}
+        </div>
+      );
+  }
+}
+
+// =============================================================================
+// FIELD WITH HANDLE - Renders a field with its input handle aligned
+// =============================================================================
+
+interface FieldWithHandleProps {
+  field: FieldConfig;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  isConnected?: boolean;
+  disabled?: boolean;
+  handleType: DataType;
+  isDragging?: boolean;
+  draggedType?: DataType | null;
+}
+
+function FieldWithHandle({ 
+  field, 
+  value, 
+  onChange, 
+  isConnected, 
+  disabled,
+  handleType,
+  isDragging,
+  draggedType,
+}: FieldWithHandleProps) {
+  const handleColor = dataTypeColors[handleType] || dataTypeColors.any;
+  const isCompatible = isDragging && draggedType && isTypeCompatible(draggedType, handleType);
+  const isIncompatible = isDragging && draggedType && !isCompatible;
+  
+  const tooltipText = field.label + (field.required ? " (required)" : "");
+
+  return (
+    <div className="relative">
+      {/* Simple dot handle at node left edge */}
+      <div 
+        className={cn(
+          "absolute z-30 group/handle transition-opacity duration-200",
+          isIncompatible && "opacity-30"
+        )}
+        style={{ 
+          left: -35,
+          top: 8,
+          transform: "translateX(-50%)",
+        }}
+        data-handletype={handleType}
+      >
+        {isCompatible && (
+          <div 
+            className="absolute rounded-full animate-ping"
+            style={{ 
+              width: 12,
+              height: 12,
+              backgroundColor: handleColor.solid,
+              opacity: 0.4,
+              left: -1,
+              top: -1,
+            }}
+          />
+        )}
+        <Handle
+          id={field.id}
+          type="target"
+          position={Position.Left}
+          data-handletype={handleType}
+          title={tooltipText}
+          style={{ 
+            position: "relative",
+            left: 0,
+            top: 0,
+            transform: "none",
+            width: 10,
+            height: 10,
+            borderWidth: 0,
+            backgroundColor: handleColor.solid,
+            boxShadow: isCompatible ? `0 0 8px ${handleColor.solid}` : undefined,
+          }}
+          className="!relative !left-0 !top-0 !transform-none transition-all duration-200"
+        />
+        
+        {/* Hover tooltip */}
+        <div 
+          className={cn(
+            "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+            "px-3 py-1.5 rounded-lg",
+            "bg-[#1a1a1a] border border-white/10",
+            "text-[11px] text-white/90 whitespace-nowrap",
+            "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
+            "transition-opacity duration-150",
+            "shadow-xl shadow-black/50"
+          )}
+          style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+        >
+          {tooltipText}
+        </div>
+      </div>
+      
+      {/* Field content */}
+      <FieldRenderer
+        field={field}
+        value={value}
+        onChange={onChange}
+        isConnected={isConnected}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+// =============================================================================
+// GENERIC NODE COMPONENT
+// =============================================================================
+
+function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
+  const { data, id } = props;
+  const nodeType = data.nodeType;
+
+  // Get node config
+  const nodeConfig = useMemo(() => getNodeConfig(nodeType), [nodeType]);
+
+  // Store hooks
+  const updateNode = useFlowStore((s) => s.updateNode);
+  const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
+  const isHandleConnected = useFlowStore((s) => s.isHandleConnected);
+  const getHandleSource = useFlowStore((s) => s.getHandleSource);
+  const nodes = useFlowStore((s) => s.nodes);
+  const runNode = useFlowStore((s) => s.runNode);
+  const workflowId = useFlowStore((s) => s.workflowId);
+  const connectingFrom = useFlowStore((s) => s.connectingFrom);
+  
+  // Dragging state for handle compatibility
+  const isDragging = Boolean(connectingFrom);
+  const draggedType = connectingFrom?.handleType as DataType | null;
+
+  // Local state
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const isProcessing = data.status === "running" || data.status === "queued" || isGenerating;
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Handle field value change
+  const handleFieldChange = useCallback(
+    (fieldId: string, value: unknown) => {
+      updateNode(id, { [fieldId]: value });
+    },
+    [id, updateNode]
+  );
+
+  // Check if a field's handle is connected
+  const isFieldConnected = useCallback(
+    (fieldId: string) => {
+      return isHandleConnected(id, fieldId);
+    },
+    [id, isHandleConnected]
+  );
+
+  // Run a connected parent node if it doesn't have output yet
+  const ensureParentOutput = useCallback(async (handleId: string): Promise<string | null> => {
+    const source = getHandleSource(id, handleId);
+    if (!source) return null;
+    
+    const parentNode = nodes.find(n => n.id === source.sourceNodeId);
+    if (!parentNode) return null;
+    
+    const parentResult = parentNode.data?.result || parentNode.data?.response;
+    
+    if (parentResult) {
+      // Parent already has output
+      return typeof parentResult === "string" ? parentResult : String(parentResult);
+    }
+    
+    // Parent doesn't have output - run it first
+    updateNode(id, { status: "queued" });
+    try {
+      await runNode(source.sourceNodeId);
+      // Get updated result after parent ran
+      const updatedNodes = useFlowStore.getState().nodes;
+      const updatedParent = updatedNodes.find(n => n.id === source.sourceNodeId);
+      return updatedParent?.data?.result || updatedParent?.data?.response || null;
+    } catch (err) {
+      console.error(`[GenericNode] Failed to run parent node:`, err);
+      return null;
+    }
+  }, [id, getHandleSource, nodes, runNode, updateNode]);
+
+  // Run node execution - handles each node type appropriately
+  const runGenerate = useCallback(async () => {
+    if (!nodeConfig) return;
+
+    // If already running, abort
+    if (isGenerating) {
+      abortControllerRef.current?.abort();
+      setIsGenerating(false);
+      updateNode(id, { status: "idle" });
+      return;
+    }
+
+    setIsGenerating(true);
+    updateNode(id, { result: "", status: "running" });
+    abortControllerRef.current = new AbortController();
+
+    try {
+      // Build input from node data
+      const input: Record<string, unknown> = {};
+      
+      for (const field of nodeConfig.ui.inputs) {
+        const fieldId = field.id;
+        let value = data[fieldId];
+        
+        // Check if this field is connected and get parent output if needed
+        if (isHandleConnected(id, fieldId)) {
+          const parentOutput = await ensureParentOutput(fieldId);
+          if (parentOutput !== null) {
+            value = parentOutput;
+            // Update node data with parent output
+            updateNode(id, { [fieldId]: parentOutput });
+          }
+        }
+        
+        if (value !== undefined && value !== null && value !== "") {
+          // Normalize file fields to AssetRef format for backend
+          if (field.type === "file" && typeof value === "string") {
+            if (fieldId === "referenceImages") {
+              input[fieldId] = [value];
+            } else {
+              input[fieldId] = { url: value };
+            }
+          } else {
+            input[fieldId] = value;
+          }
+        }
+      }
+      
+      // Ensure required fields are present
+      if (nodeType === "openrouter" && !input.prompt) {
+        input.prompt = data.prompt || "";
+      }
+
+      // Handle OpenRouter LLM specially - use streaming endpoint
+      if (nodeType === "openrouter") {
+        const response = await fetch("/api/nodes/llm/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: input.prompt || data.prompt,
+            systemPrompt: input.systemPrompt || data.systemPrompt,
+            model: input.model || data.model || "openai/gpt-4o-mini",
+            temperature: input.temperature ?? data.temperature ?? 0.7,
+            maxTokens: input.maxTokens ?? data.maxTokens ?? 4096,
+            topP: input.topP ?? data.topP,
+            frequencyPenalty: input.frequencyPenalty ?? data.frequencyPenalty,
+            presencePenalty: input.presencePenalty ?? data.presencePenalty,
+            context: input.context || data.context,
+            imageUrl: input.inputImage || data.inputImage,
+            negativePrompt: input.negativePrompt || data.negativePrompt,
+            useCache: data.useCache,
+            workflowId: workflowId ?? undefined,
+            nodeId: id,
+            nodeLabel: data.label || nodeConfig.label,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "LLM request failed");
+        }
+
+        const result = await response.json();
+        
+        if (result.text) {
+          updateNode(id, { result: result.text, status: "completed" });
+          propagateOutput(id, result.text);
+        } else if (result.error) {
+          throw new Error(result.error);
+        } else {
+          throw new Error("No response received");
+        }
+        
+        setIsGenerating(false);
+        return;
+      }
+
+      // Handle local/sync nodes
+      if (LOCAL_NODE_TYPES.includes(nodeType)) {
+        const response = await fetch("/api/nodes/execute-sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nodeType,
+            input,
+            workflowId: workflowId ?? undefined,
+            nodeId: id,
+            nodeLabel: data.label || nodeConfig.label,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || "Execution failed");
+        }
+
+        const outputUrl = result.output?.url || result.output?.video?.url || result.output?.audio?.url || result.output?.image?.url;
+        if (outputUrl) {
+          updateNode(id, { result: outputUrl, status: "completed" });
+          propagateOutput(id, outputUrl);
+        }
+        
+        setIsGenerating(false);
+        return;
+      }
+
+      // Handle async nodes (fal.ai via Trigger.dev)
+      if (ASYNC_NODE_TYPES.includes(nodeType)) {
+        setWorkflowRunning(true); // Enable polling
+        
+        const response = await fetch("/api/nodes/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nodeType,
+            input: { ...input, nodeId: id },
+            workflowId: workflowId ?? undefined,
+            nodeId: id,
+            nodeLabel: data.label || nodeConfig.label,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        const result = await response.json();
+        
+        if (result.status === "error") {
+          throw new Error(result.error || "Execution failed to start");
+        }
+
+        // Async node triggered - start polling
+        updateNode(id, { status: "running" });
+        
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`/api/nodes/status?nodeId=${encodeURIComponent(id)}`);
+            if (!statusRes.ok) return;
+            
+            const statusData = await statusRes.json();
+            
+            if (statusData.status === "completed") {
+              clearInterval(pollInterval);
+              setIsGenerating(false);
+              const outputUrl = statusData.output?.image?.url || statusData.output?.video?.url || statusData.output?.audio?.url || statusData.output?.url;
+              updateNode(id, { result: outputUrl || "", status: "completed" });
+              if (outputUrl) propagateOutput(id, outputUrl);
+              setWorkflowRunning(false);
+            } else if (statusData.status === "failed") {
+              clearInterval(pollInterval);
+              setIsGenerating(false);
+              updateNode(id, {
+                result: "",
+                status: "failed",
+                error: statusData.error || "Execution failed",
+              });
+              setWorkflowRunning(false);
+            }
+          } catch (err) {
+            console.error("[GenericNode] Poll error:", err);
+          }
+        }, 2000);
+        
+        // Store interval for cleanup on abort
+        abortControllerRef.current = { abort: () => clearInterval(pollInterval) } as AbortController;
+        return;
+      }
+
+      // Fallback - shouldn't reach here
+      throw new Error(`Unknown node type: ${nodeType}`);
+      
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        updateNode(id, { status: "idle" });
+      } else {
+        updateNode(id, {
+          result: "",
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  }, [nodeConfig, nodeType, data, id, isGenerating, isHandleConnected, ensureParentOutput, updateNode, propagateOutput, setWorkflowRunning, workflowId]);
+
+  // If no config found, show error
+  if (!nodeConfig) {
+    return (
+      <BaseNode
+        {...props}
+        color="zinc"
+        data={{
+          ...data,
+          label: `Unknown: ${nodeType}`,
+          description: "Node configuration not found",
+        }}
+      >
+        <div className="text-red-500 text-xs p-2">
+          Node type "{nodeType}" not found in config.
+        </div>
+      </BaseNode>
+    );
+  }
+
+  // Separate basic and advanced fields
+  const basicFields = nodeConfig.ui.inputs.filter((f) => !f.advanced && f.type !== "hidden");
+  const advancedFields = nodeConfig.ui.inputs.filter((f) => f.advanced && f.type !== "hidden");
+  const hasAdvanced = advancedFields.length > 0;
+
+  // Get icon based on category
+  const IconComponent = categoryIcons[nodeConfig.category] || Wrench;
+
+  // Helper to get handle type for a field - infers from field ID and type
+  const getFieldHandleType = useCallback((field: FieldConfig): DataType => {
+    const id = field.id.toLowerCase();
+    
+    // First check field ID for media types (most specific)
+    if (id.includes("video") || id === "video") return "video";
+    if (id.includes("audio") || id === "audio") return "audio";
+    if (id.includes("image") || id.includes("frame") || id === "image") return "image";
+    
+    // File inputs - check accept attribute or fall back to category
+    if (field.type === "file") {
+      const accept = (field as any).accept as string | undefined;
+      if (accept?.includes("video")) return "video";
+      if (accept?.includes("audio")) return "audio";
+      if (accept?.includes("image")) return "image";
+      // Fall back to category
+      return nodeConfig.category === "video" ? "video" : nodeConfig.category === "audio" ? "audio" : "image";
+    }
+    
+    // Infer from field ID for other types
+    if (id.includes("negative")) return "negative";
+    if (id.includes("prompt") || id === "text" || id.includes("systemprompt") || id.includes("script")) return "prompt";
+    if (id.includes("seed")) return "seed";
+    if (id.includes("aspect")) return "aspectRatio";
+    if (id.includes("duration")) return "duration";
+    if (id.includes("model")) return "model";
+    if (id.includes("temp")) return "temperature";
+    
+    // Number fields
+    if (field.type === "slider" || field.type === "number") return "number";
+    if (id.includes("steps") || id.includes("scale") || id.includes("tokens") || 
+        id.includes("penalty") || id.includes("bitrate") || id.includes("sample") || 
+        id.includes("channels") || id.includes("guidance") || id.includes("cfg")) return "number";
+    
+    // Boolean fields
+    if (field.type === "toggle") return "boolean";
+    if (id.includes("replace") || id.includes("enhance") || id.includes("normalize") || 
+        id.includes("truncate") || id.includes("sync") || id.includes("cache")) return "boolean";
+    
+    // Default to text for textarea/text fields
+    if (field.type === "textarea" || field.type === "text") return "text";
+    
+    return "any";
+  }, [nodeConfig.category]);
+
+  // No handles passed to BaseNode - all handles rendered inline with fields
+  const settingsInputHandles: any[] = [];
+
+  const outputHandles = nodeConfig.ui.outputs.map((o) => ({
+    id: o.id,
+    type: o.type,
+    label: o.label,
+  }));
+
+  // Check if we can run (has required fields filled)
+  const canRun = useMemo(() => {
+    for (const field of nodeConfig.ui.inputs) {
+      if (field.required) {
+        const value = data[field.id];
+        if (value === undefined || value === null || value === "") {
+          // Check if connected
+          if (!isFieldConnected(field.id)) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }, [nodeConfig, data, isFieldConnected]);
+
+  return (
+    <BaseNode
+      {...props}
+      nodeType={nodeType}
+      color={nodeConfig.color as any}
+      layout={nodeConfig.ui.layout || "vertical"}
+      data={{
+        ...data,
+        nodeType, // Also include in data for consistency
+        label: data.label || nodeConfig.label,
+        description: data.description || nodeConfig.description,
+        icon: <IconComponent className="w-5 h-5" />,
+        provider: nodeConfig.providers[0]?.id || "internal",
+        estimatedCost: nodeConfig.estimatedCost,
+      }}
+      inputs={settingsInputHandles as any}
+      outputs={outputHandles as any}
+      left={
+        <div className="space-y-3">
+          {/* Basic Fields with inline handles */}
+          {basicFields.map((field) => (
+            <FieldWithHandle
+              key={field.id}
+              field={field}
+              value={data[field.id]}
+              onChange={(v) => handleFieldChange(field.id, v)}
+              isConnected={isFieldConnected(field.id)}
+              disabled={isProcessing}
+              handleType={getFieldHandleType(field)}
+              isDragging={isDragging}
+              draggedType={draggedType}
+            />
+          ))}
+
+          {/* Advanced Fields Section */}
+          {hasAdvanced && (
+            <div className="space-y-3">
+              {/* Toggle button */}
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="nodrag nowheel text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+              >
+                {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {showAdvanced ? "Hide advanced" : `Show advanced (${advancedFields.length})`}
+              </button>
+
+              {/* Advanced fields - handles always rendered, content animated */}
+              <div className={cn(
+                "pt-3 border-t border-gray-200 dark:border-white/5 space-y-3",
+                !showAdvanced && "hidden"
+              )}>
+                {advancedFields.map((field) => (
+                  <FieldWithHandle
+                    key={field.id}
+                    field={field}
+                    value={data[field.id]}
+                    onChange={(v) => handleFieldChange(field.id, v)}
+                    isConnected={isFieldConnected(field.id)}
+                    disabled={isProcessing}
+                    handleType={getFieldHandleType(field)}
+                    isDragging={isDragging}
+                    draggedType={draggedType}
+                  />
+                ))}
+              </div>
+
+              {/* Hidden handles when collapsed - ALWAYS connectable */}
+              {!showAdvanced && advancedFields.map((field, index) => {
+                const handleType = getFieldHandleType(field);
+                const handleColor = dataTypeColors[handleType] || dataTypeColors.any;
+                const isCompatible = isDragging && draggedType && isTypeCompatible(draggedType, handleType);
+                
+                // Position each hidden handle at a different vertical position
+                const topPercent = 60 + (index * 10);
+                
+                return (
+                  <div
+                    key={`hidden-wrapper-${field.id}`}
+                    className="absolute z-20"
+                    style={{
+                      left: -4,
+                      top: `${topPercent}%`,
+                      transform: "translateY(-50%)",
+                    }}
+                    data-handletype={handleType}
+                  >
+                    <Handle
+                      id={field.id}
+                      type="target"
+                      position={Position.Left}
+                      data-handletype={handleType}
+                      style={{
+                        position: "relative",
+                        width: isCompatible ? 12 : 8,
+                        height: isCompatible ? 12 : 8,
+                        opacity: isCompatible ? 1 : 0,
+                        pointerEvents: "all",
+                        borderWidth: 0,
+                        backgroundColor: handleColor.solid,
+                        boxShadow: isCompatible ? `0 0 10px ${handleColor.solid}` : undefined,
+                        transition: "all 0.2s ease",
+                      }}
+                      className="!relative !left-0 !top-0 !transform-none"
+                    />
+                    {/* Show tooltip when compatible and dragging */}
+                    {isCompatible && (
+                      <div 
+                        className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-[#1a1a1a] border border-white/20 text-[9px] text-white/90 whitespace-nowrap shadow-lg"
+                        style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                      >
+                        {field.label}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      }
+      right={
+        nodeConfig.ui.outputs.length > 0 ? (
+          <div className="space-y-2">
+            {nodeConfig.ui.outputs.map((output) => (
+              <OutputDisplay
+                key={output.id}
+                config={output}
+                value={data.result}
+                isLoading={isProcessing}
+              />
+            ))}
+          </div>
+        ) : undefined
+      }
+    />
+  );
+}
+
+export const GenericNode = memo(GenericNodeComponent);
+
+// =============================================================================
+// FACTORY FUNCTION - Creates node component for a specific type
+// =============================================================================
+
+/**
+ * Create a typed node component from node config
+ * This allows using GenericNode for any node type defined in config
+ */
+export function createNodeComponent(nodeType: string) {
+  const NodeComponent = memo(function ConfiguredNode(props: NodeProps<GenericNodeData>) {
+    return <GenericNode {...props} data={{ ...props.data, nodeType }} />;
+  });
+
+  NodeComponent.displayName = `${nodeType}Node`;
+  return NodeComponent;
+}
+
+/**
+ * Create all node components from config
+ */
+export function createAllNodeComponents(): Record<string, React.ComponentType<NodeProps<GenericNodeData>>> {
+  const { getAllNodeTypes } = require("@/lib/config");
+  const nodeTypes = getAllNodeTypes() as string[];
+
+  const components: Record<string, React.ComponentType<NodeProps<GenericNodeData>>> = {};
+
+  for (const nodeType of nodeTypes) {
+    components[nodeType] = createNodeComponent(nodeType);
+  }
+
+  return components;
+}
+
+export default GenericNode;

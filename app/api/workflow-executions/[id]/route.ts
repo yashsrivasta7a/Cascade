@@ -36,6 +36,19 @@ export async function GET(
       include: {
         nodeExecutions: {
           orderBy: { createdAt: "asc" },
+          // Include all fields including outputJson for fallback output fetching
+          select: {
+            id: true,
+            nodeId: true,
+            nodeType: true,
+            nodeLabel: true,
+            status: true,
+            outputJson: true,
+            error: true,
+            startedAt: true,
+            completedAt: true,
+            actualCost: true,
+          },
         },
         workflow: {
           select: {

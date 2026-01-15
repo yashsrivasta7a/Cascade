@@ -23,8 +23,10 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { useFlowStore } from "@/store";
 import { nodeTypes } from "@/components/flow";
-import { NODE_DEFINITIONS, type AINodeType, type DataType, NODE_CONTRACTS, isSettingsHandle, isMediaHandle } from "@/types/nodes";
+import { NODE_DEFINITIONS, type AINodeType, type DataType, NODE_CONTRACTS, isSettingsHandle, isMediaHandle, TYPE_COMPATIBILITY_GROUPS, isTypeCompatible as isTypeCompatibleFn, getHandleDataType as getHandleDataTypeFn } from "@/types/nodes";
 import { NodeTypeModal } from "./node-type-modal";
+import { NodeContextMenu } from "./node-context-menu";
+import { showInvalidConnection, showCycleDetected } from "@/lib/toast";
 
 interface PendingConnection {
   sourceNodeId: string;
@@ -428,87 +430,20 @@ function getNodeMediaOutput(node: Node, handleId: string | null): string | undef
   return undefined;
 }
 
-// Handle type definitions - using specific setting types for consistent colors
-const HANDLE_TYPES: Record<AINodeType, { inputs: Record<string, DataType>; outputs: Record<string, DataType> }> = {
-  seedream: {
-    inputs: {
-      prompt: "prompt",
-      numInferenceSteps: "number",
-      seed: "seed",
-      aspectRatio: "aspectRatio",
-      negativePrompt: "negative",
-      guidanceScale: "number",
-      truncatePrompt: "boolean",
-      promptEnhancer: "boolean",
-      syncMode: "boolean",
-      referenceImages: "image", // Supports up to 14 reference images
-    },
-    outputs: {
-      image: "image",
-    },
-  },
-  seedvr: {
-    inputs: { inputImage: "image", scale: "number", enhanceFaces: "boolean" },
-    outputs: { upscaled: "image" }
-  },
-  seedance: {
-    inputs: { prompt: "prompt", inputFrame: "image", duration: "duration", aspectRatio: "aspectRatio", seed: "seed" },
-    outputs: { video: "video" },
-  },
-  elevenlabs: {
-    inputs: { text: "prompt", voiceId: "model", stability: "number", clarity: "number" },
-    outputs: { audio: "audio" }
-  },
-  openrouter: {
-    inputs: {
-      prompt: "prompt",
-      context: "text",
-      inputImage: "image",
-      systemPrompt: "prompt",
-      model: "model",
-      temperature: "temperature",
-      maxTokens: "number",
-      negativePrompt: "negative",
-    },
-    outputs: { response: "text", out: "any" },
-  },
-  lipsync: {
-    inputs: { inputVideo: "video", inputAudio: "audio", model: "model" },
-    outputs: { synced: "video" }
-  },
-  "crop-image": {
-    inputs: { inputImage: "image", xPercent: "number", yPercent: "number", widthPercent: "number", heightPercent: "number" },
-    outputs: { cropped: "image" }
-  },
-  "merge-audio-video": {
-    inputs: { inputVideo: "video", inputAudio: "audio", replaceAudio: "boolean" },
-    outputs: { combined: "video" }
-  },
-  "merge-videos": {
-    inputs: { inputVideo1: "video", inputVideo2: "video", transition: "text", transitionDuration: "duration" },
-    outputs: { merged: "video" }
-  },
-  "extract-audio": {
-    inputs: { inputVideo: "video", format: "text", bitrate: "text", sampleRate: "text", channels: "text", normalize: "boolean" },
-    outputs: { audio: "audio" }
-  },
-};
+// NOTE: HANDLE_TYPES has been removed - now using NODE_CONTRACTS from types/nodes.ts
+// All handle type definitions are derived from the config-driven node configurations
 
 function getNodeSettingKeys(node: Node | undefined): string[] {
   if (!node?.type) return [];
   const nodeType = node.type as AINodeType;
 
-  // Use NODE_CONTRACTS for accurate settings mapping
+  // Use NODE_CONTRACTS for accurate settings mapping (config-driven)
   const contract = NODE_CONTRACTS[nodeType];
   if (contract) {
-    // Return all setting keys
     return contract.settings.map((s: { id: string }) => s.id);
   }
 
-  // Fallback to HANDLE_TYPES
-  const def = HANDLE_TYPES[nodeType];
-  if (!def) return [];
-  return Object.keys(def.inputs ?? {});
+  return [];
 }
 
 function getHandleDataType(
@@ -517,15 +452,8 @@ function getHandleDataType(
   handleId: string | null | undefined
 ): DataType | undefined {
   if (!node?.type) return undefined;
-  const def = HANDLE_TYPES[node.type as AINodeType];
-  if (!def) return undefined;
-
-  const map = def[direction];
-  if (!handleId) {
-    const first = Object.keys(map)[0];
-    return first ? map[first] : undefined;
-  }
-  return map[handleId];
+  // Use the centralized config-driven function
+  return getHandleDataTypeFn(node.type as AINodeType, direction, handleId);
 }
 
 function wouldCreateCycle(edges: Edge[], source: string, target: string): boolean {
@@ -551,50 +479,108 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
   return false;
 }
 
-// Type compatibility matrix for settings connections
-// Groups of types that can connect to each other
-const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
-  // Number types can connect to each other (including temperature)
-  number: ["number", "seed", "duration", "temperature"],
-  seed: ["number", "seed", "duration", "temperature"],
-  duration: ["number", "seed", "duration", "temperature"],
-
-  // Text types can connect to each other
-  text: ["text", "prompt", "negative"],
-  prompt: ["text", "prompt", "negative"],
-  negative: ["text", "prompt", "negative"],
-
-  // Boolean types
-  boolean: ["boolean"],
-
-  // Aspect ratio is specific
-  aspectRatio: ["aspectRatio"],
-
-  // Media types
-  image: ["image"],
-  video: ["video"],
-  audio: ["audio"],
-
-  // Model types
-  model: ["model"],
-
-  // Temperature - compatible with all number types
-  temperature: ["temperature", "number", "seed", "duration"],
-};
-
+// Type compatibility - use centralized function from types/nodes.ts
 function isTypeCompatible(from: DataType | undefined, to: DataType | undefined): boolean {
-  if (!from || !to) return false;
-  if (from === to) return true;
-  if (to === "any") return true;
-  if (from === "any") return true;
+  return isTypeCompatibleFn(from, to);
+}
 
-  // Check compatibility groups
-  const compatibleTypes = TYPE_COMPATIBILITY_GROUPS[from];
-  if (compatibleTypes && compatibleTypes.includes(to)) {
-    return true;
+// Connection validation result with reason
+type ConnectionValidationResult = 
+  | { valid: true }
+  | { valid: false; reason: "type_mismatch" | "cycle" | "invalid_handle" | "missing_source_target"; details?: string };
+
+// Validate connection and return the reason if invalid
+function validateConnection(
+  conn: Connection,
+  nodes: Node[],
+  edges: Edge[]
+): ConnectionValidationResult {
+  if (!conn.source || !conn.target) {
+    return { valid: false, reason: "missing_source_target" };
   }
 
-  return false;
+  const sourceNode = nodes.find((n) => n.id === conn.source);
+  const targetNode = nodes.find((n) => n.id === conn.target);
+  const sourceNodeType = sourceNode?.type as AINodeType | undefined;
+  const targetNodeType = targetNode?.type as AINodeType | undefined;
+
+  const sourceHandle = conn.sourceHandle ?? "";
+  const isFromRadialSettings = sourceHandle.endsWith("-setting");
+  const actualSourceHandle = isFromRadialSettings
+    ? sourceHandle.replace("-setting", "")
+    : sourceHandle;
+
+  const targetHandle = conn.targetHandle ?? "";
+  const isTargetSettings = targetNodeType ? isSettingsHandle(targetNodeType, targetHandle) : false;
+
+  // Check cycle first (applies to all connection types)
+  if (wouldCreateCycle(edges, conn.source, conn.target)) {
+    return { valid: false, reason: "cycle" };
+  }
+
+  // If dragging FROM a radial settings handle
+  if (isFromRadialSettings && sourceNodeType) {
+    const sourceContract = NODE_CONTRACTS[sourceNodeType];
+    const sourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) => s.id === actualSourceHandle);
+
+    if (sourceSetting) {
+      const sourceSettingType = sourceSetting.type as DataType;
+      const toType = getHandleDataType(targetNode, "inputs", targetHandle);
+
+      if (!isTypeCompatible(sourceSettingType, toType)) {
+        return { 
+          valid: false, 
+          reason: "type_mismatch", 
+          details: `${sourceSettingType} → ${toType || "unknown"}` 
+        };
+      }
+      return { valid: true };
+    }
+    return { valid: false, reason: "invalid_handle" };
+  }
+
+  // If connecting to a settings input
+  if (isTargetSettings && targetNodeType) {
+    const targetContract = NODE_CONTRACTS[targetNodeType];
+    const targetSetting = targetContract?.settings.find((s: { id: string; type: string }) => s.id === targetHandle);
+
+    if (targetSetting) {
+      const targetSettingType = targetSetting.type as DataType;
+
+      if (sourceNodeType) {
+        const sourceContract = NODE_CONTRACTS[sourceNodeType];
+        const compatibleSourceSetting = sourceContract?.settings.find((s: { id: string; type: string }) =>
+          isTypeCompatible(s.type as DataType, targetSettingType)
+        );
+
+        const sourceOutputType = getHandleDataType(sourceNode, "outputs", actualSourceHandle);
+        const isOutputCompatible = isTypeCompatible(sourceOutputType, targetSettingType);
+
+        if (compatibleSourceSetting || isOutputCompatible) {
+          return { valid: true };
+        }
+        return { 
+          valid: false, 
+          reason: "type_mismatch",
+          details: `No compatible output for ${targetSettingType}`
+        };
+      }
+    }
+  }
+
+  // For non-settings connections
+  const fromType = getHandleDataType(sourceNode, "outputs", actualSourceHandle);
+  const toType = getHandleDataType(targetNode, "inputs", targetHandle);
+  
+  if (!isTypeCompatible(fromType, toType)) {
+    return { 
+      valid: false, 
+      reason: "type_mismatch",
+      details: `${fromType || "unknown"} → ${toType || "unknown"}`
+    };
+  }
+
+  return { valid: true };
 }
 
 // =============================================================================
@@ -783,6 +769,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     setEdges,
     selectNode,
     selectedNode,
+    setContextMenuPosition,
     deleteNode,
     duplicateNode,
     viewport,
@@ -1054,7 +1041,22 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   // Handle regular connections between existing nodes
   const onConnect = useCallback(
     (params: Connection) => {
-      if (!isValidConnection(params)) return;
+      // Validate connection and show toast if invalid
+      const validation = validateConnection(params, nodes, edges);
+      if (!validation.valid) {
+        if (validation.reason === "cycle") {
+          showCycleDetected();
+        } else if (validation.reason === "type_mismatch") {
+          showInvalidConnection(
+            validation.details 
+              ? `Incompatible types: ${validation.details}`
+              : "Incompatible data types"
+          );
+        } else if (validation.reason === "invalid_handle") {
+          showInvalidConnection("Invalid connection handle");
+        }
+        return;
+      }
 
       const sourceNode = params.source ? nodes.find((n) => n.id === params.source) : undefined;
       const targetNode = params.target ? nodes.find((n) => n.id === params.target) : undefined;
@@ -1385,9 +1387,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         const edgeDataType =
           getHandleDataType(sourceNode, "outputs", pendingConnection.sourceHandleId) ?? "any";
 
-        // Determine target handle based on node type (default to context for text)
-        const targetNodeDef = HANDLE_TYPES[nodeType];
-        const targetHandle = targetNodeDef?.inputs ? Object.keys(targetNodeDef.inputs)[0] : undefined;
+        // Determine target handle based on node type (config-driven via NODE_CONTRACTS)
+        const contract = NODE_CONTRACTS[nodeType];
+        const targetHandle = contract?.mediaInputs[0]?.id ?? contract?.settings[0]?.id;
         const isNegative = targetHandle === "negativePrompt" || targetHandle === "negative";
 
         const newEdge: Edge = {
@@ -1424,16 +1426,18 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
       selectNode(node as Parameters<typeof selectNode>[0]);
+      setContextMenuPosition({ x: event.clientX, y: event.clientY });
     },
-    [selectNode]
+    [selectNode, setContextMenuPosition]
   );
 
   const onPaneClick = useCallback(() => {
     selectNode(null);
+    setContextMenuPosition(null);
     // Clear any lingering connection state
     connectingFromRef.current = null;
     setConnectingFrom(null);
-  }, [selectNode, setConnectingFrom]);
+  }, [selectNode, setContextMenuPosition, setConnectingFrom]);
 
   const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -1526,6 +1530,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         onClose={handleModalClose}
         onSelect={handleNodeTypeSelect}
       />
+
+      {/* Right-click Context Menu for nodes */}
+      <NodeContextMenu />
     </div>
   );
 }

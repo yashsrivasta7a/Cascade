@@ -197,6 +197,7 @@ export default function WorkflowEditorPage() {
   const [workflowSidebarOpen, setWorkflowSidebarOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isFinalizing, setIsFinalizing] = useState(false);
   
   // Fetch real credit balance from API with real-time updates
   const { data: creditsData, refetch: refetchCredits } = trpc.credits.getBalance.useQuery(undefined, {
@@ -263,7 +264,7 @@ export default function WorkflowEditorPage() {
         case "r":
           e.preventDefault();
           e.stopPropagation();
-          if (!isWorkflowRunning) setIsRunModalOpen(true);
+          if (!isWorkflowRunning && !isFinalizing) setIsRunModalOpen(true);
           break;
         case "w":
         case "t":
@@ -272,13 +273,13 @@ export default function WorkflowEditorPage() {
           setWorkflowSidebarOpen(prev => !prev);
           break;
         case "escape":
-          // If workflow is running, stop it
-          if (isWorkflowRunning) {
+          // If workflow is running (but not finalizing), stop it
+          if (isWorkflowRunning && !isFinalizing) {
             e.preventDefault();
             e.stopPropagation();
             // We'll call handleStopWorkflow via a ref since this is in an effect
             stopWorkflowRef.current?.();
-          } else {
+          } else if (!isFinalizing) {
             // Otherwise, close all panels and modals
             setPaletteOpen(false);
             setActivityOpen(false);
@@ -300,7 +301,7 @@ export default function WorkflowEditorPage() {
       window.removeEventListener("keydown", handleKeyDown, true);
       document.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [isWorkflowRunning, router]);
+  }, [isWorkflowRunning, isFinalizing, router]);
 
   // tRPC queries and mutations
   const utils = trpc.useUtils();
@@ -897,8 +898,98 @@ export default function WorkflowEditorPage() {
       setWorkflowErrors(prev => [newError, ...prev]);
       setActivityOpen(true);
     },
-    onWorkflowCompleted: ({ successCount, failCount, status }) => {
-      console.log(`[SSE] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}`);
+    onWorkflowCompleted: async ({ successCount, failCount, status, workflowExecutionId }) => {
+      console.log(`[SSE] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}, execId: ${workflowExecutionId}`);
+      
+      // Set finalizing state - keeps the UI showing "running" until outputs are displayed
+      setIsFinalizing(true);
+      console.log(`[SSE] Entering finalizing state - fetching outputs...`);
+      
+      // FALLBACK: Fetch outputs from database for any nodes that didn't receive SSE events
+      // This handles cases where SSE connection was interrupted (e.g., Fast Refresh, network issues)
+      if (workflowExecutionId) {
+        try {
+          console.log(`[SSE] Fetching node outputs from database as fallback...`);
+          const response = await fetch(`/api/workflow-executions/${workflowExecutionId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const nodeExecutions = data.execution?.nodeExecutions || [];
+            
+            const { updateNode, propagateOutput, nodes: currentNodes } = useFlowStore.getState();
+            let outputsApplied = 0;
+            
+            for (const ne of nodeExecutions) {
+              if (ne.status === "COMPLETED" && ne.outputJson) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const outputData = ne.outputJson as Record<string, any>;
+                
+                // Check if this node already has output set (from SSE)
+                // Use currentNodes from store to get the latest state
+                const currentNode = currentNodes.find((n: { id: string }) => n.id === ne.nodeId);
+                const currentData = (currentNode?.data as Record<string, unknown>) || {};
+                
+                // Skip if node already has a result (SSE event was received)
+                if (currentData.result) {
+                  continue;
+                }
+                
+                // Extract media URL from output
+                let mediaUrl = "";
+                let resultPreview = "";
+                
+                if (outputData?.type === "text" && outputData?.text) {
+                  resultPreview = String(outputData.text).slice(0, 100);
+                } else {
+                  mediaUrl = outputData?.image?.url || outputData?.video?.url || outputData?.audio?.url || "";
+                  // Skip sanitized placeholders
+                  if (mediaUrl.startsWith("[base64-data:") || mediaUrl.startsWith("[base64:")) {
+                    mediaUrl = "";
+                  }
+                  resultPreview = mediaUrl;
+                }
+                
+                if (mediaUrl || resultPreview) {
+                  console.log(`[SSE] Fallback: Applying output to node ${ne.nodeId}`);
+                  const updateData: Record<string, unknown> = {
+                    status: "completed",
+                    progress: 100,
+                    outputType: outputData?.type,
+                  };
+                  
+                  if (mediaUrl) {
+                    updateData.result = mediaUrl;
+                  } else if (resultPreview) {
+                    updateData.result = resultPreview;
+                  }
+                  
+                  updateNode(ne.nodeId, updateData);
+                  outputsApplied++;
+                  
+                  // Also propagate to downstream nodes
+                  const resultUrl = mediaUrl || resultPreview;
+                  if (resultUrl) {
+                    setTimeout(() => {
+                      propagateOutput(ne.nodeId, resultUrl);
+                    }, 10);
+                  }
+                }
+              }
+            }
+            
+            if (outputsApplied > 0) {
+              console.log(`[SSE] Fallback: Applied ${outputsApplied} outputs from database`);
+            }
+          }
+        } catch (err) {
+          console.error(`[SSE] Failed to fetch outputs from database:`, err);
+        }
+      }
+      
+      // Small delay to ensure React has time to render the outputs
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log(`[SSE] Finalizing complete - workflow done`);
+      setIsFinalizing(false);
       setWorkflowRunning(false);
       void refetchCredits();
     },
@@ -919,7 +1010,7 @@ export default function WorkflowEditorPage() {
       setActivityOpen(true);
       setWorkflowRunning(false);
     },
-  }), [nodes, setNodes, refetchCredits, setWorkflowRunning]);
+  }), [nodes, setNodes, refetchCredits, setWorkflowRunning, setIsFinalizing]);
 
   // SSE workflow stream hook
   const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning, cancelWorkflow } = useWorkflowStream({
@@ -1433,29 +1524,32 @@ export default function WorkflowEditorPage() {
               {/* Run/Stop button */}
               <div className="relative group/runwrap">
                 {/* Outer glow */}
-                <div className={`absolute -inset-1 bg-gradient-to-r ${isWorkflowRunning ? "from-red-600 via-red-500 to-red-600" : buttonGradient} rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity`} />
+                <div className={`absolute -inset-1 bg-gradient-to-r ${isWorkflowRunning || isFinalizing ? (isFinalizing ? "from-amber-600 via-amber-500 to-amber-600" : "from-red-600 via-red-500 to-red-600") : buttonGradient} rounded-xl blur-lg opacity-40 group-hover/runwrap:opacity-70 transition-opacity`} />
                 
                 <motion.button
-                  onClick={() => isWorkflowRunning ? handleStopWorkflow() : setIsRunModalOpen(true)}
+                  onClick={() => (isWorkflowRunning && !isFinalizing) ? handleStopWorkflow() : (!isWorkflowRunning && !isFinalizing) ? setIsRunModalOpen(true) : undefined}
                   onMouseEnter={() => setHoveredAction("run")}
                   onMouseLeave={() => setHoveredAction(null)}
-                  whileTap={{ scale: 0.97 }}
-                  whileHover={{ scale: 1.02 }}
-                  className="relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden group/run"
+                  whileTap={{ scale: isFinalizing ? 1 : 0.97 }}
+                  whileHover={{ scale: isFinalizing ? 1 : 1.02 }}
+                  className={`relative flex items-center gap-2 px-4 py-2 rounded-xl overflow-hidden group/run ${isFinalizing ? "cursor-wait" : ""}`}
+                  disabled={isFinalizing}
                 >
                   {/* Button gradient background */}
-                  <div className={`absolute inset-0 bg-gradient-to-r ${isWorkflowRunning ? "from-red-600 via-red-500 to-red-600" : buttonGradient} bg-[length:200%_100%] group-hover/run:animate-shimmer`} />
+                  <div className={`absolute inset-0 bg-gradient-to-r ${isWorkflowRunning || isFinalizing ? (isFinalizing ? "from-amber-600 via-amber-500 to-amber-600" : "from-red-600 via-red-500 to-red-600") : buttonGradient} bg-[length:200%_100%] group-hover/run:animate-shimmer`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                   
                   {/* Content */}
                   <div className="relative flex items-center gap-2">
-                    {isWorkflowRunning ? (
+                    {isFinalizing ? (
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    ) : isWorkflowRunning ? (
                       <Square className="w-4 h-4 text-white fill-white" />
                     ) : (
                       <Play className="w-4 h-4 text-white" />
                     )}
                     <span className="text-sm font-semibold text-white tracking-wide">
-                      {isWorkflowRunning ? "Stop" : "Execute"}
+                      {isFinalizing ? "Finalizing..." : isWorkflowRunning ? "Stop" : "Execute"}
                     </span>
                   </div>
                   
@@ -1474,8 +1568,8 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">{isWorkflowRunning ? "Stop" : "Execute"}</span>
-                        <Kbd>{isWorkflowRunning ? "Esc" : "R"}</Kbd>
+                        <span className="text-xs text-zinc-300">{isFinalizing ? "Loading outputs..." : isWorkflowRunning ? "Stop" : "Execute"}</span>
+                        <Kbd>{isFinalizing ? "..." : isWorkflowRunning ? "Esc" : "R"}</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
                     </motion.div>

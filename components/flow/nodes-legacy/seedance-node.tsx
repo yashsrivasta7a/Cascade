@@ -274,7 +274,7 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
             <select
               value={data.duration || "4s"}
               onChange={(e) => updateNode(id, { duration: e.target.value as "4s" | "8s" | "16s" })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+              className="nodrag nowheel fs-select flex-1 h-7 px-2 rounded-lg text-[10px]"
             >
               <option value="4s">4 sec</option>
               <option value="8s">8 sec</option>
@@ -283,7 +283,7 @@ function SeedanceNodeComponent(props: NodeProps<SeedanceNodeData>) {
             <select
               value={data.aspectRatio || "16:9"}
               onChange={(e) => updateNode(id, { aspectRatio: e.target.value as "16:9" | "9:16" | "1:1" })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300"
+              className="nodrag nowheel fs-select flex-1 h-7 px-2 rounded-lg text-[10px]"
             >
               <option value="16:9">16:9</option>
               <option value="9:16">9:16</option>

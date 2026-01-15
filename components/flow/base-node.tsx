@@ -1,12 +1,10 @@
 "use client";
 
-import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState, useCallback } from "react";
+import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Copy,
-  Trash2,
   Play,
   Loader2,
   AlertCircle,
@@ -15,32 +13,12 @@ import {
   Circle,
   Clock,
   Square,
-  Settings2,
+  Info,
+  Settings,
   ChevronRight,
-  Type,
-  Hash,
-  Palette,
-  Thermometer,
-  Bot,
-  Zap,
-  X,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
-import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType } from "@/types/nodes";
-
-// Icons for different setting types
-const settingIcons: Record<string, typeof Type> = {
-  prompt: Type,
-  negative: X,
-  aspectRatio: Palette,
-  seed: Hash,
-  number: Hash,
-  duration: Clock,
-  model: Bot,
-  temperature: Thermometer,
-  boolean: Zap,
-  text: Type,
-};
+import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType, isTypeCompatible } from "@/types/nodes";
 
 export interface BaseNodeData {
   label: string;
@@ -66,7 +44,8 @@ interface HandleConfig {
 }
 
 interface BaseNodeProps extends NodeProps<BaseNodeData> {
-  color: "cyan" | "violet" | "emerald" | "amber" | "rose" | "blue" | "zinc";
+  color: "cyan" | "violet" | "emerald" | "amber" | "rose" | "blue" | "zinc" | "teal";
+  nodeType?: string; // Explicit node type for settings lookup
   left?: ReactNode;
   right?: ReactNode;
   children?: ReactNode;
@@ -85,9 +64,10 @@ const accentColors: Record<string, string> = {
   rose: "#f43f5e",
   blue: "#3b82f6",
   zinc: "#71717a",
+  teal: "#14b8a6", // For audio nodes
 };
 
-// Status configuration with icons and colors
+// Status configuration with icons and colors - minimal dark theme
 const statusConfig: Record<NodeStatus, { 
   icon: typeof Circle; 
   color: string; 
@@ -97,39 +77,39 @@ const statusConfig: Record<NodeStatus, {
 }> = {
   idle: { 
     icon: Circle, 
-    color: "text-gray-500 dark:text-zinc-500", 
-    bgColor: "bg-gray-100 dark:bg-zinc-500/10",
+    color: "text-zinc-500", 
+    bgColor: "",
     label: "Ready" 
   },
   queued: { 
     icon: Clock, 
-    color: "text-gray-500 dark:text-zinc-400", 
-    bgColor: "bg-gray-100 dark:bg-zinc-400/10",
+    color: "text-zinc-400", 
+    bgColor: "",
     label: "Queued" 
   },
   running: { 
     icon: Loader2, 
-    color: "text-blue-600 dark:text-white", 
-    bgColor: "bg-blue-50 dark:bg-white/10",
+    color: "text-blue-400", 
+    bgColor: "",
     label: "Running",
     animate: true 
   },
   completed: { 
     icon: CheckCircle2, 
-    color: "text-emerald-600 dark:text-emerald-400", 
-    bgColor: "bg-emerald-50 dark:bg-emerald-500/10",
+    color: "text-emerald-400", 
+    bgColor: "",
     label: "Done" 
   },
   failed: { 
     icon: AlertCircle, 
-    color: "text-red-600 dark:text-red-400", 
-    bgColor: "bg-red-50 dark:bg-red-500/10",
+    color: "text-red-400", 
+    bgColor: "",
     label: "Failed" 
   },
   cancelled: {
     icon: Square,
-    color: "text-amber-600 dark:text-amber-400",
-    bgColor: "bg-amber-50 dark:bg-amber-500/10",
+    color: "text-amber-400",
+    bgColor: "",
     label: "Cancelled"
   },
 };
@@ -207,6 +187,7 @@ function BaseNodeComponent({
   data,
   selected,
   color,
+  nodeType: nodeTypeProp,
   left,
   right,
   children,
@@ -215,15 +196,16 @@ function BaseNodeComponent({
   isUtility = false,
   layout = "horizontal",
   id,
-  type: nodeTypeFromProps,
+  type: reactFlowType,
 }: BaseNodeProps) {
+  // Use explicit nodeType prop if provided, otherwise fall back to React Flow type
+  const nodeTypeFromProps = nodeTypeProp || reactFlowType;
   const status = data.status || "idle";
   const selectedNodeId = useFlowStore((s) => s.selectedNode?.id ?? null);
   const isSelected = Boolean(selected || (selectedNodeId && selectedNodeId === id));
   const highlightedNodeIds = useFlowStore((s) => s.highlightedNodeIds);
   const isHighlighted = highlightedNodeIds.includes(id);
-  const deleteNode = useFlowStore((s) => s.deleteNode);
-  const duplicateNode = useFlowStore((s) => s.duplicateNode);
+  // Note: duplicate/delete functionality moved to context menu
   const runNode = useFlowStore((s) => s.runNode);
   const cancelNode = useFlowStore((s) => s.cancelNode);
   const canRun = status !== "running" && status !== "queued";
@@ -247,33 +229,35 @@ function BaseNodeComponent({
   const nodeRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 320, height: 200 });
   
-  // Radial settings expansion state
-  const [settingsExpanded, setSettingsExpanded] = useState<string | null>(null);
-  const [hoveredSetting, setHoveredSetting] = useState<string | null>(null);
-  const settingsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const setConnectingFrom = useFlowStore((s) => s.setConnectingFrom);
+  
+  // Editable node name state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(data.label);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const updateNode = useFlowStore((s) => s.updateNode);
+  
+  // Node hover state for showing run button
+  const [isNodeHovered, setIsNodeHovered] = useState(false);
+  
+  // Settings handles collapse state
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
   
   // Get node type from the props - nodeTypeFromProps is the React Flow node type
   // This is passed from the parent node component (e.g., SeedreamNode → BaseNode)
   const nodeType = nodeTypeFromProps || (data as any).nodeType || id?.split("-")[0] as AINodeType;
   const contract = nodeType ? NODE_CONTRACTS[nodeType as AINodeType] : undefined;
-  const nodeSettings = contract?.settings || [];
   
-  // Calculate vertical positions for settings handles
-  // Stacks items vertically with consistent spacing
-  const getSettingsPosition = useCallback((index: number, total: number) => {
-    const spacing = 28; // Vertical spacing between handles
-    const xOffset = 25; // Horizontal distance from anchor
-    
-    // Center the stack vertically around the anchor
-    const totalHeight = (total - 1) * spacing;
-    const startY = -totalHeight / 2;
-    
-    return {
-      x: xOffset,
-      y: startY + (index * spacing),
-    };
-  }, []);
+  // Get settings from contract - these are all non-media inputs that can be shared
+  // Settings include: prompt, model, temperature, seed, aspectRatio, duration, format, etc.
+  const nodeSettings = useMemo(() => {
+    if (!contract?.settings) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[BaseNode] No settings found for node type: ${nodeType}`);
+      }
+      return [];
+    }
+    return contract.settings;
+  }, [contract, nodeType]);
   
 
   useEffect(() => {
@@ -291,83 +275,32 @@ function BaseNodeComponent({
     }
   }, []);
   
-  // Track if mouse is inside settings area (anchor + radial handles)
-  const isMouseInSettingsRef = useRef(false);
-  
-  // Handle expanding settings on hover
-  const handleSettingsHover = useCallback((outputId: string) => {
-    // Only expand if there are settings to show
-    if (nodeSettings.length === 0) return;
-    
-    isMouseInSettingsRef.current = true;
-    
-    // Clear any pending timeout
-    if (settingsTimeoutRef.current) {
-      clearTimeout(settingsTimeoutRef.current);
-      settingsTimeoutRef.current = null;
+  // Focus input when editing name
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
     }
-    
-    // Expand immediately if already expanded for another output, otherwise short delay
-    if (settingsExpanded) {
-      setSettingsExpanded(outputId);
+  }, [isEditingName]);
+  
+  // Handle name edit submission
+  const handleNameSubmit = useCallback(() => {
+    if (editedName.trim() && editedName !== data.label) {
+      updateNode(id, { label: editedName.trim() });
     } else {
-      settingsTimeoutRef.current = setTimeout(() => {
-        if (isMouseInSettingsRef.current) {
-          setSettingsExpanded(outputId);
-        }
-      }, 150);
+      setEditedName(data.label);
     }
-  }, [nodeSettings.length, settingsExpanded]);
+    setIsEditingName(false);
+  }, [editedName, data.label, updateNode, id]);
   
-  // Toggle settings on click
-  const handleSettingsClick = useCallback((outputId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (settingsTimeoutRef.current) {
-      clearTimeout(settingsTimeoutRef.current);
-      settingsTimeoutRef.current = null;
+  const handleNameKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleNameSubmit();
+    } else if (e.key === "Escape") {
+      setEditedName(data.label);
+      setIsEditingName(false);
     }
-    setSettingsExpanded(prev => prev === outputId ? null : outputId);
-  }, []);
-  
-  const collapseSettings = useCallback(() => {
-    // Only collapse if mouse is not in the area
-    if (isMouseInSettingsRef.current) return;
-    setSettingsExpanded(null);
-    setHoveredSetting(null);
-  }, []);
-  
-  const handleSettingsLeave = useCallback(() => {
-    isMouseInSettingsRef.current = false;
-    
-    // Clear timeout if leaving before it fires
-    if (settingsTimeoutRef.current) {
-      clearTimeout(settingsTimeoutRef.current);
-      settingsTimeoutRef.current = null;
-    }
-    // Longer delay for user-friendliness
-    settingsTimeoutRef.current = setTimeout(() => {
-      collapseSettings();
-    }, 600);
-  }, [collapseSettings]);
-  
-  // Keep expanded when hovering on radial handles
-  const handleRadialHandleEnter = useCallback(() => {
-    isMouseInSettingsRef.current = true;
-    if (settingsTimeoutRef.current) {
-      clearTimeout(settingsTimeoutRef.current);
-      settingsTimeoutRef.current = null;
-    }
-  }, []);
-  
-  // Handle starting a connection from a setting
-  const handleSettingDragStart = useCallback((settingId: string, settingType: DataType) => {
-    isMouseInSettingsRef.current = true; // Keep expanded while dragging
-    setConnectingFrom({
-      nodeId: id,
-      handleId: settingId,
-      handleType: settingType,
-    });
-  }, [id, setConnectingFrom]);
+  }, [handleNameSubmit, data.label]);
 
   // Calculate handle positions as percentages
   const getHandlePercent = (index: number, total: number): number => {
@@ -384,13 +317,10 @@ function BaseNodeComponent({
 
   const leftNotches = visibleInputs.map((_, i) => getHandlePercent(i, visibleInputs.length));
   
-  // Right notches: media output + settings anchor (settings handles are stacked next to anchor)
+  // Right notches: just media outputs (settings handles are hidden)
   const hasSettings = nodeSettings.length > 0;
   
-  const rightNotches = visibleOutputs.length === 0 ? [] : 
-    hasSettings 
-      ? [35, 65] // Media output at 35%, settings anchor at 65%
-      : visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
+  const rightNotches = visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
 
   const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
 
@@ -407,15 +337,23 @@ function BaseNodeComponent({
     return () => observer.disconnect();
   }, []);
 
-  const borderColor = isActuallyRunning
-    ? "rgba(59, 130, 246, 0.5)" // Subtle blue glow when running (not queued)
-    : isHighlighted 
-      ? "rgba(59, 130, 246, 0.6)" // Blue highlight for pipeline view
-      : isSelected 
-        ? "rgba(59, 130, 246, 0.7)" // Blue highlight when selected
-        : isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)";
+  // Border states: failed (red dashed), running (node theme), selected (category color), default (very subtle)
+  const isFailed = status === "failed";
+  const borderColor = isFailed
+    ? "#ef4444" // Red for failed
+    : isActuallyRunning
+      ? accentColor // Node theme color when running
+      : isHighlighted 
+        ? accentColor // Node theme color for pipeline view
+        : isSelected 
+          ? accentColor // Category color when selected
+          : isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.1)"; // Very subtle default
   
-  const nodeBgColor = isDarkMode ? "#0d0d0d" : "#ffffff";
+  const borderStyle = isFailed ? "dashed" : "solid";
+  const borderWidth = isFailed || isSelected ? 2 : 1;
+  
+  // Node background - dark gray matching reference
+  const nodeBgColor = isDarkMode ? "#161616" : "#ffffff";
 
   return (
     <motion.div
@@ -426,11 +364,16 @@ function BaseNodeComponent({
       className={cn(
         "group/node relative min-w-[300px] max-w-[380px]",
         "overflow-visible",
-        "shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/50",
         "will-change-transform",
-        "transition-all duration-200",
-        isActuallyRunning && "running-node-glow"
+        "transition-all duration-200"
       )}
+      style={{
+        boxShadow: isActuallyRunning 
+          ? `0 0 20px ${accentColor}40, 0 0 40px ${accentColor}20, 0 4px 12px rgba(0,0,0,0.4)`
+          : "0 4px 12px rgba(0,0,0,0.4)",
+      }}
+      onMouseEnter={() => setIsNodeHovered(true)}
+      onMouseLeave={() => setIsNodeHovered(false)}
     >
       {/* SVG Border with notches */}
       <svg
@@ -462,7 +405,8 @@ function BaseNodeComponent({
           d={generateNodePath(dimensions.width, dimensions.height, 12, leftNotches, rightNotches, 13)}
           fill="none"
           stroke={borderColor}
-          strokeWidth={isActuallyRunning ? 1.5 : 1.5}
+          strokeWidth={borderWidth}
+          strokeDasharray={borderStyle === "dashed" ? "8 4" : undefined}
           filter={isActuallyRunning ? `url(#glow-${id})` : undefined}
           className={isActuallyRunning ? "animate-pulse-glow" : ""}
         />
@@ -493,131 +437,79 @@ function BaseNodeComponent({
           </div>
         )}
 
-        {/* Header */}
-        <div className="px-4 py-3 pt-5 flex items-center gap-3">
-          {/* Icon Container */}
-          {data.icon && (
-            <div 
-              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-              style={{ 
-                backgroundColor: `${accentColor}15`,
-                border: `1px solid ${accentColor}30`,
-              }}
-            >
-              <div style={{ color: accentColor }}>
-                {data.icon}
-              </div>
-            </div>
-          )}
-
-          {/* Title & Meta */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 dark:text-white text-sm truncate">
+        {/* Header - Clean with run button on hover */}
+        <div className="px-4 py-3 flex items-center justify-between">
+          {/* Editable Node Name */}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleNameSubmit}
+                onKeyDown={handleNameKeyDown}
+                className="nodrag nowheel bg-transparent border-b border-zinc-600 text-white/90 text-[13px] tracking-wide focus:outline-none focus:border-zinc-400 w-full max-w-[200px]"
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              />
+            ) : (
+              <h3 
+                className="text-white/80 text-[13px] tracking-wide truncate cursor-text hover:text-white transition-colors"
+                onClick={() => setIsEditingName(true)}
+                title="Click to rename"
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
                 {data.label}
               </h3>
-              {hasInheritedSettings && (
-                <div 
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/15 border border-violet-300 dark:border-violet-500/25"
-                  title={inheritedSettingsKeys.length > 0 
-                    ? `Connected settings: ${inheritedSettingsKeys.join(", ")}` 
-                    : "Settings inherited from another node"}
-                >
-                  <Link2 className="w-2.5 h-2.5 text-violet-600 dark:text-violet-400" />
-                  {inheritedSettingsKeys.length > 0 && (
-                    <span className="text-[9px] text-violet-600 dark:text-violet-400 font-medium">{inheritedSettingsKeys.length}</span>
-                  )}
-                </div>
-              )}
+            )}
+            {hasInheritedSettings && (
+              <div 
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-500/15 border border-violet-500/25"
+                title={inheritedSettingsKeys.length > 0 
+                  ? `Connected settings: ${inheritedSettingsKeys.join(", ")}` 
+                  : "Settings inherited from another node"}
+              >
+                <Link2 className="w-2.5 h-2.5 text-violet-400" />
+                {inheritedSettingsKeys.length > 0 && (
+                  <span className="text-[9px] text-violet-400 font-medium">{inheritedSettingsKeys.length}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Info icon only */}
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-400 cursor-help transition-colors"
+            title={data.description || "Node information"}
+          >
+            <Info className="w-3.5 h-3.5" />
+          </div>
+        </div>
+
+        {/* Content Area - Input fields first, Output at bottom */}
+        <div className="px-4 pb-3 space-y-3">
+          {/* Input Fields with darker background */}
+          <div className={cn("rounded-lg p-3 space-y-2", isDarkMode ? "bg-[#0f0f0f]" : "bg-gray-100")}>
+            {left ?? children ?? (
+              <div className="text-[11px] text-zinc-600 italic" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                Configure node inputs
+              </div>
+            )}
+          </div>
+          
+          {/* Output Section - label outside, content in box */}
+          <div>
+            <div className="text-[10px] text-zinc-500 mb-1.5" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+              Output
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              {data.provider && (
-                <span className="text-[10px] text-gray-500 dark:text-zinc-500">{data.provider}</span>
-              )}
-              {data.provider && data.estimatedCost !== undefined && data.estimatedCost > 0 && (
-                <span className="text-gray-400 dark:text-zinc-700">•</span>
-              )}
-              {data.estimatedCost !== undefined && data.estimatedCost > 0 && (
-                <span className="text-[10px] text-gray-500 dark:text-zinc-500">{data.estimatedCost} credits</span>
+            <div className={cn("rounded-lg p-3", isDarkMode ? "bg-[#0f0f0f] border border-zinc-800/30" : "bg-gray-100 border border-gray-200")}>
+              {right || (
+                <div className="text-[11px] text-zinc-600 text-center py-4" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                  Results will be shown here
+                </div>
               )}
             </div>
           </div>
-
-          {/* Run/Stop Button - Always Visible */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (isRunningOrQueued) {
-                void cancelNode(id);
-              } else {
-                void runNode(id);
-              }
-            }}
-            className={cn(
-              "nodrag nowheel h-8 w-8 rounded-lg flex items-center justify-center transition-all",
-              isRunningOrQueued
-                ? "bg-red-500 text-white hover:bg-red-600 dark:bg-red-500/80 dark:hover:bg-red-500"
-                : canRun
-                ? "bg-gray-100 text-gray-700 hover:bg-gray-900 hover:text-white dark:bg-white/10 dark:text-white dark:hover:bg-white dark:hover:text-black"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-white/5 dark:text-zinc-600"
-            )}
-            title={isRunningOrQueued ? "Stop" : "Run Node"}
-          >
-            {status === "running" ? (
-              <Square className="w-4 h-4 fill-current" />
-            ) : status === "queued" ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-
-        {/* Content Area */}
-        <div className="px-4 pb-3">
-          {right ? (
-            layout === "vertical" ? (
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
-                  {left ?? children ?? (
-                    <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">No input configured</div>
-                  )}
-                </div>
-                <div className="relative">
-                  <div className="absolute -top-1.5 left-3 px-1.5 bg-white dark:bg-[#0d0d0d] text-[9px] text-gray-500 dark:text-zinc-500 uppercase tracking-wider">
-                    Output
-                  </div>
-                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04] pt-4">
-                    {right}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
-                  {left ?? children ?? (
-                    <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">No input</div>
-                  )}
-                </div>
-                <div className="relative">
-                  <div className="absolute -top-1.5 left-3 px-1.5 bg-white dark:bg-[#0d0d0d] text-[9px] text-gray-500 dark:text-zinc-500 uppercase tracking-wider">
-                    Output
-                  </div>
-                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04] pt-4">
-                    {right}
-                  </div>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="p-3 rounded-lg bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/[0.04]">
-              {left ?? children ?? (
-                <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic">Configure node settings</div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Error Display */}
@@ -630,378 +522,340 @@ function BaseNodeComponent({
           </div>
         )}
 
-        {/* Status Footer */}
+        {/* Status Footer - minimal */}
         <div 
           className={cn(
             "px-4 py-2 flex items-center justify-between",
-            "border-t border-gray-200 dark:border-white/[0.04]",
-            statusCfg.bgColor
+            "border-t border-zinc-800/30"
           )}
         >
           <div className="flex items-center gap-2">
             <StatusIcon 
               className={cn(
-                "w-3.5 h-3.5",
+                "w-3 h-3",
                 statusCfg.color,
                 statusCfg.animate && "animate-spin"
               )} 
             />
-            <span className={cn("text-[11px] font-medium", statusCfg.color)}>
+            <span className={cn("text-[10px] font-medium", statusCfg.color)}>
               {statusCfg.label}
             </span>
           </div>
 
-          {/* Secondary Actions */}
-          <div
-            className={cn(
-              "flex items-center gap-1 transition-opacity duration-150",
-              isSelected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"
-            )}
-          >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                duplicateNode(id);
-              }}
-              className="nodrag nowheel h-6 w-6 rounded-md bg-gray-100 dark:bg-white/[0.04] text-gray-500 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/[0.08] transition-colors inline-flex items-center justify-center"
-              title="Duplicate"
-            >
-              <Copy className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                deleteNode(id);
-              }}
-              className="nodrag nowheel h-6 w-6 rounded-md bg-gray-100 dark:bg-white/[0.04] text-gray-500 dark:text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors inline-flex items-center justify-center"
-              title="Delete"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </div>
+          {/* Credits display */}
+          {data.estimatedCost !== undefined && data.estimatedCost > 0 && (
+            <span className="text-[10px] text-zinc-500">
+              {data.estimatedCost} credits
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Input Handles */}
+      {/* Input Handles - Simple dot on edge */}
       {inputs.map((input, index) => {
         const isHidden = Boolean(input.hidden);
         const handleColor = dataTypeColors[input.type];
-        // Calculate visible index for positioning (only count non-hidden inputs before this one)
         const visibleIndex = inputs.slice(0, index).filter(i => !i.hidden).length;
         const visibleCount = inputs.filter(i => !i.hidden).length;
-        // Use visible positioning for visible handles, original for hidden (they're invisible anyway)
         const percent = isHidden 
           ? getHandlePercent(index, inputs.length) 
           : getHandlePercent(visibleIndex, visibleCount);
 
-        // Type compatibility groups (matching flow-canvas.tsx)
-        const TYPE_COMPAT: Record<string, string[]> = {
-          number: ["number", "seed", "duration"],
-          seed: ["number", "seed", "duration"],
-          duration: ["number", "seed", "duration"],
-          text: ["text", "prompt", "negative"],
-          prompt: ["text", "prompt", "negative"],
-          negative: ["text", "prompt", "negative"],
-          boolean: ["boolean"],
-          aspectRatio: ["aspectRatio"],
-          image: ["image"],
-          video: ["video"],
-          audio: ["audio"],
-          model: ["model"],
-          temperature: ["temperature", "number"],
-        };
-
-        // Check if types are compatible
-        const checkTypeCompat = (from: string, to: string) => {
-          if (from === to) return true;
-          if (from === "any" || to === "any") return true;
-          const compatTypes = TYPE_COMPAT[from];
-          return compatTypes ? compatTypes.includes(to) : false;
-        };
-
-        // Compatible if types match using compatibility groups
         const isCompatible = isDragging && !isHidden && draggedType && 
-          checkTypeCompat(draggedType, input.type);
-        
-        // Dim incompatible handles when dragging
+          isTypeCompatible(draggedType, input.type);
         const isIncompatible = isDragging && !isHidden && draggedType && !isCompatible;
+        
+        const tooltipText = input.label + (input.required ? " (required)" : "");
         
         return (
           <div
             key={`input-${input.id}`}
             className={cn(
-              "absolute left-0 z-30 transition-opacity duration-200",
+              "absolute left-0 z-30 transition-all duration-200 group/handle",
               isHidden && "opacity-0 pointer-events-none",
               isIncompatible && "opacity-30"
             )}
             style={{ top: `${percent}%`, transform: "translate(-50%, -50%)" }}
             data-handletype={input.type}
           >
-            <div 
-              className="handle-wrapper relative" 
-              data-handletype={input.type}
-            >
-              {isCompatible && (
-                <div 
-                  className="absolute inset-0 rounded-full animate-ping"
-                  style={{ 
-                    backgroundColor: handleColor.solid,
-                    opacity: 0.4,
-                    transform: "scale(2)",
-                  }}
-                />
-              )}
-              <Handle
-                id={input.id}
-                type="target"
-                position={Position.Left}
-                data-handletype={input.type}
+            {isCompatible && (
+              <div 
+                className="absolute rounded-full animate-ping"
                 style={{ 
-                  position: "relative",
-                  left: 0,
-                  top: 0,
-                  transform: "none",
-                  borderColor: isIncompatible ? "#555" : handleColor.solid,
-                  boxShadow: isCompatible ? `0 0 12px ${handleColor.solid}, 0 0 24px ${handleColor.solid}` : undefined,
-                  backgroundColor: isCompatible ? handleColor.solid : isIncompatible ? "#333" : undefined,
+                  width: 12,
+                  height: 12,
+                  backgroundColor: handleColor.solid,
+                  opacity: 0.4,
+                  left: -1,
+                  top: -1,
                 }}
-                className={cn(
-                  "!relative !left-0 !top-0 !transform-none transition-all duration-200",
-                  isCompatible && "!scale-125"
-                )}
               />
-            </div>
+            )}
+            <Handle
+              id={input.id}
+              type="target"
+              position={Position.Left}
+              data-handletype={input.type}
+              title={tooltipText}
+              style={{ 
+                position: "relative",
+                left: 0,
+                top: 0,
+                transform: "none",
+                width: 10,
+                height: 10,
+                borderWidth: 0,
+                backgroundColor: handleColor.solid,
+                boxShadow: isCompatible ? `0 0 8px ${handleColor.solid}` : undefined,
+              }}
+              className="!relative !left-0 !top-0 !transform-none transition-all duration-200"
+            />
             
-            <span
+            {/* Hover tooltip */}
+            <div 
               className={cn(
-                "absolute right-full mr-2 top-1/2 -translate-y-1/2",
-                "text-[10px] font-medium whitespace-nowrap",
-                "px-2 py-1 rounded-md",
-                "bg-white dark:bg-[#0d0d0d] border border-gray-200 dark:border-white/10",
-                "transition-all duration-200",
-                handleColor.text,
-                isCompatible && "border-current"
+                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                "px-3 py-1.5 rounded-lg",
+                "bg-[#1a1a1a] border border-white/10",
+                "text-[11px] text-white/90 whitespace-nowrap",
+                "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
+                "transition-opacity duration-150",
+                "shadow-xl shadow-black/50"
               )}
-              style={isCompatible ? { 
-                boxShadow: `0 0 8px ${handleColor.solid}`,
-                borderColor: handleColor.solid,
-              } : undefined}
+              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
-              {input.label}
-              {input.required && <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>}
-            </span>
+              {tooltipText}
+            </div>
           </div>
         );
       })}
 
-      {/* Output Handles - Two separate handles stacked vertically: Media Output + Settings */}
+      {/* Output Handles - Simple dot on edge */}
       {outputs.map((output, index) => {
         const isHidden = Boolean(output.hidden);
         const handleColor = dataTypeColors[output.type];
-        const hasSettings = nodeSettings.length > 0;
-        const isSettingsExpanded = settingsExpanded === output.id;
+        const percent = getHandlePercent(index, outputs.length);
         
-        // Calculate positions - if we have settings, we need 2 handles
-        // Media output at 40%, Settings at 60% (or just media at 50% if no settings)
-        const mediaPercent = hasSettings ? 35 : getHandlePercent(index, outputs.length);
-        const settingsPercent = 65;
+        const tooltipText = output.label;
         
         return (
-          <div key={`output-${output.id}`}>
-            {/* 1. MEDIA OUTPUT HANDLE - for sharing actual output */}
-            <div
-              className={cn(
-                "absolute right-0 z-30",
-                isHidden && "opacity-0 pointer-events-none"
-              )}
-              style={{ top: `${mediaPercent}%`, transform: "translate(50%, -50%)" }}
-            >
-              <div 
-                className="handle-wrapper relative group" 
-                data-handletype={output.type}
-              >
-                <Handle
-                  id={output.id}
-                  type="source"
-                  position={Position.Right}
-                  data-handletype={output.type}
-                  style={{ 
-                    position: "relative",
-                    right: 0,
-                    top: 0,
-                    transform: "none",
-                    borderColor: handleColor.solid,
-                  }}
-                  className="!relative !right-0 !top-0 !transform-none"
-                />
-              </div>
-              
-              {/* Media output label */}
-              <span
-                className={cn(
-                  "absolute left-full ml-2 top-1/2 -translate-y-1/2",
-                  "text-[10px] font-medium whitespace-nowrap",
-                  "px-2 py-1 rounded-md",
-                  "bg-white dark:bg-[#0d0d0d] border border-gray-200 dark:border-white/10",
-                  handleColor.text
-                )}
-              >
-                {output.label}
-              </span>
-            </div>
-            
-            {/* 2. SETTINGS ANCHOR HANDLE - hover/click to expand radial settings */}
-            {hasSettings && (
-              <div
-                className="absolute right-0 z-40"
-                style={{ top: `${settingsPercent}%`, transform: "translate(50%, -50%)" }}
-                onMouseEnter={() => handleSettingsHover(output.id)}
-                onMouseLeave={handleSettingsLeave}
-                onClick={(e) => handleSettingsClick(output.id, e)}
-              >
-                <div 
-                  className={cn(
-                    "relative p-2 -m-2 rounded-lg cursor-pointer",
-                    "hover:bg-violet-500/10 transition-colors",
-                    isSettingsExpanded && "bg-violet-500/20"
-                  )}
-                >
-                  {/* Anchor handle (square) */}
-                  <div
-                    className={cn(
-                      "w-3 h-3 rounded-sm border-2 transition-all duration-150",
-                      "border-violet-500 bg-[#1a1a2e]",
-                      "hover:scale-125 hover:bg-violet-500/50",
-                      isSettingsExpanded && "scale-110 bg-violet-500"
-                    )}
-                  />
-                </div>
-                
-                {/* Settings label - hidden when expanded */}
-                <AnimatePresence>
-                  {!isSettingsExpanded && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className={cn(
-                        "absolute left-full ml-2 top-1/2 -translate-y-1/2",
-                        "text-[10px] font-medium whitespace-nowrap",
-                        "px-2 py-1 rounded-md flex items-center gap-1",
-                        "bg-violet-100 dark:bg-violet-500/10 border border-violet-300 dark:border-violet-500/30",
-                        "text-violet-600 dark:text-violet-400 cursor-pointer"
-                      )}
-                    >
-                      <Settings2 className="w-2.5 h-2.5" />
-                      Settings
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                
-                {/* Radial Settings Handles - ALWAYS RENDERED for React Flow, but visually hidden */}
-                <div 
-                  className={cn(
-                    "absolute left-0 top-0",
-                    isSettingsExpanded ? "pointer-events-auto" : "pointer-events-none"
-                  )}
-                  onMouseEnter={handleRadialHandleEnter}
-                  onMouseLeave={handleSettingsLeave}
-                >
-                  {nodeSettings.map((setting, settingIndex) => {
-                    const pos = getSettingsPosition(settingIndex, nodeSettings.length);
-                    const Icon = settingIcons[setting.type] || Hash;
-                    const color = dataTypeColors[setting.type as DataType] || dataTypeColors.text;
-                    const isHovered = hoveredSetting === setting.id;
-                    
-                    return (
-                      <div
-                        key={setting.id}
-                        className="absolute"
-                        style={{ 
-                          left: isSettingsExpanded ? pos.x : 0, 
-                          top: isSettingsExpanded ? pos.y : 0,
-                          opacity: isSettingsExpanded ? 1 : 0,
-                          transform: `translate(-50%, -50%) scale(${isSettingsExpanded ? 1 : 0})`,
-                          transition: `all 0.2s ease-out ${settingIndex * 0.04}s`,
-                        }}
-                        onMouseEnter={() => setHoveredSetting(setting.id)}
-                        onMouseLeave={() => setHoveredSetting(null)}
-                      >
-                        {/* Setting Handle */}
-                        <div className="relative flex items-center">
-                          {/* Glow ring on hover */}
-                          {isHovered && (
-                            <div 
-                              className="absolute inset-0 rounded-full animate-pulse"
-                              style={{
-                                backgroundColor: color.solid,
-                                opacity: 0.3,
-                                transform: "scale(2)",
-                              }}
-                            />
-                          )}
-                          <Handle
-                            id={`${setting.id}-setting`}
-                            type="source"
-                            position={Position.Right}
-                            data-handletype={setting.type}
-                            style={{ 
-                              position: "relative",
-                              right: 0,
-                              top: 0,
-                              transform: "none",
-                              borderColor: color.solid,
-                              backgroundColor: isHovered ? color.solid : `${color.solid}40`,
-                              width: "12px",
-                              height: "12px",
-                              boxShadow: isHovered ? `0 0 8px ${color.solid}` : "none",
-                            }}
-                            className={cn(
-                              "!relative !right-0 !top-0 !transform-none !rounded-full !border-2",
-                              "transition-all duration-150 cursor-grab",
-                              isHovered && "!scale-110"
-                            )}
-                            onMouseDown={() => handleSettingDragStart(setting.id, setting.type as DataType)}
-                          />
-                          
-                                          {/* Label - always visible when expanded */}
-                                          {isSettingsExpanded && (
-                                            <div
-                                              className={cn(
-                                                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                                                "text-[9px] font-medium whitespace-nowrap",
-                                                "px-2 py-1 rounded-md",
-                                                "bg-white dark:bg-zinc-900/95 backdrop-blur-sm border z-50",
-                                                "flex items-center gap-1.5",
-                                                "shadow-xl transition-all duration-150",
-                                                isHovered && "scale-105"
-                                              )}
-                                              style={{
-                                                borderColor: isHovered ? color.solid : `${color.solid}40`,
-                                                color: color.solid,
-                                                boxShadow: isHovered ? `0 0 12px ${color.solid}30` : undefined,
-                                              }}
-                                            >
-                                              <Icon className="w-3 h-3" />
-                                              {setting.label}
-                                            </div>
-                                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+          <div
+            key={`output-${output.id}`}
+            className={cn(
+              "absolute right-0 z-30 group/handle",
+              isHidden && "opacity-0 pointer-events-none"
             )}
+            style={{ top: `${percent}%`, transform: "translate(50%, -50%)" }}
+            data-handletype={output.type}
+          >
+            <Handle
+              id={output.id}
+              type="source"
+              position={Position.Right}
+              data-handletype={output.type}
+              title={tooltipText}
+              style={{ 
+                position: "relative",
+                right: 0,
+                top: 0,
+                transform: "none",
+                width: 10,
+                height: 10,
+                borderWidth: 0,
+                backgroundColor: handleColor.solid,
+              }}
+              className="!relative !right-0 !top-0 !transform-none"
+            />
+            
+            {/* Hover tooltip */}
+            <div 
+              className={cn(
+                "absolute right-full mr-3 top-1/2 -translate-y-1/2",
+                "px-3 py-1.5 rounded-lg",
+                "bg-[#1a1a1a] border border-white/10",
+                "text-[11px] text-white/90 whitespace-nowrap",
+                "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
+                "transition-opacity duration-150",
+                "shadow-xl shadow-black/50"
+              )}
+              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            >
+              {tooltipText}
+            </div>
           </div>
         );
       })}
-      
+
+      {/* Collapsible Settings handles - rendered ONCE outside the outputs loop */}
+      {hasSettings && (
+        <>
+          {/* Settings toggle button with count badge */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsExpanded(!settingsExpanded);
+            }}
+            className={cn(
+              "nodrag nowheel absolute z-50",
+              "w-6 h-6 rounded-full flex items-center justify-center",
+              "bg-[#1a1a1a] border-2 border-white/30 hover:border-white/50",
+              "transition-all duration-200 hover:scale-110",
+              settingsExpanded && "bg-white/20 border-white/50 rotate-90"
+            )}
+            style={{ 
+              right: -12, 
+              top: "80%", 
+              transform: "translateY(-50%)" 
+            }}
+            title={settingsExpanded ? `Hide ${nodeSettings.length} settings` : `Share ${nodeSettings.length} settings`}
+          >
+            <Settings className={cn("w-3 h-3 text-white/70", settingsExpanded && "text-white")} />
+            {/* Settings count badge */}
+            {!settingsExpanded && nodeSettings.length > 0 && (
+              <span 
+                className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-emerald-500 text-[10px] text-white flex items-center justify-center font-bold shadow-lg"
+              >
+                {nodeSettings.length}
+              </span>
+            )}
+          </button>
+
+          {/* Expanded settings handles - vertical list beside button */}
+          <AnimatePresence>
+            {settingsExpanded && nodeSettings.length > 0 && nodeSettings.map((setting, settingIndex) => {
+              const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
+              const total = nodeSettings.length;
+              // Position handles in a vertical line, starting from button position
+              const baseTop = 80; // 80% of node height
+              const startOffset = -((total - 1) * 18) / 2; // Center the group
+              const offsetY = startOffset + (settingIndex * 18); // 18px spacing
+              
+              return (
+                <motion.div
+                  key={`settings-visible-${setting.id}`}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ delay: settingIndex * 0.03, duration: 0.15 }}
+                  className="absolute z-50 group/setting"
+                  style={{ 
+                    right: -32,
+                    top: `calc(${baseTop}% + ${offsetY}px)`,
+                    transform: "translateY(-50%)",
+                  }}
+                  data-handletype={setting.type}
+                >
+                  <Handle
+                    id={`${setting.id}-setting`}
+                    type="source"
+                    position={Position.Right}
+                    data-handletype={setting.type}
+                    style={{
+                      position: "relative",
+                      width: 12,
+                      height: 12,
+                      borderWidth: 2,
+                      borderColor: settingColor.solid,
+                      backgroundColor: "#161616",
+                      boxShadow: `0 0 8px ${settingColor.solid}50`,
+                    }}
+                    className="!relative !transform-none !left-0 !top-0 hover:scale-125 transition-transform"
+                  />
+                  {/* Label next to handle */}
+                  <div 
+                    className={cn(
+                      "absolute right-full mr-2 top-1/2 -translate-y-1/2",
+                      "px-2 py-0.5 rounded",
+                      "bg-[#1a1a1a]/90 border border-white/10",
+                      "text-[9px] text-white/80 whitespace-nowrap",
+                      "opacity-0 group-hover/setting:opacity-100 pointer-events-none",
+                      "transition-opacity duration-150"
+                    )}
+                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                  >
+                    {setting.label} ({setting.type})
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+
+          {/* Hidden handles for connections when collapsed */}
+          {!settingsExpanded && nodeSettings.map((setting) => (
+            <Handle
+              key={`hidden-settings-${setting.id}`}
+              id={`${setting.id}-setting`}
+              type="source"
+              position={Position.Right}
+              data-handletype={setting.type}
+              style={{
+                position: "absolute",
+                right: -4,
+                top: "80%",
+                width: 1,
+                height: 1,
+                opacity: 0,
+                pointerEvents: "none",
+              }}
+            />
+          ))}
+        </>
+      )}
+
+      {/* Floating Run Button - outside node on right, appears on hover */}
+      <AnimatePresence>
+        {(isNodeHovered || isRunningOrQueued) && (
+          <motion.button
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.15 }}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isRunningOrQueued) {
+                void cancelNode(id);
+              } else {
+                void runNode(id);
+              }
+            }}
+            className={cn(
+              "nodrag nowheel absolute -right-24 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn",
+              status === "running"
+                ? "bg-zinc-800 text-white hover:bg-red-600 border border-zinc-700 hover:border-red-500"
+                : status === "queued"
+                ? "bg-zinc-800 text-white hover:bg-red-600 border border-zinc-700 hover:border-red-500"
+                : canRun
+                ? "bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700"
+                : "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
+            )}
+            title={isRunningOrQueued ? "Click to stop" : "Run node"}
+          >
+            {status === "running" ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin group-hover/runbtn:hidden" />
+                <Square className="w-3.5 h-3.5 fill-current hidden group-hover/runbtn:block" />
+                <span className="text-xs font-medium group-hover/runbtn:hidden">Running</span>
+                <span className="text-xs font-medium hidden group-hover/runbtn:block">Stop</span>
+              </>
+            ) : status === "queued" ? (
+              <>
+                <Clock className="w-3.5 h-3.5 group-hover/runbtn:hidden" />
+                <Square className="w-3.5 h-3.5 fill-current hidden group-hover/runbtn:block" />
+                <span className="text-xs font-medium group-hover/runbtn:hidden">Queued</span>
+                <span className="text-xs font-medium hidden group-hover/runbtn:block">Stop</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">Run</span>
+              </>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
     </motion.div>
   );
 }

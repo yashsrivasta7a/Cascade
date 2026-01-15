@@ -4,6 +4,7 @@
 
 export * from "./types";
 export * from "./node-registry";
+export * from "./generic-executor";
 
 // Node executors
 export {

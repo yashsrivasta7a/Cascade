@@ -281,6 +281,8 @@ export function ActivityPanel({
   const [activeTab, setActiveTab] = useState<"runs" | "errors">(initialTab);
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set());
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -531,6 +533,40 @@ export function ActivityPanel({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleDeleteAllRuns = async () => {
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      // Auto-reset after 3 seconds if not confirmed
+      setTimeout(() => setShowDeleteConfirm(false), 3000);
+      return;
+    }
+    
+    setIsDeleting(true);
+    setShowDeleteConfirm(false);
+    
+    try {
+      // Delete all executions for this workflow (or all if no workflowId)
+      const params = new URLSearchParams();
+      if (workflowId) params.set("workflowId", workflowId);
+      
+      const response = await fetch(`/api/workflow-executions?${params.toString()}`, {
+        method: "DELETE",
+      });
+      
+      if (response.ok) {
+        setExecutions([]);
+        setExpandedWorkflows(new Set());
+        console.log("[ActivityPanel] Deleted all executions");
+      } else {
+        console.error("[ActivityPanel] Failed to delete executions:", await response.text());
+      }
+    } catch (error) {
+      console.error("[ActivityPanel] Error deleting executions:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const stats = useMemo(() => {
     const success = executions.filter(e => e.status === "COMPLETED").length;
     const failed = executions.filter(e => e.status === "FAILED").length;
@@ -651,6 +687,27 @@ export function ActivityPanel({
                 </div>
               ) : (
                 <div className="space-y-2">
+                  {/* Delete All Button */}
+                  <div className="flex justify-end px-1">
+                    <button 
+                      onClick={handleDeleteAllRuns} 
+                      disabled={isDeleting}
+                      className={cn(
+                        "flex items-center gap-1 text-[10px] transition-colors",
+                        showDeleteConfirm 
+                          ? "text-red-500 dark:text-red-400 font-medium" 
+                          : "text-gray-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400"
+                      )}
+                    >
+                      {isDeleting ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" />Deleting...</>
+                      ) : showDeleteConfirm ? (
+                        <><Trash2 className="w-3 h-3" />Click again to confirm</>
+                      ) : (
+                        <><Trash2 className="w-3 h-3" />Delete all</>
+                      )}
+                    </button>
+                  </div>
                   {executions.map((exec, idx) => {
                     const status = statusStyles[exec.status as keyof typeof statusStyles] || statusStyles.PENDING;
                     const hasNodes = exec.nodeExecutions.length > 0;

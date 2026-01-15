@@ -341,11 +341,11 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="absolute right-0 top-full mt-1 w-36 bg-black/80 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-xl overflow-hidden z-20"
+                                    className="absolute right-0 top-full mt-1 w-36 fs-menu rounded-xl overflow-hidden z-20"
                                   >
                                     <button
                                       onClick={() => handleStartRename(workflow.id, workflow.name)}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] transition-colors"
+                                      className="w-full fs-menu-item flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
                                       Rename

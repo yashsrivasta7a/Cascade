@@ -453,7 +453,7 @@ function SeedreamNodeComponent(props: NodeProps<SeedreamNodeData>) {
             <select
               value={data.aspectRatio || "1:1"}
               onChange={(e) => updateNode(id, { aspectRatio: e.target.value as typeof data.aspectRatio })}
-              className="nodrag nowheel flex-1 h-7 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[10px] text-zinc-300 focus:outline-none"
+              className="nodrag nowheel fs-select flex-1 h-7 px-2 rounded-lg text-[10px]"
             >
               {aspectRatios.map((r) => (
                 <option key={r} value={r}>{r}</option>

@@ -323,17 +323,22 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
               </div>
             ) : effectiveVideo ? (
               <div className="relative p-1">
-                <video src={effectiveVideo} className="w-full aspect-video object-cover rounded" muted />
+                <video 
+                  src={effectiveVideo} 
+                  className="w-full aspect-video object-cover rounded nodrag nowheel" 
+                  controls
+                  title="Play to hear original video audio"
+                />
                 {data.inputVideo && (
                   <button
                     onClick={(e) => { e.stopPropagation(); updateNode(id, { inputVideo: undefined }); }}
-                    className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80"
+                    className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80 z-10"
                   >
                     <X className="w-2.5 h-2.5 text-white" />
                   </button>
                 )}
-                <div className="absolute bottom-2 left-2 text-[8px] text-violet-400 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                  <Film className="w-2 h-2" />{connectedVideo ? "← Connected" : "Video"}
+                <div className="absolute bottom-2 left-2 text-[8px] text-violet-400 bg-black/60 px-1.5 py-0.5 rounded flex items-center gap-0.5 pointer-events-none">
+                  <Film className="w-2 h-2" />{connectedVideo ? "← Connected" : "Video (play for audio)"}
                 </div>
               </div>
             ) : (
@@ -503,20 +508,35 @@ function MergeAudioVideoNodeComponent(props: NodeProps<MergeAudioVideoNodeData>)
       right={
         <div className="space-y-2">
           <div className="text-[10px] text-zinc-500">
-            {isProcessing ? "Merging..." : data.result ? "Combined" : "No output"}
+            {isProcessing ? "Merging..." : data.result ? "Combined (click to play with audio)" : "No output"}
           </div>
           <div className="bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden">
             {data.result ? (
-              <MediaLoader
-                src={data.result}
-                type="video"
-                className="w-full aspect-video"
-                containerClassName="aspect-video"
+              <video 
+                src={data.result} 
+                controls 
+                className="w-full aspect-video nodrag nowheel"
               />
             ) : (
               <MediaSkeleton type="video" className="aspect-video" />
             )}
           </div>
+          {/* Debug info - show input URLs */}
+          {(effectiveVideo || effectiveAudio) && (
+            <div className="text-[8px] text-zinc-600 space-y-0.5 p-1.5 bg-black/20 rounded">
+              <div className="font-semibold text-zinc-500">Inputs:</div>
+              {effectiveVideo && (
+                <div className="truncate" title={effectiveVideo}>
+                  📹 {effectiveVideo.slice(0, 40)}...
+                </div>
+              )}
+              {effectiveAudio && (
+                <div className="truncate" title={effectiveAudio}>
+                  🔊 {effectiveAudio.slice(0, 40)}...
+                </div>
+              )}
+            </div>
+          )}
         </div>
       }
     />

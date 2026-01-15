@@ -157,7 +157,7 @@ function ElevenLabsNodeComponent(props: NodeProps<ElevenLabsNodeData>) {
               const voice = VOICES.find(v => v.id === e.target.value);
               updateNode(id, { voiceId: e.target.value, voiceName: voice?.name });
             }}
-            className="nodrag nowheel w-full h-8 px-2 rounded-lg bg-white/[0.03] border border-white/10 text-[11px] text-zinc-300"
+            className="nodrag nowheel fs-select w-full h-8 px-2 rounded-lg text-[11px]"
           >
             <option value="">Select voice...</option>
             {VOICES.map((v) => (

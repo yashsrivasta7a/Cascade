@@ -1,6 +1,6 @@
 import type { Edge, Node } from "reactflow";
 import { z } from "zod";
-import type { AINodeType } from "@/types/nodes";
+import { type AINodeType, NODE_DEFINITIONS } from "@/types/nodes";
 import {
   NodeInputSchemas,
   NodeOutputSchemas,
@@ -11,6 +11,30 @@ import {
 } from "./node-schemas";
 import { estimateNodeCost } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
+import { NODE_CONFIG } from "@/lib/config";
+
+/**
+ * Get default values for a node type from config (CONFIG-DRIVEN)
+ * This ensures all defaults come from the central node configuration.
+ */
+function getNodeDefaults(nodeType: AINodeType): Record<string, unknown> {
+  const config = NODE_CONFIG[nodeType];
+  if (!config?.ui?.inputs) return {};
+  
+  const defaults: Record<string, unknown> = {};
+  
+  for (const field of config.ui.inputs) {
+    if (field.defaultValue !== undefined) {
+      defaults[field.id] = field.defaultValue;
+    }
+    // Handle toggle fields that default to false
+    if (field.type === "toggle" && field.defaultValue === undefined) {
+      defaults[field.id] = false;
+    }
+  }
+  
+  return defaults;
+}
 
 export type NodeRunStatus = "queued" | "running" | "completed" | "failed";
 
@@ -240,10 +264,25 @@ function getConnectedPreviewFromLastOutputs(nodes: Node[], edges: Edge[], nodeId
 
 // Get incoming media (video/audio/image) from connected nodes
 function getIncomingMedia(edges: Edge[], outputs: OutputByNode, nodeId: string, targetHandle?: string): string | undefined {
-  const incoming = edges.filter((e) => e.target === nodeId && (!targetHandle || e.targetHandle === targetHandle));
+  // First try exact handle match
+  let incoming = edges.filter((e) => e.target === nodeId && e.targetHandle === targetHandle);
+  
+  // If no exact match, try edges with no specific target handle or any handle
+  if (incoming.length === 0 && targetHandle) {
+    incoming = edges.filter((e) => e.target === nodeId && (!e.targetHandle || e.targetHandle === targetHandle));
+  }
+  
+  // If still no match, get ALL incoming edges to this node
+  if (incoming.length === 0) {
+    incoming = edges.filter((e) => e.target === nodeId);
+  }
+  
+  console.log(`[getIncomingMedia] Node ${nodeId}, targetHandle: ${targetHandle}, found ${incoming.length} edges`);
   
   for (const e of incoming) {
     const out = outputs.get(e.source);
+    console.log(`[getIncomingMedia] Edge from ${e.source} (handle: ${e.sourceHandle}) -> ${e.target} (handle: ${e.targetHandle}), output:`, out ? out.type : 'not found');
+    
     if (!out) continue;
     
     // Check what type of output this is and return the URL
@@ -265,6 +304,11 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
   const type = node.type as AINodeType;
   const data = (node.data ?? {}) as any;
 
+  console.log(`[buildNodeInput] === Building input for ${node.id} (${type}) ===`);
+  console.log(`[buildNodeInput] Edges count: ${edges.length}, edges to this node: ${edges.filter(e => e.target === node.id).length}`);
+  console.log(`[buildNodeInput] Outputs map size: ${outputs.size}, keys: ${[...outputs.keys()].join(', ')}`);
+  console.log(`[buildNodeInput] Nodes available: ${nodes.length}, IDs: ${nodes.map(n => n.id).join(', ')}`);
+  
   // Get incoming text for prompt (response → prompt: just the response)
   const incomingPrompt = getIncomingTextForPrompt(edges, outputs, node.id);
   
@@ -286,6 +330,10 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     prompt: promptValue,
     context: contextValue,
   };
+  
+  if (typeof base.referenceImages === "string") {
+    base.referenceImages = [base.referenceImages];
+  }
 
   // Utility: if node expects media input, allow a `data.<field>.url` OR a raw string url; normalize to AssetRef.
   const normalizeAsset = (v: unknown) => {
@@ -294,86 +342,321 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     return v;
   };
 
-  // Helper to get media from connected nodes or from node data
+  // Helper to get media from connected nodes, parent node results, or node data
+  const getMediaFromParentResults = (mediaType: "video" | "audio" | "image"): string | undefined => {
+    // Find edges pointing to this node
+    const incoming = edges.filter((e) => e.target === node.id);
+    for (const e of incoming) {
+      // Find the source node
+      const sourceNode = nodes.find((n) => n.id === e.source);
+      if (!sourceNode) continue;
+      
+      // Check if source node has a result that matches the media type
+      const sourceData = sourceNode.data as Record<string, unknown>;
+      const result = sourceData?.result as string | undefined;
+      
+      if (result && typeof result === "string" && result.length > 0) {
+        // Check if the result looks like it could be the right media type
+        const sourceType = sourceNode.type;
+        if (mediaType === "video" && (sourceType?.includes("video") || sourceType === "merge-audio-video" || sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos")) {
+          console.log(`[getMediaFromParentResults] Found video from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
+          return result;
+        }
+        if (mediaType === "audio" && (sourceType?.includes("audio") || sourceType === "elevenlabs" || sourceType === "extract-audio")) {
+          console.log(`[getMediaFromParentResults] Found audio from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
+          return result;
+        }
+        if (mediaType === "image" && (sourceType?.includes("image") || sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image")) {
+          console.log(`[getMediaFromParentResults] Found image from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
+          return result;
+        }
+      }
+    }
+    return undefined;
+  };
+
   const getVideoInput = (handleId?: string, dataField: string = "inputVideo") => {
-    // First check connected nodes
+    // First check connected nodes via outputs map
     const connected = getIncomingMedia(edges, outputs, node.id, handleId);
     if (connected) return { url: connected };
+    
+    // Try getting from parent node results directly
+    const parentResult = getMediaFromParentResults("video");
+    if (parentResult) return { url: parentResult };
+    
     // Fall back to node's stored data
     return normalizeAsset(data[dataField]);
   };
 
   const getAudioInput = (handleId?: string, dataField: string = "inputAudio") => {
-    // First check connected nodes
+    // First check connected nodes via outputs map
     const connected = getIncomingMedia(edges, outputs, node.id, handleId);
     if (connected) return { url: connected };
+    
+    // Try getting from parent node results directly
+    const parentResult = getMediaFromParentResults("audio");
+    if (parentResult) return { url: parentResult };
+    
     // Fall back to node's stored data
     return normalizeAsset(data[dataField]);
   };
 
   const getImageInput = (handleId?: string, dataField: string = "inputImage") => {
-    // First check connected nodes
+    // First check connected nodes via outputs map
     const connected = getIncomingMedia(edges, outputs, node.id, handleId);
     if (connected) return { url: connected };
+    
+    // Try getting from parent node results directly
+    const parentResult = getMediaFromParentResults("image");
+    if (parentResult) return { url: parentResult };
+    
     // Fall back to node's stored data
     return normalizeAsset(data[dataField]);
   };
 
+  // Get CONFIG-DRIVEN defaults for this node type
+  const configDefaults = getNodeDefaults(type);
+  
+  // Merge: configDefaults < data (user values) < base (with prompt/context)
+  // This ensures config defaults are used when user hasn't set a value
+  const withDefaults = { ...configDefaults, ...base };
+
+  // Helper to get media from parent nodes (for chain execution)
+  const getMediaFromParents = (mediaType: "video" | "audio" | "image"): string | undefined => {
+    const incoming = edges.filter((e) => e.target === node.id);
+    for (const e of incoming) {
+      const sourceNode = nodes.find((n) => n.id === e.source);
+      const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
+      const result = sourceData?.result as string | undefined;
+      if (result && typeof result === "string") {
+        const sourceType = sourceNode?.type;
+        if (mediaType === "video" && (sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos" || sourceType === "merge-audio-video" || e.targetHandle === "video" || e.sourceHandle === "video")) {
+          return result;
+        }
+        if (mediaType === "audio" && (sourceType === "elevenlabs" || sourceType === "extract-audio" || e.targetHandle === "audio" || e.sourceHandle === "audio")) {
+          return result;
+        }
+        if (mediaType === "image" && (sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image" || e.targetHandle?.includes("image") || e.sourceHandle?.includes("image"))) {
+          return result;
+        }
+      }
+    }
+    return undefined;
+  };
+
   switch (type) {
     case "seedvr":
-      return { ...base, image: getImageInput("image", "inputImage") || normalizeAsset(base.image) };
+      return { 
+        ...withDefaults, 
+        image: getImageInput("image", "inputImage") || normalizeAsset(withDefaults.image),
+      };
     case "crop-image":
-      return { ...base, image: getImageInput("inputImage", "inputImage") || normalizeAsset(base.inputImage) };
-    case "extract-audio":
-      return { ...base, video: getVideoInput("inputVideo", "inputVideo") };
+      return {
+        ...withDefaults,
+        image: getImageInput("image", "image") || normalizeAsset(withDefaults.image),
+      };
+    case "extract-audio": {
+      console.log(`[buildNodeInput:extract-audio] withDefaults:`, JSON.stringify(withDefaults));
+      console.log(`[buildNodeInput:extract-audio] node data format:`, data.format);
+      
+      // Try multiple strategies to get video input
+      let videoUrl: string | undefined;
+      
+      // Strategy 1: Check outputs map via getIncomingMedia
+      const outputsVideo = getIncomingMedia(edges, outputs, node.id, "video");
+      if (outputsVideo) {
+        console.log(`[buildNodeInput:extract-audio] Found video via outputs map: ${outputsVideo.slice(0, 50)}...`);
+        videoUrl = outputsVideo;
+      }
+      
+      // Strategy 2: Check parent node results directly
+      if (!videoUrl) {
+        const parentVideo = getMediaFromParentResults("video");
+        if (parentVideo) {
+          console.log(`[buildNodeInput:extract-audio] Found video via parent results: ${parentVideo.slice(0, 50)}...`);
+          videoUrl = parentVideo;
+        }
+      }
+      
+      // Strategy 3: Check getMediaFromParents (different implementation)
+      if (!videoUrl) {
+        const parentsVideo = getMediaFromParents("video");
+        if (parentsVideo) {
+          console.log(`[buildNodeInput:extract-audio] Found video via getMediaFromParents: ${parentsVideo.slice(0, 50)}...`);
+          videoUrl = parentsVideo;
+        }
+      }
+      
+      // Strategy 4: Check ALL incoming edges for any video result
+      if (!videoUrl) {
+        const incoming = edges.filter((e) => e.target === node.id);
+        console.log(`[buildNodeInput:extract-audio] Checking ${incoming.length} incoming edges...`);
+        for (const e of incoming) {
+          const sourceNode = nodes.find((n) => n.id === e.source);
+          if (sourceNode) {
+            const sourceData = sourceNode.data as Record<string, unknown>;
+            const result = sourceData?.result as string | undefined;
+            console.log(`[buildNodeInput:extract-audio] Edge from ${sourceNode.id} (${sourceNode.type}), result: ${result?.slice(0, 50) || 'none'}`);
+            if (result && typeof result === "string" && result.startsWith("http")) {
+              videoUrl = result;
+              console.log(`[buildNodeInput:extract-audio] Using result from ${sourceNode.id}: ${videoUrl.slice(0, 50)}...`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Strategy 5: Check node's own data.video field
+      if (!videoUrl) {
+        const nodeVideo = data.video;
+        if (typeof nodeVideo === "string" && nodeVideo.startsWith("http")) {
+          videoUrl = nodeVideo;
+          console.log(`[buildNodeInput:extract-audio] Found video in node data: ${videoUrl.slice(0, 50)}...`);
+        } else if (nodeVideo && typeof nodeVideo === "object" && (nodeVideo as any).url) {
+          videoUrl = (nodeVideo as any).url as string;
+          console.log(`[buildNodeInput:extract-audio] Found video object in node data: ${videoUrl?.slice(0, 50)}...`);
+        }
+      }
+      
+      const videoInput = videoUrl ? { url: videoUrl } : undefined;
+      console.log(`[buildNodeInput:extract-audio] Final video input:`, videoInput ? `{ url: "${videoInput.url.slice(0, 50)}..." }` : 'undefined');
+      
+      // Ensure format is a valid option (safeguard against invalid stored values)
+      const validFormats = ["mp3", "wav", "aac", "ogg"];
+      const format = validFormats.includes(withDefaults.format as string) 
+        ? withDefaults.format 
+        : (validFormats.includes(data.format as string) ? data.format : "mp3");
+      
+      console.log(`[buildNodeInput:extract-audio] Final format:`, format);
+      
+      return { 
+        ...withDefaults, 
+        video: videoInput,
+        format, // Explicitly set validated format
+      };
+    }
     case "merge-videos": {
       // Get videos from connected nodes by their specific handles
-      const video1Connected = getIncomingMedia(edges, outputs, node.id, "inputVideo1");
-      const video2Connected = getIncomingMedia(edges, outputs, node.id, "inputVideo2");
+      const video1Connected = getIncomingMedia(edges, outputs, node.id, "video1");
+      const video2Connected = getIncomingMedia(edges, outputs, node.id, "video2");
+      
+      // Also try getting videos from parent node results if not found via handles
+      let video1Result = video1Connected;
+      let video2Result = video2Connected;
+      
+      if (!video1Result || !video2Result) {
+        const incoming = edges.filter((e) => e.target === node.id);
+        for (const e of incoming) {
+          const sourceNode = nodes.find((n) => n.id === e.source);
+          const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
+          const result = sourceData?.result as string | undefined;
+          if (result && typeof result === "string") {
+            if (e.targetHandle === "video1" || (!video1Result && !e.targetHandle)) {
+              video1Result = result;
+            } else if (e.targetHandle === "video2" || (!video2Result && !e.targetHandle)) {
+              video2Result = result;
+            }
+          }
+        }
+      }
+      
       return {
-        ...base,
-        video1: video1Connected ? { url: video1Connected } : normalizeAsset(data.inputVideo1),
-        video2: video2Connected ? { url: video2Connected } : normalizeAsset(data.inputVideo2),
+        ...withDefaults,
+        video1: video1Result ? { url: video1Result } : normalizeAsset(data.video1),
+        video2: video2Result ? { url: video2Result } : normalizeAsset(data.video2),
       };
     }
     case "merge-audio-video": {
-      // Get video and audio from connected nodes by their specific handles
-      const videoConnected = getIncomingMedia(edges, outputs, node.id, "inputVideo");
-      const audioConnected = getIncomingMedia(edges, outputs, node.id, "inputAudio");
+      // Robust video retrieval
+      let videoUrl: string | undefined;
+      videoUrl = getIncomingMedia(edges, outputs, node.id, "video");
+      if (!videoUrl) videoUrl = getMediaFromParentResults("video");
+      if (!videoUrl) videoUrl = getMediaFromParents("video");
+      if (!videoUrl && data.video) {
+        videoUrl = typeof data.video === "string" ? data.video : (data.video as any)?.url;
+      }
+      
+      // Robust audio retrieval
+      let audioUrl: string | undefined;
+      audioUrl = getIncomingMedia(edges, outputs, node.id, "audio");
+      if (!audioUrl) audioUrl = getMediaFromParentResults("audio");
+      if (!audioUrl) audioUrl = getMediaFromParents("audio");
+      if (!audioUrl && data.audio) {
+        audioUrl = typeof data.audio === "string" ? data.audio : (data.audio as any)?.url;
+      }
+      
+      console.log(`[buildNodeInput:merge-audio-video] video: ${videoUrl?.slice(0, 50) || 'none'}, audio: ${audioUrl?.slice(0, 50) || 'none'}`);
+      
       return {
-        ...base,
-        video: videoConnected ? { url: videoConnected } : normalizeAsset(data.inputVideo),
-        audio: audioConnected ? { url: audioConnected } : normalizeAsset(data.inputAudio),
+        ...withDefaults,
+        video: videoUrl ? { url: videoUrl } : undefined,
+        audio: audioUrl ? { url: audioUrl } : undefined,
       };
     }
     case "lipsync": {
-      const videoConnected = getIncomingMedia(edges, outputs, node.id, "video");
-      const audioConnected = getIncomingMedia(edges, outputs, node.id, "audio");
+      // Robust video retrieval
+      let videoUrl: string | undefined;
+      videoUrl = getIncomingMedia(edges, outputs, node.id, "video");
+      if (!videoUrl) videoUrl = getMediaFromParentResults("video");
+      if (!videoUrl) videoUrl = getMediaFromParents("video");
+      if (!videoUrl && data.video) {
+        videoUrl = typeof data.video === "string" ? data.video : (data.video as any)?.url;
+      }
+      
+      // Robust audio retrieval
+      let audioUrl: string | undefined;
+      audioUrl = getIncomingMedia(edges, outputs, node.id, "audio");
+      if (!audioUrl) audioUrl = getMediaFromParentResults("audio");
+      if (!audioUrl) audioUrl = getMediaFromParents("audio");
+      if (!audioUrl && data.audio) {
+        audioUrl = typeof data.audio === "string" ? data.audio : (data.audio as any)?.url;
+      }
+      
+      console.log(`[buildNodeInput:lipsync] video: ${videoUrl?.slice(0, 50) || 'none'}, audio: ${audioUrl?.slice(0, 50) || 'none'}`);
+      
       return {
-        ...base,
-        video: videoConnected ? { url: videoConnected } : normalizeAsset(data.video),
-        audio: audioConnected ? { url: audioConnected } : normalizeAsset(data.audio),
+        ...withDefaults,
+        video: videoUrl ? { url: videoUrl } : undefined,
+        audio: audioUrl ? { url: audioUrl } : undefined,
       };
     }
     case "seedance":
-      return { ...base, frame: getImageInput("frame", "frame") || normalizeAsset(base.frame) };
+      return { 
+        ...withDefaults, 
+        frame: getImageInput("frame", "frame") || normalizeAsset(withDefaults.frame),
+      };
     case "openrouter": {
-      // OpenRouter supports vision - get image from connected nodes or node data
-      const imageConnected = getIncomingMedia(edges, outputs, node.id, "inputImage");
+      const imageConnected = getIncomingMedia(edges, outputs, node.id, "inputImage") || getMediaFromParents("image");
       const imageUrl = imageConnected || data.inputImage;
       
       console.log(`[buildNodeInput] OpenRouter node ${node.id}:`);
       console.log(`[buildNodeInput]   - imageConnected: ${imageConnected ? "yes" : "no"}`);
-      console.log(`[buildNodeInput]   - data.inputImage: ${data.inputImage ? "yes" : "no"}`);
-      console.log(`[buildNodeInput]   - final imageUrl: ${imageUrl ? imageUrl.slice(0, 50) + "..." : "undefined"}`);
+      console.log(`[buildNodeInput]   - final imageUrl: ${imageUrl ? String(imageUrl).slice(0, 50) + "..." : "undefined"}`);
       
       return {
-        ...base,
-        imageUrl, // Pass as string URL (not AssetRef) for vision API
+        ...withDefaults,
+        imageUrl,
+      };
+    }
+    case "seedream": {
+      const refImageConnected = getIncomingMedia(edges, outputs, node.id, "referenceImages") || getMediaFromParents("image");
+      let referenceImages = withDefaults.referenceImages;
+      if (refImageConnected) {
+        referenceImages = [refImageConnected];
+      }
+      
+      return {
+        ...withDefaults,
+        referenceImages,
+      };
+    }
+    case "elevenlabs": {
+      return {
+        ...withDefaults,
       };
     }
     default:
-      return base;
+      return withDefaults;
   }
 }
 
@@ -970,6 +1253,10 @@ export async function runNodeWithDependencies(
     );
 
     console.log(`[runNodeWithDependencies] Running ${allNodesToRun.length} nodes in dependency order`);
+    console.log(`[runNodeWithDependencies] allUpstreamIds:`, [...allUpstreamIds]);
+    console.log(`[runNodeWithDependencies] nodesToRunIds:`, [...nodesToRunIds]);
+    console.log(`[runNodeWithDependencies] relevantEdges:`, relevantEdges.map(e => `${e.source} -> ${e.target}`));
+    console.log(`[runNodeWithDependencies] All input edges:`, edges.filter(e => e.target === nodeId).map(e => `${e.source} -> ${e.target}`));
 
     // Pre-populate outputs from upstream nodes that already have results
     // This ensures data flows from completed nodes to running nodes
@@ -997,6 +1284,10 @@ export async function runNodeWithDependencies(
       }
     }
 
+    // CRITICAL FIX: Include ALL upstream nodes (including pre-populated ones) 
+    // so buildNodeInput can find parent node data when looking up results
+    const allNodesForInput = [...upstreamNodes, targetNode];
+    
     // Run the subset of the workflow
     await runWorkflowSubset(
       allNodesToRun,
@@ -1015,7 +1306,8 @@ export async function runNodeWithDependencies(
         },
       },
       workflowId,
-      prePopulatedOutputs
+      prePopulatedOutputs,
+      allNodesForInput // Pass ALL upstream nodes for input building
     );
   } else {
     // No dependencies needed, just run the target node directly
@@ -1028,22 +1320,35 @@ export async function runNodeWithDependencies(
  * Run a subset of a workflow - used for running dependencies.
  * Similar to runWorkflow but operates on a subset of nodes.
  * @param prePopulatedOutputs - Optional pre-populated outputs from nodes that already completed
+ * @param allNodesForInput - Optional array of ALL nodes (including pre-populated) for input building
  */
 async function runWorkflowSubset(
   nodes: Node[],
   edges: Edge[],
   callbacks: RunCallbacks = {},
   workflowId?: string,
-  prePopulatedOutputs?: OutputByNode
+  prePopulatedOutputs?: OutputByNode,
+  allNodesForInput?: Node[]
 ): Promise<void> {
   console.log("[runWorkflowSubset] Starting execution for", nodes.length, "nodes");
+  console.log("[runWorkflowSubset] All nodes for input building:", allNodesForInput?.length || nodes.length);
   
   // Start with pre-populated outputs if provided (from upstream nodes that already have results)
   const outputs: OutputByNode = prePopulatedOutputs ? new Map(prePopulatedOutputs) : new Map();
   console.log("[runWorkflowSubset] Pre-populated outputs:", outputs.size);
+  
+  // CRITICAL: Get IDs of pre-populated nodes - these are already "completed"
+  const prePopulatedNodeIds = prePopulatedOutputs ? new Set(prePopulatedOutputs.keys()) : new Set<string>();
+  console.log("[runWorkflowSubset] Pre-populated node IDs:", [...prePopulatedNodeIds]);
+  
   const allNodes = topoSort(nodes, edges);
   
-  // Build dependency graph
+  // CRITICAL: Use allNodesForInput for buildNodeInput if provided
+  // This includes pre-populated upstream nodes so their data can be found
+  const nodesForInputBuilding = allNodesForInput || allNodes;
+  console.log("[runWorkflowSubset] Nodes for input building:", nodesForInputBuilding.map(n => `${n.id} (${n.type})`));
+  
+  // Build dependency graph - include pre-populated node IDs in the lookup
   const nodeById = new Map<string, Node>(allNodes.map(n => [n.id, n]));
   const dependencies = new Map<string, Set<string>>();
   const dependents = new Map<string, Set<string>>();
@@ -1053,18 +1358,31 @@ async function runWorkflowSubset(
     dependents.set(node.id, new Set());
   }
   
+  // Build dependencies - also count pre-populated nodes as valid sources
   for (const edge of edges) {
     const source = edge.source;
     const target = edge.target;
-    if (nodeById.has(source) && nodeById.has(target)) {
+    
+    // Include edge if target is in our nodes AND (source is in our nodes OR source has pre-populated output)
+    const targetInNodes = nodeById.has(target);
+    const sourceInNodes = nodeById.has(source);
+    const sourceIsPrePopulated = prePopulatedNodeIds.has(source);
+    
+    if (targetInNodes && (sourceInNodes || sourceIsPrePopulated)) {
       dependencies.get(target)!.add(source);
-      dependents.get(source)!.add(target);
+      if (sourceInNodes) {
+        dependents.get(source)!.add(target);
+      }
     }
   }
   
-  const completed = new Set<string>();
+  // Initialize completed set with pre-populated node IDs
+  // These nodes already have output and don't need to run
+  const completed = new Set<string>(prePopulatedNodeIds);
   const failed = new Set<string>();
   const running = new Set<string>();
+  
+  console.log("[runWorkflowSubset] Initial completed set (pre-populated):", [...completed]);
   
   const getReadyNodes = (): Node[] => {
     const ready: Node[] = [];
@@ -1107,8 +1425,9 @@ async function runWorkflowSubset(
     running.add(node.id);
     callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
-    const rawInput = buildNodeInput(node, edges, outputs, allNodes);
-    console.log(`[runWorkflowSubset] Node ${node.id} (${type}) starting`);
+    // CRITICAL: Use nodesForInputBuilding to include pre-populated upstream nodes
+    const rawInput = buildNodeInput(node, edges, outputs, nodesForInputBuilding);
+    console.log(`[runWorkflowSubset] Node ${node.id} (${type}) starting with input:`, JSON.stringify(rawInput).slice(0, 200));
     
     const parsed = inputSchema.safeParse(rawInput);
     if (!parsed.success) {
@@ -1383,16 +1702,17 @@ export async function runSingleNode(
 
   // For async nodes (fal.ai), use the API which tracks via Trigger.dev
   if (ASYNC_NODE_TYPES.includes(type)) {
+    const nodeData = (node.data ?? {}) as Record<string, unknown>;
     try {
       const response = await fetch("/api/nodes/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodeType: type,
-          input: { ...parsed.data, nodeId }, // Include nodeId so polling can match
+          input: { ...(parsed.data as Record<string, unknown>), nodeId }, // Include nodeId so polling can match
           workflowId, // Link to workflow for Activity tab filtering
           nodeId, // React Flow node ID
-          nodeLabel: data.label || NODE_DEFINITIONS[type]?.label || type,
+          nodeLabel: nodeData.label || NODE_DEFINITIONS[type]?.label || type,
         }),
       });
 
@@ -1401,18 +1721,18 @@ export async function runSingleNode(
         throw new Error(errorData.error || `API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const responseData = await response.json();
       
       // The node is now running via Trigger.dev - polling will update status
       callbacks.onNodeStatus?.(node.id, "running", {
         progress: 25,
         providerUsed: "fal",
-        triggerRunId: data.triggerRunId,
-        nodeExecutionId: data.nodeExecutionId,
+        triggerRunId: responseData.triggerRunId,
+        nodeExecutionId: responseData.nodeExecutionId,
       });
 
       // Don't wait here - the polling in page.tsx will handle status updates
-      console.log(`[runSingleNode] ${type} submitted to Trigger.dev: ${data.triggerRunId}`);
+      console.log(`[runSingleNode] ${type} submitted to Trigger.dev: ${responseData.triggerRunId}`);
       return;
     } catch (error) {
       callbacks.onNodeStatus?.(node.id, "failed", {
@@ -1424,21 +1744,21 @@ export async function runSingleNode(
   }
 
   // For synchronous nodes (openrouter, merge-videos, etc.), run locally
-  const data = (node.data ?? {}) as Record<string, unknown>;
-  const nodeProvidersRaw = Array.isArray(data.providers) ? data.providers : undefined;
+  const nodeDataSync = (node.data ?? {}) as Record<string, unknown>;
+  const nodeProvidersRaw = Array.isArray(nodeDataSync.providers) ? nodeDataSync.providers : undefined;
   const providers = (nodeProvidersRaw?.filter((p: unknown) => typeof p === "string" && p.trim()) as string[] | undefined)
     ?? (NodeProviders[type] as unknown as string[] | undefined)
     ?? ["mock"];
 
   const retryPerProvider =
-    typeof data.retryPerProvider === "number" && Number.isFinite(data.retryPerProvider) && data.retryPerProvider > 0
-      ? Math.floor(data.retryPerProvider)
+    typeof nodeDataSync.retryPerProvider === "number" && Number.isFinite(nodeDataSync.retryPerProvider) && nodeDataSync.retryPerProvider > 0
+      ? Math.floor(nodeDataSync.retryPerProvider)
       : 1;
 
   const timeoutMs =
-    parseDurationMs(data.timeout) ??
-    parseDurationMs(data.timeoutMs) ??
-    parseDurationMs(data.nodeTimeout) ??
+    parseDurationMs(nodeDataSync.timeout) ??
+    parseDurationMs(nodeDataSync.timeoutMs) ??
+    parseDurationMs(nodeDataSync.nodeTimeout) ??
     NODE_TIMEOUT_MS[type] ??
     DEFAULT_NODE_TIMEOUT_MS;
 
@@ -1463,7 +1783,7 @@ export async function runSingleNode(
           executeWithProvider(type, p as any, parsed.data, {
             workflowId,
             nodeId: node.id,
-            nodeLabel: (data.label as string) || NODE_DEFINITIONS[type]?.label || type,
+            nodeLabel: (nodeDataSync.label as string) || NODE_DEFINITIONS[type]?.label || type,
           }),
           timeoutMs,
           `${type} (${p})`
@@ -1505,7 +1825,7 @@ export async function runSingleNode(
   // Note: openrouter handles its own credit deduction in /api/nodes/llm/stream
   if (type !== "openrouter") {
     try {
-      const creditCost = estimateNodeCost(type, parsed.data);
+      const creditCost = estimateNodeCost(type, parsed.data as Record<string, unknown>);
       const durationMs = Date.now() - startTime;
       const nodeLabel = (node.data as any)?.label || type;
       
