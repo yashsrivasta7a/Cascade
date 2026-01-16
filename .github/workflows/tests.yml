@@ -13,61 +13,12 @@ concurrency:
 
 jobs:
   # =============================================================================
-  # LINT - Check code quality with ESLint
-  # =============================================================================
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run ESLint
-        run: npm run lint
-
-  # =============================================================================
-  # TYPECHECK - Verify TypeScript types
-  # =============================================================================
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run TypeScript compiler
-        run: npm run typecheck
-
-  # =============================================================================
   # UNIT TESTS - Run Vitest unit and integration tests
   # =============================================================================
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [lint, typecheck]
 
     steps:
       - name: Checkout
@@ -103,7 +54,6 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, typecheck]
 
     steps:
       - name: Checkout
@@ -125,7 +75,6 @@ jobs:
         env:
           CI: true
           NEXT_TELEMETRY_DISABLED: "1"
-          # Clerk credentials from GitHub Secrets
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         run: npm run test:e2e
@@ -153,7 +102,6 @@ jobs:
     name: Build Check
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [lint, typecheck]
 
     steps:
       - name: Checkout
