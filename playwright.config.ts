@@ -12,12 +12,19 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  
+  // Use 1 worker to avoid overwhelming the dev server
+  workers: 1,
+  fullyParallel: false,
+  
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   
   use: {
     baseURL,
     trace: "on-first-retry",
+    // Add some resilience
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
   
   projects: [
@@ -35,6 +42,9 @@ export default defineConfig({
     env: {
       PORT: String(PORT),
       NEXT_TELEMETRY_DISABLED: "1",
+      // Pass Clerk keys to the dev server
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
     },
   },
 });
