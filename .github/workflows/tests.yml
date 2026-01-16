@@ -13,9 +13,9 @@ concurrency:
 
 jobs:
   # =============================================================================
-  # UNIT TESTS - Run Vitest unit and integration tests
+  # UNIT TESTS - Run Vitest unit tests only
   # =============================================================================
-  test:
+  unit:
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -33,17 +33,52 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests with coverage
+      - name: Run unit tests
         env:
           CI: true
           NEXT_TELEMETRY_DISABLED: "1"
-        run: npm run test:coverage
+        run: npx vitest run tests/unit --coverage
 
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: unit-coverage
+          path: coverage
+          retention-days: 7
+
+  # =============================================================================
+  # INTEGRATION TESTS - Run Vitest integration tests
+  # =============================================================================
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration tests
+        env:
+          CI: true
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npx vitest run tests/integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
           path: coverage
           retention-days: 7
 
@@ -98,6 +133,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: e2e-results
           path: test-results
           retention-days: 7
