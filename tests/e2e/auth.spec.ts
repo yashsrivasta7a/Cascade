@@ -1,10 +1,17 @@
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 
 // =============================================================================
-// AUTH E2E TESTS - Authentication flows with mocked Clerk
+// AUTH E2E TESTS - Authentication flows
+// Uses Clerk Testing Tokens to bypass bot detection in CI
 // =============================================================================
 
 test.describe("Authentication", () => {
+  test.beforeEach(async ({ page }) => {
+    // Setup Clerk testing token for each test
+    await setupClerkTestingToken({ page });
+  });
+
   test.describe("Unauthenticated Routes", () => {
     test("redirects to sign-in when accessing dashboard", async ({ page }) => {
       await page.goto("/dashboard");

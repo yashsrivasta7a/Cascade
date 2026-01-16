@@ -1,10 +1,16 @@
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 
 // =============================================================================
 // WORKFLOW E2E TESTS - Workflow creation and editing flows
+// Uses Clerk Testing Tokens to bypass bot detection in CI
 // =============================================================================
 
 test.describe("Workflow Editor", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test.describe("Editor Route", () => {
     test("editor route is accessible", async ({ page }) => {
       const response = await page.goto("/editor/new");
@@ -27,6 +33,10 @@ test.describe("Workflow Editor", () => {
 });
 
 test.describe("Executions Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("executions page is accessible", async ({ page }) => {
     const response = await page.goto("/executions");
     expect(response?.status()).toBeLessThan(500);
@@ -34,6 +44,10 @@ test.describe("Executions Page", () => {
 });
 
 test.describe("Billing Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("billing page is accessible", async ({ page }) => {
     const response = await page.goto("/billing");
     expect(response?.status()).toBeLessThan(500);
@@ -41,6 +55,10 @@ test.describe("Billing Page", () => {
 });
 
 test.describe("Settings Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("settings page is accessible", async ({ page }) => {
     const response = await page.goto("/settings");
     expect(response?.status()).toBeLessThan(500);
@@ -48,6 +66,10 @@ test.describe("Settings Page", () => {
 });
 
 test.describe("Deep Links", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("workflow editor with ID", async ({ page }) => {
     const response = await page.goto("/editor/some-workflow-id");
     expect(response?.status()).toBeLessThan(500);
@@ -60,6 +82,10 @@ test.describe("Deep Links", () => {
 });
 
 test.describe("Static Assets", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("favicon is accessible", async ({ page }) => {
     await page.goto("/");
     
@@ -76,6 +102,10 @@ test.describe("Static Assets", () => {
 });
 
 test.describe("Client-Side Navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("navigation doesnt cause full page reload", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -91,6 +121,10 @@ test.describe("Client-Side Navigation", () => {
 });
 
 test.describe("Error Boundaries", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("handles React errors gracefully", async ({ page }) => {
     // Navigate to a valid page first
     await page.goto("/");
@@ -108,6 +142,10 @@ test.describe("Error Boundaries", () => {
 });
 
 test.describe("Cookie Consent & Privacy", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("page loads without blocking scripts errors", async ({ page }) => {
     const errors: string[] = [];
     
@@ -129,6 +167,10 @@ test.describe("Cookie Consent & Privacy", () => {
 });
 
 test.describe("Accessibility", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("page has no major accessibility issues", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
@@ -179,6 +221,10 @@ test.describe("Accessibility", () => {
 });
 
 test.describe("Console Errors", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("no critical console errors on page load", async ({ page }) => {
     const consoleErrors: string[] = [];
     

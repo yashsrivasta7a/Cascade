@@ -97,6 +97,56 @@ jobs:
           retention-days: 7
 
   # =============================================================================
+  # E2E TESTS - Run Playwright end-to-end tests with Clerk Testing Tokens
+  # =============================================================================
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [lint, typecheck]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          CI: true
+          NEXT_TELEMETRY_DISABLED: "1"
+          # Clerk credentials from GitHub Secrets
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+          retention-days: 7
+
+  # =============================================================================
   # BUILD CHECK - Verify the app builds successfully
   # =============================================================================
   build:
@@ -121,10 +171,8 @@ jobs:
       - name: Build application
         env:
           NEXT_TELEMETRY_DISABLED: "1"
-          # Clerk requires valid-looking keys even for build
-          # These are base64-encoded placeholders that pass format validation
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dGVzdC5jbGVyay5pbnZhbGlk
-          CLERK_SECRET_KEY: sk_test_dGVzdC5jbGVyay5pbnZhbGlk
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
         run: npm run build
 
       - name: Check build output

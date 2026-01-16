@@ -1,12 +1,15 @@
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "@playwright/test";
 
 // =============================================================================
 // DASHBOARD E2E TESTS - Dashboard and navigation flows
+// Uses Clerk Testing Tokens to bypass bot detection in CI
 // =============================================================================
 
 test.describe("Dashboard", () => {
-  // Skip auth tests in CI as we're using mock auth
-  test.skip(({ browserName }) => browserName !== "chromium", "Chromium only");
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
 
   test.describe("Page Load", () => {
     test("loads dashboard page", async ({ page }) => {
@@ -66,6 +69,10 @@ test.describe("Dashboard", () => {
 });
 
 test.describe("Responsive Design", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("mobile viewport renders correctly", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto("/");
@@ -86,6 +93,10 @@ test.describe("Responsive Design", () => {
 });
 
 test.describe("Error Handling", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("404 page for non-existent routes", async ({ page }) => {
     const response = await page.goto("/non-existent-route-12345");
     // Should either 404 or redirect
@@ -100,6 +111,10 @@ test.describe("Error Handling", () => {
 });
 
 test.describe("Performance", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("page loads within acceptable time", async ({ page }) => {
     const startTime = Date.now();
     await page.goto("/");
@@ -112,6 +127,10 @@ test.describe("Performance", () => {
 });
 
 test.describe("SEO and Metadata", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
   test("has meta viewport tag", async ({ page }) => {
     await page.goto("/");
     const viewport = await page.$('meta[name="viewport"]');
