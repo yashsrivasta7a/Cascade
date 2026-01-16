@@ -519,12 +519,12 @@ function BaseNodeComponent({
                 onChange={(e) => setEditedName(e.target.value)}
                 onBlur={handleNameSubmit}
                 onKeyDown={handleNameKeyDown}
-                className="nodrag nowheel bg-transparent border-b border-zinc-600 text-white/90 text-[13px] tracking-wide focus:outline-none focus:border-zinc-400 w-full max-w-[200px]"
+                className="nodrag nowheel bg-transparent border-b border-gray-400 dark:border-zinc-600 text-zinc-800 dark:text-white/90 text-[13px] tracking-wide focus:outline-none focus:border-gray-500 dark:focus:border-zinc-400 w-full max-w-[200px]"
                 style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
               />
             ) : (
               <h3 
-                className="text-white/80 text-[13px] tracking-wide truncate cursor-text hover:text-white transition-colors"
+                className="text-zinc-800 dark:text-white/80 text-[13px] tracking-wide truncate cursor-text hover:text-zinc-900 dark:hover:text-white transition-colors"
                 onClick={() => setIsEditingName(true)}
                 title="Click to rename"
                 style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
@@ -549,11 +549,11 @@ function BaseNodeComponent({
 
           {/* Info icon with custom tooltip */}
           <div className="relative group/info">
-            <div className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-400 cursor-default transition-colors">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-gray-400 dark:text-zinc-600 hover:text-gray-600 dark:hover:text-zinc-400 cursor-default transition-colors">
               <Info className="w-3.5 h-3.5" />
             </div>
             {/* Custom tooltip - rectangle aligned to right */}
-            <div className="absolute bottom-full right-0 mb-2 px-4 py-2.5 rounded-lg bg-[#1a1a1a] border border-white/10 text-xs text-zinc-200 w-[280px] opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity duration-150 shadow-xl shadow-black/50 z-50 leading-relaxed">
+            <div className="absolute bottom-full right-0 mb-2 px-4 py-2.5 rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-xs text-gray-700 dark:text-zinc-200 w-[280px] opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity duration-150 shadow-xl shadow-black/10 dark:shadow-black/50 z-50 leading-relaxed">
               {data.description || "Node information"}
             </div>
           </div>
@@ -599,7 +599,7 @@ function BaseNodeComponent({
         <div 
           className={cn(
             "px-4 py-2 flex items-center justify-between",
-            "border-t border-zinc-800/30"
+            "border-t border-gray-200 dark:border-zinc-800/30"
           )}
         >
           <div className="flex items-center gap-2">
@@ -689,11 +689,11 @@ function BaseNodeComponent({
               className={cn(
                 "absolute right-full mr-3 top-1/2 -translate-y-1/2",
                 "px-3 py-1.5 rounded-lg",
-                "bg-[#1a1a1a] border border-white/10",
-                "text-[11px] text-white/90 whitespace-nowrap",
+                "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10",
+                "text-[11px] text-gray-700 dark:text-white/90 whitespace-nowrap",
                 "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
                 "transition-opacity duration-150",
-                "shadow-xl shadow-black/50"
+                "shadow-xl shadow-black/10 dark:shadow-black/50"
               )}
               style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
@@ -745,11 +745,11 @@ function BaseNodeComponent({
               className={cn(
                 "absolute left-full ml-3 top-1/2 -translate-y-1/2",
                 "px-3 py-1.5 rounded-lg",
-                "bg-[#1a1a1a] border border-white/10",
-                "text-[11px] text-white/90 whitespace-nowrap",
+                "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10",
+                "text-[11px] text-gray-700 dark:text-white/90 whitespace-nowrap",
                 "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
                 "transition-opacity duration-150",
-                "shadow-xl shadow-black/50"
+                "shadow-xl shadow-black/10 dark:shadow-black/50"
               )}
               style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >

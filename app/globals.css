@@ -963,8 +963,11 @@ html.light .text-zinc-600 {
 
 html.light .text-white\/40,
 html.light .text-white\/50,
-html.light .text-white\/70 {
-  color: var(--light-text-muted) !important;
+html.light .text-white\/60,
+html.light .text-white\/70,
+html.light .text-white\/80,
+html.light .text-white\/90 {
+  color: var(--light-text-secondary) !important;
 }
 
 /* Border overrides for light mode */
@@ -1577,21 +1580,35 @@ html.light .text-amber-400 {
   color: #D97706 !important;
 }
 
-/* DotPattern adjustments */
-html.light .text-violet-500\/5 {
-  color: rgba(139, 92, 246, 0.03) !important;
+/* DotPattern adjustments - make dots nearly invisible in light mode */
+html.light .text-violet-500\/5,
+html.light .text-violet-500\/10 {
+  color: rgba(139, 92, 246, 0.02) !important;
 }
 
-html.light .text-blue-500\/5 {
-  color: rgba(59, 130, 246, 0.03) !important;
+html.light .text-blue-500\/5,
+html.light .text-blue-500\/10 {
+  color: rgba(59, 130, 246, 0.02) !important;
 }
 
-html.light .text-emerald-500\/5 {
-  color: rgba(16, 185, 129, 0.03) !important;
+html.light .text-emerald-500\/5,
+html.light .text-emerald-500\/10 {
+  color: rgba(16, 185, 129, 0.02) !important;
 }
 
-html.light .text-amber-500\/5 {
-  color: rgba(245, 158, 11, 0.03) !important;
+html.light .text-amber-500\/5,
+html.light .text-amber-500\/10 {
+  color: rgba(245, 158, 11, 0.02) !important;
+}
+
+html.light .text-red-500\/5,
+html.light .text-red-500\/10 {
+  color: rgba(239, 68, 68, 0.02) !important;
+}
+
+html.light .text-zinc-500\/5,
+html.light .text-zinc-500\/10 {
+  color: rgba(0, 0, 0, 0.01) !important;
 }
 
 /* Gradient logo boxes */
@@ -1754,9 +1771,15 @@ html.light .bg-cyan-600\/\[0\.03\] {
   background-color: rgba(59, 130, 246, 0.03) !important;
 }
 
-/* DotPattern in light mode */
-html.light .text-zinc-800\/40 {
-  color: rgba(0, 0, 0, 0.06) !important;
+/* DotPattern in light mode - make dots very subtle */
+html.light .text-zinc-800\/40,
+html.light .text-zinc-800\/60 {
+  color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* DotPattern component - light mode very subtle */
+html.light .text-gray-300 {
+  color: rgba(0, 0, 0, 0.04) !important;
 }
 
 /* StatCard text */
@@ -1813,6 +1836,39 @@ html.light ::placeholder {
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - FLOW NODES
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node main text - headers, labels, titles (HIGH PRIORITY) */
+html.light .react-flow__node h3,
+html.light .react-flow__node .text-white\/80,
+html.light .react-flow__node .text-white\/90,
+html.light .react-flow__node [class*="text-white"],
+html.light .group\/node h3,
+html.light .group\/node .text-white\/80,
+html.light .group\/node .text-white\/90 {
+  color: #111827 !important;
+}
+
+/* Node header name - override inline styles too */
+html.light .react-flow__node h3[style*="font-family"],
+html.light .group\/node h3[style*="font-family"] {
+  color: #111827 !important;
+}
+
+/* Node SVG fills - ensure the node background is white */
+html.light .react-flow__node svg path[fill="#161616"],
+html.light .react-flow__node svg path[fill="#0d0d0d"],
+html.light .react-flow__node svg rect[fill="#161616"],
+html.light .react-flow__node svg rect[fill="#0d0d0d"],
+html.light .group\/node svg path[fill="#161616"],
+html.light .group\/node svg path[fill="#0d0d0d"] {
+  fill: #FFFFFF !important;
+}
+
+/* Node inner dark backgrounds */
+html.light .react-flow__node .bg-\[\#0f0f0f\],
+html.light .group\/node .bg-\[\#0f0f0f\] {
+  background-color: #F3F4F6 !important;
+}
 
 /* Node text inputs and textareas */
 html.light .react-flow__node textarea,
@@ -2075,12 +2131,12 @@ html.light .react-flow__node .bg-black\/60 {
    REACT FLOW BACKGROUND DOTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Light mode - visible gray dots */
+/* Light mode - subtle dots (barely visible) */
 html.light .react-flow__background circle,
 html.light .react-flow__background pattern circle,
 html.light .react-flow__background svg circle,
 html.light .react-flow__background svg pattern circle {
-  fill: #47494b !important;
+  fill: #d1d5db !important;
 }
 
 /* Dark mode - visible white dots */

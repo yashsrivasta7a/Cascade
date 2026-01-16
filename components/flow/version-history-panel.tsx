@@ -13,6 +13,7 @@ import {
   History,
   ChevronRight,
   Calendar,
+  Download,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc/react";
 import { format, formatDistanceToNow } from "date-fns";
@@ -83,6 +84,44 @@ export function VersionHistoryPanel({
     setIsRestoring(true);
     setSelectedVersion(versionId);
     restoreVersion.mutate({ workflowId, versionId });
+  };
+
+  // Export version as JSON
+  const handleExport = (version: {
+    id: string;
+    version: number;
+    name: string;
+    nodesJson: unknown;
+    edgesJson: unknown;
+    viewportJson?: unknown;
+    createdAt: string;
+    nodeCount: number;
+  }) => {
+    const exportData = {
+      schemaVersion: "1.0.0",
+      exportedAt: new Date().toISOString(),
+      workflow: {
+        name: version.name,
+        version: version.version,
+        nodes: version.nodesJson,
+        edges: version.edgesJson,
+        viewport: version.viewportJson ?? null,
+        nodeCount: version.nodeCount,
+        createdAt: version.createdAt,
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `workflow-v${version.version}-${format(new Date(version.createdAt), "yyyy-MM-dd-HHmm")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const versions = data?.versions ?? [];
@@ -295,6 +334,16 @@ export function VersionHistoryPanel({
                                       <RotateCcw className="w-3.5 h-3.5" />
                                     )}
                                     {isLatest ? "Current Version" : "Restore"}
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleExport(version);
+                                    }}
+                                    className="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all"
+                                    title="Export as JSON"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={(e) => {

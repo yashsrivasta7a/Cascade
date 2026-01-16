@@ -238,11 +238,11 @@ function FieldWithHandle({
           className={cn(
             "absolute right-full mr-3 top-1/2 -translate-y-1/2",
             "px-3 py-1.5 rounded-lg",
-            "bg-[#1a1a1a] border border-white/10",
-            "text-[11px] text-white/90 whitespace-nowrap",
+            "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10",
+            "text-[11px] text-gray-700 dark:text-white/90 whitespace-nowrap",
             "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
             "transition-opacity duration-150",
-            "shadow-xl shadow-black/50"
+            "shadow-xl shadow-black/10 dark:shadow-black/50"
           )}
           style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
         >
@@ -928,7 +928,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
                     {/* Show tooltip when compatible and dragging */}
                     {isCompatible && (
                       <div 
-                        className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-[#1a1a1a] border border-white/20 text-[9px] text-white/90 whitespace-nowrap shadow-lg"
+                        className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/20 text-[9px] text-gray-700 dark:text-white/90 whitespace-nowrap shadow-lg"
                         style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                       >
                         {field.label}

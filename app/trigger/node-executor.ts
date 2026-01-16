@@ -224,16 +224,22 @@ export const executeNode = task({
       });
 
       // Wait for the webhook to complete this token
-      // This pauses the task until resumeWithToken is called
+      // This pauses the task until completeToken is called from the webhook handler
+      // Timeout after 10 minutes (600s) for long-running operations like video generation
+      const WEBHOOK_TIMEOUT_SECONDS = 600; // 10 minutes
+      
       const webhookResult = await wait.forToken<{
         success: boolean;
         result?: unknown;
         error?: string;
-      }>(waitToken);
+      }>(waitToken, {
+        timeout: `${WEBHOOK_TIMEOUT_SECONDS}s`,
+      });
 
       if (!webhookResult.ok) {
-        await markNodeFailed(nodeExecutionId, workflowExecutionId, "Webhook timeout or cancellation");
-        throw new Error("Webhook timeout");
+        const timeoutError = `Provider job did not complete within ${WEBHOOK_TIMEOUT_SECONDS / 60} minutes. The webhook may not have been received.`;
+        await markNodeFailed(nodeExecutionId, workflowExecutionId, timeoutError);
+        throw new Error(timeoutError);
       }
 
       const webhookData = webhookResult.output;

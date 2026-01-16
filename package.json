@@ -58,7 +58,9 @@
   "scripts": {
     "build": "prisma generate && next build",
     "dev": "next dev",
-    "lint": "eslint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
