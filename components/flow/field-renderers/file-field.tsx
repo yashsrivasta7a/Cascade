@@ -1,9 +1,204 @@
 "use client";
 
-import { memo, useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Upload, X, Loader2, Image as ImageIcon, Film, Volume2 } from "lucide-react";
+import { Upload, X, Loader2, Image as ImageIcon, Film, Volume2, Play, Pause } from "lucide-react";
 import type { FileFieldConfig } from "@/lib/config/types";
+
+// Format time in mm:ss format
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+export interface CropOverlay {
+  xPercent: number;
+  yPercent: number;
+  widthPercent: number;
+  heightPercent: number;
+}
+
+// Separate component for image preview with crop overlay
+// This ensures the overlay is positioned relative to the actual image, not the container
+function CropPreview({ 
+  src, 
+  cropOverlay, 
+  maxHeight = 160 
+}: { 
+  src: string; 
+  cropOverlay?: CropOverlay;
+  maxHeight?: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [imageBounds, setImageBounds] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // Calculate actual image bounds within container after load
+  // This accounts for object-contain behavior where the actual rendered image
+  // may be smaller than the element's bounding box due to aspect ratio
+  const updateImageBounds = useCallback(() => {
+    const container = containerRef.current;
+    const img = imgRef.current;
+    if (!container || !img || !img.naturalWidth || !img.naturalHeight) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = img.getBoundingClientRect();
+
+    // Calculate the actual rendered image size with object-contain
+    // The image element might be larger than the visible image due to aspect ratio
+    const naturalAspect = img.naturalWidth / img.naturalHeight;
+    const elementAspect = imgRect.width / imgRect.height;
+    
+    let renderedWidth: number;
+    let renderedHeight: number;
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    if (naturalAspect > elementAspect) {
+      // Image is wider than element - constrained by width, letterboxed vertically
+      renderedWidth = imgRect.width;
+      renderedHeight = imgRect.width / naturalAspect;
+      offsetY = (imgRect.height - renderedHeight) / 2;
+    } else {
+      // Image is taller than element - constrained by height, pillarboxed horizontally
+      renderedHeight = imgRect.height;
+      renderedWidth = imgRect.height * naturalAspect;
+      offsetX = (imgRect.width - renderedWidth) / 2;
+    }
+
+    // Calculate the actual rendered position of the image within the container
+    setImageBounds({
+      left: imgRect.left - containerRect.left + offsetX,
+      top: imgRect.top - containerRect.top + offsetY,
+      width: renderedWidth,
+      height: renderedHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+
+    // Update bounds when image loads
+    if (img.complete) {
+      updateImageBounds();
+    }
+    img.addEventListener('load', updateImageBounds);
+    
+    // Also update on resize
+    const observer = new ResizeObserver(updateImageBounds);
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      img.removeEventListener('load', updateImageBounds);
+      observer.disconnect();
+    };
+  }, [src, updateImageBounds]);
+
+  // Clamp values to stay within bounds
+  const x = cropOverlay ? Math.min(Math.max(0, cropOverlay.xPercent), 100) : 0;
+  const y = cropOverlay ? Math.min(Math.max(0, cropOverlay.yPercent), 100) : 0;
+  const w = cropOverlay ? Math.min(Math.max(1, cropOverlay.widthPercent), 100 - x) : 100;
+  const h = cropOverlay ? Math.min(Math.max(1, cropOverlay.heightPercent), 100 - y) : 100;
+
+  return (
+    <div 
+      ref={containerRef}
+      className="relative overflow-hidden rounded bg-black/20"
+      style={{ maxHeight }}
+    >
+      <img
+        ref={imgRef}
+        src={src}
+        alt="Preview"
+        className="w-full h-auto object-contain"
+        style={{ maxHeight }}
+      />
+      {/* Crop overlay - darkens areas that will be REMOVED, keeps crop area clear */}
+      {cropOverlay && imageBounds && imageBounds.width > 0 && (
+        <>
+          {/* Dark overlay on areas that will be CROPPED OUT */}
+          {/* Left side - will be removed */}
+          <div 
+            className="absolute bg-black/60 pointer-events-none"
+            style={{
+              left: imageBounds.left,
+              top: imageBounds.top,
+              width: (x / 100) * imageBounds.width,
+              height: imageBounds.height,
+            }}
+          />
+          {/* Right side - will be removed */}
+          <div 
+            className="absolute bg-black/60 pointer-events-none"
+            style={{
+              left: imageBounds.left + ((x + w) / 100) * imageBounds.width,
+              top: imageBounds.top,
+              width: ((100 - x - w) / 100) * imageBounds.width,
+              height: imageBounds.height,
+            }}
+          />
+          {/* Top - will be removed */}
+          <div 
+            className="absolute bg-black/60 pointer-events-none"
+            style={{
+              left: imageBounds.left + (x / 100) * imageBounds.width,
+              top: imageBounds.top,
+              width: (w / 100) * imageBounds.width,
+              height: (y / 100) * imageBounds.height,
+            }}
+          />
+          {/* Bottom - will be removed */}
+          <div 
+            className="absolute bg-black/60 pointer-events-none"
+            style={{
+              left: imageBounds.left + (x / 100) * imageBounds.width,
+              top: imageBounds.top + ((y + h) / 100) * imageBounds.height,
+              width: (w / 100) * imageBounds.width,
+              height: ((100 - y - h) / 100) * imageBounds.height,
+            }}
+          />
+          {/* Crop box border - this is what you'll GET */}
+          <div 
+            className="absolute border-2 border-amber-400 pointer-events-none"
+            style={{
+              left: imageBounds.left + (x / 100) * imageBounds.width,
+              top: imageBounds.top + (y / 100) * imageBounds.height,
+              width: (w / 100) * imageBounds.width,
+              height: (h / 100) * imageBounds.height,
+            }}
+          >
+            {/* Corner markers */}
+            <div className="absolute -left-0.5 -top-0.5 w-2.5 h-2.5 border-l-2 border-t-2 border-amber-400" />
+            <div className="absolute -right-0.5 -top-0.5 w-2.5 h-2.5 border-r-2 border-t-2 border-amber-400" />
+            <div className="absolute -left-0.5 -bottom-0.5 w-2.5 h-2.5 border-l-2 border-b-2 border-amber-400" />
+            <div className="absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 border-r-2 border-b-2 border-amber-400" />
+          </div>
+          {/* Crop dimensions label - positioned at bottom of crop box */}
+          <div 
+            className="absolute text-[8px] font-mono text-white bg-amber-500/90 px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap shadow-sm"
+            style={{
+              left: imageBounds.left + (x / 100) * imageBounds.width + ((w / 100) * imageBounds.width) / 2,
+              top: imageBounds.top + ((y + h) / 100) * imageBounds.height - 2,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            {Math.round(w)}% × {Math.round(h)}%
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface FileFieldProps {
   config: FileFieldConfig;
@@ -11,6 +206,10 @@ interface FileFieldProps {
   onChange: (value: string | null) => void;
   disabled?: boolean;
   className?: string;
+  /** Called when upload state changes - use to disable run button during uploads */
+  onUploadingChange?: (uploading: boolean) => void;
+  /** Optional crop overlay to show what area will be cropped */
+  cropOverlay?: CropOverlay;
 }
 
 function FileFieldComponent({
@@ -19,10 +218,54 @@ function FileFieldComponent({
   onChange,
   disabled = false,
   className,
+  onUploadingChange,
+  cropOverlay,
 }: FileFieldProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Audio playback state
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+
+  // Toggle audio play/pause
+  const toggleAudioPlayback = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audioPlaying) {
+      audio.pause();
+    } else {
+      audio.play().catch((err) => {
+        console.warn("[FileField] Audio play failed:", err);
+      });
+    }
+  }, [audioPlaying]);
+
+  // Handle audio progress bar click
+  const handleAudioSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    const audio = audioRef.current;
+    if (!audio || !audioDuration) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    audio.currentTime = Math.max(0, Math.min(percentage * audioDuration, audioDuration));
+  }, [audioDuration]);
+
+  // Reset audio state when value changes
+  useEffect(() => {
+    setAudioPlaying(false);
+    setAudioCurrentTime(0);
+    setAudioDuration(0);
+    setAudioLoaded(false);
+  }, [value]);
 
   // Determine file type from accept string
   const fileType = config.accept?.includes("image")
@@ -55,6 +298,7 @@ function FileFieldComponent({
       }
 
       setIsUploading(true);
+      onUploadingChange?.(true);
 
       try {
         // Convert to base64
@@ -78,6 +322,7 @@ function FileFieldComponent({
               const { url } = await response.json();
               onChange(url);
               setIsUploading(false);
+              onUploadingChange?.(false);
               return;
             }
           } catch (err) {
@@ -87,14 +332,16 @@ function FileFieldComponent({
           // Fallback to base64 if CDN upload fails
           onChange(base64);
           setIsUploading(false);
+          onUploadingChange?.(false);
         };
         reader.readAsDataURL(file);
       } catch (err) {
         console.error("[FileField] Error reading file:", err);
         setIsUploading(false);
+        onUploadingChange?.(false);
       }
     },
-    [config.accept, config.maxSize, fileType, onChange]
+    [config.accept, config.maxSize, fileType, onChange, onUploadingChange]
   );
 
   const handleDrop = useCallback(
@@ -170,12 +417,12 @@ function FileFieldComponent({
           </div>
         ) : value ? (
           <div className="relative p-1">
-            {/* Preview */}
+            {/* Preview with optional crop overlay */}
             {config.preview && fileType === "image" && (
-              <img
-                src={value}
-                alt="Preview"
-                className="w-full h-16 object-cover rounded"
+              <CropPreview 
+                src={value} 
+                cropOverlay={cropOverlay}
+                maxHeight={cropOverlay ? 160 : 80}
               />
             )}
             {config.preview && fileType === "video" && (
@@ -185,7 +432,67 @@ function FileFieldComponent({
                 muted
               />
             )}
-            {(!config.preview || fileType === "audio") && (
+            {/* Audio player with controls */}
+            {fileType === "audio" && (
+              <div className="flex items-center gap-2 p-2">
+                {/* Play/Pause button */}
+                <button
+                  onClick={toggleAudioPlayback}
+                  disabled={!audioLoaded}
+                  className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
+                    "bg-amber-500 text-white hover:bg-amber-600 transition-colors",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {!audioLoaded ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : audioPlaying ? (
+                    <Pause className="w-3.5 h-3.5" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 ml-0.5" />
+                  )}
+                </button>
+
+                {/* Progress bar and time */}
+                <div className="flex-1 min-w-0">
+                  <div
+                    onClick={handleAudioSeek}
+                    className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden cursor-pointer"
+                  >
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-100"
+                      style={{ width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[8px] text-gray-500 dark:text-zinc-500 font-mono mt-0.5">
+                    <span>{formatTime(audioCurrentTime)}</span>
+                    <span>{formatTime(audioDuration)}</span>
+                  </div>
+                </div>
+
+                {/* Hidden audio element */}
+                <audio
+                  ref={audioRef}
+                  src={value}
+                  preload="metadata"
+                  onPlay={() => setAudioPlaying(true)}
+                  onPause={() => setAudioPlaying(false)}
+                  onEnded={() => {
+                    setAudioPlaying(false);
+                    setAudioCurrentTime(0);
+                  }}
+                  onLoadedMetadata={(e) => {
+                    setAudioDuration(e.currentTarget.duration);
+                    setAudioLoaded(true);
+                  }}
+                  onTimeUpdate={(e) => setAudioCurrentTime(e.currentTarget.currentTime)}
+                  className="hidden"
+                />
+              </div>
+            )}
+            {/* Non-preview file display (not audio) */}
+            {!config.preview && fileType !== "audio" && (
               <div className="flex items-center gap-2 p-2">
                 <FileIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
                 <span className="text-[10px] text-gray-600 dark:text-zinc-400 truncate flex-1">

@@ -31,6 +31,7 @@ import {
   Box,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/layout";
 import { trpc } from "@/lib/trpc/react";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 
@@ -157,18 +158,18 @@ export default function ActivityPage() {
       </div>
 
       {/* Top Bar */}
-      <div className="relative shrink-0 h-14 px-6 flex items-center justify-between border-b border-zinc-800/60">
+      <div className="relative shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Activity className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white">Workflow Runs</h1>
-            <p className="text-[11px] text-zinc-500">{stats.totalRuns} total executions</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Workflow Runs</h1>
+            <p className="text-[11px] text-gray-500 dark:text-zinc-500">{stats.totalRuns} total executions</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {runningCount > 0 && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
               <span className="relative flex h-2 w-2">
@@ -181,11 +182,12 @@ export default function ActivityPage() {
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-8 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg flex items-center gap-1.5 transition-all"
+            className="h-8 px-3 text-xs font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-zinc-800/50 hover:bg-gray-200 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-700/50 rounded-lg flex items-center gap-1.5 transition-all"
           >
             <RotateCcw className={cn("w-3 h-3", isFetching && "animate-spin")} />
             Refresh
           </button>
+          <UserMenu />
         </div>
       </div>
 
@@ -285,11 +287,36 @@ export default function ActivityPage() {
               {/* Runs List */}
               <div className="flex-1 overflow-auto">
                 {isLoading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="flex flex-col items-center gap-3">
-                      <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
-                      <span className="text-sm text-zinc-600">Loading runs...</span>
-                    </div>
+                  <div className="divide-y divide-gray-100 dark:divide-zinc-800/50">
+                    {[...Array(8)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="px-5 py-4"
+                        style={{ animationDelay: `${i * 50}ms` }}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Status icon skeleton */}
+                          <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                          {/* Main content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-4 w-32 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                              <div className="h-5 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded-full animate-pulse" />
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="h-3 w-24 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                              <div className="h-3 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                            </div>
+                          </div>
+                          {/* Right side */}
+                          <div className="flex items-center gap-4">
+                            <div className="h-3 w-12 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                            <div className="h-3 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : runs.length === 0 ? (
                   <div className="relative flex items-center justify-center h-64 overflow-hidden">
@@ -601,8 +628,36 @@ function ErrorsPanel() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      <div className="p-6 space-y-6">
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-4 h-4 rounded bg-gray-200 dark:bg-zinc-700 animate-pulse" />
+                <div className="h-3 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+              </div>
+              <div className="h-7 w-12 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+        {/* Error list skeleton */}
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-24 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                    <div className="h-5 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded-full animate-pulse" />
+                  </div>
+                  <div className="h-3 w-3/4 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -719,8 +774,42 @@ function HealthPanel() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      <div className="p-6 space-y-8">
+        {/* Overview Stats skeleton */}
+        <div>
+          <div className="h-3 w-20 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
+          <div className="grid grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-4 h-4 rounded bg-gray-200 dark:bg-zinc-700 animate-pulse" />
+                  <div className="h-3 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                </div>
+                <div className="h-8 w-16 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Providers skeleton */}
+        <div>
+          <div className="h-3 w-24 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                      <div className="h-3 w-32 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="h-6 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded-full animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

@@ -19,52 +19,98 @@ import { showCancelled, showNodeError, showError, showTimeoutError, showProvider
 // =============================================================================
 
 // Define min/max values for settings that should be clamped
+// These values MUST match the Zod schema constraints in lib/config/node-config.ts
 const SETTING_RANGES: Record<string, { min: number; max: number }> = {
-  // 0-2 range settings
+  // LLM settings (openrouter)
   "temperature": { min: 0, max: 2 },
-  // -2 to 2 range settings
+  "maxTokens": { min: 1, max: 128000 },
+  "topP": { min: 0, max: 1 },
+  "topK": { min: 0, max: 100 },
   "frequencyPenalty": { min: -2, max: 2 },
   "presencePenalty": { min: -2, max: 2 },
-  // 0-1 range settings
-  "topP": { min: 0, max: 1 },
-  // Other bounded settings
-  "topK": { min: 0, max: 100 },
-  // 0-100 percentage settings
+  // Image generation settings (seedream) - from schema: z.number().min(0).max(30)
+  "numInferenceSteps": { min: 1, max: 60 },
+  "guidanceScale": { min: 0, max: 30 },
+  // Seed - no max in schema, but cap to prevent overflow when passed to other settings
+  "seed": { min: 0, max: 2147483647 },
+  // Crop image settings (0-100 percentage)
   "xPercent": { min: 0, max: 100 },
   "yPercent": { min: 0, max: 100 },
-  "widthPercent": { min: 0, max: 100 },
-  "heightPercent": { min: 0, max: 100 },
-  // Seedream/image gen settings
-  "numInferenceSteps": { min: 1, max: 60 },
-  "guidanceScale": { min: 1, max: 12 },
-  // Merge videos transition duration
-  "transitionDuration": { min: 0, max: 5 },
-  // ElevenLabs settings
+  "widthPercent": { min: 1, max: 100 },
+  "heightPercent": { min: 1, max: 100 },
+  // Video settings (merge-videos) - from schema: z.number().min(0).max(2)
+  "transitionDuration": { min: 0, max: 2 },
+  // ElevenLabs voice settings
   "stability": { min: 0, max: 1 },
   "similarityBoost": { min: 0, max: 1 },
   "clarity": { min: 0, max: 1 },
 };
 
 // Helper to clamp a value to its range if defined
+// Also sanitizes non-numeric values for numeric settings
 function clampSettingValue(key: string, value: unknown): unknown {
-  if (typeof value !== "number") return value;
-  const range = SETTING_RANGES[key];
-  if (range !== undefined) {
-    return Math.min(Math.max(range.min, value), range.max);
+  // Check if this is a numeric setting
+  const numericSettings = new Set(Object.keys(SETTING_RANGES));
+  
+  if (numericSettings.has(key)) {
+    // For numeric settings, MUST return a number
+    if (typeof value === "number") {
+      const range = SETTING_RANGES[key];
+      if (range !== undefined) {
+        return Math.min(Math.max(range.min, value), range.max);
+      }
+      return value;
+    } else if (typeof value === "string" && !isNaN(Number(value))) {
+      const numValue = Number(value);
+      const range = SETTING_RANGES[key];
+      if (range !== undefined) {
+        return Math.min(Math.max(range.min, numValue), range.max);
+      }
+      return numValue;
+    } else {
+      // Non-numeric value for numeric setting - return undefined to skip
+      console.warn(`[clampSettingValue] Non-numeric value for ${key}:`, typeof value, value);
+      return undefined;
+    }
   }
+  
+  // Non-numeric settings pass through as-is
   return value;
 }
+
+// History state for undo/redo
+interface HistoryEntry {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+// Clipboard state for copy/paste
+interface ClipboardData {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+// Maximum history entries to keep
+const MAX_HISTORY_LENGTH = 50;
 
 export interface FlowState {
   nodes: Node[];
   edges: Edge[];
   selectedNode: Node | null;
+  selectedNodeIds: string[]; // Support multi-selection
   contextMenuPosition: { x: number; y: number } | null; // Position for right-click menu
   viewport?: { x: number; y: number; zoom: number };
   isWorkflowRunning: boolean;
   focusNodeId: string | null;
   workflowId: string | null; // Current workflow ID for Activity tracking
   highlightedNodeIds: string[]; // IDs of nodes to highlight (for pipeline view)
+  
+  // Undo/Redo history
+  history: HistoryEntry[];
+  historyIndex: number;
+  
+  // Clipboard for copy/paste
+  clipboard: ClipboardData | null;
   
   // Execution tracking for cancel functionality
   currentWorkflowExecutionId: string | null;
@@ -104,12 +150,29 @@ export interface FlowState {
   duplicateNode: (id: string) => void;
   
   selectNode: (node: Node | null) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
   setContextMenuPosition: (position: { x: number; y: number } | null) => void;
   focusNode: (nodeId: string | null) => void;
   
   // Pipeline highlighting (for Activity panel)
   highlightPipeline: (nodeIds: string[]) => void;
   clearHighlight: () => void;
+  
+  // Undo/Redo actions
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  recordHistory: () => void;
+  
+  // Copy/Paste actions
+  copySelectedNodes: () => void;
+  pasteNodes: (position?: { x: number; y: number }) => void;
+  
+  // Selection actions
+  selectAllNodes: () => void;
+  deleteSelectedNodes: () => void;
+  duplicateSelectedNodes: () => void;
   
   // Utilities
   clearFlow: () => void;
@@ -135,6 +198,7 @@ export const useFlowStore = create<FlowState>()(
         nodes: [],
         edges: [],
         selectedNode: null,
+        selectedNodeIds: [],
         contextMenuPosition: null,
         viewport: undefined,
         isWorkflowRunning: false,
@@ -142,6 +206,13 @@ export const useFlowStore = create<FlowState>()(
         workflowId: null,
         highlightedNodeIds: [],
         connectingFrom: null,
+        
+        // Undo/Redo history
+        history: [],
+        historyIndex: -1,
+        
+        // Clipboard
+        clipboard: null,
         
         // Execution tracking
         currentWorkflowExecutionId: null,
@@ -302,6 +373,8 @@ export const useFlowStore = create<FlowState>()(
         // Check for removed edges
         const removedChanges = changes.filter((c) => c.type === "remove");
         if (removedChanges.length > 0) {
+          // Record history before removing edges for undo support
+          get().recordHistory();
           const removedEdgeIds = new Set(removedChanges.map((c) => c.id));
           const removedEdges = state.edges.filter((e) => removedEdgeIds.has(e.id));
           
@@ -428,6 +501,8 @@ export const useFlowStore = create<FlowState>()(
       },
 
       addNode: (node) => {
+        // Record history before adding node for undo support
+        get().recordHistory();
         set({
           nodes: [...get().nodes, node],
         });
@@ -436,10 +511,35 @@ export const useFlowStore = create<FlowState>()(
       updateNode: (id, data) => {
         const state = get();
         const node = state.nodes.find((n) => n.id === id);
-        if (!node) return;
+        if (!node) {
+          console.warn(`[updateNode] Node ${id} NOT FOUND in store!`);
+          return;
+        }
+        
+        // DEBUG: Log crop-related updates
+        const cropFields = ["xPercent", "yPercent", "widthPercent", "heightPercent"];
+        const hasCropUpdate = cropFields.some(f => f in data);
+        if (hasCropUpdate) {
+          console.log(`[updateNode:${id}] Crop update RECEIVED:`, {
+            xPercent: (data as Record<string, unknown>).xPercent,
+            yPercent: (data as Record<string, unknown>).yPercent,
+            widthPercent: (data as Record<string, unknown>).widthPercent,
+            heightPercent: (data as Record<string, unknown>).heightPercent,
+          });
+        }
 
         const oldData = node.data as Record<string, unknown>;
         let newData = { ...oldData, ...data };
+        
+        // DEBUG: Log merged data for crop fields
+        if (hasCropUpdate) {
+          console.log(`[updateNode:${id}] Crop MERGED data:`, {
+            xPercent: newData.xPercent,
+            yPercent: newData.yPercent,
+            widthPercent: newData.widthPercent,
+            heightPercent: newData.heightPercent,
+          });
+        }
 
         // Auto-clear result when input media changes OR is removed
         const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages", "video", "audio", "image", "video1", "video2"];
@@ -488,7 +588,7 @@ export const useFlowStore = create<FlowState>()(
         };
         
         // Check each changed field and propagate to connected nodes
-        const changedKeys = Object.keys(data).filter(key => data[key as keyof typeof data] !== oldData[key]);
+        const changedKeys = Object.keys(data).filter(key => (data as Record<string, unknown>)[key] !== oldData[key]);
         
         // Output handles - these should ONLY propagate the "result" field, NOT input fields
         const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response"];
@@ -556,9 +656,17 @@ export const useFlowStore = create<FlowState>()(
           }
           
           if (valueToPass !== undefined) {
-            const existingUpdates = targetUpdates.get(targetNodeId) || {};
             // Clamp the value to its max if this setting has a defined max
-            existingUpdates[targetHandle] = clampSettingValue(targetHandle, valueToPass);
+            const clampedValue = clampSettingValue(targetHandle, valueToPass);
+            
+            // Skip if clampSettingValue returned undefined (invalid value type)
+            if (clampedValue === undefined) {
+              console.warn(`[updateNode] Skipping invalid value for ${targetHandle}`);
+              continue;
+            }
+            
+            const existingUpdates = targetUpdates.get(targetNodeId) || {};
+            existingUpdates[targetHandle] = clampedValue;
 
             // Also update the _inheritedFrom metadata for this setting
             const targetNode = state.nodes.find(n => n.id === targetNodeId);
@@ -615,6 +723,8 @@ export const useFlowStore = create<FlowState>()(
       },
 
       deleteNode: (id) => {
+        // Record history before deleting node for undo support
+        get().recordHistory();
         set({
           nodes: get().nodes.filter((node) => node.id !== id),
           edges: get().edges.filter(
@@ -627,6 +737,9 @@ export const useFlowStore = create<FlowState>()(
         const state = get();
         const original = state.nodes.find((n) => n.id === id);
         if (!original) return;
+
+        // Record history before duplicating node for undo support
+        get().recordHistory();
 
         const newId = `node-${Date.now()}-dup`;
         const newNode: Node = {
@@ -645,7 +758,19 @@ export const useFlowStore = create<FlowState>()(
         });
       },
 
-      selectNode: (node) => set({ selectedNode: node }),
+      selectNode: (node) => set({ 
+          selectedNode: node,
+          selectedNodeIds: node ? [node.id] : [],
+        }),
+        
+        setSelectedNodeIds: (ids) => {
+          const state = get();
+          const nodes = state.nodes.filter(n => ids.includes(n.id));
+          set({ 
+            selectedNodeIds: ids,
+            selectedNode: nodes.length > 0 ? nodes[0] : null,
+          });
+        },
 
       setContextMenuPosition: (position) => set({ contextMenuPosition: position }),
 
@@ -738,7 +863,264 @@ export const useFlowStore = create<FlowState>()(
         set({ highlightedNodeIds: [] });
       },
 
-      clearFlow: () => set({ nodes: [], edges: [], selectedNode: null, highlightedNodeIds: [] }),
+      // =============================================================================
+      // UNDO/REDO ACTIONS
+      // =============================================================================
+      
+      recordHistory: () => {
+        const state = get();
+        const entry: HistoryEntry = {
+          nodes: JSON.parse(JSON.stringify(state.nodes)),
+          edges: JSON.parse(JSON.stringify(state.edges)),
+        };
+        
+        // If we're not at the end of history, truncate forward history
+        const newHistory = state.history.slice(0, state.historyIndex + 1);
+        newHistory.push(entry);
+        
+        // Limit history length
+        if (newHistory.length > MAX_HISTORY_LENGTH) {
+          newHistory.shift();
+        }
+        
+        set({
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+        });
+      },
+      
+      undo: () => {
+        const state = get();
+        if (state.historyIndex <= 0) return;
+        
+        const newIndex = state.historyIndex - 1;
+        const entry = state.history[newIndex];
+        
+        if (entry) {
+          set({
+            nodes: JSON.parse(JSON.stringify(entry.nodes)),
+            edges: JSON.parse(JSON.stringify(entry.edges)),
+            historyIndex: newIndex,
+            selectedNode: null,
+            selectedNodeIds: [],
+          });
+        }
+      },
+      
+      redo: () => {
+        const state = get();
+        if (state.historyIndex >= state.history.length - 1) return;
+        
+        const newIndex = state.historyIndex + 1;
+        const entry = state.history[newIndex];
+        
+        if (entry) {
+          set({
+            nodes: JSON.parse(JSON.stringify(entry.nodes)),
+            edges: JSON.parse(JSON.stringify(entry.edges)),
+            historyIndex: newIndex,
+            selectedNode: null,
+            selectedNodeIds: [],
+          });
+        }
+      },
+      
+      canUndo: () => {
+        const state = get();
+        return state.historyIndex > 0;
+      },
+      
+      canRedo: () => {
+        const state = get();
+        return state.historyIndex < state.history.length - 1;
+      },
+      
+      // =============================================================================
+      // COPY/PASTE ACTIONS
+      // =============================================================================
+      
+      copySelectedNodes: () => {
+        const state = get();
+        const selectedIds = state.selectedNodeIds.length > 0 
+          ? state.selectedNodeIds 
+          : state.selectedNode ? [state.selectedNode.id] : [];
+        
+        if (selectedIds.length === 0) return;
+        
+        // Get selected nodes
+        const nodesToCopy = state.nodes.filter(n => selectedIds.includes(n.id));
+        
+        // Get edges that connect selected nodes to each other
+        const edgesToCopy = state.edges.filter(
+          e => selectedIds.includes(e.source) && selectedIds.includes(e.target)
+        );
+        
+        set({
+          clipboard: {
+            nodes: JSON.parse(JSON.stringify(nodesToCopy)),
+            edges: JSON.parse(JSON.stringify(edgesToCopy)),
+          },
+        });
+        
+        console.log(`[Copy] Copied ${nodesToCopy.length} nodes and ${edgesToCopy.length} edges`);
+      },
+      
+      pasteNodes: (position) => {
+        const state = get();
+        if (!state.clipboard || state.clipboard.nodes.length === 0) return;
+        
+        // Record history before paste
+        get().recordHistory();
+        
+        // Generate new IDs for pasted nodes
+        const idMap = new Map<string, string>();
+        const timestamp = Date.now();
+        
+        state.clipboard.nodes.forEach((node, index) => {
+          const newId = `node-${timestamp}-${index}`;
+          idMap.set(node.id, newId);
+        });
+        
+        // Calculate offset for new nodes
+        // If position is provided, center the pasted nodes there
+        // Otherwise, offset from original position
+        let offsetX = 40;
+        let offsetY = 40;
+        
+        if (position && state.clipboard.nodes.length > 0) {
+          // Find center of copied nodes
+          const minX = Math.min(...state.clipboard.nodes.map(n => n.position.x));
+          const maxX = Math.max(...state.clipboard.nodes.map(n => n.position.x));
+          const minY = Math.min(...state.clipboard.nodes.map(n => n.position.y));
+          const maxY = Math.max(...state.clipboard.nodes.map(n => n.position.y));
+          const centerX = (minX + maxX) / 2;
+          const centerY = (minY + maxY) / 2;
+          
+          offsetX = position.x - centerX;
+          offsetY = position.y - centerY;
+        }
+        
+        // Create new nodes with new IDs and offset positions
+        const newNodes: Node[] = state.clipboard.nodes.map(node => ({
+          ...JSON.parse(JSON.stringify(node)),
+          id: idMap.get(node.id)!,
+          position: {
+            x: node.position.x + offsetX,
+            y: node.position.y + offsetY,
+          },
+          selected: true,
+          data: {
+            ...(node.data as Record<string, unknown>),
+            // Clear execution state
+            status: undefined,
+            error: undefined,
+            result: undefined,
+          },
+        }));
+        
+        // Create new edges with updated source/target IDs
+        const newEdges: Edge[] = state.clipboard.edges.map((edge, index) => ({
+          ...JSON.parse(JSON.stringify(edge)),
+          id: `e-${timestamp}-${index}`,
+          source: idMap.get(edge.source)!,
+          target: idMap.get(edge.target)!,
+        }));
+        
+        // Update state
+        set({
+          nodes: [...state.nodes.map(n => ({ ...n, selected: false })), ...newNodes],
+          edges: [...state.edges, ...newEdges],
+          selectedNodeIds: newNodes.map(n => n.id),
+          selectedNode: newNodes.length > 0 ? newNodes[0] : null,
+        });
+        
+        console.log(`[Paste] Pasted ${newNodes.length} nodes and ${newEdges.length} edges`);
+      },
+      
+      // =============================================================================
+      // SELECTION ACTIONS
+      // =============================================================================
+      
+      selectAllNodes: () => {
+        const state = get();
+        const allIds = state.nodes.map(n => n.id);
+        set({
+          selectedNodeIds: allIds,
+          selectedNode: state.nodes.length > 0 ? state.nodes[0] : null,
+          nodes: state.nodes.map(n => ({ ...n, selected: true })),
+        });
+      },
+      
+      deleteSelectedNodes: () => {
+        const state = get();
+        const selectedIds = state.selectedNodeIds.length > 0 
+          ? state.selectedNodeIds 
+          : state.selectedNode ? [state.selectedNode.id] : [];
+        
+        if (selectedIds.length === 0) return;
+        
+        // Record history before delete
+        get().recordHistory();
+        
+        set({
+          nodes: state.nodes.filter(n => !selectedIds.includes(n.id)),
+          edges: state.edges.filter(e => !selectedIds.includes(e.source) && !selectedIds.includes(e.target)),
+          selectedNode: null,
+          selectedNodeIds: [],
+        });
+      },
+      
+      duplicateSelectedNodes: () => {
+        const state = get();
+        const selectedIds = state.selectedNodeIds.length > 0 
+          ? state.selectedNodeIds 
+          : state.selectedNode ? [state.selectedNode.id] : [];
+        
+        if (selectedIds.length === 0) return;
+        
+        // Record history before duplicate
+        get().recordHistory();
+        
+        // Generate new IDs
+        const idMap = new Map<string, string>();
+        const timestamp = Date.now();
+        
+        selectedIds.forEach((id, index) => {
+          idMap.set(id, `node-${timestamp}-dup-${index}`);
+        });
+        
+        // Create duplicated nodes
+        const nodesToDuplicate = state.nodes.filter(n => selectedIds.includes(n.id));
+        const newNodes: Node[] = nodesToDuplicate.map(node => ({
+          ...JSON.parse(JSON.stringify(node)),
+          id: idMap.get(node.id)!,
+          position: {
+            x: node.position.x + 40,
+            y: node.position.y + 40,
+          },
+          selected: true,
+        }));
+        
+        // Duplicate edges between selected nodes
+        const edgesToDuplicate = state.edges.filter(
+          e => selectedIds.includes(e.source) && selectedIds.includes(e.target)
+        );
+        const newEdges: Edge[] = edgesToDuplicate.map((edge, index) => ({
+          ...JSON.parse(JSON.stringify(edge)),
+          id: `e-${timestamp}-dup-${index}`,
+          source: idMap.get(edge.source)!,
+          target: idMap.get(edge.target)!,
+        }));
+        
+        set({
+          nodes: [...state.nodes.map(n => ({ ...n, selected: false })), ...newNodes],
+          edges: [...state.edges, ...newEdges],
+          selectedNodeIds: newNodes.map(n => n.id),
+          selectedNode: newNodes.length > 0 ? newNodes[0] : null,
+        });
+      },
+
+      clearFlow: () => set({ nodes: [], edges: [], selectedNode: null, selectedNodeIds: [], highlightedNodeIds: [] }),
 
       loadFlow: (nodes, edges) => set({ nodes, edges, selectedNode: null }),
 
@@ -799,22 +1181,45 @@ export const useFlowStore = create<FlowState>()(
         };
         
         // Update all target nodes based on edge configuration
+        // NOTE: A target node may have MULTIPLE edges from the same source (e.g., output + settings)
+        // We need to process ALL non-settings edges, not just the first one found
         const updatedNodes = state.nodes.map((node) => {
-          const edge = outgoingEdges.find((e) => e.target === node.id);
-          if (!edge) return node;
+          // Find ALL edges to this target node
+          const edgesToNode = outgoingEdges.filter((e) => e.target === node.id);
+          if (edgesToNode.length === 0) return node;
           
-          const targetHandle = edge.targetHandle;
-          const sourceHandle = edge.sourceHandle;
-          const edgeData = edge.data as Record<string, unknown> | undefined;
-          const isSettingsConnection = edgeData?.isSettingsConnection === true;
-          const isFullInheritance = edgeData?.isFullInheritance === true;
-          const settingKey = edgeData?.settingKey as string | undefined;
-          const nodeData = { ...(node.data as Record<string, unknown>) };
+          // Filter out settings connections - they are synced separately in updateNode
+          const nonSettingsEdges = edgesToNode.filter((edge) => {
+            const edgeData = edge.data as Record<string, unknown> | undefined;
+            const sourceHandle = edge.sourceHandle;
+            const isSettingsConnection = edgeData?.isSettingsConnection === true || 
+                                         edgeData?.fromSettingsPopover === true ||
+                                         (sourceHandle?.endsWith("-setting") ?? false);
+            const isFullInheritance = edgeData?.isFullInheritance === true;
+            
+            // Keep full inheritance edges, skip individual settings edges
+            if (isSettingsConnection && !isFullInheritance) {
+              console.log(`[propagateOutput] Skipping settings edge ${sourceHandle} -> ${edge.targetHandle}`);
+              return false;
+            }
+            return true;
+          });
           
-          console.log(`[propagateOutput] Processing edge to ${node.id} (${node.type}): sourceHandle=${sourceHandle}, targetHandle=${targetHandle}, isSettings=${isSettingsConnection}, isFull=${isFullInheritance}`);
+          if (nonSettingsEdges.length === 0) return node;
           
-          // Handle FULL inheritance: pass ALL settings to target node
-          if (isFullInheritance) {
+          // Process each non-settings edge
+          let nodeData = { ...(node.data as Record<string, unknown>) };
+          
+          for (const edge of nonSettingsEdges) {
+            const targetHandle = edge.targetHandle;
+            const sourceHandle = edge.sourceHandle;
+            const edgeData = edge.data as Record<string, unknown> | undefined;
+            const isFullInheritance = edgeData?.isFullInheritance === true;
+          
+            console.log(`[propagateOutput] Processing edge to ${node.id} (${node.type}): sourceHandle=${sourceHandle}, targetHandle=${targetHandle}, isFull=${isFullInheritance}`);
+          
+            // Handle FULL inheritance: pass ALL settings to target node
+            if (isFullInheritance) {
             // Copy all matching settings from source to target
             const settingsToInherit = [
               "prompt", "negativePrompt", "aspectRatio", "seed",
@@ -856,40 +1261,8 @@ export const useFlowStore = create<FlowState>()(
               nodeData.context = contextWithHistory;
             }
             
-            return { ...node, data: nodeData };
-          }
-          
-          // Handle specific settings connections: source setting -> target setting
-          // settingId is the SOURCE setting (e.g., "prompt"), targetHandle is the TARGET field (e.g., "negativePrompt")
-          const sourceSettingId = edgeData?.settingId as string | undefined;
-          const actualSourceHandle = sourceHandle?.replace("-setting", "") ?? "";
-          const settingSource = sourceSettingId || actualSourceHandle;
-          
-          if (isSettingsConnection && settingSource) {
-            const sourceValue = sourceBundle[settingSource];
-            const targetField = targetHandle ?? settingSource;
-            
-            console.log(`[propagateOutput] Settings connection: ${settingSource} -> ${targetField}, value="${String(sourceValue).slice(0, 50)}..."`);
-
-            if (sourceValue !== undefined) {
-              // Pass the SOURCE setting value to the TARGET field (clamped to valid range)
-              nodeData[targetField] = clampSettingValue(targetField, sourceValue);
-              
-              // Update inheritance metadata for this specific setting
-              const existingInherited = nodeData._inheritedFrom as Record<string, unknown> | undefined;
-              const existingSettings = (existingInherited?.settings as Record<string, unknown>) || {};
-              nodeData._inheritedFrom = {
-                sourceNodeId,
-                sourceNodeType,
-                settings: {
-                  ...existingSettings,
-                  [targetField]: sourceValue,
-                },
-                fullInheritance: false,
-              };
-              
-              return { ...node, data: nodeData };
-            }
+            // Continue to next edge (full inheritance already handled media)
+            continue;
           }
           
           // Determine the type of output based on source handle
@@ -906,7 +1279,13 @@ export const useFlowStore = create<FlowState>()(
               nodeData.referenceImages = [...existing, output];
             }
           } else if (targetHandle === "image" || targetHandle === "inputImage" || targetHandle === "frame" || targetHandle === "inputFrame") {
-            nodeData.inputImage = output;
+            // Set the ACTUAL target handle field, not always inputImage
+            // crop-image uses "image", seedvr uses "inputImage", seedance uses "frame"
+            nodeData[targetHandle] = output;
+            // Also set inputImage as fallback for compatibility
+            if (targetHandle !== "inputImage") {
+              nodeData.inputImage = output;
+            }
           } else if (targetHandle === "inputVideo1") {
             // Specifically for merge-videos Video 1 input
             nodeData.inputVideo1 = output;
@@ -936,6 +1315,7 @@ export const useFlowStore = create<FlowState>()(
             // For other handles, use the handle ID as the field name
             nodeData[targetHandle] = output;
           }
+          } // End of for loop
           
           return { ...node, data: nodeData };
         });

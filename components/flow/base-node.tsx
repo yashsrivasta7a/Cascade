@@ -14,8 +14,6 @@ import {
   Clock,
   Square,
   Info,
-  Settings,
-  ChevronRight,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
 import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType, isTypeCompatible } from "@/types/nodes";
@@ -114,6 +112,79 @@ const statusConfig: Record<NodeStatus, {
   },
 };
 
+// ============================================================================
+// Settings Handles Component - Always shows all settings handles
+// ============================================================================
+interface SettingsHandlesProps {
+  nodeId: string;
+  nodeSettings: Array<{ id: string; type: string; label: string }>;
+}
+
+function SettingsHandles({ nodeId, nodeSettings }: SettingsHandlesProps) {
+  return (
+    <>
+      {/* Settings handles - always visible with 3% gap */}
+      {nodeSettings.map((setting, settingIndex) => {
+        const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
+        const total = nodeSettings.length;
+        const spacing = 3; // 3% gap between handles
+        const startPercent = 80 - ((total - 1) * spacing) / 2;
+        const handlePercent = startPercent + (settingIndex * spacing);
+        
+        return (
+          <div
+            key={`output-${setting.id}-setting`}
+            className="absolute right-0 z-30 group/handle"
+            style={{ top: `${handlePercent}%`, transform: "translate(50%, -50%)" }}
+            data-handletype={setting.type}
+          >
+            <Handle
+              id={`${setting.id}-setting`}
+              type="source"
+              position={Position.Right}
+              data-handletype={setting.type}
+              title={setting.label}
+              style={{ 
+                position: "relative",
+                right: 0,
+                top: 0,
+                transform: "none",
+                width: 10,
+                height: 10,
+                borderWidth: 0,
+                backgroundColor: settingColor.solid,
+              }}
+              className="!relative !right-0 !top-0 !transform-none"
+            />
+            
+            {/* Hover tooltip */}
+            <div 
+              data-settings-label="true"
+              className={cn(
+                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                "px-2 py-1 rounded-md",
+                "text-[10px] whitespace-nowrap",
+                "pointer-events-none",
+                "shadow-lg shadow-black/30",
+                "opacity-0 group-hover/handle:opacity-100",
+                "transition-opacity duration-150"
+              )}
+              style={{ 
+                fontFamily: 'Inter, system-ui, sans-serif',
+                backgroundColor: settingColor.solid,
+                color: '#000',
+                fontWeight: 600,
+              }}
+            >
+              {setting.label}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 // Generate SVG path for node shape with semicircular notches
 function generateNodePath(
   width: number,
@@ -208,7 +279,8 @@ function BaseNodeComponent({
   // Note: duplicate/delete functionality moved to context menu
   const runNode = useFlowStore((s) => s.runNode);
   const cancelNode = useFlowStore((s) => s.cancelNode);
-  const canRun = status !== "running" && status !== "queued";
+  const isUploading = Boolean((data as any)._isUploading);
+  const canRun = status !== "running" && status !== "queued" && !isUploading;
   const isRunningOrQueued = status === "running" || status === "queued";
   const isActuallyRunning = status === "running"; // Only show glow for actually running nodes
   
@@ -238,9 +310,6 @@ function BaseNodeComponent({
   
   // Node hover state for showing run button
   const [isNodeHovered, setIsNodeHovered] = useState(false);
-  
-  // Settings handles collapse state
-  const [settingsExpanded, setSettingsExpanded] = useState(false);
   
   // Get node type from the props - nodeTypeFromProps is the React Flow node type
   // This is passed from the parent node component (e.g., SeedreamNode → BaseNode)
@@ -274,6 +343,7 @@ function BaseNodeComponent({
       return () => resizeObserver.disconnect();
     }
   }, []);
+
   
   // Focus input when editing name
   useEffect(() => {
@@ -686,143 +756,39 @@ function BaseNodeComponent({
         );
       })}
 
-      {/* Collapsible Settings handles - rendered ONCE outside the outputs loop */}
+      {/* Settings handles - always visible */}
       {hasSettings && (
-        <>
-          {/* Settings toggle button with count badge */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSettingsExpanded(!settingsExpanded);
-            }}
-            className={cn(
-              "nodrag nowheel absolute z-50",
-              "w-6 h-6 rounded-full flex items-center justify-center",
-              "bg-[#1a1a1a] border-2 border-white/30 hover:border-white/50",
-              "transition-all duration-200 hover:scale-110",
-              settingsExpanded && "bg-white/20 border-white/50 rotate-90"
-            )}
-            style={{ 
-              right: -12, 
-              top: "80%", 
-              transform: "translateY(-50%)" 
-            }}
-            title={settingsExpanded ? `Hide ${nodeSettings.length} settings` : `Share ${nodeSettings.length} settings`}
-          >
-            <Settings className={cn("w-3 h-3 text-white/70", settingsExpanded && "text-white")} />
-            {/* Settings count badge */}
-            {!settingsExpanded && nodeSettings.length > 0 && (
-              <span 
-                className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-emerald-500 text-[10px] text-white flex items-center justify-center font-bold shadow-lg"
-              >
-                {nodeSettings.length}
-              </span>
-            )}
-          </button>
-
-          {/* Expanded settings handles - vertical list beside button */}
-          <AnimatePresence>
-            {settingsExpanded && nodeSettings.length > 0 && nodeSettings.map((setting, settingIndex) => {
-              const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
-              const total = nodeSettings.length;
-              // Position handles in a vertical line, starting from button position
-              const baseTop = 80; // 80% of node height
-              const startOffset = -((total - 1) * 18) / 2; // Center the group
-              const offsetY = startOffset + (settingIndex * 18); // 18px spacing
-              
-              return (
-                <motion.div
-                  key={`settings-visible-${setting.id}`}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ delay: settingIndex * 0.03, duration: 0.15 }}
-                  className="absolute z-50 group/setting"
-                  style={{ 
-                    right: -32,
-                    top: `calc(${baseTop}% + ${offsetY}px)`,
-                    transform: "translateY(-50%)",
-                  }}
-                  data-handletype={setting.type}
-                >
-                  <Handle
-                    id={`${setting.id}-setting`}
-                    type="source"
-                    position={Position.Right}
-                    data-handletype={setting.type}
-                    style={{
-                      position: "relative",
-                      width: 12,
-                      height: 12,
-                      borderWidth: 2,
-                      borderColor: settingColor.solid,
-                      backgroundColor: "#161616",
-                      boxShadow: `0 0 8px ${settingColor.solid}50`,
-                    }}
-                    className="!relative !transform-none !left-0 !top-0 hover:scale-125 transition-transform"
-                  />
-                  {/* Label next to handle */}
-                  <div 
-                    className={cn(
-                      "absolute right-full mr-2 top-1/2 -translate-y-1/2",
-                      "px-2 py-0.5 rounded",
-                      "bg-[#1a1a1a]/90 border border-white/10",
-                      "text-[9px] text-white/80 whitespace-nowrap",
-                      "opacity-0 group-hover/setting:opacity-100 pointer-events-none",
-                      "transition-opacity duration-150"
-                    )}
-                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                  >
-                    {setting.label} ({setting.type})
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-
-          {/* Hidden handles for connections when collapsed */}
-          {!settingsExpanded && nodeSettings.map((setting) => (
-            <Handle
-              key={`hidden-settings-${setting.id}`}
-              id={`${setting.id}-setting`}
-              type="source"
-              position={Position.Right}
-              data-handletype={setting.type}
-              style={{
-                position: "absolute",
-                right: -4,
-                top: "80%",
-                width: 1,
-                height: 1,
-                opacity: 0,
-                pointerEvents: "none",
-              }}
-            />
-          ))}
-        </>
+        <SettingsHandles
+          nodeId={id}
+          nodeSettings={nodeSettings}
+        />
       )}
 
       {/* Floating Run Button - outside node on right, appears on hover */}
       <AnimatePresence>
-        {(isNodeHovered || isRunningOrQueued) && (
+        {(isNodeHovered || isRunningOrQueued || isUploading) && (
           <motion.button
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.15 }}
             type="button"
+            disabled={isUploading}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              if (isUploading) return; // Don't run while uploading
               if (isRunningOrQueued) {
                 void cancelNode(id);
-              } else {
+              } else if (canRun) {
                 void runNode(id);
               }
             }}
             className={cn(
               "nodrag nowheel absolute -right-24 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn",
-              status === "running"
+              isUploading
+                ? "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
+                : status === "running"
                 ? "bg-zinc-800 text-white hover:bg-red-600 border border-zinc-700 hover:border-red-500"
                 : status === "queued"
                 ? "bg-zinc-800 text-white hover:bg-red-600 border border-zinc-700 hover:border-red-500"
@@ -830,9 +796,14 @@ function BaseNodeComponent({
                 ? "bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700"
                 : "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
             )}
-            title={isRunningOrQueued ? "Click to stop" : "Run node"}
+            title={isUploading ? "Wait for upload to complete" : isRunningOrQueued ? "Click to stop" : "Run node"}
           >
-            {status === "running" ? (
+            {isUploading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="text-xs font-medium">Uploading...</span>
+              </>
+            ) : status === "running" ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin group-hover/runbtn:hidden" />
                 <Square className="w-3.5 h-3.5 fill-current hidden group-hover/runbtn:block" />

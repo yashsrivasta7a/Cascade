@@ -40,6 +40,14 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
     input: CropImageInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
+    console.log(`[CropImage] Executing with input:`, {
+      imageUrl: input.image?.url?.slice(0, 60),
+      xPercent: input.xPercent,
+      yPercent: input.yPercent,
+      widthPercent: input.widthPercent,
+      heightPercent: input.heightPercent,
+    });
+    
     try {
       // Dynamic import to avoid bundling sharp in client
       const sharp = (await import("sharp")).default;
@@ -80,6 +88,10 @@ export const cropImageExecutor: NodeExecutor<CropImageInput, CropImageOutput> = 
       // Ensure we don't exceed image bounds
       const safeWidth = Math.min(cropWidth, width - left);
       const safeHeight = Math.min(cropHeight, height - top);
+
+      console.log(`[CropImage] Image dimensions: ${width}x${height}`);
+      console.log(`[CropImage] Crop region: left=${left}, top=${top}, cropWidth=${cropWidth}, cropHeight=${cropHeight}`);
+      console.log(`[CropImage] Safe dimensions: ${safeWidth}x${safeHeight}`);
 
       if (safeWidth <= 0 || safeHeight <= 0) {
         throw new Error("Invalid crop dimensions");

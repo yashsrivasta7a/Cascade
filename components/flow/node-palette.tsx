@@ -77,6 +77,10 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
     priceLabel: "$0.002",
     priceNote: "FFmpeg audio extraction",
   },
+  comment: {
+    priceLabel: "Free",
+    priceNote: "Annotation only, no processing",
+  },
 };
 
 // =============================================================================

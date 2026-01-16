@@ -263,7 +263,6 @@ html.dark .react-flow__container {
 }
 
 .react-flow__handle:hover {
-  transform: scale(1.25) !important;
   background: currentColor !important;
 }
 
@@ -549,6 +548,19 @@ html.dark .react-flow__container {
 .react-flow__edge g,
 .react-flow__edges {
   overflow: visible !important;
+}
+
+/* Ensure edges are visible above background */
+.react-flow__edges {
+  z-index: 5 !important;
+}
+
+.react-flow__edge {
+  z-index: 5 !important;
+}
+
+.react-flow__edge path {
+  z-index: 5 !important;
 }
 
 /* Smooth transitions for edges */

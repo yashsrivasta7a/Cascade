@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Button, Badge, DotPattern, PageBackground } from "@/components/ui";
+import { UserMenu } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/react";
 import { formatCredits, creditsToDollars, NODE_CREDIT_COSTS } from "@/lib/credits";
@@ -127,19 +128,22 @@ export default function BillingPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-            <Coins className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
+            <CreditCard className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white">Billing & Credits</h1>
-            <p className="text-[11px] text-zinc-500">Manage your subscription</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Billing & Credits</h1>
+            <p className="text-[11px] text-gray-500 dark:text-zinc-500">Manage your subscription</p>
           </div>
         </div>
-        <Button leftIcon={<CreditCard className="w-4 h-4" />} variant="outline" size="sm">
-          Manage Subscription
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button leftIcon={<CreditCard className="w-4 h-4" />} variant="outline" size="sm">
+            Manage Subscription
+          </Button>
+          <UserMenu />
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6">

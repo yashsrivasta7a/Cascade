@@ -96,9 +96,19 @@ export { NodeTypeModal } from "./node-type-modal";
 export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node-settings-modal";
 
 // ============================================================================
+// SPECIAL NODES (Non-AI annotation nodes)
+// ============================================================================
+
+import { CommentNode } from "./nodes/comment-node";
+export { CommentNode };
+export type { CommentNodeData } from "./nodes/comment-node";
+
+// ============================================================================
 // NODE TYPE REGISTRY FOR REACTFLOW
 // ============================================================================
 
 export const nodeTypes = {
   ...createAllNodeComponents(),
+  // Special annotation nodes (not config-driven)
+  comment: CommentNode,
 } as const;

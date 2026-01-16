@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Loader2, Play, Pause } from "lucide-react";
+import { Loader2, Play, Pause, Volume2 } from "lucide-react";
 import type { OutputConfig, OutputType } from "@/lib/config/types";
 
 interface OutputDisplayProps {
@@ -52,7 +52,7 @@ function ImageDisplay({ url, className }: { url: string; className?: string }) {
       <img
         src={url}
         alt="Output"
-        className={cn("w-full h-full object-cover transition-opacity", loaded ? "opacity-100" : "opacity-0")}
+        className={cn("w-full h-full object-contain transition-opacity", loaded ? "opacity-100" : "opacity-0")}
         onLoad={() => setLoaded(true)}
         onError={() => setError(true)}
       />
@@ -91,10 +91,54 @@ function VideoDisplay({ url, className }: { url: string; className?: string }) {
   );
 }
 
-// Audio display component
+// Format time in mm:ss format
+function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+// Audio display component with working controls
 function AudioDisplay({ url, className }: { url: string; className?: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  // Handle play/pause toggle
+  const togglePlayPause = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (playing) {
+      audio.pause();
+    } else {
+      audio.play().catch((err) => {
+        console.warn("[AudioDisplay] Play failed:", err);
+      });
+    }
+  }, [playing]);
+
+  // Handle progress bar click for seeking
+  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const audio = audioRef.current;
+    const progressBar = progressRef.current;
+    if (!audio || !progressBar || !duration) return;
+
+    const rect = progressBar.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const newTime = percentage * duration;
+    
+    audio.currentTime = Math.max(0, Math.min(newTime, duration));
+  }, [duration]);
+
+  // Calculate progress percentage
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (error) {
     return (
@@ -112,26 +156,67 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
         className
       )}
     >
+      {/* Play/Pause Button */}
       <button
-        onClick={() => setPlaying(!playing)}
+        onClick={togglePlayPause}
+        disabled={!loaded}
         className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center",
-          "bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+          "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+          "bg-amber-500 text-white hover:bg-amber-600 transition-colors",
+          "disabled:opacity-50 disabled:cursor-not-allowed"
         )}
       >
-        {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+        {!loaded ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : playing ? (
+          <Pause className="w-4 h-4" />
+        ) : (
+          <Play className="w-4 h-4 ml-0.5" />
+        )}
       </button>
 
-      <div className="flex-1">
-        <div className="h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full bg-amber-500 w-0" />
+      {/* Progress Bar */}
+      <div className="flex-1 flex flex-col gap-1">
+        <div
+          ref={progressRef}
+          onClick={handleProgressClick}
+          className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden cursor-pointer group"
+        >
+          <div
+            className="h-full bg-amber-500 transition-all duration-100 group-hover:bg-amber-400"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        
+        {/* Time Display */}
+        <div className="flex justify-between text-[9px] text-gray-500 dark:text-zinc-500 font-mono">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
         </div>
       </div>
 
+      {/* Volume Icon */}
+      <Volume2 className="w-4 h-4 text-gray-400 dark:text-zinc-500 shrink-0" />
+
+      {/* Hidden Audio Element */}
       <audio
+        ref={audioRef}
         src={url}
+        preload="metadata"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrentTime(0);
+        }}
+        onLoadedMetadata={(e) => {
+          const audio = e.currentTarget;
+          setDuration(audio.duration);
+          setLoaded(true);
+        }}
+        onTimeUpdate={(e) => {
+          setCurrentTime(e.currentTarget.currentTime);
+        }}
         onError={() => setError(true)}
         className="hidden"
       />

@@ -177,9 +177,14 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
   "crop-image": z
     .object({
       image: withAssetLimits("image"),
+      // Percentage-based crop coordinates - must have defaults for proper parsing
+      xPercent: z.number().min(0).max(100).default(0),
+      yPercent: z.number().min(0).max(100).default(0),
+      widthPercent: z.number().min(1).max(100).default(100),
+      heightPercent: z.number().min(1).max(100).default(100),
       context: z.string().optional(),
-    })
-    .merge(CropImageConfigSchema.partial()),
+      useCache: z.boolean().optional(),
+    }),
 
   "merge-audio-video": z
     .object({

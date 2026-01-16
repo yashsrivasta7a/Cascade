@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
-  Plus,
   MousePointer2,
   Loader2,
   Check,
@@ -18,6 +17,11 @@ import {
   Square,
   FolderOpen,
   Coins,
+  Undo2,
+  Redo2,
+  Grid3X3,
+  MessageSquare,
+  RotateCcw,
 } from "lucide-react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
@@ -186,7 +190,7 @@ export default function WorkflowEditorPage() {
   const router = useRouter();
   const workflowId = params?.id ?? "unknown";
   const focusParam = searchParams?.get("focus");
-  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode } = useFlowStore();
+  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode } = useFlowStore();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -198,6 +202,8 @@ export default function WorkflowEditorPage() {
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [placingComment, setPlacingComment] = useState(false);
   
   // Fetch real credit balance from API with real-time updates
   const { data: creditsData, refetch: refetchCredits } = trpc.credits.getBalance.useQuery(undefined, {
@@ -271,6 +277,11 @@ export default function WorkflowEditorPage() {
           e.preventDefault();
           e.stopPropagation();
           setWorkflowSidebarOpen(prev => !prev);
+          break;
+        case "g":
+          e.preventDefault();
+          e.stopPropagation();
+          handleToggleSnap();
           break;
         case "escape":
           // If workflow is running (but not finalizing), stop it
@@ -1135,11 +1146,101 @@ export default function WorkflowEditorPage() {
     zinc: "from-zinc-600 via-zinc-500 to-zinc-600",
   }[activeColor] ?? "from-blue-600 via-blue-500 to-blue-600";
 
+  // Add a comment node at a specific position (called from FlowCanvas when clicking in placement mode)
+  const handlePlaceComment = useCallback((position: { x: number; y: number }) => {
+    const newNodeId = `comment-${Date.now()}`;
+    // Random color index from 0-15 (16 color options)
+    const randomColorIndex = Math.floor(Math.random() * 16);
+    const newNode: Node = {
+      id: newNodeId,
+      type: "comment",
+      position,
+      data: {
+        label: "Comment",
+        text: "",
+        width: 200,
+        height: 100,
+        colorIndex: randomColorIndex,
+      },
+    };
+    addNode(newNode);
+    setPlacingComment(false);
+  }, [addNode]);
+
+  // Toggle comment placement mode
+  const handleToggleCommentMode = useCallback(() => {
+    setPlacingComment((prev) => !prev);
+  }, []);
+
+  // Snap all nodes to grid (30px grid to match background)
+  const GRID_SIZE = 30;
+  
+  const snapNodesToGrid = useCallback(() => {
+    setNodes(
+      nodes.map((node) => ({
+        ...node,
+        position: {
+          x: Math.round(node.position.x / GRID_SIZE) * GRID_SIZE,
+          y: Math.round(node.position.y / GRID_SIZE) * GRID_SIZE,
+        },
+      }))
+    );
+  }, [nodes, setNodes]);
+
+  // Toggle snap and align nodes when enabling
+  const handleToggleSnap = useCallback(() => {
+    setSnapToGrid((prev) => {
+      const newValue = !prev;
+      // If turning snap ON, align all nodes to grid
+      if (newValue) {
+        setTimeout(() => snapNodesToGrid(), 0);
+      }
+      return newValue;
+    });
+  }, [snapNodesToGrid]);
+
+  // Clear all node inputs and outputs (reset workflow data)
+  const handleClearAll = useCallback(() => {
+    setNodes(
+      nodes.map((node) => {
+        // Skip comment nodes - they don't have inputs/outputs
+        if (node.type === "comment") return node;
+        
+        // Get the base data properties to keep (label, description, etc.)
+        const data = node.data as Record<string, unknown>;
+        return {
+          ...node,
+          data: {
+            label: data.label,
+            description: data.description,
+            provider: data.provider,
+            estimatedCost: data.estimatedCost,
+            nodeType: data.nodeType,
+            // Reset status
+            status: "idle",
+            progress: undefined,
+            error: undefined,
+            // Clear results/outputs
+            result: undefined,
+            actualCost: undefined,
+          },
+        };
+      })
+    );
+  }, [nodes, setNodes]);
+
   return (
     <div className="h-full bg-gray-100 dark:bg-[#101010]">
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
-        <FlowCanvas className="h-full w-full" storageKey={`workflow:${workflowId}`} />
+        <FlowCanvas 
+          className="h-full w-full" 
+          storageKey={`workflow:${workflowId}`} 
+          snapToGrid={snapToGrid}
+          placingComment={placingComment}
+          onPlaceComment={handlePlaceComment}
+          onCancelPlacement={() => setPlacingComment(false)}
+        />
 
         {/* Focus Center Indicator - shows briefly when focusing on a node */}
         <AnimatePresence>
@@ -1263,6 +1364,8 @@ export default function WorkflowEditorPage() {
               {/* Glass inner highlight */}
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
               
+              {/* ═══ GROUP 1: Canvas Tools ═══ */}
+              
               {/* Nodes toggle */}
               <div className="relative">
                 <motion.button
@@ -1279,7 +1382,6 @@ export default function WorkflowEditorPage() {
                   <Layers className="w-4 h-4 relative z-10" />
                   {paletteOpen && (
                     <>
-                      {/* Blue glow behind */}
                       <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
                       <motion.div
                         layoutId="activeIndicator"
@@ -1290,7 +1392,6 @@ export default function WorkflowEditorPage() {
                   )}
                 </motion.button>
                 
-                {/* Tooltip with shortcut */}
                 <AnimatePresence>
                   {hoveredAction === "nodes" && (
                     <motion.div
@@ -1309,34 +1410,55 @@ export default function WorkflowEditorPage() {
                 </AnimatePresence>
               </div>
 
-                  {/* Add node */}
+              {/* Add Comment */}
               <div className="relative">
                 <motion.button
-                  onClick={() => setIsAddModalOpen(true)}
-                  onMouseEnter={() => setHoveredAction("add")}
+                  onClick={handleToggleCommentMode}
+                  onMouseEnter={() => setHoveredAction("comment")}
                   onMouseLeave={() => setHoveredAction(null)}
                   whileTap={{ scale: 0.95 }}
-                  className="p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all duration-200"
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    placingComment 
+                      ? "text-amber-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
                 >
-                  <Plus className="w-4 h-4" />
+                  <MessageSquare className="w-4 h-4 relative z-10" />
+                  {placingComment && (
+                    <>
+                      <div className="absolute inset-0 bg-amber-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicatorComment"
+                        className="absolute inset-0 bg-gradient-to-br from-amber-500/30 to-amber-600/20 rounded-xl border border-amber-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "add" && (
+                  {hoveredAction === "comment" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 4 }}
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
-                      <span className="text-xs text-zinc-300">Add Node</span>
+                      <span className="text-xs text-zinc-300">
+                        {placingComment ? "Click canvas to place" : "Add Comment"}
+                      </span>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              {/* Activity toggle (combined runs + errors) */}
+              {/* Divider */}
+              <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* ═══ GROUP 2: Panels ═══ */}
+
+              {/* Activity toggle */}
               <div className="relative">
                 <motion.button
                   onClick={() => setActivityOpen((v) => !v)}
@@ -1359,7 +1481,6 @@ export default function WorkflowEditorPage() {
                   )}
                   {activityOpen && (
                     <>
-                      {/* Blue glow behind */}
                       <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
                       <motion.div
                         layoutId="activeIndicator2"
@@ -1478,6 +1599,159 @@ export default function WorkflowEditorPage() {
 
               {/* Divider */}
               <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* ═══ GROUP 3: Canvas Settings ═══ */}
+
+              {/* Snap to Grid toggle */}
+              <div className="relative">
+                <motion.button
+                  onClick={handleToggleSnap}
+                  onMouseEnter={() => setHoveredAction("snap")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
+                    snapToGrid 
+                      ? "text-cyan-400" 
+                      : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4 relative z-10" />
+                  {snapToGrid && (
+                    <>
+                      <div className="absolute inset-0 bg-cyan-500/20 rounded-xl blur-md" />
+                      <motion.div
+                        layoutId="activeIndicatorSnap"
+                        className="absolute inset-0 bg-gradient-to-br from-cyan-500/30 to-cyan-600/20 rounded-xl border border-cyan-500/30"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                      />
+                    </>
+                  )}
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "snap" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">{snapToGrid ? "Snap On" : "Snap Off"}</span>
+                        <Kbd>G</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Clear All */}
+              <div className="relative">
+                <motion.button
+                  onClick={handleClearAll}
+                  onMouseEnter={() => setHoveredAction("clear")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2.5 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-200"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "clear" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <span className="text-xs text-zinc-300">Clear All</span>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* ═══ GROUP 4: History ═══ */}
+
+              {/* Undo */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => canUndo() && undo()}
+                  onMouseEnter={() => setHoveredAction("undo")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  disabled={!canUndo()}
+                  whileTap={{ scale: canUndo() ? 0.95 : 1 }}
+                  className={`p-2.5 rounded-xl transition-all duration-200 ${
+                    canUndo()
+                      ? "text-zinc-400 hover:text-white hover:bg-white/5"
+                      : "text-zinc-600 cursor-not-allowed"
+                  }`}
+                >
+                  <Undo2 className="w-4 h-4" />
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "undo" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Undo</span>
+                        <Kbd>Ctrl+Z</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Redo */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => canRedo() && redo()}
+                  onMouseEnter={() => setHoveredAction("redo")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  disabled={!canRedo()}
+                  whileTap={{ scale: canRedo() ? 0.95 : 1 }}
+                  className={`p-2.5 rounded-xl transition-all duration-200 ${
+                    canRedo()
+                      ? "text-zinc-400 hover:text-white hover:bg-white/5"
+                      : "text-zinc-600 cursor-not-allowed"
+                  }`}
+                >
+                  <Redo2 className="w-4 h-4" />
+                </motion.button>
+                
+                <AnimatePresence>
+                  {hoveredAction === "redo" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-300">Redo</span>
+                        <Kbd>Ctrl+Y</Kbd>
+                      </div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-6 bg-gradient-to-b from-transparent via-zinc-600/50 to-transparent mx-1" />
+
+              {/* ═══ GROUP 5: Actions ═══ */}
 
               {/* Save */}
               <div className="relative">

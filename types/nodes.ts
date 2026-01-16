@@ -23,7 +23,9 @@ export type AINodeType =
   | "crop-image"
   | "merge-audio-video"
   | "merge-videos"
-  | "extract-audio";
+  | "extract-audio"
+  // Annotation
+  | "comment";
 
 // ============================================================================
 // DATA TYPES (What flows between nodes)
@@ -344,6 +346,20 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
   "merge-audio-video": buildNodeDefinition("merge-audio-video"),
   "merge-videos": buildNodeDefinition("merge-videos"),
   "extract-audio": buildNodeDefinition("extract-audio"),
+  // Annotation node - special node without config (no AI processing)
+  comment: {
+    type: "comment",
+    category: "utility",
+    label: "Comment",
+    description: "Add notes and annotations to your workflow",
+    provider: "local",
+    action: "Note",
+    inputs: [],
+    outputs: [],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "zinc",
+  },
 };
 
 // ============================================================================
@@ -411,10 +427,11 @@ export const LipsyncConfigSchema = z.object({
 });
 
 export const CropImageConfigSchema = z.object({
-  top: z.number().min(0).max(100).default(0),
-  right: z.number().min(0).max(100).default(0),
-  bottom: z.number().min(0).max(100).default(0),
-  left: z.number().min(0).max(100).default(0),
+  // Percentage-based crop coordinates
+  xPercent: z.number().min(0).max(100).default(0),
+  yPercent: z.number().min(0).max(100).default(0),
+  widthPercent: z.number().min(1).max(100).default(100),
+  heightPercent: z.number().min(1).max(100).default(100),
   useCache: z.boolean().default(false),
 });
 
@@ -553,6 +570,13 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
   "merge-audio-video": buildNodeContract("merge-audio-video"),
   "merge-videos": buildNodeContract("merge-videos"),
   "extract-audio": buildNodeContract("extract-audio"),
+  // Comment node has no inputs/outputs - pure annotation
+  comment: {
+    primaryOutputType: "any",
+    primaryOutputId: "",
+    settings: [],
+    mediaInputs: [],
+  },
 };
 
 /**

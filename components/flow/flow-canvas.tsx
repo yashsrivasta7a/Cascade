@@ -37,6 +37,10 @@ interface PendingConnection {
 interface FlowCanvasProps {
   className?: string;
   storageKey?: string;
+  snapToGrid?: boolean;
+  placingComment?: boolean;
+  onPlaceComment?: (position: { x: number; y: number }) => void;
+  onCancelPlacement?: () => void;
 }
 
 let nodeIdCounter = 1;
@@ -84,16 +88,21 @@ function CustomEdge({
 }: EdgeProps) {
   const dataType = (data?.dataType as string) || "any";
   const isNegative = data?.isNegative === true || dataType === "negative";
-  const isSettingsConnection = data?.isSettingsConnection === true || data?.fromSettingsPopover === true;
+  // Check if this is a settings connection - by flags, settingId presence, or edge ID pattern
+  // Edge IDs for settings connections include "-setting" in the source handle part
+  const hasSettingInId = id.includes("-setting");
+  const hasSettingId = Boolean(data?.settingId);
+  const isSettingsConnection = data?.isSettingsConnection === true || 
+                               data?.fromSettingsPopover === true ||
+                               hasSettingId ||
+                               hasSettingInId;
   const [isHovered, setIsHovered] = useState(false);
   const isWorkflowRunning = useFlowStore((s) => s.isWorkflowRunning);
   const [animationPhase, setAnimationPhase] = useState(0);
 
   // Get colors based on data type - uses the unified color palette
-  // Settings connections use a special violet/purple color scheme
-  const typeColors = isSettingsConnection
-    ? { stroke: "#a855f7", glow: "rgba(168, 85, 247, 0.5)" } // violet for settings
-    : edgeColors[dataType] || edgeColors.any;
+  // Settings connections use the color of the actual data type being passed
+  const typeColors = edgeColors[dataType] || edgeColors.any;
 
   // Animate phase for flowing dots when workflow is running
   useEffect(() => {
@@ -119,10 +128,27 @@ function CustomEdge({
     targetPosition,
   });
 
+  // DEBUG: Log edge info
+  useEffect(() => {
+    if (isSettingsConnection) {
+      console.log(`[CustomEdge ${id}] Settings edge rendered:`, {
+        sourceX, sourceY, targetX, targetY,
+        edgePath: edgePath?.substring(0, 100),
+        isSettingsConnection,
+        dataType,
+      });
+    }
+  }, [id, sourceX, sourceY, targetX, targetY, edgePath, isSettingsConnection, dataType]);
+
+
   // Hide "advanced setting" edges when the target node's advanced panel is collapsed
+  // EXCEPTION: Settings connections (from radial handles) should ALWAYS be visible
   const targetHandle = (data as any)?.targetHandle as string | undefined;
   const targetNodeId = (data as any)?.targetNodeId as string | undefined;
   const shouldHideAdvanced = useFlowStore((s) => {
+    // Never hide settings connections - they should always be visible
+    if (isSettingsConnection) return false;
+    
     if (!targetNodeId || !targetHandle) return false;
     const node = s.nodes.find((n) => n.id === targetNodeId);
     if (!node) return false;
@@ -197,16 +223,16 @@ function CustomEdge({
           d={edgePath}
           fill="none"
           stroke={typeColors.stroke}
-          strokeWidth={isSettingsConnection ? 2 : 3}
+          strokeWidth={isSettingsConnection ? 2.5 : 3}
           strokeLinecap="round"
-          strokeDasharray={isSettingsConnection ? "6 4" : undefined}
+          strokeDasharray={isSettingsConnection ? "8 4" : undefined}
           markerEnd={markerEnd}
           style={{
             // Removed drop-shadow glow
           }}
         />
 
-        {/* Settings connection indicator - small dots along the path */}
+        {/* Settings connection indicator - subtle highlight along the path */}
         {isSettingsConnection && !isWorkflowRunning && (
           <path
             d={edgePath}
@@ -214,8 +240,8 @@ function CustomEdge({
             stroke="white"
             strokeWidth={1}
             strokeLinecap="round"
-            strokeDasharray="2 10"
-            opacity={0.4}
+            strokeDasharray="3 8"
+            opacity={0.3}
           />
         )}
       </g>
@@ -732,7 +758,7 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
   );
 }
 
-function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
+function FlowCanvasInner({ className, storageKey, snapToGrid = true, placingComment = false, onPlaceComment, onCancelPlacement }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
 
@@ -760,6 +786,41 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
   const connectingFromRef = useRef<{ nodeId: string; handleId: string | null } | null>(null);
   const connectionCompletedRef = useRef(false);
 
+  // Comment placement ghost preview
+  const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Track mouse position for ghost preview when placing comment
+  useEffect(() => {
+    if (!placingComment) {
+      setGhostPosition(null);
+      return;
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (reactFlowWrapper.current) {
+        const rect = reactFlowWrapper.current.getBoundingClientRect();
+        setGhostPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [placingComment]);
+
+  // Handle escape to cancel placement mode
+  useEffect(() => {
+    if (!placingComment) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCancelPlacement?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [placingComment, onCancelPlacement]);
+
   const {
     nodes,
     edges,
@@ -779,6 +840,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     setConnectingFrom,
     highlightedNodeIds,
     clearHighlight,
+    recordHistory,
   } = useFlowStore();
 
   // Focus on node when focusNodeId changes - pan so the NODE is at screen center
@@ -889,14 +951,38 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     }
   }, [getViewport, setViewportState, storageKey]);
 
-  // Keyboard shortcuts: Delete/Backspace to delete, Ctrl/Cmd+D to duplicate, Escape to cancel
+  // Record history when starting to drag nodes (captures pre-move state for undo)
+  const onNodeDragStart = useCallback(() => {
+    recordHistory();
+  }, [recordHistory]);
+
+  // Get additional actions from store for keyboard shortcuts
+  const {
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    copySelectedNodes,
+    pasteNodes,
+    selectAllNodes,
+    deleteSelectedNodes,
+    duplicateSelectedNodes,
+    selectedNodeIds,
+  } = useFlowStore();
+
+  // Keyboard shortcuts - comprehensive list
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       const isTyping = tag === "input" || tag === "textarea" || el?.isContentEditable === true;
+      const isMod = e.ctrlKey || e.metaKey;
 
-      // Escape key: cancel connections and close modals
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GLOBAL SHORTCUTS (work even when typing)
+      // ═══════════════════════════════════════════════════════════════════════════
+
+      // Escape: Cancel connections, close modals, deselect all
       if (e.key === "Escape") {
         e.preventDefault();
         // Clear connecting state
@@ -907,30 +993,230 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           setIsModalOpen(false);
           setPendingConnection(null);
         }
-        // Deselect node
+        // Deselect all nodes
         selectNode(null);
+        clearHighlight();
         return;
       }
 
-      if (isTyping) return;
-      if (!selectedNode) return;
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SHORTCUTS BLOCKED WHEN TYPING
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isTyping) {
+        // Allow Ctrl+Z/Y even in inputs for native undo
+        if (isMod && (e.key === "z" || e.key === "y")) {
+          // Let native input undo work
+          return;
+        }
+        return;
+      }
 
+      // ═══════════════════════════════════════════════════════════════════════════
+      // UNDO/REDO (Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z, Ctrl/Cmd + Y)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Redo
+          if (canRedo()) {
+            redo();
+            console.log("[Keyboard] Redo");
+          }
+        } else {
+          // Undo
+          if (canUndo()) {
+            undo();
+            console.log("[Keyboard] Undo");
+          }
+        }
+        return;
+      }
+
+      if (isMod && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+          console.log("[Keyboard] Redo (Ctrl+Y)");
+        }
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // COPY/PASTE/DUPLICATE (Ctrl/Cmd + C, V, D)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copySelectedNodes();
+        console.log("[Keyboard] Copy selected nodes");
+        return;
+      }
+
+      if (isMod && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        // Paste at center of viewport
+        const vp = getViewport();
+        const wrapper = reactFlowWrapper.current;
+        if (wrapper) {
+          const rect = wrapper.getBoundingClientRect();
+          const centerX = (rect.width / 2 - vp.x) / vp.zoom;
+          const centerY = (rect.height / 2 - vp.y) / vp.zoom;
+          pasteNodes({ x: centerX, y: centerY });
+        } else {
+          pasteNodes();
+        }
+        console.log("[Keyboard] Paste nodes");
+        return;
+      }
+
+      if (isMod && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (selectedNode || selectedNodeIds.length > 0) {
+          duplicateSelectedNodes();
+          console.log("[Keyboard] Duplicate selected nodes");
+        }
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SELECT ALL (Ctrl/Cmd + A)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        selectAllNodes();
+        console.log("[Keyboard] Select all nodes");
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // DELETE (Delete, Backspace)
+      // ═══════════════════════════════════════════════════════════════════════════
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        deleteNode(selectedNode.id);
-        selectNode(null);
+        if (selectedNode || selectedNodeIds.length > 0) {
+          recordHistory(); // Save state before delete
+          deleteSelectedNodes();
+          console.log("[Keyboard] Delete selected nodes");
+        }
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // ZOOM (Ctrl/Cmd + Plus/Minus/0)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && (e.key === "=" || e.key === "+" || e.key === "NumpadAdd")) {
         e.preventDefault();
-        duplicateNode(selectedNode.id);
+        const vp = getViewport();
+        const newZoom = Math.min(vp.zoom * 1.2, 2);
+        setViewport({ ...vp, zoom: newZoom }, { duration: 200 });
+        console.log("[Keyboard] Zoom in:", newZoom);
+        return;
+      }
+
+      if (isMod && (e.key === "-" || e.key === "NumpadSubtract")) {
+        e.preventDefault();
+        const vp = getViewport();
+        const newZoom = Math.max(vp.zoom / 1.2, 0.1);
+        setViewport({ ...vp, zoom: newZoom }, { duration: 200 });
+        console.log("[Keyboard] Zoom out:", newZoom);
+        return;
+      }
+
+      if (isMod && e.key === "0") {
+        e.preventDefault();
+        // Fit view to show all nodes
+        const allNodes = nodes;
+        if (allNodes.length > 0) {
+          const padding = 100;
+          let minX = Infinity, maxX = -Infinity;
+          let minY = Infinity, maxY = -Infinity;
+          
+          for (const node of allNodes) {
+            const nodeWidth = 300;
+            const nodeHeight = 400;
+            minX = Math.min(minX, node.position.x);
+            maxX = Math.max(maxX, node.position.x + nodeWidth);
+            minY = Math.min(minY, node.position.y);
+            maxY = Math.max(maxY, node.position.y + nodeHeight);
+          }
+          
+          fitBounds(
+            { x: minX - padding, y: minY - padding, width: maxX - minX + padding * 2, height: maxY - minY + padding * 2 },
+            { duration: 300 }
+          );
+        }
+        console.log("[Keyboard] Zoom to fit");
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SAVE (Ctrl/Cmd + S) - Prevent browser save dialog
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        // The workflow auto-saves, but we can trigger a manual save notification
+        console.log("[Keyboard] Manual save triggered (auto-save is active)");
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // EXPORT (Ctrl/Cmd + E)
+      // ═══════════════════════════════════════════════════════════════════════════
+      if (isMod && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        // Export workflow as JSON
+        const exportData = {
+          nodes: nodes.map(n => ({
+            ...n,
+            data: {
+              ...(n.data as Record<string, unknown>),
+              // Clear execution-specific data
+              status: undefined,
+              error: undefined,
+              result: undefined,
+            },
+          })),
+          edges,
+          exportedAt: new Date().toISOString(),
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `flowsmith-workflow-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log("[Keyboard] Exported workflow");
+        return;
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteNode, duplicateNode, selectNode, selectedNode, setConnectingFrom, isModalOpen]);
+  }, [
+    deleteNode, 
+    duplicateNode, 
+    selectNode, 
+    selectedNode, 
+    selectedNodeIds,
+    setConnectingFrom, 
+    isModalOpen,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    copySelectedNodes,
+    pasteNodes,
+    selectAllNodes,
+    deleteSelectedNodes,
+    duplicateSelectedNodes,
+    recordHistory,
+    nodes,
+    edges,
+    getViewport,
+    setViewport,
+    fitBounds,
+    clearHighlight,
+  ]);
 
   const isValidConnection = useCallback(
     (conn: Connection) => {
@@ -1021,6 +1307,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       const type = event.dataTransfer.getData("application/reactflow");
       if (!type) return;
 
+      // Record history before adding node
+      recordHistory();
+
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -1035,7 +1324,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
       setNodes([...nodes, newNode]);
     },
-    [screenToFlowPosition, nodes, setNodes]
+    [screenToFlowPosition, nodes, setNodes, recordHistory]
   );
 
   // Handle regular connections between existing nodes
@@ -1057,6 +1346,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         }
         return;
       }
+
+      // Record history before making connection
+      recordHistory();
 
       const sourceNode = params.source ? nodes.find((n) => n.id === params.source) : undefined;
       const targetNode = params.target ? nodes.find((n) => n.id === params.target) : undefined;
@@ -1220,9 +1512,29 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
           const sourceSettingKey = actualSourceHandle; // The setting from the source node
 
           // Get the value from the SOURCE handle (not target handle name in source data)
-          const sourceValue = sourceSettingKey && sourceData[sourceSettingKey] !== undefined
+          let sourceValue = sourceSettingKey && sourceData[sourceSettingKey] !== undefined
             ? sourceData[sourceSettingKey]
             : derivedValue; // Fall back to derived value
+
+          // CRITICAL: Ensure numeric settings are actually numbers, not objects
+          const numericSettings = new Set([
+            "xPercent", "yPercent", "widthPercent", "heightPercent",
+            "temperature", "maxTokens", "seed", "numInferenceSteps", "guidanceScale",
+            "stability", "clarity", "transitionDuration",
+            "topP", "topK", "frequencyPenalty", "presencePenalty",
+          ]);
+          
+          if (targetSettingKey && numericSettings.has(targetSettingKey)) {
+            if (typeof sourceValue === "number") {
+              // Value is already a number, good
+            } else if (typeof sourceValue === "string" && !isNaN(Number(sourceValue))) {
+              sourceValue = Number(sourceValue);
+            } else if (typeof sourceValue === "object" && sourceValue !== null) {
+              // Object value for numeric setting - try to extract a number or use default
+              console.warn(`[onConnect] Numeric setting ${targetSettingKey} received object, using 0:`, sourceValue);
+              sourceValue = 0;
+            }
+          }
 
           if (targetSettingKey && sourceValue !== undefined) {
             // Get existing inherited settings or create new
@@ -1275,7 +1587,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         );
       }
     },
-    [edges, isValidConnection, nodes, setEdges, setNodes]
+    [edges, isValidConnection, nodes, setEdges, setNodes, recordHistory]
   );
 
   // Track the source node/handle reliably (React Flow's onConnectEnd state can be inconsistent).
@@ -1350,6 +1662,9 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     (nodeType: AINodeType) => {
       if (!pendingConnection) return;
 
+      // Record history before creating node
+      recordHistory();
+
       const newNodeId = getNewNodeId();
       const baseData = getDefaultNodeData(nodeType) as any;
 
@@ -1414,7 +1729,7 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
       setIsModalOpen(false);
       setPendingConnection(null);
     },
-    [pendingConnection, nodes, edges, setNodes, setEdges]
+    [pendingConnection, nodes, edges, setNodes, setEdges, recordHistory]
   );
 
   const handleModalClose = useCallback(() => {
@@ -1431,41 +1746,42 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
     [selectNode, setContextMenuPosition]
   );
 
-  const onPaneClick = useCallback(() => {
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
+    // If in comment placement mode, place the comment at click position
+    if (placingComment && onPlaceComment) {
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      onPlaceComment(position);
+      return;
+    }
+    
     selectNode(null);
     setContextMenuPosition(null);
     // Clear any lingering connection state
     connectingFromRef.current = null;
     setConnectingFrom(null);
-  }, [selectNode, setContextMenuPosition, setConnectingFrom]);
+  }, [selectNode, setContextMenuPosition, setConnectingFrom, placingComment, onPlaceComment, screenToFlowPosition]);
 
   const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
   }, []);
 
-  // Double-click on canvas to add a standalone node
-  const onDoubleClick = useCallback(
-    (event: React.MouseEvent) => {
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      setPendingConnection({
-        sourceNodeId: "", // Empty = standalone node (no connection)
-        sourceHandleId: null,
-        position,
-      });
-      setIsModalOpen(true);
-    },
-    [screenToFlowPosition]
-  );
 
   const memoizedNodeTypes = useMemo(() => nodeTypes, []);
   const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
 
   return (
-    <div ref={reactFlowWrapper} className={className} style={{ width: '100%', height: '100%' }}>
+    <div 
+      ref={reactFlowWrapper} 
+      className={className} 
+      style={{ 
+        width: '100%', 
+        height: '100%',
+        cursor: placingComment ? 'crosshair' : undefined,
+      }}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -1480,14 +1796,14 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}
-        onDoubleClick={onDoubleClick}
         onMoveEnd={handleMoveEnd}
+        onNodeDragStart={onNodeDragStart}
         nodeTypes={memoizedNodeTypes}
         edgeTypes={memoizedEdgeTypes}
         fitView
         fitViewOptions={{ padding: 0.5 }}
-        snapToGrid
-        snapGrid={[20, 20]}
+        snapToGrid={true}
+        snapGrid={snapToGrid ? [30, 30] : [1, 1]}
         nodeOrigin={[0.5, 0]}
         defaultEdgeOptions={{
           type: "custom",
@@ -1533,6 +1849,29 @@ function FlowCanvasInner({ className, storageKey }: FlowCanvasProps) {
 
       {/* Right-click Context Menu for nodes */}
       <NodeContextMenu />
+
+      {/* Ghost preview when placing comment */}
+      {placingComment && ghostPosition && (
+        <div
+          className="pointer-events-none absolute z-50"
+          style={{
+            left: ghostPosition.x - 100, // Center the 200px width ghost
+            top: ghostPosition.y - 50, // Center the 100px height ghost
+          }}
+        >
+          <div className="w-[200px] h-[100px] rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 backdrop-blur-sm border border-amber-500/30 border-dashed opacity-70 shadow-lg shadow-amber-500/10">
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent" />
+            <div className="p-3 text-xs text-amber-400/60 italic">Click to place note...</div>
+          </div>
+        </div>
+      )}
+
+      {/* Placement mode cursor indicator */}
+      {placingComment && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-amber-500/20 backdrop-blur-xl border border-amber-500/30 rounded-full text-amber-400 text-xs font-medium z-50 animate-pulse">
+          Click anywhere to place comment • Press ESC to cancel
+        </div>
+      )}
     </div>
   );
 }

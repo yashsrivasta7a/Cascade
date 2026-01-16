@@ -198,8 +198,30 @@ function buildNodeInput(
     const upstreamOutput = outputs.get(edge.source);
     const sourceNode = allNodes.find(n => n.id === edge.source);
     const sourceNodeType = sourceNode?.type || "unknown";
+    const sourceHandle = edge.sourceHandle || "";
+    const targetHandle = edge.targetHandle || "";
     
-    console.log(`[BuildInput] Edge: ${edge.source} (${sourceNodeType}) → ${edge.target}, targetHandle: "${edge.targetHandle || "(empty)"}"`);
+    console.log(`[BuildInput] Edge: ${edge.source} (${sourceNodeType}) → ${edge.target}, sourceHandle: "${sourceHandle}", targetHandle: "${targetHandle}"`);
+    
+    // =========================================================================
+    // Handle SETTINGS connections - these transfer node data values, not outputs
+    // Settings connections have sourceHandle ending with "-setting"
+    // =========================================================================
+    if (sourceHandle.endsWith("-setting") && sourceNode) {
+      // Extract the settings field name from the sourceHandle (e.g., "xPercent-setting" → "xPercent")
+      const settingsField = sourceHandle.replace(/-setting$/, "");
+      const sourceNodeData = (sourceNode.data ?? {}) as Record<string, unknown>;
+      const settingsValue = sourceNodeData[settingsField];
+      
+      if (settingsValue !== undefined) {
+        // Set the target field to the settings value from source node
+        input[targetHandle] = settingsValue;
+        console.log(`[BuildInput] Set ${targetHandle} (settings connection) from ${edge.source}.${settingsField}: ${settingsValue}`);
+      } else {
+        console.warn(`[BuildInput] Settings field ${settingsField} not found in source node ${edge.source}`);
+      }
+      continue; // Skip the media output handling below
+    }
     
     if (!upstreamOutput) {
       console.warn(`[BuildInput] No output found for upstream node ${edge.source}`);

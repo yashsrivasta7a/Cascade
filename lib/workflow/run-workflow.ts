@@ -309,6 +309,15 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
   console.log(`[buildNodeInput] Outputs map size: ${outputs.size}, keys: ${[...outputs.keys()].join(', ')}`);
   console.log(`[buildNodeInput] Nodes available: ${nodes.length}, IDs: ${nodes.map(n => n.id).join(', ')}`);
   
+  // Debug: Log raw node data for crop-image to diagnose object-instead-of-number issue
+  if (type === "crop-image") {
+    console.log(`[buildNodeInput:crop-image] RAW NODE DATA:`, JSON.stringify(data, null, 2));
+    console.log(`[buildNodeInput:crop-image] xPercent type: ${typeof data.xPercent}, value: ${JSON.stringify(data.xPercent)}`);
+    console.log(`[buildNodeInput:crop-image] yPercent type: ${typeof data.yPercent}, value: ${JSON.stringify(data.yPercent)}`);
+    console.log(`[buildNodeInput:crop-image] widthPercent type: ${typeof data.widthPercent}, value: ${JSON.stringify(data.widthPercent)}`);
+    console.log(`[buildNodeInput:crop-image] heightPercent type: ${typeof data.heightPercent}, value: ${JSON.stringify(data.heightPercent)}`);
+  }
+
   // Get incoming text for prompt (response → prompt: just the response)
   const incomingPrompt = getIncomingTextForPrompt(edges, outputs, node.id);
   
@@ -325,8 +334,75 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
   // 2. Otherwise, fall back to node's stored context
   const contextValue = incomingContext || (typeof data.context === 'string' && data.context.trim() ? data.context : undefined);
 
+  // Filter out metadata fields that shouldn't be passed to the executor
+  const metadataFields = new Set([
+    "_inheritedFrom", 
+    "incomingFrom", 
+    "_isUploading",
+    "advancedOpen",
+    "status",
+    "error",
+    "progress",
+  ]);
+  
+  // Sanitize data: remove metadata and ensure numeric fields are numbers
+  const sanitizedData: Record<string, unknown> = {};
+  
+  // List of all numeric fields across all node types
+  const numericFields = new Set([
+    "xPercent", "yPercent", "widthPercent", "heightPercent",
+    "temperature", "maxTokens", "seed", "numInferenceSteps", "guidanceScale",
+    "stability", "clarity", "transitionDuration",
+    "topP", "topK", "frequencyPenalty", "presencePenalty",
+  ]);
+  
+  for (const [key, value] of Object.entries(data)) {
+    // Skip metadata fields
+    if (metadataFields.has(key)) continue;
+    
+    // Skip any field that starts with underscore (internal metadata)
+    if (key.startsWith("_")) continue;
+    
+    // Ensure numeric fields are actually numbers (not objects)
+    if (numericFields.has(key)) {
+      if (typeof value === "number") {
+        sanitizedData[key] = value;
+      } else if (typeof value === "string" && !isNaN(Number(value))) {
+        sanitizedData[key] = Number(value);
+      } else if (typeof value === "object" && value !== null) {
+        // Try to extract number from object if it has a value property
+        const objValue = (value as Record<string, unknown>).value;
+        if (typeof objValue === "number") {
+          console.warn(`[buildNodeInput] Field ${key} was an object, extracted value: ${objValue}`);
+          sanitizedData[key] = objValue;
+        } else {
+          console.warn(`[buildNodeInput] Field ${key} is an object (expected number), skipping: ${JSON.stringify(value).slice(0, 100)}`);
+        }
+      }
+      // Skip if value is invalid - will use default from config
+      continue;
+    }
+    
+    // For non-numeric fields, also skip if they're objects that look like metadata
+    if (typeof value === "object" && value !== null) {
+      const obj = value as Record<string, unknown>;
+      // Skip if it looks like inheritance metadata (has sourceNodeId or settings)
+      if (obj.sourceNodeId !== undefined || obj.settings !== undefined || obj.fullInheritance !== undefined) {
+        console.warn(`[buildNodeInput] Skipping metadata-like object in field ${key}`);
+        continue;
+      }
+    }
+    
+    sanitizedData[key] = value;
+  }
+  
+  console.log(`[buildNodeInput] Sanitized data keys: ${Object.keys(sanitizedData).join(", ")}`);
+  if (type === "crop-image") {
+    console.log(`[buildNodeInput] Sanitized numeric values: xPercent=${sanitizedData.xPercent} (${typeof sanitizedData.xPercent}), yPercent=${sanitizedData.yPercent} (${typeof sanitizedData.yPercent}), widthPercent=${sanitizedData.widthPercent} (${typeof sanitizedData.widthPercent}), heightPercent=${sanitizedData.heightPercent} (${typeof sanitizedData.heightPercent})`);
+  }
+
   const base = {
-    ...data,
+    ...sanitizedData,
     prompt: promptValue,
     context: contextValue,
   };
@@ -450,11 +526,26 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
         ...withDefaults, 
         image: getImageInput("image", "inputImage") || normalizeAsset(withDefaults.image),
       };
-    case "crop-image":
-      return {
+    case "crop-image": {
+      // Ensure crop percentages are numbers (fix for settings connection issues)
+      const ensureNumber = (val: unknown, defaultVal: number): number => {
+        if (typeof val === "number") return val;
+        if (typeof val === "string" && !isNaN(Number(val))) return Number(val);
+        return defaultVal;
+      };
+      
+      const result = {
         ...withDefaults,
         image: getImageInput("image", "image") || normalizeAsset(withDefaults.image),
+        xPercent: ensureNumber(withDefaults.xPercent, 0),
+        yPercent: ensureNumber(withDefaults.yPercent, 0),
+        widthPercent: ensureNumber(withDefaults.widthPercent, 100),
+        heightPercent: ensureNumber(withDefaults.heightPercent, 100),
       };
+      
+      console.log(`[buildNodeInput:crop-image] Final values: x=${result.xPercent}, y=${result.yPercent}, w=${result.widthPercent}, h=${result.heightPercent}`);
+      return result;
+    }
     case "extract-audio": {
       console.log(`[buildNodeInput:extract-audio] withDefaults:`, JSON.stringify(withDefaults));
       console.log(`[buildNodeInput:extract-audio] node data format:`, data.format);
@@ -720,6 +811,18 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
   if (LOCAL_NODE_TYPES.includes(type)) {
     try {
       console.log(`[executeWithProvider] Calling sync API for LOCAL node: ${type}`);
+      
+      // Debug: Log input for crop-image
+      if (type === "crop-image") {
+        const cropInput = input as Record<string, unknown>;
+        console.log(`[executeWithProvider:crop-image] INPUT TO API:`, JSON.stringify({
+          xPercent: cropInput.xPercent,
+          yPercent: cropInput.yPercent,
+          widthPercent: cropInput.widthPercent,
+          heightPercent: cropInput.heightPercent,
+          image: typeof cropInput.image === "object" ? "{ url: ... }" : cropInput.image,
+        }));
+      }
       
       const response = await fetch("/api/nodes/execute-sync", {
         method: "POST",
@@ -1658,6 +1761,17 @@ export async function runSingleNode(
       progress: 0,
     });
     return;
+  }
+
+  // Debug: Log parsed data for crop-image
+  if (type === "crop-image") {
+    const parsedData = parsed.data as Record<string, unknown>;
+    console.log(`[runSingleNode:crop-image] PARSED.DATA:`, JSON.stringify({
+      xPercent: parsedData.xPercent,
+      yPercent: parsedData.yPercent,
+      widthPercent: parsedData.widthPercent,
+      heightPercent: parsedData.heightPercent,
+    }));
   }
 
   // Check cache for identical inputs (skip re-execution if cached)

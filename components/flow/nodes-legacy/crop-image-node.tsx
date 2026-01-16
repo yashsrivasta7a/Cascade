@@ -121,6 +121,13 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
   const runNode = useFlowStore((s) => s.runNode);
   
   const runCrop = useCallback(async () => {
+    console.log(`[LEGACY CropImageNode] runCrop called with data:`, {
+      xPercent: data.xPercent,
+      yPercent: data.yPercent,
+      widthPercent: data.widthPercent,
+      heightPercent: data.heightPercent,
+    });
+    
     // If we need dependencies, use the flow store's runNode which handles them
     if (needsDependencies) {
       setIsProcessing(true);

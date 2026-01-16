@@ -15,6 +15,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { Badge, DotPattern, PageBackground } from "@/components/ui";
+import { UserMenu } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { formatCredits } from "@/lib/credits";
 
@@ -153,16 +154,17 @@ export default function LedgerPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center border-b border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <BookOpen className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white">Pricing Ledger</h1>
-            <p className="text-[11px] text-zinc-500">Credit costs for all providers</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Pricing Ledger</h1>
+            <p className="text-[11px] text-gray-500 dark:text-zinc-500">Credit costs for all providers</p>
           </div>
         </div>
+        <UserMenu />
       </div>
 
       <div className="flex-1 overflow-auto p-6">

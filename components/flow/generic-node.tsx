@@ -17,6 +17,7 @@ import {
   SliderField,
   ToggleField,
   OutputDisplay,
+  type CropOverlay,
 } from "./field-renderers";
 
 // =============================================================================
@@ -65,9 +66,12 @@ interface FieldRendererProps {
   onChange: (value: unknown) => void;
   isConnected?: boolean;
   disabled?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
+  /** Optional crop overlay for image fields (used by crop-image node) */
+  cropOverlay?: CropOverlay;
 }
 
-function FieldRenderer({ field, value, onChange, isConnected, disabled }: FieldRendererProps) {
+function FieldRenderer({ field, value, onChange, isConnected, disabled, onUploadingChange, cropOverlay }: FieldRendererProps) {
   switch (field.type) {
     case "textarea":
     case "text":
@@ -98,6 +102,8 @@ function FieldRenderer({ field, value, onChange, isConnected, disabled }: FieldR
           value={(value as string) ?? null}
           onChange={(v) => onChange(v)}
           disabled={disabled}
+          onUploadingChange={onUploadingChange}
+          cropOverlay={cropOverlay}
         />
       );
 
@@ -156,6 +162,9 @@ interface FieldWithHandleProps {
   handleType: DataType;
   isDragging?: boolean;
   draggedType?: DataType | null;
+  onUploadingChange?: (uploading: boolean) => void;
+  /** Optional crop overlay for image fields */
+  cropOverlay?: CropOverlay;
 }
 
 function FieldWithHandle({ 
@@ -167,6 +176,8 @@ function FieldWithHandle({
   handleType,
   isDragging,
   draggedType,
+  onUploadingChange,
+  cropOverlay,
 }: FieldWithHandleProps) {
   const handleColor = dataTypeColors[handleType] || dataTypeColors.any;
   const isCompatible = isDragging && draggedType && isTypeCompatible(draggedType, handleType);
@@ -246,6 +257,8 @@ function FieldWithHandle({
         onChange={onChange}
         isConnected={isConnected}
         disabled={disabled}
+        onUploadingChange={onUploadingChange}
+        cropOverlay={cropOverlay}
       />
     </div>
   );
@@ -280,13 +293,38 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   // Local state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadingFields, setUploadingFields] = useState<Set<string>>(new Set());
+  const isUploading = uploadingFields.size > 0;
   const isProcessing = data.status === "running" || data.status === "queued" || isGenerating;
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Track uploading state per field
+  const handleUploadingChange = useCallback((fieldId: string, uploading: boolean) => {
+    setUploadingFields((prev) => {
+      const next = new Set(prev);
+      if (uploading) {
+        next.add(fieldId);
+      } else {
+        next.delete(fieldId);
+      }
+      return next;
+    });
+  }, []);
 
   // Handle field value change
   const handleFieldChange = useCallback(
     (fieldId: string, value: unknown) => {
+      console.log(`[GenericNode:${id}] handleFieldChange called: ${fieldId} = ${value}`);
       updateNode(id, { [fieldId]: value });
+      
+      // Immediately verify the store was updated
+      setTimeout(() => {
+        const updatedNodes = useFlowStore.getState().nodes;
+        const updatedNode = updatedNodes.find(n => n.id === id);
+        if (updatedNode) {
+          console.log(`[GenericNode:${id}] Store after update: ${fieldId} = ${(updatedNode.data as Record<string, unknown>)[fieldId]}`);
+        }
+      }, 0);
     },
     [id, updateNode]
   );
@@ -300,12 +338,30 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   );
 
   // Run a connected parent node if it doesn't have output yet
+  // NOTE: This is ONLY for MEDIA connections (image, video, audio), NOT settings connections
   const ensureParentOutput = useCallback(async (handleId: string): Promise<string | null> => {
     const source = getHandleSource(id, handleId);
     if (!source) return null;
     
     const parentNode = nodes.find(n => n.id === source.sourceNodeId);
     if (!parentNode) return null;
+    
+    // Check if this is a SETTINGS connection (source handle ends with "-setting" or matches a known setting)
+    const settingsHandles = [
+      "xPercent", "yPercent", "widthPercent", "heightPercent",
+      "temperature", "maxTokens", "seed", "numInferenceSteps", "guidanceScale",
+      "stability", "clarity", "transitionDuration", "prompt", "negativePrompt",
+      "aspectRatio", "model", "systemPrompt", "duration", "text",
+    ];
+    const isSettingsConnection = source.sourceHandle.endsWith("-setting") ||
+      settingsHandles.includes(source.sourceHandle.replace("-setting", ""));
+    
+    if (isSettingsConnection) {
+      // For settings connections, DON'T run parent or return result
+      // The setting value is already synced to this node via updateNode
+      console.log(`[GenericNode] ${handleId} is a settings connection, using node's own value`);
+      return null;
+    }
     
     const parentResult = parentNode.data?.result || parentNode.data?.response;
     
@@ -345,26 +401,91 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
     abortControllerRef.current = new AbortController();
 
     try {
+      console.log(`[GenericNode:${id}] Starting runGenerate for ${nodeType}`);
+      
+      // Get fresh node data from store to avoid stale closure issues
+      const freshNodes = useFlowStore.getState().nodes;
+      const freshNode = freshNodes.find(n => n.id === id);
+      const freshData = (freshNode?.data ?? data) as Record<string, unknown>;
+      
+      // DEBUG: Log all crop-related data
+      if (nodeType === "crop-image") {
+        console.log(`[GenericNode:${id}] CROP DEBUG - Closure data:`, {
+          xPercent: data.xPercent,
+          yPercent: data.yPercent,
+          widthPercent: data.widthPercent,
+          heightPercent: data.heightPercent,
+        });
+        console.log(`[GenericNode:${id}] CROP DEBUG - Fresh data:`, {
+          xPercent: freshData.xPercent,
+          yPercent: freshData.yPercent,
+          widthPercent: freshData.widthPercent,
+          heightPercent: freshData.heightPercent,
+        });
+      }
+      
       // Build input from node data
       const input: Record<string, unknown> = {};
       
+      // List of numeric fields that must be numbers
+      const numericFields = new Set([
+        "xPercent", "yPercent", "widthPercent", "heightPercent",
+        "temperature", "maxTokens", "seed", "numInferenceSteps", "guidanceScale",
+        "stability", "clarity", "transitionDuration",
+        "topP", "topK", "frequencyPenalty", "presencePenalty",
+      ]);
+      
+      // Settings fields - these get their values from settings connections, NOT from parent output
+      const settingsFields = new Set([
+        "xPercent", "yPercent", "widthPercent", "heightPercent",
+        "temperature", "maxTokens", "seed", "numInferenceSteps", "guidanceScale",
+        "stability", "clarity", "transitionDuration", "prompt", "negativePrompt",
+        "aspectRatio", "model", "systemPrompt", "duration", "text",
+        "topP", "topK", "frequencyPenalty", "presencePenalty",
+      ]);
+      
       for (const field of nodeConfig.ui.inputs) {
         const fieldId = field.id;
-        let value = data[fieldId];
+        // Use fresh data from store to avoid stale closure issues
+        let value = freshData[fieldId];
+        
+        // For settings fields, use the node's own data (synced via settings connections)
+        // DON'T try to get "parent output" - that's for media, not settings
+        const isSettingsField = settingsFields.has(fieldId) || field.type === "slider" || field.type === "number";
         
         // Check if this field is connected and get parent output if needed
-        if (isHandleConnected(id, fieldId)) {
+        // Only for NON-settings fields (media inputs like image, video, audio)
+        if (isHandleConnected(id, fieldId) && !isSettingsField) {
+          console.log(`[GenericNode:${id}] Field ${fieldId} is connected (media), getting parent output...`);
           const parentOutput = await ensureParentOutput(fieldId);
+          console.log(`[GenericNode:${id}] Parent output for ${fieldId}:`, parentOutput?.slice(0, 50));
           if (parentOutput !== null) {
             value = parentOutput;
             // Update node data with parent output
             updateNode(id, { [fieldId]: parentOutput });
           }
+        } else if (isHandleConnected(id, fieldId) && isSettingsField) {
+          // For settings fields that are connected, just use the already-synced value
+          console.log(`[GenericNode:${id}] Field ${fieldId} is a settings connection, using synced value: ${value}`);
         }
         
         if (value !== undefined && value !== null && value !== "") {
-          // Normalize file fields to AssetRef format for backend
-          if (field.type === "file" && typeof value === "string") {
+          // Ensure numeric fields are numbers (not objects from settings inheritance)
+          // Check both the known numeric field names AND slider/number field types
+          const isNumericField = numericFields.has(fieldId) || field.type === "slider" || field.type === "number";
+          
+          if (isNumericField) {
+            if (typeof value === "number") {
+              input[fieldId] = value;
+            } else if (typeof value === "string" && !isNaN(Number(value))) {
+              input[fieldId] = Number(value);
+            } else {
+              // Object or invalid value for numeric field - log and use default
+              console.warn(`[GenericNode] Numeric field ${fieldId} has invalid value type ${typeof value}, skipping:`, value);
+              // Don't add to input - let Zod use the default
+            }
+          } else if (field.type === "file" && typeof value === "string") {
+            // Normalize file fields to AssetRef format for backend
             if (fieldId === "referenceImages") {
               input[fieldId] = [value];
             } else {
@@ -378,7 +499,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       
       // Ensure required fields are present
       if (nodeType === "openrouter" && !input.prompt) {
-        input.prompt = data.prompt || "";
+        input.prompt = freshData.prompt || "";
       }
 
       // Handle OpenRouter LLM specially - use streaming endpoint
@@ -387,21 +508,21 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt: input.prompt || data.prompt,
-            systemPrompt: input.systemPrompt || data.systemPrompt,
-            model: input.model || data.model || "openai/gpt-4o-mini",
-            temperature: input.temperature ?? data.temperature ?? 0.7,
-            maxTokens: input.maxTokens ?? data.maxTokens ?? 4096,
-            topP: input.topP ?? data.topP,
-            frequencyPenalty: input.frequencyPenalty ?? data.frequencyPenalty,
-            presencePenalty: input.presencePenalty ?? data.presencePenalty,
-            context: input.context || data.context,
-            imageUrl: input.inputImage || data.inputImage,
-            negativePrompt: input.negativePrompt || data.negativePrompt,
-            useCache: data.useCache,
+            prompt: input.prompt || freshData.prompt,
+            systemPrompt: input.systemPrompt || freshData.systemPrompt,
+            model: input.model || freshData.model || "openai/gpt-4o-mini",
+            temperature: input.temperature ?? freshData.temperature ?? 0.7,
+            maxTokens: input.maxTokens ?? freshData.maxTokens ?? 4096,
+            topP: input.topP ?? freshData.topP,
+            frequencyPenalty: input.frequencyPenalty ?? freshData.frequencyPenalty,
+            presencePenalty: input.presencePenalty ?? freshData.presencePenalty,
+            context: input.context || freshData.context,
+            imageUrl: input.inputImage || freshData.inputImage,
+            negativePrompt: input.negativePrompt || freshData.negativePrompt,
+            useCache: freshData.useCache,
             workflowId: workflowId ?? undefined,
             nodeId: id,
-            nodeLabel: data.label || nodeConfig.label,
+            nodeLabel: freshData.label || nodeConfig.label,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -428,26 +549,72 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
 
       // Handle local/sync nodes
       if (LOCAL_NODE_TYPES.includes(nodeType)) {
+        // For crop-image, ALWAYS get the latest values directly from the store
+        // This ensures we use the most up-to-date slider values
+        if (nodeType === "crop-image") {
+          // Re-fetch the node data one more time to be absolutely sure
+          const latestNodes = useFlowStore.getState().nodes;
+          const latestNode = latestNodes.find(n => n.id === id);
+          const latestData = latestNode?.data as Record<string, unknown> | undefined;
+          
+          // Force set crop values from the latest store state
+          input.xPercent = typeof latestData?.xPercent === "number" ? latestData.xPercent : 0;
+          input.yPercent = typeof latestData?.yPercent === "number" ? latestData.yPercent : 0;
+          input.widthPercent = typeof latestData?.widthPercent === "number" ? latestData.widthPercent : 100;
+          input.heightPercent = typeof latestData?.heightPercent === "number" ? latestData.heightPercent : 100;
+          
+          console.log(`[GenericNode] crop-image FINAL params: x=${input.xPercent}, y=${input.yPercent}, w=${input.widthPercent}, h=${input.heightPercent}`);
+          console.log(`[GenericNode] crop-image latestData:`, latestData ? {
+            xPercent: latestData.xPercent,
+            yPercent: latestData.yPercent,
+            widthPercent: latestData.widthPercent,
+            heightPercent: latestData.heightPercent,
+          } : 'NO DATA');
+        }
+        
+        // Debug: Log the final input being sent
+        console.log(`[GenericNode] Sending ${nodeType} to API with input:`, JSON.stringify(input, null, 2));
+        
+        // Final sanitization check - ensure no objects in numeric fields
+        const finalInput: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(input)) {
+          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+            // Check if it's an AssetRef (has url property) - that's valid for file fields
+            if ("url" in value) {
+              finalInput[key] = value;
+            } else {
+              console.error(`[GenericNode] BLOCKED object value for ${key}:`, value);
+              // Skip this field - let Zod use default
+            }
+          } else {
+            finalInput[key] = value;
+          }
+        }
+        
         const response = await fetch("/api/nodes/execute-sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             nodeType,
-            input,
+            input: finalInput,
             workflowId: workflowId ?? undefined,
             nodeId: id,
-            nodeLabel: data.label || nodeConfig.label,
+            nodeLabel: freshData.label || nodeConfig.label,
           }),
           signal: abortControllerRef.current.signal,
         });
 
         const result = await response.json();
         
+        console.log(`[GenericNode] ${nodeType} API response:`, result.success ? "success" : "failed", result.error || "");
+        
         if (!result.success) {
           throw new Error(result.error || "Execution failed");
         }
 
         const outputUrl = result.output?.url || result.output?.video?.url || result.output?.audio?.url || result.output?.image?.url;
+        console.log(`[GenericNode] ${nodeType} output URL:`, outputUrl?.slice(0, 80));
+        
         if (outputUrl) {
           updateNode(id, { result: outputUrl, status: "completed" });
           propagateOutput(id, outputUrl);
@@ -469,7 +636,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
             input: { ...input, nodeId: id },
             workflowId: workflowId ?? undefined,
             nodeId: id,
-            nodeLabel: data.label || nodeConfig.label,
+            nodeLabel: freshData.label || nodeConfig.label,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -647,25 +814,45 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
         icon: <IconComponent className="w-5 h-5" />,
         provider: nodeConfig.providers[0]?.id || "internal",
         estimatedCost: nodeConfig.estimatedCost,
+        _isUploading: isUploading, // Disable run button during uploads
       }}
       inputs={settingsInputHandles as any}
       outputs={outputHandles as any}
       left={
         <div className="space-y-3">
           {/* Basic Fields with inline handles */}
-          {basicFields.map((field) => (
-            <FieldWithHandle
-              key={field.id}
-              field={field}
-              value={data[field.id]}
-              onChange={(v) => handleFieldChange(field.id, v)}
-              isConnected={isFieldConnected(field.id)}
-              disabled={isProcessing}
-              handleType={getFieldHandleType(field)}
-              isDragging={isDragging}
-              draggedType={draggedType}
-            />
-          ))}
+          {basicFields.map((field) => {
+            // Build crop overlay for crop-image node's image field
+            const cropOverlay = nodeType === "crop-image" && field.id === "image" && data.image
+              ? {
+                  xPercent: typeof data.xPercent === "number" ? data.xPercent : 0,
+                  yPercent: typeof data.yPercent === "number" ? data.yPercent : 0,
+                  widthPercent: typeof data.widthPercent === "number" ? data.widthPercent : 100,
+                  heightPercent: typeof data.heightPercent === "number" ? data.heightPercent : 100,
+                }
+              : undefined;
+            
+            // DEBUG: Show crop values directly on the node
+            if (nodeType === "crop-image" && field.id === "image") {
+              console.log(`[GenericNode:${id}] RENDER - data.xPercent=${data.xPercent}, data.widthPercent=${data.widthPercent}`);
+            }
+            
+            return (
+              <FieldWithHandle
+                key={field.id}
+                field={field}
+                value={data[field.id]}
+                onChange={(v) => handleFieldChange(field.id, v)}
+                isConnected={isFieldConnected(field.id)}
+                disabled={isProcessing}
+                handleType={getFieldHandleType(field)}
+                isDragging={isDragging}
+                draggedType={draggedType}
+                onUploadingChange={(uploading) => handleUploadingChange(field.id, uploading)}
+                cropOverlay={cropOverlay}
+              />
+            );
+          })}
 
           {/* Advanced Fields Section */}
           {hasAdvanced && (
@@ -695,6 +882,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
                     handleType={getFieldHandleType(field)}
                     isDragging={isDragging}
                     draggedType={draggedType}
+                    onUploadingChange={(uploading) => handleUploadingChange(field.id, uploading)}
                   />
                 ))}
               </div>
@@ -771,7 +959,8 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   );
 }
 
-export const GenericNode = memo(GenericNodeComponent);
+// TEMP: Removed memo to debug stale closure issues
+export const GenericNode = GenericNodeComponent;
 
 // =============================================================================
 // FACTORY FUNCTION - Creates node component for a specific type

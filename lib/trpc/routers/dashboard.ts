@@ -26,6 +26,65 @@ function formatTimeAgo(date: Date): string {
   return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
 }
 
+// Stale execution timeout: 30 minutes
+const STALE_EXECUTION_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Derive effective execution status based on node statuses and timeout.
+ * This handles cases where executions are stuck in "RUNNING" status because:
+ * - Trigger.dev task crashed without completing
+ * - Completion callback never ran
+ * - Execution was interrupted
+ */
+function getEffectiveStatus(
+  execution: {
+    status: string;
+    startedAt: Date;
+    completedAt: Date | null;
+    nodeExecutions: { status: string }[];
+  }
+): string {
+  const { status, startedAt, completedAt, nodeExecutions } = execution;
+  
+  // If already completed/failed/cancelled, use that status
+  if (status === "COMPLETED" || status === "FAILED" || status === "CANCELLED") {
+    return status;
+  }
+  
+  // If marked as RUNNING or PENDING, verify it's not stale
+  if (status === "RUNNING" || status === "PENDING") {
+    const now = new Date();
+    const runtimeMs = now.getTime() - new Date(startedAt).getTime();
+    
+    // Check if execution is stale (running > 30 minutes without completion)
+    if (!completedAt && runtimeMs > STALE_EXECUTION_TIMEOUT_MS) {
+      // Check node statuses to determine actual state
+      const nodeStatuses = nodeExecutions.map((ne) => ne.status);
+      const anyFailed = nodeStatuses.some((s) => s === "FAILED");
+      const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every((s) => s === "COMPLETED");
+      
+      if (anyFailed) return "FAILED";
+      if (allCompleted) return "COMPLETED";
+      // If stale with no clear resolution, mark as failed (stuck)
+      return "FAILED";
+    }
+    
+    // Check node statuses for more accurate status
+    if (nodeExecutions.length > 0) {
+      const nodeStatuses = nodeExecutions.map((ne) => ne.status);
+      const anyFailed = nodeStatuses.some((s) => s === "FAILED");
+      const allCompleted = nodeStatuses.every((s) => s === "COMPLETED");
+      const anyRunning = nodeStatuses.some((s) => s === "RUNNING" || s === "WAITING" || s === "QUEUED");
+      
+      if (anyFailed) return "FAILED";
+      if (allCompleted) return "COMPLETED";
+      if (anyRunning) return "RUNNING";
+    }
+  }
+  
+  return status;
+}
+
 export const dashboardRouter = router({
   // Get dashboard stats
   stats: protectedProcedure.query(async ({ ctx }) => {
@@ -104,13 +163,16 @@ export const dashboardRouter = router({
         },
       }),
 
-      // Recent 10 executions for activity feed
+      // Recent 10 executions for activity feed (include nodeExecutions for status derivation)
       ctx.db.workflowExecution.findMany({
         where: { workflow: { userId } },
         orderBy: { startedAt: "desc" },
         take: 10,
         include: {
           workflow: { select: { name: true } },
+          nodeExecutions: {
+            select: { status: true },
+          },
         },
       }),
 
@@ -162,8 +224,9 @@ export const dashboardRouter = router({
 
     const successRateChange = successRateWeek - successRateLastWeek;
 
-    // Format recent activity
+    // Format recent activity with effective status derivation
     const recentActivity = recentExecutions.map((exec) => {
+      const effectiveStatus = getEffectiveStatus(exec);
       const duration = exec.completedAt && exec.startedAt
         ? formatDuration(new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime())
         : undefined;
@@ -171,14 +234,17 @@ export const dashboardRouter = router({
       return {
         id: exec.id,
         workflow: exec.workflow.name,
-        status: exec.status === "COMPLETED" ? "success" : exec.status === "FAILED" ? "error" : "warning",
+        status: effectiveStatus === "COMPLETED" ? "success" : effectiveStatus === "FAILED" ? "error" : "warning",
         time: formatTimeAgo(exec.startedAt),
         duration,
       };
     });
 
-    // Count running executions
-    const runningCount = recentExecutions.filter((e) => e.status === "RUNNING").length;
+    // Count truly running executions (using effective status to exclude stale/stuck ones)
+    const runningCount = recentExecutions.filter((exec) => {
+      const effectiveStatus = getEffectiveStatus(exec);
+      return effectiveStatus === "RUNNING" || effectiveStatus === "PENDING";
+    }).length;
 
     return {
       stats: {

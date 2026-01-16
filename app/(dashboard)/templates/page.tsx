@@ -21,6 +21,7 @@ import {
   Layers,
 } from "lucide-react";
 import { Button, Badge, Input, DotPattern, PageBackground } from "@/components/ui";
+import { UserMenu } from "@/components/layout";
 import { cn } from "@/lib/utils";
 
 type TemplateCategory = "all" | "image" | "video" | "audio" | "llm" | "multimodal";
@@ -75,17 +76,20 @@ export default function TemplatesPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Layers className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Layers className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white">Templates</h1>
-            <p className="text-[11px] text-zinc-500">Pre-built workflows</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Templates</h1>
+            <p className="text-[11px] text-gray-500 dark:text-zinc-500">Pre-built workflows</p>
           </div>
         </div>
-        <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />} size="sm">Submit Template</Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />} size="sm">Submit Template</Button>
+          <UserMenu />
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto">

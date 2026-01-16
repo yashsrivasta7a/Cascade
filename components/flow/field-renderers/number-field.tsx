@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { NumberFieldConfig, SliderFieldConfig } from "@/lib/config/types";
 
@@ -19,6 +19,18 @@ function NumberFieldComponent({
   disabled = false,
   className,
 }: NumberFieldProps) {
+  // Clamp value to min/max if defined (handles out-of-range values from connections)
+  const clampedValue = value !== undefined && config.min !== undefined && config.max !== undefined
+    ? Math.min(Math.max(value, config.min), config.max)
+    : value;
+
+  // If value is out of range (e.g., from a settings connection), update to clamped value
+  useEffect(() => {
+    if (value !== undefined && clampedValue !== undefined && value !== clampedValue && !disabled) {
+      onChange(clampedValue);
+    }
+  }, [value, clampedValue, onChange, disabled]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (val === "") {
@@ -26,7 +38,11 @@ function NumberFieldComponent({
     } else {
       const num = parseFloat(val);
       if (!isNaN(num)) {
-        onChange(num);
+        // Clamp to min/max when user types
+        const clamped = config.min !== undefined && config.max !== undefined
+          ? Math.min(Math.max(num, config.min), config.max)
+          : num;
+        onChange(clamped);
       }
     }
   };
@@ -43,7 +59,7 @@ function NumberFieldComponent({
 
       <input
         type="number"
-        value={value ?? ""}
+        value={clampedValue ?? ""}
         onChange={handleChange}
         placeholder={config.placeholder ?? "Enter number"}
         min={config.min}
@@ -93,7 +109,19 @@ function SliderFieldComponent({
   className,
 }: SliderFieldProps) {
   const step = config.step ?? 1;
-  const percentage = ((value - config.min) / (config.max - config.min)) * 100;
+  // Clamp value to min/max range to prevent slider overflow when receiving out-of-range values
+  const clampedValue = Math.min(Math.max(value, config.min), config.max);
+  const percentage = ((clampedValue - config.min) / (config.max - config.min)) * 100;
+  
+  // DEBUG: Log whenever slider receives new props
+  console.log(`[SliderField RENDER] id=${config.id}, value=${value}, clampedValue=${clampedValue}`);
+
+  // If value is out of range (e.g., from a settings connection), update to clamped value
+  useEffect(() => {
+    if (value !== clampedValue && !disabled) {
+      onChange(clampedValue);
+    }
+  }, [value, clampedValue, onChange, disabled]);
 
   return (
     <div className={className}>
@@ -107,7 +135,7 @@ function SliderFieldComponent({
         )}
         {config.showValue && (
           <span className="text-[10px] text-gray-600 dark:text-zinc-400 font-mono">
-            {value}
+            {clampedValue}
           </span>
         )}
       </div>
@@ -123,8 +151,12 @@ function SliderFieldComponent({
 
         <input
           type="range"
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
+          value={clampedValue}
+          onChange={(e) => {
+            const newVal = parseFloat(e.target.value);
+            console.log(`[SliderField] ${config.id} onChange: ${newVal}`);
+            onChange(newVal);
+          }}
           min={config.min}
           max={config.max}
           step={step}
@@ -161,4 +193,5 @@ function SliderFieldComponent({
   );
 }
 
-export const SliderField = memo(SliderFieldComponent);
+// TEMP: Removed memo to debug
+export const SliderField = SliderFieldComponent;

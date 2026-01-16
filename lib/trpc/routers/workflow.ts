@@ -82,6 +82,8 @@ export const workflowRouter = router({
         isPublished: true,
         createdAt: true,
         updatedAt: true,
+        nodesJson: true,
+        edgesJson: true,
         _count: {
           select: {
             executions: true,
@@ -90,7 +92,53 @@ export const workflowRouter = router({
       },
     });
 
-    return { workflows };
+    // Transform for thumbnails - only keep position/size data for nodes
+    const workflowsWithThumbnails = workflows.map((workflow) => {
+      let thumbnailNodes: Array<{ id: string; position: { x: number; y: number }; width?: number; height?: number }> = [];
+      let thumbnailEdges: Array<{ id: string; source: string; target: string }> = [];
+
+      try {
+        const nodes = workflow.nodesJson as Array<{ id?: string; position?: { x: number; y: number }; measured?: { width?: number; height?: number }; width?: number; height?: number }> | null;
+        if (Array.isArray(nodes)) {
+          thumbnailNodes = nodes.map((n, i) => ({
+            id: n.id || `node-${i}`,
+            position: n.position || { x: 0, y: 0 },
+            width: n.measured?.width || n.width,
+            height: n.measured?.height || n.height,
+          }));
+        }
+      } catch {
+        // Invalid nodes data
+      }
+
+      try {
+        const edges = workflow.edgesJson as Array<{ id?: string; source?: string; target?: string }> | null;
+        if (Array.isArray(edges)) {
+          thumbnailEdges = edges.map((e, i) => ({
+            id: e.id || `edge-${i}`,
+            source: e.source || "",
+            target: e.target || "",
+          })).filter((e) => e.source && e.target);
+        }
+      } catch {
+        // Invalid edges data
+      }
+
+      return {
+        id: workflow.id,
+        name: workflow.name,
+        description: workflow.description,
+        version: workflow.version,
+        isPublished: workflow.isPublished,
+        createdAt: workflow.createdAt,
+        updatedAt: workflow.updatedAt,
+        _count: workflow._count,
+        thumbnailNodes,
+        thumbnailEdges,
+      };
+    });
+
+    return { workflows: workflowsWithThumbnails };
   }),
 
   // Get a single workflow by ID

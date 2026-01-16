@@ -96,13 +96,16 @@ export async function GET() {
         },
       }),
 
-      // Recent 10 executions for activity feed
+      // Recent 10 executions for activity feed (include nodeExecutions for status derivation)
       db.workflowExecution.findMany({
         where: { workflow: { userId } },
         orderBy: { startedAt: "desc" },
         take: 10,
         include: {
           workflow: { select: { name: true } },
+          nodeExecutions: {
+            select: { status: true },
+          },
         },
       }),
 
@@ -154,8 +157,9 @@ export async function GET() {
 
     const successRateChange = successRateWeek - successRateLastWeek;
 
-    // Format recent activity
+    // Format recent activity with effective status derivation
     const recentActivity = recentExecutions.map((exec: typeof recentExecutions[number]) => {
+      const effectiveStatus = getEffectiveStatus(exec);
       const duration = exec.completedAt && exec.startedAt
         ? formatDuration(new Date(exec.completedAt).getTime() - new Date(exec.startedAt).getTime())
         : undefined;
@@ -163,14 +167,17 @@ export async function GET() {
       return {
         id: exec.id,
         workflow: exec.workflow.name,
-        status: exec.status === "COMPLETED" ? "success" : exec.status === "FAILED" ? "error" : "warning",
+        status: effectiveStatus === "COMPLETED" ? "success" : effectiveStatus === "FAILED" ? "error" : "warning",
         time: exec.startedAt ? formatTimeAgo(exec.startedAt) : "—",
         duration,
       };
     });
 
-    // Count running executions
-    const runningCount = recentExecutions.filter((e: { status: string }) => e.status === "RUNNING").length;
+    // Count truly running executions (using effective status to exclude stale/stuck ones)
+    const runningCount = recentExecutions.filter((exec: typeof recentExecutions[number]) => {
+      const effectiveStatus = getEffectiveStatus(exec);
+      return effectiveStatus === "RUNNING" || effectiveStatus === "PENDING";
+    }).length;
 
     return NextResponse.json({
       stats: {
@@ -232,5 +239,59 @@ function formatTimeAgo(date: Date): string {
   if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes > 1 ? "s" : ""} ago`;
   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
   return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+}
+
+// Stale execution timeout: 30 minutes
+const STALE_EXECUTION_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * Derive effective execution status based on node statuses and timeout.
+ * This handles cases where executions are stuck in "RUNNING" status.
+ */
+function getEffectiveStatus(
+  execution: {
+    status: string;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    nodeExecutions: { status: string }[];
+  }
+): string {
+  const { status, startedAt, completedAt, nodeExecutions } = execution;
+  
+  // If already completed/failed/cancelled, use that status
+  if (status === "COMPLETED" || status === "FAILED" || status === "CANCELLED") {
+    return status;
+  }
+  
+  // If marked as RUNNING or PENDING, verify it's not stale
+  if ((status === "RUNNING" || status === "PENDING") && startedAt) {
+    const now = new Date();
+    const runtimeMs = now.getTime() - new Date(startedAt).getTime();
+    
+    // Check if execution is stale (running > 30 minutes without completion)
+    if (!completedAt && runtimeMs > STALE_EXECUTION_TIMEOUT_MS) {
+      const nodeStatuses = nodeExecutions.map((ne) => ne.status);
+      const anyFailed = nodeStatuses.some((s) => s === "FAILED");
+      const allCompleted = nodeStatuses.length > 0 && nodeStatuses.every((s) => s === "COMPLETED");
+      
+      if (anyFailed) return "FAILED";
+      if (allCompleted) return "COMPLETED";
+      return "FAILED"; // Mark stale executions as failed
+    }
+    
+    // Check node statuses for more accurate status
+    if (nodeExecutions.length > 0) {
+      const nodeStatuses = nodeExecutions.map((ne) => ne.status);
+      const anyFailed = nodeStatuses.some((s) => s === "FAILED");
+      const allCompleted = nodeStatuses.every((s) => s === "COMPLETED");
+      const anyRunning = nodeStatuses.some((s) => s === "RUNNING" || s === "WAITING" || s === "QUEUED");
+      
+      if (anyFailed) return "FAILED";
+      if (allCompleted) return "COMPLETED";
+      if (anyRunning) return "RUNNING";
+    }
+  }
+  
+  return status;
 }
 

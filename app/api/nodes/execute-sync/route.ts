@@ -51,6 +51,15 @@ export async function POST(request: NextRequest) {
     const nodeLabel = body?.nodeLabel;
     const workflowId = body?.workflowId;
 
+    // Debug logging for crop-image
+    if (nodeType === "crop-image") {
+      console.log(`[Sync Execute:crop-image] Received input:`, JSON.stringify(input, null, 2));
+      console.log(`[Sync Execute:crop-image] xPercent: ${input?.xPercent} (${typeof input?.xPercent})`);
+      console.log(`[Sync Execute:crop-image] yPercent: ${input?.yPercent} (${typeof input?.yPercent})`);
+      console.log(`[Sync Execute:crop-image] widthPercent: ${input?.widthPercent} (${typeof input?.widthPercent})`);
+      console.log(`[Sync Execute:crop-image] heightPercent: ${input?.heightPercent} (${typeof input?.heightPercent})`);
+    }
+
     if (!nodeType || typeof nodeType !== "string") {
       return NextResponse.json(
         { 
@@ -187,6 +196,11 @@ export async function POST(request: NextRequest) {
       nodeType: nodeType as AINodeType,
       input: input as Record<string, unknown>,
     };
+
+    // Debug: Log payload before triggering for crop-image
+    if (nodeType === "crop-image") {
+      console.log(`[Sync Execute] Payload to Trigger.dev:`, JSON.stringify(payload, null, 2));
+    }
 
     let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
     

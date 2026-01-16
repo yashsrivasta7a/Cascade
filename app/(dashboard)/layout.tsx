@@ -10,12 +10,13 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const hideSidebarOnWorkflows = pathname.startsWith("/workflows");
+  // Only hide sidebar on individual workflow editor pages (e.g., /workflows/123)
+  const isWorkflowEditor = pathname.match(/^\/workflows\/[^/]+$/);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-[#09090b]">
-      {!hideSidebarOnWorkflows && <Sidebar />}
-      <main className={cn("flex-1 overflow-hidden", hideSidebarOnWorkflows && "w-full")}>
+      {!isWorkflowEditor && <Sidebar />}
+      <main className={cn("flex-1 overflow-hidden", isWorkflowEditor && "w-full")}>
         {children}
       </main>
     </div>

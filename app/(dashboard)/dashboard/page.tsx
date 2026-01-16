@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button, Badge, DotPattern, PageBackground } from "@/components/ui";
+import { UserMenu } from "@/components/layout";
 import { trpc } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +44,129 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <PageBackground>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
-            <span className="text-sm text-zinc-600">Loading dashboard...</span>
+        {/* Header Skeleton */}
+        <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-zinc-800 animate-pulse" />
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-20 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+              <div className="h-2.5 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-20 bg-gray-200 dark:bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-zinc-800 animate-pulse" />
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="flex-1 overflow-auto p-6 space-y-6">
+          {/* Stats Grid Skeleton */}
+          <div className="grid grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="relative p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                    <div className="w-4 h-4 rounded bg-gray-100 dark:bg-zinc-800/50 animate-pulse" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 w-24 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                    <div className="h-7 w-16 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-12 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                      <div className="h-3 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+                {/* Shimmer overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent animate-pulse" />
+              </div>
+            ))}
+          </div>
+
+          {/* Main Content Grid Skeleton */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Recent Activity Skeleton */}
+            <div className="col-span-2">
+              <div className="bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-gray-200 dark:border-zinc-800/60 flex items-center justify-between">
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-28 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                    <div className="h-3 w-36 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                  </div>
+                  <div className="h-3 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-zinc-800/50">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div 
+                      key={i} 
+                      className="px-5 py-4 flex items-center justify-between"
+                      style={{ animationDelay: `${i * 50}ms` }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800 animate-pulse" />
+                        <div className="space-y-1.5">
+                          <div className="h-3.5 w-32 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                          <div className="h-2.5 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="h-5 w-14 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-3 w-10 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar Skeleton */}
+            <div className="space-y-4">
+              {/* Quick Actions */}
+              <div className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="h-4 w-24 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
+                <div className="space-y-2">
+                  <div className="h-10 w-full bg-gray-200 dark:bg-zinc-800 rounded-lg animate-pulse" />
+                  <div className="h-10 w-full bg-gray-100 dark:bg-zinc-800/50 rounded-lg animate-pulse" />
+                </div>
+              </div>
+
+              {/* Active Workflows */}
+              <div className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-gray-200 dark:bg-zinc-700 animate-pulse" />
+                  <div className="h-3.5 w-16 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                </div>
+                <div className="h-3 w-28 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse mb-4" />
+                <div className="h-9 w-full bg-gray-200 dark:bg-zinc-800 rounded-lg animate-pulse" />
+              </div>
+
+              {/* Credits */}
+              <div className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-gray-200 dark:bg-zinc-700 animate-pulse" />
+                    <div className="h-3 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                  </div>
+                  <div className="h-5 w-10 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
+                </div>
+                <div className="mb-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="h-4 w-16 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse" />
+                    <div className="h-3 w-8 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+                  </div>
+                  <div className="h-1.5 rounded-full bg-gray-200 dark:bg-zinc-800 overflow-hidden">
+                    <div className="h-full w-2/3 bg-gray-300 dark:bg-zinc-700 rounded-full animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-2.5 w-24 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
+              </div>
+            </div>
           </div>
         </div>
       </PageBackground>
@@ -76,24 +196,27 @@ export default function DashboardPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Sparkles className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white">Dashboard</h1>
-            <p className="text-[11px] text-zinc-500">Welcome back</p>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+            <p className="text-[11px] text-gray-500 dark:text-zinc-500">Welcome back</p>
           </div>
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="h-8 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg flex items-center gap-1.5 transition-all"
-        >
-          <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-8 px-3 text-xs font-medium text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-zinc-800/50 hover:bg-gray-200 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-700/50 rounded-lg flex items-center gap-1.5 transition-all"
+          >
+            <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+            Refresh
+          </button>
+          <UserMenu />
+        </div>
       </div>
 
       {/* Content */}

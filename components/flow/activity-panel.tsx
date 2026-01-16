@@ -715,7 +715,6 @@ export function ActivityPanel({
                     const isExpanded = expandedWorkflows.has(exec.id);
                     const workflowCost = exec.nodeExecutions.reduce((sum, n) => sum + (n.actualCost || 0), 0);
                     const singleNode = !isMulti && hasNodes ? exec.nodeExecutions[0] : null;
-                    const pipelineNumber = executions.length - idx; // Reverse numbering (newest = highest)
                     const isCurrentlyRunning = exec.status === "RUNNING" || exec.status === "PENDING" || exec.nodeExecutions.some(n => n.status === "RUNNING" || n.status === "WAITING" || n.status === "QUEUED");
                     const isStarting = (exec.status === "RUNNING" || exec.status === "PENDING") && !hasNodes; // Just started, nodes not created yet
                     
@@ -736,7 +735,6 @@ export function ActivityPanel({
                                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-ping" />
                                     STARTING
                                   </span>
-                                  <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/10 px-1.5 py-0.5 rounded uppercase border border-violet-300 dark:border-violet-500/20">Pipeline #{pipelineNumber}</span>
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1.5">Initializing workflow execution...</p>
                                 <div className="flex items-center gap-1 text-[9px] text-gray-500 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded mt-1.5 w-fit">
@@ -748,39 +746,73 @@ export function ActivityPanel({
                         ) : isMulti ? (
                           <>
                             <button onClick={() => toggleWorkflow(exec.id)} className="w-full text-left p-3 pl-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                              <div className="flex items-center gap-3">
-                                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", status.bg)}><div className={status.color}>{status.icon}</div></div>
+                              <div className="flex items-start gap-3">
+                                {/* Status icon */}
+                                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5", status.bg)}>
+                                  <div className={cn("scale-90", status.color)}>{status.icon}</div>
+                                </div>
+                                
+                                {/* Main content */}
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  {/* Title row */}
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[13px] font-medium text-gray-900 dark:text-white truncate">{exec.workflowName || "Workflow Run"}</span>
                                     {isCurrentlyRunning && (
-                                      <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/20 px-1.5 py-0.5 rounded uppercase border border-blue-300 dark:border-blue-500/30 flex items-center gap-1 animate-pulse">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-ping" />
-                                        LIVE
-                                      </span>
+                                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" title="Running" />
                                     )}
-                                    <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/10 px-1.5 py-0.5 rounded uppercase border border-violet-300 dark:border-violet-500/20">Pipeline #{pipelineNumber}</span>
-                                    <span className="text-xs font-medium text-gray-900 dark:text-white truncate">{exec.workflowName || "Workflow Run"}</span>
                                   </div>
-                                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                    <div className="flex items-center gap-1 text-[9px] text-gray-500 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded"><Calendar className="w-2.5 h-2.5" />{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</div>
-                                    {exec.durationMs && <div className="flex items-center gap-1 text-[9px] text-gray-500 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />{formatDurationMs(exec.durationMs)}</div>}
-                                    {workflowCost > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCredits(workflowCost)}</div>}
+                                  
+                                  {/* Meta row - clean single line */}
+                                  <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-zinc-500">
+                                    <span>{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</span>
+                                    {exec.durationMs && <span className="flex items-center gap-1"><Timer className="w-3 h-3" />{formatDurationMs(exec.durationMs)}</span>}
+                                    {workflowCost > 0 && <span className="text-amber-600 dark:text-amber-400">{formatCredits(workflowCost)}</span>}
                                   </div>
-                                  <div className="flex items-center gap-2 mt-1">
+                                  
+                                  {/* Stats row - compact indicators */}
+                                  <div className="flex items-center gap-3 mt-1.5">
                                     {(() => {
                                       const nodeIds = exec.nodeExecutions.map(n => n.nodeId);
                                       const pipelines = findConnectedPipelines(nodeIds);
-                                      return pipelines.length > 1 ? (
-                                        <span className="text-[9px] text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">{pipelines.length} chains</span>
-                                      ) : null;
+                                      const runningCount = exec.nodeExecutions.filter(n => n.status === "RUNNING" || n.status === "WAITING").length;
+                                      const completedCount = exec.nodeExecutions.filter(n => n.status === "COMPLETED").length;
+                                      const failedCount = exec.nodeExecutions.filter(n => n.status === "FAILED").length;
+                                      
+                                      return (
+                                        <>
+                                          <span className="text-[10px] text-gray-400 dark:text-zinc-600">
+                                            {pipelines.length > 1 && <>{pipelines.length} chains · </>}
+                                            {exec.nodeExecutions.length} nodes
+                                          </span>
+                                          
+                                          {/* Status dots - only show if there's activity */}
+                                          {(runningCount > 0 || completedCount > 0 || failedCount > 0) && (
+                                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/[0.03]">
+                                              {runningCount > 0 && (
+                                                <span className="flex items-center gap-0.5 text-[10px] text-blue-500 dark:text-blue-400">
+                                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />{runningCount}
+                                                </span>
+                                              )}
+                                              {completedCount > 0 && (
+                                                <span className="flex items-center gap-0.5 text-[10px] text-emerald-500 dark:text-emerald-400">
+                                                  <CheckCircle2 className="w-2.5 h-2.5" />{completedCount}
+                                                </span>
+                                              )}
+                                              {failedCount > 0 && (
+                                                <span className="flex items-center gap-0.5 text-[10px] text-red-500 dark:text-red-400">
+                                                  <XCircle className="w-2.5 h-2.5" />{failedCount}
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </>
+                                      );
                                     })()}
-                                    <span className="text-[9px] text-gray-500 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded">{exec.nodeExecutions.length} nodes</span>
-                                    {exec.nodeExecutions.filter(n => n.status === "RUNNING" || n.status === "WAITING").length > 0 && <span className="text-[9px] text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Loader2 className="w-2.5 h-2.5 animate-spin" />{exec.nodeExecutions.filter(n => n.status === "RUNNING" || n.status === "WAITING").length}</span>}
-                                    {exec.nodeExecutions.filter(n => n.status === "COMPLETED").length > 0 && <span className="text-[9px] text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle2 className="w-2.5 h-2.5" />{exec.nodeExecutions.filter(n => n.status === "COMPLETED").length}</span>}
-                                    {exec.nodeExecutions.filter(n => n.status === "FAILED").length > 0 && <span className="text-[9px] text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5"><XCircle className="w-2.5 h-2.5" />{exec.nodeExecutions.filter(n => n.status === "FAILED").length}</span>}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                
+                                {/* Right actions */}
+                                <div className="flex items-center gap-1 shrink-0">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -790,21 +822,24 @@ export function ActivityPanel({
                                         clearHighlight();
                                       } else {
                                         highlightPipeline(nodeIds);
-                                        // Don't close - let user see the mapping
                                       }
                                     }}
                                     className={cn(
-                                      "flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium transition-colors",
+                                      "p-1.5 rounded-md transition-colors",
                                       exec.nodeExecutions.some(n => highlightedNodeIds.includes(n.nodeId))
-                                        ? "bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-300 dark:border-violet-500/30"
-                                        : "hover:bg-gray-100 dark:hover:bg-white/[0.05] text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 border border-transparent"
+                                        ? "bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                                        : "hover:bg-gray-100 dark:hover:bg-white/[0.05] text-gray-400 dark:text-zinc-600 hover:text-gray-600 dark:hover:text-zinc-400"
                                     )}
-                                    title="Highlight and fit view to all pipeline nodes"
+                                    title="Focus on pipeline nodes"
                                   >
                                     <Focus className="w-3.5 h-3.5" />
-                                    <span>{exec.nodeExecutions.some(n => highlightedNodeIds.includes(n.nodeId)) ? "Viewing" : "Focus"}</span>
                                   </button>
-                                  <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-400 dark:text-zinc-500"><ChevronDown className="w-4 h-4" /></motion.div>
+                                  <motion.div 
+                                    animate={{ rotate: isExpanded ? 180 : 0 }} 
+                                    className="p-1 text-gray-400 dark:text-zinc-600"
+                                  >
+                                    <ChevronDown className="w-4 h-4" />
+                                  </motion.div>
                                 </div>
                               </div>
                             </button>
@@ -872,27 +907,48 @@ export function ActivityPanel({
                                             )}
                                             
                                             {/* Nodes in this pipeline */}
-                                            <div className={cn("space-y-1.5", hasManyPipelines ? "p-1.5" : "")}>
+                                            <div className={cn("space-y-1", hasManyPipelines ? "p-1.5" : "")}>
                                               {pipelineNodes.map((node, i) => {
                                                 const ns = statusStyles[node.status as keyof typeof statusStyles] || statusStyles.PENDING;
+                                                const isCached = node.providerUsed === "cache";
                                                 return (
-                                                  <button key={`${node.id}-${i}`} onClick={() => handleNodeClick(node.nodeType, node.nodeId)} className="w-full text-left p-2 rounded-lg bg-gray-50 dark:bg-white/[0.02] hover:bg-gray-100 dark:hover:bg-white/[0.05] border border-gray-200 dark:border-white/[0.04] transition-all">
-                                                    <div className="flex items-center gap-2.5">
-                                                      <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center", getNodeColor(node.nodeType))}>{getNodeIcon(node.nodeType)}</div>
-                                                      <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-1.5"><span className="text-[11px] font-medium text-gray-800 dark:text-zinc-200 truncate">{getNodeDisplayName(node)}</span>{node.providerUsed && (node.providerUsed === "cache" ? <span className="text-[8px] text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/15 px-1 py-0.5 rounded flex items-center gap-0.5"><Database className="w-2 h-2" />CACHED</span> : <span className="text-[8px] text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10 px-1 py-0.5 rounded">{node.providerUsed}</span>)}</div>
-                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                          {node.providerUsed === "cache" ? (
-                                                            <span className="text-[9px] text-cyan-600 dark:text-cyan-400 flex items-center gap-0.5"><Timer className="w-2.5 h-2.5" />0ms</span>
-                                                          ) : node.durationMs && <span className="text-[9px] text-gray-500 dark:text-zinc-500 flex items-center gap-0.5"><Timer className="w-2.5 h-2.5" />{formatDurationMs(node.durationMs)}</span>}
-                                                          {node.providerUsed === "cache" ? (
-                                                            <span className="text-[9px] text-cyan-600 dark:text-cyan-400 flex items-center gap-0.5"><Coins className="w-2.5 h-2.5" />0</span>
-                                                          ) : (node.actualCost ?? 0) > 0 && <span className="text-[9px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5"><Coins className="w-2.5 h-2.5" />{formatCredits(node.actualCost!)}</span>}
-                                                        </div>
+                                                  <button 
+                                                    key={`${node.id}-${i}`} 
+                                                    onClick={() => handleNodeClick(node.nodeType, node.nodeId)} 
+                                                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-all group"
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      {/* Node icon */}
+                                                      <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0", getNodeColor(node.nodeType))}>
+                                                        <div className="scale-75">{getNodeIcon(node.nodeType)}</div>
                                                       </div>
-                                                      <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded-md", ns.bg)}><div className={cn("scale-75", ns.color)}>{ns.icon}</div><span className={cn("text-[9px] font-medium", ns.color)}>{ns.label}</span></div>
+                                                      
+                                                      {/* Name and meta */}
+                                                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                                                        <span className="text-[11px] font-medium text-gray-800 dark:text-zinc-200 truncate">
+                                                          {getNodeDisplayName(node)}
+                                                        </span>
+                                                        <span className="text-[9px] text-gray-400 dark:text-zinc-600">
+                                                          {isCached ? (
+                                                            <span className="text-cyan-500 dark:text-cyan-400">cached</span>
+                                                          ) : (
+                                                            <>
+                                                              {node.durationMs && formatDurationMs(node.durationMs)}
+                                                              {(node.actualCost ?? 0) > 0 && <> · <span className="text-amber-500 dark:text-amber-400">{formatCredits(node.actualCost!)}</span></>}
+                                                            </>
+                                                          )}
+                                                        </span>
+                                                      </div>
+                                                      
+                                                      {/* Status indicator */}
+                                                      <div className={cn("scale-75", ns.color)}>{ns.icon}</div>
                                                     </div>
-                                                    {node.error && <div className="mt-2 p-2 rounded-lg bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/20"><p className="text-[9px] text-red-600 dark:text-red-400 line-clamp-2">{node.error}</p></div>}
+                                                    
+                                                    {node.error && (
+                                                      <div className="mt-1.5 ml-7 p-1.5 rounded bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
+                                                        <p className="text-[9px] text-red-600 dark:text-red-400 line-clamp-2">{node.error}</p>
+                                                      </div>
+                                                    )}
                                                   </button>
                                                 );
                                               })}
@@ -908,28 +964,62 @@ export function ActivityPanel({
                           </>
                         ) : (
                           <button onClick={() => singleNode && handleNodeClick(singleNode.nodeType, singleNode.nodeId)} className="w-full text-left p-3 pl-4 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0", status.bg)}><div className={status.color}>{status.icon}</div></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[9px] font-bold text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded uppercase">Single</span>
-                                  <div className={cn("w-5 h-5 rounded-lg flex items-center justify-center", getNodeColor(singleNode?.nodeType || ""))}>{singleNode && getNodeIcon(singleNode.nodeType)}</div>
-                                  <span className="text-xs font-medium text-gray-800 dark:text-white truncate">{singleNode && getNodeDisplayName(singleNode)}</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                  <div className="flex items-center gap-1 text-[9px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded"><Calendar className="w-2.5 h-2.5" />{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</div>
-                                  {singleNode?.providerUsed === "cache" ? (
-                                    <div className="flex items-center gap-1 text-[9px] text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />0ms</div>
-                                  ) : singleNode?.durationMs && <div className="flex items-center gap-1 text-[9px] text-gray-400 dark:text-zinc-500 bg-gray-100 dark:bg-white/[0.03] px-1.5 py-0.5 rounded"><Timer className="w-2.5 h-2.5" />{formatDurationMs(singleNode.durationMs)}</div>}
-                                  {singleNode?.providerUsed === "cache" ? (
-                                    <div className="flex items-center gap-1 text-[9px] text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />0</div>
-                                  ) : (singleNode?.actualCost ?? 0) > 0 && <div className="flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/10 px-1.5 py-0.5 rounded"><Coins className="w-2.5 h-2.5" />{formatCredits(singleNode!.actualCost)}</div>}
-                                </div>
-                                {singleNode?.providerUsed && <div className="mt-1">{singleNode.providerUsed === "cache" ? <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-medium bg-cyan-100 dark:bg-cyan-500/15 px-1.5 py-0.5 rounded flex items-center gap-1 inline-flex"><Database className="w-2.5 h-2.5" />CACHED</span> : <span className="text-[9px] text-blue-600 dark:text-blue-400 font-medium bg-blue-100 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">{singleNode.providerUsed}</span>}</div>}
+                            <div className="flex items-start gap-3">
+                              {/* Node icon */}
+                              <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5", getNodeColor(singleNode?.nodeType || ""))}>
+                                {singleNode && getNodeIcon(singleNode.nodeType)}
                               </div>
-                              <div className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-bold uppercase border", status.bg, status.border)}><div className={status.color}>{status.icon}</div><span className={status.color}>{status.label}</span></div>
+                              
+                              {/* Main content */}
+                              <div className="flex-1 min-w-0">
+                                {/* Title row */}
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[13px] font-medium text-gray-900 dark:text-white truncate">
+                                    {singleNode && getNodeDisplayName(singleNode)}
+                                  </span>
+                                  {singleNode?.providerUsed === "cache" && (
+                                    <span className="text-[9px] text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                      <Database className="w-2.5 h-2.5" />cache
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {/* Meta row */}
+                                <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-zinc-500">
+                                  <span>{formatExactDate(exec.createdAt)} • {formatExactTime(exec.createdAt)}</span>
+                                  {singleNode?.providerUsed === "cache" ? (
+                                    <span className="text-cyan-600 dark:text-cyan-400">0ms</span>
+                                  ) : singleNode?.durationMs && (
+                                    <span className="flex items-center gap-1">
+                                      <Timer className="w-3 h-3" />{formatDurationMs(singleNode.durationMs)}
+                                    </span>
+                                  )}
+                                  {singleNode?.providerUsed === "cache" ? (
+                                    <span className="text-cyan-600 dark:text-cyan-400">0 credits</span>
+                                  ) : (singleNode?.actualCost ?? 0) > 0 && (
+                                    <span className="text-amber-600 dark:text-amber-400">{formatCredits(singleNode!.actualCost)}</span>
+                                  )}
+                                  {singleNode?.providerUsed && singleNode.providerUsed !== "cache" && (
+                                    <span className="text-blue-500 dark:text-blue-400">{singleNode.providerUsed}</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Status badge */}
+                              <div className={cn(
+                                "flex items-center gap-1 px-2 py-1 rounded-md shrink-0",
+                                status.bg
+                              )}>
+                                <div className={cn("scale-90", status.color)}>{status.icon}</div>
+                                <span className={cn("text-[10px] font-medium", status.color)}>{status.label}</span>
+                              </div>
                             </div>
-                            {singleNode?.error && <div className="mt-2.5 p-2 rounded-lg bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/20"><p className="text-[9px] text-red-600 dark:text-red-400 line-clamp-2">{singleNode.error}</p></div>}
+                            
+                            {singleNode?.error && (
+                              <div className="mt-2 ml-10 p-2 rounded-lg bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/20">
+                                <p className="text-[10px] text-red-600 dark:text-red-400 line-clamp-2">{singleNode.error}</p>
+                              </div>
+                            )}
                           </button>
                         )}
                       </motion.div>

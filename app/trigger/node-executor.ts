@@ -69,6 +69,12 @@ export const executeNode = task({
   run: async (payload: NodeExecutorPayload) => {
     const { nodeExecutionId, workflowExecutionId, nodeId, nodeType, input } = payload;
 
+    // Debug: Log raw input for crop-image to diagnose the issue
+    if (nodeType === "crop-image") {
+      console.log(`[NodeExecutor:crop-image] RAW PAYLOAD INPUT:`, JSON.stringify(input, null, 2));
+      console.log(`[NodeExecutor:crop-image] xPercent: ${(input as any)?.xPercent} (${typeof (input as any)?.xPercent})`);
+    }
+
     // Dynamic import of engine module - only loads on Trigger.dev workers
     // This prevents FFmpeg from being bundled for Vercel API routes
     const engine = await import("@/lib/engine");
