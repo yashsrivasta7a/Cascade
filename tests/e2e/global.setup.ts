@@ -1,13 +1,15 @@
 import { clerkSetup } from "@clerk/testing/playwright";
-import { test as setup } from "@playwright/test";
+import { FullConfig } from "@playwright/test";
 
 /**
  * Global setup for Playwright E2E tests.
  * This runs once before all tests to initialize Clerk Testing Tokens.
- * 
+ *
  * Testing Tokens bypass Clerk's bot detection, allowing automated
  * browser tests to interact with Clerk-powered authentication.
  */
-setup("global setup", async ({}) => {
+async function globalSetup(config: FullConfig) {
   await clerkSetup();
-});
+}
+
+export default globalSetup;
