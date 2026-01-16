@@ -44,6 +44,9 @@ export default defineConfig({
     env: {
       PORT: String(PORT),
       NEXT_TELEMETRY_DISABLED: "1",
+      // Pass Clerk keys to the server
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "",
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ?? "",
     },
   },
 });

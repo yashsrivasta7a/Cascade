@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -184,7 +184,8 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function WorkflowEditorPage() {
+// Inner component that uses useSearchParams (must be wrapped in Suspense)
+function WorkflowEditorContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1901,5 +1902,23 @@ export default function WorkflowEditorPage() {
         creditBalance={creditBalance}
       />
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function WorkflowEditorLoading() {
+  return (
+    <div className="h-full bg-gray-100 dark:bg-[#101010] flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary for useSearchParams
+export default function WorkflowEditorPage() {
+  return (
+    <Suspense fallback={<WorkflowEditorLoading />}>
+      <WorkflowEditorContent />
+    </Suspense>
   );
 }
