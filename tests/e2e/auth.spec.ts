@@ -15,7 +15,7 @@ test.describe("Authentication", () => {
   test.describe("Unauthenticated Routes", () => {
     test("redirects to sign-in when accessing dashboard", async ({ page }) => {
       await page.goto("/dashboard");
-      // Should redirect to sign-in
+      // Should redirect to sign-in or show dashboard (if authenticated via testing token)
       await expect(page).toHaveURL(/sign-in|dashboard/);
     });
 
@@ -24,9 +24,10 @@ test.describe("Authentication", () => {
       await expect(page).toHaveURL(/sign-in|workflows/);
     });
 
-    test("redirects to sign-in when accessing editor", async ({ page }) => {
-      await page.goto("/editor/test-workflow-id");
-      await expect(page).toHaveURL(/sign-in|editor/);
+    test("redirects to sign-in when accessing workflow editor", async ({ page }) => {
+      // Note: Editor is at /workflows/[id], not /editor/
+      await page.goto("/workflows/test-workflow-id");
+      await expect(page).toHaveURL(/sign-in|workflows/);
     });
 
     test("redirects to sign-in when accessing billing", async ({ page }) => {
@@ -44,8 +45,8 @@ test.describe("Authentication", () => {
     test("displays sign in form", async ({ page }) => {
       await page.goto("/sign-in");
       
-      // Wait for Clerk to load
-      await page.waitForLoadState("networkidle");
+      // Wait for page to be ready (don't use networkidle - Clerk keeps making requests)
+      await page.waitForLoadState("domcontentloaded");
       
       // Should show sign in page or redirect
       const url = page.url();
@@ -62,8 +63,8 @@ test.describe("Authentication", () => {
     test("displays sign up form", async ({ page }) => {
       await page.goto("/sign-up");
       
-      // Wait for Clerk to load
-      await page.waitForLoadState("networkidle");
+      // Wait for page to be ready (don't use networkidle - Clerk keeps making requests)
+      await page.waitForLoadState("domcontentloaded");
       
       // Should show sign up page or redirect
       const url = page.url();

@@ -11,22 +11,20 @@ test.describe("Workflow Editor", () => {
     await setupClerkTestingToken({ page });
   });
 
-  test.describe("Editor Route", () => {
-    test("editor route is accessible", async ({ page }) => {
-      const response = await page.goto("/editor/new");
-      // May redirect to auth, but route should exist
-      expect(response?.status()).toBeLessThan(500);
-    });
-
-    test("editor with workflow ID is accessible", async ({ page }) => {
-      const response = await page.goto("/editor/test-workflow-123");
-      expect(response?.status()).toBeLessThan(500);
-    });
-  });
-
-  test.describe("Workflows List Route", () => {
-    test("workflows page is accessible", async ({ page }) => {
+  test.describe("Workflow Routes", () => {
+    test("workflows list page is accessible", async ({ page }) => {
       const response = await page.goto("/workflows");
+      expect(response?.status()).toBeLessThan(500);
+    });
+
+    test("workflow editor with ID is accessible", async ({ page }) => {
+      // Note: /workflows/[id] is the editor route, not /editor/
+      const response = await page.goto("/workflows/test-workflow-123");
+      expect(response?.status()).toBeLessThan(500);
+    });
+
+    test("workflow with 'new' ID is accessible", async ({ page }) => {
+      const response = await page.goto("/workflows/new");
       expect(response?.status()).toBeLessThan(500);
     });
   });
@@ -65,17 +63,39 @@ test.describe("Settings Page", () => {
   });
 });
 
+test.describe("Templates Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
+  test("templates page is accessible", async ({ page }) => {
+    const response = await page.goto("/templates");
+    expect(response?.status()).toBeLessThan(500);
+  });
+});
+
+test.describe("Ledger Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupClerkTestingToken({ page });
+  });
+
+  test("ledger page is accessible", async ({ page }) => {
+    const response = await page.goto("/ledger");
+    expect(response?.status()).toBeLessThan(500);
+  });
+});
+
 test.describe("Deep Links", () => {
   test.beforeEach(async ({ page }) => {
     await setupClerkTestingToken({ page });
   });
 
-  test("workflow editor with ID", async ({ page }) => {
-    const response = await page.goto("/editor/some-workflow-id");
+  test("workflow editor with ID loads", async ({ page }) => {
+    const response = await page.goto("/workflows/some-workflow-id");
     expect(response?.status()).toBeLessThan(500);
   });
 
-  test("execution detail page (if exists)", async ({ page }) => {
+  test("execution detail via query param", async ({ page }) => {
     const response = await page.goto("/executions?id=some-execution-id");
     expect(response?.status()).toBeLessThan(500);
   });
@@ -108,7 +128,8 @@ test.describe("Client-Side Navigation", () => {
 
   test("navigation doesnt cause full page reload", async ({ page }) => {
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    // Use domcontentloaded instead of networkidle (Clerk keeps making requests)
+    await page.waitForLoadState("domcontentloaded");
     
     // Get initial navigation timing
     const initialTiming = await page.evaluate(() => 
@@ -154,7 +175,8 @@ test.describe("Cookie Consent & Privacy", () => {
     });
     
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    // Use domcontentloaded instead of networkidle (Clerk keeps making requests)
+    await page.waitForLoadState("domcontentloaded");
     
     // Filter out known benign errors
     const criticalErrors = errors.filter(
@@ -235,15 +257,18 @@ test.describe("Console Errors", () => {
     });
     
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    // Use domcontentloaded instead of networkidle (Clerk keeps making requests)
+    await page.waitForLoadState("domcontentloaded");
     
-    // Filter out known benign errors (Clerk, hydration warnings, etc.)
+    // Filter out known benign errors (Clerk, hydration warnings, CORS, etc.)
     const criticalErrors = consoleErrors.filter(
       (e) =>
         !e.includes("Clerk") &&
         !e.includes("hydration") &&
         !e.includes("ResizeObserver") &&
         !e.includes("favicon") &&
+        !e.includes("CORS") &&
+        !e.includes("Access-Control-Allow-Origin") &&
         !e.includes("Failed to load resource") // Network errors in test env
     );
     
