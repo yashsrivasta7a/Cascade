@@ -19,7 +19,6 @@ import {
   Coins,
   Undo2,
   Redo2,
-  Grid3X3,
   MessageSquare,
   RotateCcw,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
 import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
+import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
@@ -202,7 +202,6 @@ export default function WorkflowEditorPage() {
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [isFinalizing, setIsFinalizing] = useState(false);
-  const [snapToGrid, setSnapToGrid] = useState(true);
   const [placingComment, setPlacingComment] = useState(false);
   
   // Fetch real credit balance from API with real-time updates
@@ -281,7 +280,7 @@ export default function WorkflowEditorPage() {
         case "g":
           e.preventDefault();
           e.stopPropagation();
-          handleToggleSnap();
+          handleAutoLayout();
           break;
         case "escape":
           // If workflow is running (but not finalizing), stop it
@@ -1172,32 +1171,18 @@ export default function WorkflowEditorPage() {
     setPlacingComment((prev) => !prev);
   }, []);
 
-  // Snap all nodes to grid (30px grid to match background)
-  const GRID_SIZE = 30;
-  
-  const snapNodesToGrid = useCallback(() => {
-    setNodes(
-      nodes.map((node) => ({
-        ...node,
-        position: {
-          x: Math.round(node.position.x / GRID_SIZE) * GRID_SIZE,
-          y: Math.round(node.position.y / GRID_SIZE) * GRID_SIZE,
-        },
-      }))
-    );
-  }, [nodes, setNodes]);
-
-  // Toggle snap and align nodes when enabling
-  const handleToggleSnap = useCallback(() => {
-    setSnapToGrid((prev) => {
-      const newValue = !prev;
-      // If turning snap ON, align all nodes to grid
-      if (newValue) {
-        setTimeout(() => snapNodesToGrid(), 0);
-      }
-      return newValue;
-    });
-  }, [snapNodesToGrid]);
+  // Auto-arrange nodes in a left-to-right tree layout
+  const handleAutoLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+    
+    // Record history before layout for undo support
+    const { recordHistory } = useFlowStore.getState();
+    recordHistory();
+    
+    // Apply auto-layout algorithm
+    const layoutedNodes = autoLayoutNodes(nodes, edges);
+    setNodes(layoutedNodes);
+  }, [nodes, edges, setNodes]);
 
   // Clear all node inputs and outputs (reset workflow data)
   const handleClearAll = useCallback(() => {
@@ -1236,7 +1221,6 @@ export default function WorkflowEditorPage() {
         <FlowCanvas 
           className="h-full w-full" 
           storageKey={`workflow:${workflowId}`} 
-          snapToGrid={snapToGrid}
           placingComment={placingComment}
           onPlaceComment={handlePlaceComment}
           onCancelPlacement={() => setPlacingComment(false)}
@@ -1602,34 +1586,20 @@ export default function WorkflowEditorPage() {
 
               {/* ═══ GROUP 3: Canvas Settings ═══ */}
 
-              {/* Snap to Grid toggle */}
+              {/* Auto-Arrange button */}
               <div className="relative">
                 <motion.button
-                  onClick={handleToggleSnap}
-                  onMouseEnter={() => setHoveredAction("snap")}
+                  onClick={handleAutoLayout}
+                  onMouseEnter={() => setHoveredAction("layout")}
                   onMouseLeave={() => setHoveredAction(null)}
                   whileTap={{ scale: 0.95 }}
-                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
-                    snapToGrid 
-                      ? "text-cyan-400" 
-                      : "text-zinc-400 hover:text-white hover:bg-white/5"
-                  }`}
+                  className="relative p-2.5 rounded-xl transition-all duration-200 text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10"
                 >
-                  <Grid3X3 className="w-4 h-4 relative z-10" />
-                  {snapToGrid && (
-                    <>
-                      <div className="absolute inset-0 bg-cyan-500/20 rounded-xl blur-md" />
-                      <motion.div
-                        layoutId="activeIndicatorSnap"
-                        className="absolute inset-0 bg-gradient-to-br from-cyan-500/30 to-cyan-600/20 rounded-xl border border-cyan-500/30"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                      />
-                    </>
-                  )}
+                  <LayoutGrid className="w-4 h-4 relative z-10" />
                 </motion.button>
                 
                 <AnimatePresence>
-                  {hoveredAction === "snap" && (
+                  {hoveredAction === "layout" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1637,7 +1607,7 @@ export default function WorkflowEditorPage() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-zinc-900 rounded-lg border border-zinc-700 whitespace-nowrap"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-300">{snapToGrid ? "Snap On" : "Snap Off"}</span>
+                        <span className="text-xs text-zinc-300">Auto-Arrange</span>
                         <Kbd>G</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-zinc-900 rotate-45 border-r border-b border-zinc-700" />

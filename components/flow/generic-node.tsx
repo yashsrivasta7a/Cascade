@@ -233,10 +233,10 @@ function FieldWithHandle({
           className="!relative !left-0 !top-0 !transform-none transition-all duration-200"
         />
         
-        {/* Hover tooltip */}
+        {/* Hover tooltip - shows outside node (to the left) */}
         <div 
           className={cn(
-            "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+            "absolute right-full mr-3 top-1/2 -translate-y-1/2",
             "px-3 py-1.5 rounded-lg",
             "bg-[#1a1a1a] border border-white/10",
             "text-[11px] text-white/90 whitespace-nowrap",

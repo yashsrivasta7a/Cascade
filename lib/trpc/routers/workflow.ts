@@ -266,6 +266,39 @@ export const workflowRouter = router({
     }),
 
   // Delete a workflow
+  // Duplicate a workflow
+  duplicate: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify ownership and get original workflow
+      const original = await ctx.db.workflow.findFirst({
+        where: { id: input.id, userId: ctx.userId },
+      });
+
+      if (!original) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Workflow not found",
+        });
+      }
+
+      // Create duplicate with "(Copy)" appended to name
+      const duplicated = await ctx.db.workflow.create({
+        data: {
+          userId: ctx.userId,
+          name: `${original.name} (Copy)`,
+          description: original.description,
+          nodesJson: original.nodesJson ?? [],
+          edgesJson: original.edgesJson ?? [],
+          viewportJson: original.viewportJson ?? { x: 0, y: 0, zoom: 1 },
+          version: 1,
+          isPublished: false,
+        },
+      });
+
+      return duplicated;
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {

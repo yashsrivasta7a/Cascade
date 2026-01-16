@@ -5,7 +5,7 @@ import { NodeProps } from "reactflow";
 import { createPortal } from "react-dom";
 import { useFlowStore } from "@/store";
 import { cn } from "@/lib/utils";
-import { Palette } from "lucide-react";
+import { Palette, Trash2 } from "lucide-react";
 
 // Available color themes for comments - with hex values for swatches
 const COMMENT_COLORS = [
@@ -40,6 +40,7 @@ export interface CommentNodeData {
 function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
   const { data, id, selected } = props;
   const updateNode = useFlowStore((s) => s.updateNode);
+  const deleteNode = useFlowStore((s) => s.deleteNode);
   const [isEditing, setIsEditing] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -78,6 +79,11 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     updateNode(id, { colorIndex: newColorIndex });
     setShowColorMenu(false);
   }, [id, updateNode]);
+
+  const handleDelete = useCallback(() => {
+    deleteNode(id);
+    setShowColorMenu(false);
+  }, [id, deleteNode]);
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -175,62 +181,69 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
         )}
       </div>
 
-      {/* Color picker menu - themed to match app */}
+      {/* Color picker menu - compact size matching other context menus */}
       {showColorMenu && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed z-[9999] overflow-hidden rounded-2xl"
+          className="fixed z-[9999] rounded-xl min-w-[180px]"
           style={{
             left: menuPosition.x,
             top: menuPosition.y,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Glass background */}
-          <div className="relative bg-black/70 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] shadow-2xl shadow-black/50 rounded-2xl p-4">
-            {/* Subtle gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent rounded-2xl pointer-events-none" />
-            
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/50">
             {/* Header */}
-            <div className="relative flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center">
-                <Palette className="w-3 h-3 text-zinc-400" />
-              </div>
-              <span className="text-xs font-medium text-zinc-300">Note Color</span>
+            <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 bg-white/5">
+              <Palette className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="text-xs font-medium text-zinc-200">Note Color</span>
             </div>
             
             {/* Color grid */}
-            <div className="relative grid grid-cols-4 gap-2">
-              {COMMENT_COLORS.map((color, index) => (
-                <button
-                  key={color.name}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleColorChange(index);
-                  }}
-                  className={cn(
-                    "w-8 h-8 rounded-xl transition-all duration-200",
-                    "hover:scale-110 hover:shadow-lg",
-                    "border border-white/10",
-                    index === colorIndex && "ring-2 ring-white/60 ring-offset-2 ring-offset-black/50 scale-110"
-                  )}
-                  style={{
-                    backgroundColor: color.hex,
-                  }}
-                  title={color.name}
-                />
-              ))}
+            <div className="p-2">
+              <div className="grid grid-cols-4 gap-1.5">
+                {COMMENT_COLORS.map((color, index) => (
+                  <button
+                    key={color.name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleColorChange(index);
+                    }}
+                    className={cn(
+                      "w-7 h-7 rounded-lg transition-all",
+                      "hover:scale-110",
+                      index === colorIndex && "ring-2 ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
+                    )}
+                    style={{ backgroundColor: color.hex }}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+
+              {/* Selected indicator */}
+              <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
+                <span className="text-[10px] text-zinc-500">Selected</span>
+                <div className="flex items-center gap-1.5">
+                  <div 
+                    className="w-3 h-3 rounded"
+                    style={{ backgroundColor: colorTheme.hex }}
+                  />
+                  <span className="text-[10px] text-zinc-400">{colorTheme.name}</span>
+                </div>
+              </div>
             </div>
 
-            {/* Current color indicator */}
-            <div className="relative mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500">Selected</span>
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-4 h-4 rounded-md border border-white/20"
-                  style={{ backgroundColor: colorTheme.hex }}
-                />
-                <span className="text-[10px] text-zinc-400">{colorTheme.name}</span>
-              </div>
+            {/* Delete */}
+            <div className="p-1.5 border-t border-white/10">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
             </div>
           </div>
         </div>,

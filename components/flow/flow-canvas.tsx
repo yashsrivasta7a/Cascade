@@ -37,7 +37,6 @@ interface PendingConnection {
 interface FlowCanvasProps {
   className?: string;
   storageKey?: string;
-  snapToGrid?: boolean;
   placingComment?: boolean;
   onPlaceComment?: (position: { x: number; y: number }) => void;
   onCancelPlacement?: () => void;
@@ -758,7 +757,7 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
   );
 }
 
-function FlowCanvasInner({ className, storageKey, snapToGrid = true, placingComment = false, onPlaceComment, onCancelPlacement }: FlowCanvasProps) {
+function FlowCanvasInner({ className, storageKey, placingComment = false, onPlaceComment, onCancelPlacement }: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
 
@@ -1803,7 +1802,7 @@ function FlowCanvasInner({ className, storageKey, snapToGrid = true, placingComm
         fitView
         fitViewOptions={{ padding: 0.5 }}
         snapToGrid={true}
-        snapGrid={snapToGrid ? [30, 30] : [1, 1]}
+        snapGrid={[30, 30]}
         nodeOrigin={[0.5, 0]}
         defaultEdgeOptions={{
           type: "custom",

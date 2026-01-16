@@ -547,12 +547,15 @@ function BaseNodeComponent({
             )}
           </div>
 
-          {/* Info icon only */}
-          <div
-            className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-400 cursor-help transition-colors"
-            title={data.description || "Node information"}
-          >
-            <Info className="w-3.5 h-3.5" />
+          {/* Info icon with custom tooltip */}
+          <div className="relative group/info">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-400 cursor-default transition-colors">
+              <Info className="w-3.5 h-3.5" />
+            </div>
+            {/* Custom tooltip - rectangle aligned to right */}
+            <div className="absolute bottom-full right-0 mb-2 px-4 py-2.5 rounded-lg bg-[#1a1a1a] border border-white/10 text-xs text-zinc-200 w-[280px] opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity duration-150 shadow-xl shadow-black/50 z-50 leading-relaxed">
+              {data.description || "Node information"}
+            </div>
           </div>
         </div>
 
@@ -681,10 +684,10 @@ function BaseNodeComponent({
               className="!relative !left-0 !top-0 !transform-none transition-all duration-200"
             />
             
-            {/* Hover tooltip */}
+            {/* Hover tooltip - shows outside node (to the left) */}
             <div 
               className={cn(
-                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                "absolute right-full mr-3 top-1/2 -translate-y-1/2",
                 "px-3 py-1.5 rounded-lg",
                 "bg-[#1a1a1a] border border-white/10",
                 "text-[11px] text-white/90 whitespace-nowrap",
@@ -737,10 +740,10 @@ function BaseNodeComponent({
               className="!relative !right-0 !top-0 !transform-none"
             />
             
-            {/* Hover tooltip */}
+            {/* Hover tooltip - shows outside node (to the right) */}
             <div 
               className={cn(
-                "absolute right-full mr-3 top-1/2 -translate-y-1/2",
+                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
                 "px-3 py-1.5 rounded-lg",
                 "bg-[#1a1a1a] border border-white/10",
                 "text-[11px] text-white/90 whitespace-nowrap",
@@ -785,7 +788,7 @@ function BaseNodeComponent({
               }
             }}
             className={cn(
-              "nodrag nowheel absolute -right-24 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn",
+              "nodrag nowheel absolute -right-14 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn",
               isUploading
                 ? "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
                 : status === "running"
@@ -793,9 +796,10 @@ function BaseNodeComponent({
                 : status === "queued"
                 ? "bg-zinc-800 text-white hover:bg-red-600 border border-zinc-700 hover:border-red-500"
                 : canRun
-                ? "bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700"
+                ? "text-white hover:brightness-110 border border-white/10"
                 : "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
             )}
+            style={canRun && !isUploading && !isRunningOrQueued ? { backgroundColor: "#058b61" } : undefined}
             title={isUploading ? "Wait for upload to complete" : isRunningOrQueued ? "Click to stop" : "Run node"}
           >
             {isUploading ? (
