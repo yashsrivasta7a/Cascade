@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
@@ -63,7 +63,8 @@ const tabs = [
   { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
-export default function SettingsPage() {
+// Component that uses useSearchParams - must be wrapped in Suspense
+function SettingsContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<SettingsTab>(
@@ -135,7 +136,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <PageBackground>
+    <>
       {/* Header */}
       <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
@@ -493,6 +494,26 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+    </>
+  );
+}
+
+// Loading fallback for Suspense
+function SettingsLoading() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function SettingsPage() {
+  return (
+    <PageBackground>
+      <Suspense fallback={<SettingsLoading />}>
+        <SettingsContent />
+      </Suspense>
     </PageBackground>
   );
 }
