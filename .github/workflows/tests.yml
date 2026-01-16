@@ -53,7 +53,7 @@ jobs:
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -67,6 +67,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build application
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+        run: npm run build
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -94,41 +101,3 @@ jobs:
           name: test-results
           path: test-results
           retention-days: 7
-
-  # =============================================================================
-  # BUILD CHECK - Verify the app builds successfully
-  # =============================================================================
-  build:
-    name: Build Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build application
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-        run: npm run build
-
-      - name: Check build output
-        run: |
-          if [ -d ".next" ]; then
-            echo "✅ Build successful"
-            du -sh .next
-          else
-            echo "❌ Build failed - .next directory not found"
-            exit 1
-          fi
