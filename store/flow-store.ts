@@ -12,7 +12,9 @@ import {
   Connection,
 } from "reactflow";
 import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workflow";
-import { showCancelled, showNodeError, showError, showTimeoutError, showProviderError, showInsufficientCredits, showNetworkError } from "@/lib/toast";
+import { showCancelled, showNodeError, showError, showTimeoutError, showProviderError, showInsufficientCredits, showNetworkError, showLLMParseError } from "@/lib/toast";
+import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "@/lib/workflow/llm-type-parser";
+import { type AINodeType } from "@/types/nodes";
 
 // =============================================================================
 // Setting Value Clamping - ensures values stay within valid ranges
@@ -1139,11 +1141,20 @@ export const useFlowStore = create<FlowState>()(
         const sourceData = sourceNode.data as Record<string, unknown>;
         const sourceNodeType = sourceNode.type;
         const sourcePrompt = sourceData.prompt as string | undefined;
+        
+        // Check if source is an LLM node - we'll need to parse outputs for settings handles
+        const isLLMSource = sourceNodeType === "openrouter";
 
         // Find all edges that start from this source node
         const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
         
-        console.log(`[propagateOutput] Found ${outgoingEdges.length} outgoing edges from ${sourceNode.type}`);
+        console.log(`[propagateOutput] Found ${outgoingEdges.length} outgoing edges from ${sourceNode.type} (isLLM=${isLLMSource})`);
+        console.log(`[propagateOutput] Edges:`, outgoingEdges.map(e => ({
+          id: e.id,
+          sourceHandle: e.sourceHandle,
+          target: e.target,
+          targetHandle: e.targetHandle,
+        })));
 
         if (outgoingEdges.length === 0) return;
 
@@ -1179,6 +1190,9 @@ export const useFlowStore = create<FlowState>()(
           video: sourceData.result ?? output,
           audio: sourceData.result ?? output,
         };
+        
+        // Track nodes that failed LLM parsing
+        const failedNodes: { nodeId: string; nodeName: string; handle: string; error: string }[] = [];
         
         // Update all target nodes based on edge configuration
         // NOTE: A target node may have MULTIPLE edges from the same source (e.g., output + settings)
@@ -1312,8 +1326,48 @@ export const useFlowStore = create<FlowState>()(
             // Settings override via bundle output
             nodeData[targetHandle] = sourceBundle[targetHandle];
           } else if (targetHandle) {
-            // For other handles, use the handle ID as the field name
-            nodeData[targetHandle] = output;
+            // For other handles, check if we need to parse LLM output
+            const targetNodeType = node.type as AINodeType | undefined;
+            
+            // DEBUG: Log what we're checking
+            console.log(`[propagateOutput] Checking handle ${targetHandle}:`, {
+              isLLMSource,
+              targetNodeType,
+              sourceHandle,
+              output: output?.slice?.(0, 50) || output,
+            });
+            
+            // Check if this is an LLM source and the field can accept parsed input
+            const shouldParseLLM = isLLMSource && targetNodeType && canFieldAcceptLLMInput(targetNodeType, targetHandle);
+            console.log(`[propagateOutput] shouldParseLLM=${shouldParseLLM} (isLLMSource=${isLLMSource}, targetNodeType=${targetNodeType}, canAccept=${targetNodeType ? canFieldAcceptLLMInput(targetNodeType, targetHandle) : 'N/A'})`);
+            
+            if (shouldParseLLM && targetNodeType) {
+              // Use universal parser that handles ALL field types (select, slider, number, toggle, text)
+              console.log(`[propagateOutput] Parsing LLM output for ${node.id}.${targetHandle}`);
+              const parseResult = parseLLMToFieldValue(output, targetNodeType, targetHandle);
+              
+              if (parseResult.success) {
+                console.log(`[propagateOutput] Parse success: "${output?.slice(0, 30)}..." -> ${JSON.stringify(parseResult.value)}`);
+                nodeData[targetHandle] = parseResult.value;
+              } else {
+                // Parsing failed - track for error reporting
+                const errorMsg = parseResult.error;
+                console.log(`[propagateOutput] Parse FAILED: ${errorMsg}`);
+                const nodeName = (node.data as Record<string, unknown>)?.label as string || node.type || node.id;
+                failedNodes.push({
+                  nodeId: node.id,
+                  nodeName,
+                  handle: targetHandle,
+                  error: errorMsg,
+                });
+                // Mark node as failed
+                nodeData.status = "failed";
+                nodeData.error = `LLM output invalid: ${errorMsg}`;
+              }
+            } else {
+              // No parsing needed - use raw output
+              nodeData[targetHandle] = output;
+            }
           }
           } // End of for loop
           
@@ -1322,6 +1376,11 @@ export const useFlowStore = create<FlowState>()(
         
         console.log(`[propagateOutput] Setting ${updatedNodes.length} updated nodes`);
         set({ nodes: updatedNodes });
+        
+        // Show toast notifications for any parsing failures
+        for (const failure of failedNodes) {
+          showLLMParseError(failure.nodeName, failure.handle, failure.error);
+        }
       },
 
       isHandleConnected: (nodeId, handleId) => {

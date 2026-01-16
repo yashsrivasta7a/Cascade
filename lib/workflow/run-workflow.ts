@@ -12,6 +12,137 @@ import {
 import { estimateNodeCost } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { NODE_CONFIG } from "@/lib/config";
+import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "./llm-type-parser";
+
+// -----------------------------------------------------------------------------
+// INPUT CHANGE DETECTION
+// -----------------------------------------------------------------------------
+
+/**
+ * Compute a hash of relevant inputs for a node to detect changes.
+ * Used to determine if a node needs to re-run or can use cached results.
+ */
+export function computeNodeInputHash(
+  node: Node,
+  edges: Edge[],
+  nodes: Node[]
+): string {
+  const type = node.type as AINodeType;
+  const data = (node.data ?? {}) as Record<string, unknown>;
+  
+  // Get settings from this node (excluding metadata and transient fields)
+  const excludeFields = new Set([
+    "_inheritedFrom", "incomingFrom", "_isUploading", "_lastInputHash",
+    "advancedOpen", "status", "error", "progress", "result", "label"
+  ]);
+  
+  const relevantSettings: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (excludeFields.has(key) || key.startsWith("_")) continue;
+    relevantSettings[key] = value;
+  }
+  
+  // Get inputs from connected parent nodes
+  const incomingEdges = edges.filter(e => e.target === node.id);
+  const parentInputs: Record<string, unknown> = {};
+  
+  for (const edge of incomingEdges) {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (!sourceNode) continue;
+    
+    const sourceData = sourceNode.data as Record<string, unknown>;
+    const sourceResult = sourceData?.result;
+    const sourceHandle = edge.sourceHandle || "default";
+    const targetHandle = edge.targetHandle || "default";
+    
+    // Include the parent's result and relevant settings
+    parentInputs[`${edge.source}:${sourceHandle}->${targetHandle}`] = {
+      result: sourceResult,
+      // Also include parent's relevant settings that might affect output
+      parentType: sourceNode.type,
+    };
+  }
+  
+  // Combine into a single object and create a stable string representation
+  const hashInput = {
+    nodeType: type,
+    settings: relevantSettings,
+    parentInputs,
+  };
+  
+  // Simple hash using JSON string - stable enough for change detection
+  const jsonStr = JSON.stringify(hashInput, Object.keys(hashInput).sort());
+  
+  // Create a simple hash (djb2 algorithm)
+  let hash = 5381;
+  for (let i = 0; i < jsonStr.length; i++) {
+    hash = ((hash << 5) + hash) + jsonStr.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  return hash.toString(16);
+}
+
+/**
+ * Check if a node's inputs have changed since its last execution.
+ * Returns true if the node needs to re-run.
+ */
+export function hasNodeInputsChanged(
+  node: Node,
+  edges: Edge[],
+  nodes: Node[]
+): boolean {
+  const data = node.data as Record<string, unknown>;
+  const lastHash = data._lastInputHash as string | undefined;
+  
+  // If no previous hash, node hasn't run or was reset - needs to run
+  if (!lastHash) {
+    console.log(`[hasNodeInputsChanged] Node ${node.id} has no previous hash - needs to run`);
+    return true;
+  }
+  
+  const currentHash = computeNodeInputHash(node, edges, nodes);
+  const changed = currentHash !== lastHash;
+  
+  console.log(`[hasNodeInputsChanged] Node ${node.id}: lastHash=${lastHash}, currentHash=${currentHash}, changed=${changed}`);
+  
+  return changed;
+}
+
+/**
+ * Check if any upstream node's inputs have changed.
+ * If a parent changed, we need to re-run even if our direct inputs look the same.
+ */
+export function hasUpstreamChanges(
+  nodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+  checkedNodes: Set<string> = new Set()
+): boolean {
+  // Prevent infinite loops
+  if (checkedNodes.has(nodeId)) return false;
+  checkedNodes.add(nodeId);
+  
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return false;
+  
+  // Check if this node itself changed
+  if (hasNodeInputsChanged(node, edges, nodes)) {
+    console.log(`[hasUpstreamChanges] Node ${nodeId} has input changes`);
+    return true;
+  }
+  
+  // Check all upstream nodes recursively
+  const incomingEdges = edges.filter(e => e.target === nodeId);
+  for (const edge of incomingEdges) {
+    if (hasUpstreamChanges(edge.source, nodes, edges, checkedNodes)) {
+      console.log(`[hasUpstreamChanges] Upstream node ${edge.source} has changes affecting ${nodeId}`);
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /**
  * Get default values for a node type from config (CONFIG-DRIVEN)
@@ -225,6 +356,68 @@ function getIncomingTextForPrompt(edges: Edge[], outputs: OutputByNode, nodeId: 
   return undefined;
 }
 
+/**
+ * Get parsed settings values from connected LLM nodes.
+ * When an LLM node is connected to any settings handle,
+ * this function parses the LLM text output to the expected type.
+ * 
+ * Supports ALL field types: select, slider, number, toggle, text, textarea
+ * 
+ * @returns Object with parsed settings values, or errors for failed parses
+ */
+function getIncomingSettingsFromLLM(
+  edges: Edge[], 
+  outputs: OutputByNode, 
+  nodes: Node[],
+  nodeId: string,
+  nodeType: AINodeType
+): { values: Record<string, unknown>; errors: { handle: string; error: string }[] } {
+  const values: Record<string, unknown> = {};
+  const errors: { handle: string; error: string }[] = [];
+  
+  // Find all edges to this node
+  const incoming = edges.filter((e) => e.target === nodeId);
+  
+  for (const edge of incoming) {
+    const sourceNode = nodes.find((n) => n.id === edge.source);
+    if (!sourceNode) continue;
+    
+    // Only process LLM sources
+    if (sourceNode.type !== "openrouter") continue;
+    
+    const out = outputs.get(edge.source);
+    if (!out || out.type !== "text" || !out.text) continue;
+    
+    const targetHandle = edge.targetHandle;
+    if (!targetHandle) continue;
+    
+    // Skip prompt and context - they're handled separately
+    if (targetHandle === "prompt" || targetHandle === "context") continue;
+    
+    // Check if this field can accept LLM input
+    if (!canFieldAcceptLLMInput(nodeType, targetHandle)) {
+      // For non-parseable fields (like file inputs), just pass through as-is
+      values[targetHandle] = out.text;
+      continue;
+    }
+    
+    // Use universal parser that handles ALL field types
+    console.log(`[getIncomingSettingsFromLLM] Parsing LLM output for ${nodeId}.${targetHandle}: "${out.text.slice(0, 50)}..."`);
+    const parseResult = parseLLMToFieldValue(out.text, nodeType, targetHandle);
+    
+    if (parseResult.success) {
+      console.log(`[getIncomingSettingsFromLLM] Parse success: ${JSON.stringify(parseResult.value)}`);
+      values[targetHandle] = parseResult.value;
+    } else {
+      const errorMsg = 'error' in parseResult ? parseResult.error : 'Unknown parse error';
+      console.log(`[getIncomingSettingsFromLLM] Parse FAILED: ${errorMsg}`);
+      errors.push({ handle: targetHandle, error: errorMsg });
+    }
+  }
+  
+  return { values, errors };
+}
+
 function getNodeOutputPreviewFromData(node: Node): string | undefined {
   const d = (node.data ?? {}) as any;
   const candidates = [
@@ -401,8 +594,19 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
     console.log(`[buildNodeInput] Sanitized numeric values: xPercent=${sanitizedData.xPercent} (${typeof sanitizedData.xPercent}), yPercent=${sanitizedData.yPercent} (${typeof sanitizedData.yPercent}), widthPercent=${sanitizedData.widthPercent} (${typeof sanitizedData.widthPercent}), heightPercent=${sanitizedData.heightPercent} (${typeof sanitizedData.heightPercent})`);
   }
 
+  // Get parsed settings from connected LLM nodes
+  const llmSettings = getIncomingSettingsFromLLM(edges, outputs, nodes, node.id, type);
+  
+  // Log any LLM parsing errors (but don't fail the build - let schema validation catch it)
+  if (llmSettings.errors.length > 0) {
+    for (const err of llmSettings.errors) {
+      console.error(`[buildNodeInput] LLM parse error for ${node.id}.${err.handle}: ${err.error}`);
+    }
+  }
+
   const base = {
     ...sanitizedData,
+    ...llmSettings.values, // Override with parsed LLM values
     prompt: promptValue,
     context: contextValue,
   };
@@ -1084,6 +1288,9 @@ export async function runWorkflow(
     running.add(node.id);
     callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
+    // Compute input hash for change detection
+    const inputHash = computeNodeInputHash(node, edges, allNodes);
+
     const rawInput = buildNodeInput(node, edges, outputs, allNodes);
     console.log(`[RunWorkflow] Node ${node.id} (${type}) starting - Built input:`, {
       prompt: (rawInput as any)?.prompt?.slice(0, 100),
@@ -1135,6 +1342,7 @@ export async function runWorkflow(
             callbacks.onNodeStatus?.(node.id, "completed", {
               progress: 100,
               fromCache: true,
+              _lastInputHash: inputHash,
             });
             return;
           }
@@ -1246,6 +1454,7 @@ export async function runWorkflow(
       progress: 100,
       providerUsed,
       attemptedProviders,
+      _lastInputHash: inputHash,
     });
   };
   
@@ -1332,9 +1541,33 @@ export async function runNodeWithDependencies(
   console.log(`[runNodeWithDependencies] Found ${upstreamNodes.length} upstream dependencies:`, 
     upstreamNodes.map(n => `${n.id} (${n.type})`));
 
-  // Filter to only nodes that haven't produced output yet
-  const nodesToRun = upstreamNodes.filter(n => !nodeHasOutput(n));
-  console.log(`[runNodeWithDependencies] ${nodesToRun.length} nodes need to run first:`,
+  // SMART CHANGE DETECTION:
+  // A node needs to run if:
+  // 1. It has no output yet, OR
+  // 2. Its inputs/settings have changed since last run, OR
+  // 3. Any of its upstream nodes have changed
+  const nodesToRun = upstreamNodes.filter(n => {
+    // No output - definitely needs to run
+    if (!nodeHasOutput(n)) {
+      console.log(`[runNodeWithDependencies] Node ${n.id} has no output - needs to run`);
+      return true;
+    }
+    
+    // Has output - check if inputs changed
+    if (hasNodeInputsChanged(n, edges, nodes)) {
+      console.log(`[runNodeWithDependencies] Node ${n.id} inputs changed - needs to re-run`);
+      return true;
+    }
+    
+    console.log(`[runNodeWithDependencies] Node ${n.id} unchanged - can use cached result`);
+    return false;
+  });
+  
+  // Also check if the TARGET node itself needs to run due to changes
+  const targetNeedsRun = !nodeHasOutput(targetNode) || hasNodeInputsChanged(targetNode, edges, nodes);
+  console.log(`[runNodeWithDependencies] Target node ${nodeId} needs run: ${targetNeedsRun}`);
+  
+  console.log(`[runNodeWithDependencies] ${nodesToRun.length} upstream nodes need to run:`,
     nodesToRun.map(n => `${n.id} (${n.type})`));
 
   // If there are dependencies to run, execute them first using runWorkflow logic
@@ -1413,7 +1646,20 @@ export async function runNodeWithDependencies(
       allNodesForInput // Pass ALL upstream nodes for input building
     );
   } else {
-    // No dependencies needed, just run the target node directly
+    // No upstream dependencies - check if target node itself needs to run
+    if (!targetNeedsRun) {
+      // Target node has result and inputs unchanged - skip execution
+      console.log(`[runNodeWithDependencies] Target node ${nodeId} unchanged - skipping execution, using cached result`);
+      
+      // Still notify as "completed" with existing result
+      const targetData = targetNode.data as Record<string, unknown>;
+      if (targetData.result) {
+        callbacks.onNodeStatus?.(nodeId, "completed", { result: targetData.result });
+      }
+      return;
+    }
+    
+    // No dependencies needed, run the target node directly
     console.log(`[runNodeWithDependencies] No dependencies needed, running ${nodeId} directly`);
     await runSingleNode(nodeId, nodes, edges, callbacks, workflowId);
   }
@@ -1528,6 +1774,9 @@ async function runWorkflowSubset(
     running.add(node.id);
     callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
+    // Compute input hash for change detection
+    const inputHash = computeNodeInputHash(node, edges, nodesForInputBuilding);
+
     // CRITICAL: Use nodesForInputBuilding to include pre-populated upstream nodes
     const rawInput = buildNodeInput(node, edges, outputs, nodesForInputBuilding);
     console.log(`[runWorkflowSubset] Node ${node.id} (${type}) starting with input:`, JSON.stringify(rawInput).slice(0, 200));
@@ -1576,6 +1825,7 @@ async function runWorkflowSubset(
             callbacks.onNodeStatus?.(node.id, "completed", {
               progress: 100,
               fromCache: true,
+              _lastInputHash: inputHash,
             });
             return;
           }
@@ -1685,6 +1935,7 @@ async function runWorkflowSubset(
       progress: 100,
       providerUsed,
       attemptedProviders,
+      _lastInputHash: inputHash,
     });
   };
   
@@ -1743,6 +1994,10 @@ export async function runSingleNode(
 
   callbacks.onNodeStatus?.(node.id, "queued");
   callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
+
+  // Compute input hash BEFORE execution for change detection on re-runs
+  const inputHash = computeNodeInputHash(node, edges, nodes);
+  console.log(`[runSingleNode] Input hash for ${nodeId}: ${inputHash}`);
 
   // Build input the same way full workflow runs do, so media inputs like
   // `inputImage` become schema fields like `{ image: { url } }`.
@@ -1803,6 +2058,7 @@ export async function runSingleNode(
           callbacks.onNodeStatus?.(node.id, "completed", {
             progress: 100,
             fromCache: true,
+            _lastInputHash: inputHash, // Save hash for change detection
           });
           return;
         }
@@ -1982,6 +2238,7 @@ export async function runSingleNode(
     progress: 100,
     providerUsed,
     attemptedProviders,
+    _lastInputHash: inputHash, // Save hash for change detection on re-runs
   });
 }
 

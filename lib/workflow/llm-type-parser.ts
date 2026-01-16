@@ -1,4 +1,5 @@
 import type { DataType, AINodeType } from "@/types/nodes";
+import { NODE_CONFIG } from "@/lib/config";
 
 // =============================================================================
 // LLM TYPE PARSER
@@ -352,6 +353,197 @@ export function parseLLMToType(
       return { success: true, value: trimmedText };
     }
   }
+}
+
+// -----------------------------------------------------------------------------
+// SELECT/ENUM FIELD PARSING
+// -----------------------------------------------------------------------------
+
+/**
+ * Get allowed values for a select/enum field from node config.
+ */
+export function getSelectOptions(nodeType: AINodeType, handleId: string): string[] | null {
+  const config = NODE_CONFIG[nodeType];
+  if (!config?.ui?.inputs) return null;
+  
+  const field = config.ui.inputs.find((f: { id: string }) => f.id === handleId);
+  if (!field || field.type !== "select") return null;
+  
+  const options = (field as { options?: Array<string | { value: string }> }).options;
+  if (!options) return null;
+  
+  return options.map((opt: string | { value: string }) => 
+    typeof opt === "string" ? opt : opt.value
+  );
+}
+
+/**
+ * Parse LLM text to match a select/enum field's allowed values.
+ * Performs case-insensitive matching and partial matching.
+ */
+export function parseToSelectValue(text: string, allowedValues: string[]): string | null {
+  const cleaned = text.trim().toLowerCase();
+  
+  // Try exact match (case-insensitive)
+  for (const value of allowedValues) {
+    if (value.toLowerCase() === cleaned) {
+      return value; // Return original case
+    }
+  }
+  
+  // Try if text contains the value
+  for (const value of allowedValues) {
+    if (cleaned.includes(value.toLowerCase())) {
+      return value;
+    }
+  }
+  
+  // Try if any value contains the text
+  for (const value of allowedValues) {
+    if (value.toLowerCase().includes(cleaned)) {
+      return value;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Parse LLM output for a select/enum field.
+ */
+export function parseLLMToSelectValue(
+  text: string,
+  nodeType: AINodeType,
+  handleId: string
+): ParseResult<string> {
+  const allowedValues = getSelectOptions(nodeType, handleId);
+  
+  if (!allowedValues || allowedValues.length === 0) {
+    return { success: false, error: `No options found for field "${handleId}"` };
+  }
+  
+  const parsed = parseToSelectValue(text, allowedValues);
+  
+  if (parsed === null) {
+    return { 
+      success: false, 
+      error: `"${text.slice(0, 30)}" doesn't match options: ${allowedValues.join(", ")}` 
+    };
+  }
+  
+  return { success: true, value: parsed };
+}
+
+/**
+ * Check if a handle is a select/enum field.
+ */
+export function isSelectField(nodeType: AINodeType, handleId: string): boolean {
+  const config = NODE_CONFIG[nodeType];
+  if (!config?.ui?.inputs) return false;
+  
+  const field = config.ui.inputs.find((f: { id: string }) => f.id === handleId);
+  return field?.type === "select";
+}
+
+/**
+ * Get the field config for a handle from node config.
+ */
+export function getFieldConfig(nodeType: AINodeType, handleId: string): { type: string; min?: number; max?: number; step?: number; options?: unknown[] } | null {
+  const config = NODE_CONFIG[nodeType];
+  if (!config?.ui?.inputs) return null;
+  
+  const field = config.ui.inputs.find((f: { id: string }) => f.id === handleId);
+  if (!field) return null;
+  
+  return field as { type: string; min?: number; max?: number; step?: number; options?: unknown[] };
+}
+
+/**
+ * Universal LLM output parser that handles ANY field type.
+ * This is the main function to use for parsing LLM outputs to any node input.
+ */
+export function parseLLMToFieldValue(
+  text: string,
+  nodeType: AINodeType,
+  handleId: string
+): ParseResult {
+  if (!text || text.trim() === "") {
+    return { success: false, error: "Empty text cannot be parsed" };
+  }
+  
+  const trimmedText = text.trim();
+  const fieldConfig = getFieldConfig(nodeType, handleId);
+  
+  if (!fieldConfig) {
+    // No field config found - just pass through as text
+    return { success: true, value: trimmedText };
+  }
+  
+  switch (fieldConfig.type) {
+    case "select": {
+      // Parse against allowed options
+      return parseLLMToSelectValue(text, nodeType, handleId);
+    }
+    
+    case "slider":
+    case "number": {
+      // Parse as number with optional min/max validation
+      const num = parseToNumber(trimmedText);
+      if (num === null) {
+        return { success: false, error: `Could not parse "${trimmedText.slice(0, 30)}" as a number` };
+      }
+      
+      // Validate against min/max if defined
+      if (fieldConfig.min !== undefined && num < fieldConfig.min) {
+        return { success: false, error: `Value ${num} is below minimum ${fieldConfig.min}` };
+      }
+      if (fieldConfig.max !== undefined && num > fieldConfig.max) {
+        return { success: false, error: `Value ${num} exceeds maximum ${fieldConfig.max}` };
+      }
+      
+      return { success: true, value: num };
+    }
+    
+    case "toggle": {
+      // Parse as boolean
+      const bool = parseToBoolean(trimmedText);
+      if (bool === null) {
+        return { success: false, error: `Could not parse "${trimmedText.slice(0, 30)}" as boolean (true/false/yes/no)` };
+      }
+      return { success: true, value: bool };
+    }
+    
+    case "textarea":
+    case "text": {
+      // Text fields - pass through as-is
+      return { success: true, value: trimmedText };
+    }
+    
+    case "file": {
+      // File fields expect URLs - pass through if it looks like a URL
+      if (trimmedText.startsWith("http://") || trimmedText.startsWith("https://") || trimmedText.startsWith("data:")) {
+        return { success: true, value: trimmedText };
+      }
+      return { success: false, error: `"${trimmedText.slice(0, 30)}" is not a valid URL for file input` };
+    }
+    
+    default:
+      // Unknown field type - pass through as text
+      return { success: true, value: trimmedText };
+  }
+}
+
+/**
+ * Check if a field can accept LLM text input (i.e., is not a file/media input)
+ */
+export function canFieldAcceptLLMInput(nodeType: AINodeType, handleId: string): boolean {
+  const fieldConfig = getFieldConfig(nodeType, handleId);
+  if (!fieldConfig) return false;
+  
+  // File inputs typically need actual media, not LLM text
+  // But we still allow URLs to pass through
+  const parseableTypes = ["select", "slider", "number", "toggle", "textarea", "text"];
+  return parseableTypes.includes(fieldConfig.type);
 }
 
 // -----------------------------------------------------------------------------

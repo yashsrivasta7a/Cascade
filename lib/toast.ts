@@ -209,3 +209,13 @@ export function showWorkflowComplete(nodeCount?: number) {
     : "Workflow completed";
   return showSuccess(message);
 }
+
+/**
+ * Show LLM parsing error when LLM output cannot be converted to expected type
+ */
+export function showLLMParseError(targetNode: string, targetField: string, error: string) {
+  return showError(`LLM output invalid for ${targetNode}`, {
+    description: `Cannot set "${targetField}": ${error}`,
+    duration: 6000,
+  });
+}

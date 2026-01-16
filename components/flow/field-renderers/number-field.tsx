@@ -110,11 +110,14 @@ function SliderFieldComponent({
 }: SliderFieldProps) {
   const step = config.step ?? 1;
   // Clamp value to min/max range to prevent slider overflow when receiving out-of-range values
-  const clampedValue = Math.min(Math.max(value, config.min), config.max);
+  // Also handle NaN values (e.g., from unparsed LLM outputs) by falling back to default or min
+  // Ensure default value is a valid number, otherwise use min
+  const defaultValue = (typeof config.defaultValue === 'number' && !isNaN(config.defaultValue)) 
+    ? config.defaultValue 
+    : config.min;
+  const safeValue = (typeof value === 'number' && !isNaN(value)) ? value : defaultValue;
+  const clampedValue = Math.min(Math.max(safeValue, config.min), config.max);
   const percentage = ((clampedValue - config.min) / (config.max - config.min)) * 100;
-  
-  // DEBUG: Log whenever slider receives new props
-  console.log(`[SliderField RENDER] id=${config.id}, value=${value}, clampedValue=${clampedValue}`);
 
   // If value is out of range (e.g., from a settings connection), update to clamped value
   useEffect(() => {

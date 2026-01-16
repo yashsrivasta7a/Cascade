@@ -26,7 +26,8 @@ import { nodeTypes } from "@/components/flow";
 import { NODE_DEFINITIONS, type AINodeType, type DataType, NODE_CONTRACTS, isSettingsHandle, isMediaHandle, TYPE_COMPATIBILITY_GROUPS, isTypeCompatible as isTypeCompatibleFn, getHandleDataType as getHandleDataTypeFn } from "@/types/nodes";
 import { NodeTypeModal } from "./node-type-modal";
 import { NodeContextMenu } from "./node-context-menu";
-import { showInvalidConnection, showCycleDetected } from "@/lib/toast";
+import { showInvalidConnection, showCycleDetected, showLLMParseError } from "@/lib/toast";
+import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "@/lib/workflow/llm-type-parser";
 
 interface PendingConnection {
   sourceNodeId: string;
@@ -1479,28 +1480,69 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
         
         // For media connections, use the dedicated function that maps handles to data fields
         // For other connections, use the preview function
-        let derivedValue: string | undefined;
+        // Type is flexible because LLM parsing can produce numbers, booleans, strings
+        let derivedValue: unknown;
         
         if (isMediaConnection && src) {
           // Get the actual media output (handles mapping like "image" -> "result")
           derivedValue = getNodeMediaOutput(src, sourceHandle);
-          console.log(`[onConnect] Media connection: ${sourceHandle} -> ${targetHandle}, value=${derivedValue?.slice(0, 100)}...`);
+          console.log(`[onConnect] Media connection: ${sourceHandle} -> ${targetHandle}, value=${typeof derivedValue === 'string' ? derivedValue.slice(0, 100) : derivedValue}...`);
         } else {
           // For text/settings connections
-          const preview = src ? getNodeOutputPreview(src) : undefined;
-          const valueFromSourceHandle =
-            sourceHandle && sourceHandle in srcData ? srcData[sourceHandle] : undefined;
-          const nextValue = valueFromSourceHandle !== undefined ? valueFromSourceHandle : preview;
+          const isLLMSourceNode = sourceNodeType === "openrouter";
           
-          // If we got a bundle object (e.g., Seedream `out`) and the targetHandle is a specific setting,
-          // pull the matching value out of the bundle.
-          derivedValue =
-            nextValue &&
-              typeof nextValue === "object" &&
-              !Array.isArray(nextValue) &&
-              targetHandle in (nextValue as any)
-              ? (nextValue as any)[targetHandle]
-              : nextValue;
+          // For LLM nodes, ONLY use the actual response (result or text), never fall back to prompt
+          if (isLLMSourceNode) {
+            // Only get the actual LLM output - the "text" output or "result"
+            const llmOutput = srcData.result ?? srcData.text ?? srcData.response;
+            if (typeof llmOutput === "string" && llmOutput.trim().length > 0) {
+              derivedValue = llmOutput;
+              console.log(`[onConnect] LLM output: "${(derivedValue as string).slice(0, 50)}..."`);
+            } else {
+              // No LLM response yet - don't propagate anything
+              console.log(`[onConnect] LLM has no response yet, not propagating`);
+              derivedValue = undefined;
+            }
+          } else {
+            // For non-LLM nodes, use original logic
+            const preview = src ? getNodeOutputPreview(src) : undefined;
+            const valueFromSourceHandle =
+              sourceHandle && sourceHandle in srcData ? srcData[sourceHandle] : undefined;
+            const nextValue = valueFromSourceHandle !== undefined ? valueFromSourceHandle : preview;
+            
+            // If we got a bundle object (e.g., Seedream `out`) and the targetHandle is a specific setting,
+            // pull the matching value out of the bundle.
+            derivedValue =
+              nextValue &&
+                typeof nextValue === "object" &&
+                !Array.isArray(nextValue) &&
+                targetHandle in (nextValue as any)
+                ? (nextValue as any)[targetHandle]
+                : nextValue;
+          }
+        }
+
+        // --- LLM OUTPUT PARSING ---
+        // If the source is an LLM and target can accept parsed input, parse the text value
+        const isLLMSource = sourceNodeType === "openrouter";
+        if (isLLMSource && targetNodeType && derivedValue && typeof derivedValue === "string") {
+          // Check if the target field can accept LLM input
+          if (canFieldAcceptLLMInput(targetNodeType, targetHandle)) {
+            console.log(`[onConnect] Parsing LLM output for ${targetNodeType}.${targetHandle}: "${derivedValue.slice(0, 50)}..."`);
+            const parseResult = parseLLMToFieldValue(derivedValue, targetNodeType, targetHandle);
+            
+            if (parseResult.success) {
+              console.log(`[onConnect] Parse SUCCESS: ${JSON.stringify(parseResult.value)}`);
+              derivedValue = parseResult.value;
+            } else {
+              // Parsing failed - show error and mark connection as failed
+              console.error(`[onConnect] Parse FAILED: ${parseResult.error}`);
+              const nodeName = (targetNode?.data as Record<string, unknown>)?.label as string || targetNodeType || params.target || "Unknown Node";
+              showLLMParseError(nodeName, targetHandle, parseResult.error);
+              // Don't propagate the invalid value - leave derivedValue undefined
+              derivedValue = undefined;
+            }
+          }
         }
 
         // Build settings inheritance data if connecting to a settings input
