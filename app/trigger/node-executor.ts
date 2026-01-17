@@ -214,19 +214,55 @@ export const executeNode = task({
       throw new Error(`Unknown node type: ${nodeType}`);
     }
 
+    // Log RAW input BEFORE normalization to diagnose payload issues
+    const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync"];
+    if (mediaNodeTypes.includes(nodeType)) {
+      const inputKeys = Object.keys(input);
+      console.log(`[NodeExecutor] ${nodeType} RAW input keys: ${inputKeys.join(", ")}`);
+      
+      // Check each media field
+      for (const field of ["video", "audio", "video1", "video2"]) {
+        const val = input[field];
+        if (val === undefined) {
+          console.log(`[NodeExecutor] ${field}: UNDEFINED (missing from payload!)`);
+        } else if (val === null) {
+          console.log(`[NodeExecutor] ${field}: NULL`);
+        } else if (typeof val === "string") {
+          const preview = val.startsWith("data:") 
+            ? `[base64:${val.length} bytes]` 
+            : val.slice(0, 100);
+          console.log(`[NodeExecutor] ${field}: STRING "${preview}"`);
+        } else if (typeof val === "object" && val !== null && "url" in val) {
+          const url = (val as { url: string }).url;
+          const preview = url?.startsWith("data:") 
+            ? `[base64:${url.length} bytes]` 
+            : url?.slice(0, 100);
+          console.log(`[NodeExecutor] ${field}: OBJECT { url: "${preview}" }`);
+        } else {
+          console.log(`[NodeExecutor] ${field}: ${typeof val}`);
+        }
+      }
+    }
+
     // Normalize media inputs (ensure video/audio/image are objects, not strings)
     // This fixes "expected object, received undefined" errors from malformed payloads
     const normalizedInput = normalizeMediaInputs(input);
     
-    // Log what we're validating for media-heavy node types
-    const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync"];
+    // Log AFTER normalization
     if (mediaNodeTypes.includes(nodeType)) {
-      console.log(`[NodeExecutor] ${nodeType} normalized input:`, JSON.stringify({
-        video: normalizedInput.video ? { url: (normalizedInput.video as { url: string }).url?.slice(0, 80) } : undefined,
-        audio: normalizedInput.audio ? { url: (normalizedInput.audio as { url: string }).url?.slice(0, 80) } : undefined,
-        video1: normalizedInput.video1 ? { url: (normalizedInput.video1 as { url: string }).url?.slice(0, 80) } : undefined,
-        video2: normalizedInput.video2 ? { url: (normalizedInput.video2 as { url: string }).url?.slice(0, 80) } : undefined,
-      }, null, 2));
+      console.log(`[NodeExecutor] ${nodeType} AFTER normalization:`);
+      for (const field of ["video", "audio", "video1", "video2"]) {
+        const val = normalizedInput[field];
+        if (val === undefined) {
+          console.log(`[NodeExecutor] ${field}: STILL UNDEFINED`);
+        } else if (typeof val === "object" && val !== null && "url" in val) {
+          const url = (val as { url: string }).url;
+          const preview = url?.startsWith("data:") 
+            ? `[base64:${url.length} bytes]` 
+            : url?.slice(0, 100);
+          console.log(`[NodeExecutor] ${field}: OK { url: "${preview}" }`);
+        }
+      }
     }
 
     // Validate input
