@@ -128,10 +128,10 @@ export default function BillingPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
-            <CreditCard className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
+          <div className="w-8 h-8 rounded-lg bg-amber-200 dark:bg-zinc-800/50 flex items-center justify-center">
+            <CreditCard className="w-4 h-4 text-amber-600 dark:text-zinc-400" />
           </div>
           <div>
             <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Billing & Credits</h1>
@@ -155,14 +155,14 @@ export default function BillingPage() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl flex items-start gap-3"
+                className="p-4 bg-amber-50 dark:bg-zinc-900/50 border border-amber-200 dark:border-zinc-800/60 rounded-xl flex items-start gap-3"
               >
-                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm text-white">Development Mode</p>
-                  <p className="text-xs text-zinc-500">{notification.message}</p>
+                  <p className="text-sm text-gray-900 dark:text-white">Development Mode</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-500">{notification.message}</p>
                 </div>
-                <button onClick={() => setNotification(null)} className="text-zinc-500 hover:text-white">
+                <button onClick={() => setNotification(null)} className="text-gray-500 hover:text-gray-900 dark:text-zinc-500 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </motion.div>
@@ -173,19 +173,19 @@ export default function BillingPage() {
           <div className="grid grid-cols-12 gap-4">
             {/* Main Credit Card */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="col-span-12 lg:col-span-8">
-              <div className="relative p-6 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden">
+              <div className="relative p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
                 <DotPattern className="text-amber-500/5" />
                 <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                 
                 <div className="relative">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                        <Coins className="w-6 h-6 text-amber-400" />
+                      <div className="w-12 h-12 rounded-2xl bg-amber-200 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/20 flex items-center justify-center">
+                        <Coins className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-semibold text-white">Credit Balance</h2>
-                        <p className="text-xs text-zinc-500">{usageStats?.dollarValue ?? "$0.00"} equivalent</p>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Credit Balance</h2>
+                        <p className="text-xs text-gray-500 dark:text-zinc-500">{usageStats?.dollarValue ?? "$0.00"} equivalent</p>
                       </div>
                     </div>
                     <Badge variant="accent" className="flex items-center gap-1">
@@ -195,16 +195,16 @@ export default function BillingPage() {
 
                   {isLoadingStats ? (
                     <div className="flex items-center gap-2 mb-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
-                      <span className="text-zinc-500">Loading...</span>
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-zinc-500" />
+                      <span className="text-gray-500 dark:text-zinc-500">Loading...</span>
                     </div>
                   ) : (
                     <>
                       <div className="flex items-baseline gap-2 mb-4">
-                        <span className="text-4xl font-bold text-white">{usageStats?.formattedBalance ?? "0"}</span>
-                        <span className="text-zinc-500">credits</span>
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{usageStats?.formattedBalance ?? "0"}</span>
+                        <span className="text-gray-500 dark:text-zinc-500">credits</span>
                       </div>
-                      <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+                      <div className="h-2.5 bg-gray-300 dark:bg-zinc-800 rounded-full overflow-hidden mb-2">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${usageStats?.usagePercentage ?? 0}%` }}
@@ -212,7 +212,7 @@ export default function BillingPage() {
                           className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
                         />
                       </div>
-                      <p className="text-xs text-zinc-500 mb-6">{usageStats?.usagePercentage?.toFixed(0) ?? 0}% of plan</p>
+                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-6">{usageStats?.usagePercentage?.toFixed(0) ?? 0}% of plan</p>
                     </>
                   )}
 
@@ -228,27 +228,27 @@ export default function BillingPage() {
 
             {/* Quick Stats */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="col-span-12 lg:col-span-4 grid grid-rows-2 gap-4">
-              <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-500/20 transition-colors">
+              <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
                 <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
                 <div className="relative flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                    <TrendingDown className="w-5 h-5 text-blue-400" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-200 dark:bg-blue-500/10 flex items-center justify-center">
+                    <TrendingDown className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-zinc-500">Total Spent</p>
-                    <p className="text-xl font-semibold text-white">{formatCredits(usageStats?.totalSpent ?? 0)}</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500">Total Spent</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCredits(usageStats?.totalSpent ?? 0)}</p>
                   </div>
                 </div>
               </div>
-              <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-500/20 transition-colors">
+              <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
                 <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
                 <div className="relative flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-blue-400" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-200 dark:bg-blue-500/10 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-zinc-500">Transactions</p>
-                    <p className="text-xl font-semibold text-white">{usageStats?.transactionCount ?? 0}</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500">Transactions</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{usageStats?.transactionCount ?? 0}</p>
                   </div>
                 </div>
               </div>
@@ -256,12 +256,12 @@ export default function BillingPage() {
 
             {/* Credit Costs */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="col-span-12 lg:col-span-5">
-              <div className="p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl h-full">
+              <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-white flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-zinc-500" /> Credit Costs
+                  <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-gray-500 dark:text-zinc-500" /> Credit Costs
                   </h3>
-                  <a href="/ledger" className="text-xs text-zinc-500 hover:text-white flex items-center gap-1">
+                  <a href="/ledger" className="text-xs text-gray-500 hover:text-gray-900 dark:text-zinc-500 dark:hover:text-white flex items-center gap-1">
                     View all <ChevronRight className="w-3 h-3" />
                   </a>
                 </div>
@@ -269,11 +269,11 @@ export default function BillingPage() {
                   {creditCosts.slice(0, 5).map((item, i) => (
                     <div key={item.label}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-zinc-400 truncate max-w-[140px]">{item.label}</span>
-                        <span className="text-xs text-zinc-500">{item.cost}</span>
+                        <span className="text-sm text-gray-600 dark:text-zinc-400 truncate max-w-[140px]">{item.label}</span>
+                        <span className="text-xs text-gray-500 dark:text-zinc-500">{item.cost}</span>
                       </div>
-                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${item.percentage}%` }} transition={{ duration: 0.5, delay: 0.3 + i * 0.05 }} className="h-full bg-zinc-600" />
+                      <div className="h-1 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${item.percentage}%` }} transition={{ duration: 0.5, delay: 0.3 + i * 0.05 }} className="h-full bg-gray-400 dark:bg-zinc-600" />
                       </div>
                     </div>
                   ))}
@@ -283,18 +283,18 @@ export default function BillingPage() {
 
             {/* Transaction History */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="col-span-12 lg:col-span-7">
-              <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden h-full flex flex-col">
-                <div className="p-4 border-b border-zinc-800/60 flex items-center justify-between">
-                  <h3 className="font-medium text-white flex items-center gap-2">
-                    <Coins className="w-4 h-4 text-zinc-500" /> Transactions
+              <div className="bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden h-full flex flex-col">
+                <div className="p-4 border-b border-[#6b6b6b] dark:border-zinc-800/60 flex items-center justify-between">
+                  <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-gray-500 dark:text-zinc-500" /> Transactions
                   </h3>
                   <a href="/ledger"><Button variant="ghost" size="sm" rightIcon={<ChevronRight className="w-4 h-4" />}>View All</Button></a>
                 </div>
-                <div className="flex-1 divide-y divide-zinc-800/50">
+                <div className="flex-1 divide-y divide-gray-200 dark:divide-zinc-800/50">
                   {isLoadingTransactions ? (
-                    <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-zinc-500" /></div>
+                    <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-zinc-500" /></div>
                   ) : transactions.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-zinc-500">
+                    <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-zinc-500">
                       <Coins className="w-6 h-6 mb-2 opacity-50" />
                       <p className="text-sm">No transactions yet</p>
                     </div>
@@ -303,18 +303,18 @@ export default function BillingPage() {
                       const config = transactionTypeConfig[tx.type as keyof typeof transactionTypeConfig] ?? transactionTypeConfig.EXECUTION;
                       const isPositive = tx.amount > 0;
                       return (
-                        <div key={tx.id} className="px-4 py-3 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
+                        <div key={tx.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-800/30 transition-colors">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-zinc-800/80 flex items-center justify-center">
-                              {isPositive ? <ArrowDownRight className="w-4 h-4 text-emerald-400" /> : <ArrowUpRight className="w-4 h-4 text-zinc-400" />}
+                            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/80 flex items-center justify-center">
+                              {isPositive ? <ArrowDownRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <ArrowUpRight className="w-4 h-4 text-gray-500 dark:text-zinc-400" />}
                             </div>
                             <div>
-                              <p className="text-sm text-white">{tx.description || config.label}</p>
-                              <p className="text-xs text-zinc-600">{new Date(tx.createdAt).toLocaleDateString()}</p>
+                              <p className="text-sm text-gray-900 dark:text-white">{tx.description || config.label}</p>
+                              <p className="text-xs text-gray-500 dark:text-zinc-600">{new Date(tx.createdAt).toLocaleDateString()}</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className={cn("text-sm font-medium", isPositive ? "text-emerald-400" : "text-zinc-400")}>
+                            <span className={cn("text-sm font-bold", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-zinc-400")}>
                               {isPositive ? "+" : ""}{tx.amount.toLocaleString()}
                             </span>
                           </div>
@@ -329,29 +329,29 @@ export default function BillingPage() {
 
           {/* Plans */}
           <div>
-            <h3 className="text-sm font-medium text-zinc-500 mb-4">Plans & Pricing</h3>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-zinc-500 mb-4">Plans & Pricing</h3>
             <div className="grid grid-cols-3 gap-4">
               {plans.map((plan, i) => (
                 <motion.div key={plan.name} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 + i * 0.1 }}>
                   <div className={cn(
-                    "relative p-6 bg-zinc-900/50 border rounded-xl overflow-hidden h-full flex flex-col",
-                    plan.current ? "border-blue-500/30" : "border-zinc-800/60"
+                    "relative p-6 bg-white dark:bg-zinc-900/50 border rounded-xl overflow-hidden h-full flex flex-col",
+                    plan.current ? "border-blue-400 dark:border-blue-500/30" : "border-[#6b6b6b] dark:border-zinc-800/60"
                   )}>
                     {plan.popular && (
                       <Badge variant="accent" className="absolute top-4 right-4 flex items-center gap-1">
                         <Sparkles className="w-3 h-3" /> Popular
                       </Badge>
                     )}
-                    <h4 className="text-lg font-semibold text-white mb-2">{plan.name}</h4>
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{plan.name}</h4>
                     <div className="flex items-baseline gap-1 mb-4">
-                      <span className="text-3xl font-bold text-white">${plan.price}</span>
-                      <span className="text-zinc-500">/mo</span>
+                      <span className="text-3xl font-bold text-gray-900 dark:text-white">${plan.price}</span>
+                      <span className="text-gray-500 dark:text-zinc-500">/mo</span>
                     </div>
-                    <p className="text-xs text-zinc-500 mb-4">{formatCredits(plan.credits)} credits/month</p>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-4">{formatCredits(plan.credits)} credits/month</p>
                     <ul className="space-y-2 mb-6 flex-1">
                       {plan.features.map((f) => (
-                        <li key={f} className="text-sm text-zinc-400 flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-zinc-600" /> {f}
+                        <li key={f} className="text-sm text-gray-600 dark:text-zinc-400 flex items-center gap-2">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 dark:text-zinc-600" /> {f}
                         </li>
                       ))}
                     </ul>

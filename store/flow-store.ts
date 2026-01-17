@@ -127,6 +127,9 @@ export interface FlowState {
     handleType: string | null; // data type: "text", "image", "video", etc.
   } | null;
   
+  // Flag to trigger fitView from outside FlowCanvas
+  pendingFitView: boolean;
+  
   // Actions
   setNodes: (nodes: Node[] | ((prev: Node[]) => Node[])) => void;
   setEdges: (edges: Edge[]) => void;
@@ -134,6 +137,8 @@ export interface FlowState {
   setWorkflowRunning: (running: boolean) => void;
   setWorkflowId: (workflowId: string | null) => void;
   setConnectingFrom: (info: FlowState["connectingFrom"]) => void;
+  triggerFitView: () => void;
+  clearFitView: () => void;
   
   // Execution tracking actions
   setWorkflowExecution: (executionId: string | null, triggerRunId?: string | null) => void;
@@ -208,6 +213,7 @@ export const useFlowStore = create<FlowState>()(
         workflowId: null,
         highlightedNodeIds: [],
         connectingFrom: null,
+        pendingFitView: false,
         
         // Undo/Redo history
         history: [],
@@ -226,6 +232,8 @@ export const useFlowStore = create<FlowState>()(
         setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
         setWorkflowId: (workflowId) => set({ workflowId }),
         setConnectingFrom: (info) => set({ connectingFrom: info }),
+        triggerFitView: () => set({ pendingFitView: true }),
+        clearFitView: () => set({ pendingFitView: false }),
         
         // Execution tracking actions
         setWorkflowExecution: (executionId, triggerRunId) => set({ 

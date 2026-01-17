@@ -31,8 +31,8 @@ function TextFieldComponent({
     "placeholder-gray-400 dark:placeholder-zinc-600",
     "focus:outline-none transition-colors",
     isConnected
-      ? "bg-violet-50 dark:bg-violet-500/5 border-violet-200 dark:border-violet-500/20"
-      : "bg-gray-50 dark:bg-zinc-900/60 border-gray-200 dark:border-white/10 focus:border-gray-400 dark:focus:border-white/20",
+      ? "bg-violet-50 dark:bg-violet-500/5 border-violet-300 dark:border-violet-500/20"
+      : "bg-white dark:bg-zinc-900/60 border-gray-400 dark:border-white/10 focus:border-blue-500 dark:focus:border-white/20",
     disabled && "cursor-not-allowed opacity-60",
     className
   );
@@ -49,9 +49,9 @@ function TextFieldComponent({
 
       {/* Label */}
       {config.label && (
-        <label className="block text-[10px] text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <label className="block text-[10px] text-gray-600 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
           {config.label}
-          {config.required && <span className="text-red-400 ml-0.5">*</span>}
+          {config.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 

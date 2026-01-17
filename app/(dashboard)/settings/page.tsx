@@ -138,10 +138,10 @@ function SettingsContent() {
   return (
     <>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
-            <Settings className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
+          <div className="w-8 h-8 rounded-lg bg-violet-200 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-violet-600 dark:text-zinc-400" />
           </div>
           <div>
             <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Settings</h1>
@@ -156,7 +156,7 @@ function SettingsContent() {
           <div className="flex gap-6">
             {/* Sidebar */}
             <motion.nav initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="w-52 shrink-0">
-              <div className="p-2 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+              <div className="p-2 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.id;
                   return (
@@ -182,7 +182,7 @@ function SettingsContent() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex-1 space-y-6">
               {/* Profile Tab */}
               {activeTab === "profile" && (
-                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">Profile Information</h3>
                   
                   {/* Avatar Section */}
@@ -275,7 +275,7 @@ function SettingsContent() {
                       <p className="text-xs text-gray-400 dark:text-zinc-600 mt-1">Email is managed by your authentication provider</p>
                     </div>
                   </div>
-                  <div className="flex justify-end mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                  <div className="flex justify-end mt-6 pt-4 border-t border-[#6b6b6b] dark:border-zinc-800">
                     <Button>Save Changes</Button>
                   </div>
                 </div>
@@ -284,12 +284,12 @@ function SettingsContent() {
               {/* Providers Tab */}
               {activeTab === "providers" && (
                 <div className="space-y-4">
-                  <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden">
+                  <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
                     <DotPattern className="text-blue-500/5" />
                     <div className="relative flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                          <Link2 className="w-6 h-6 text-blue-400" />
+                        <div className="w-12 h-12 rounded-xl bg-blue-200 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/20 flex items-center justify-center">
+                          <Link2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
                           <h3 className="font-medium text-gray-900 dark:text-white">Provider Connections</h3>
@@ -302,7 +302,7 @@ function SettingsContent() {
 
                   {providers.map((provider, i) => (
                     <motion.div key={provider.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                      <div className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                      <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-4">
                             <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-2xl">{provider.icon}</div>
@@ -322,7 +322,7 @@ function SettingsContent() {
                               <p className="text-xs text-gray-500 dark:text-zinc-500 mb-3">{provider.description}</p>
                               {provider.connected && provider.apiKey && (
                                 <div className="flex items-center gap-2">
-                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50">
+                                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
                                     <Key className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
                                     <code className="text-xs text-gray-600 dark:text-zinc-400 font-mono">
                                       {showApiKeys[provider.id] ? provider.apiKey.replace(/\*/g, "x") : provider.apiKey}
@@ -357,17 +357,17 @@ function SettingsContent() {
                     </motion.div>
                   ))}
 
-                  <div className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
-                    <h3 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-400" /> Fallback Settings</h3>
+                  <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
+                    <h3 className="font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Fallback Settings</h3>
                     <div className="space-y-3">
-                      <label className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50 cursor-pointer">
+                      <label className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer">
                         <div>
                           <p className="text-sm text-gray-900 dark:text-white">Enable automatic fallback</p>
                           <p className="text-xs text-gray-500 dark:text-zinc-500">Try next provider on failure</p>
                         </div>
                         <input type="checkbox" defaultChecked className="w-4 h-4 rounded" />
                       </label>
-                      <label className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50 cursor-pointer">
+                      <label className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer">
                         <div>
                           <p className="text-sm text-gray-900 dark:text-white">Retry on rate limit</p>
                           <p className="text-xs text-gray-500 dark:text-zinc-500">Wait and retry when rate limited</p>
@@ -381,7 +381,7 @@ function SettingsContent() {
 
               {/* Notifications Tab */}
               {activeTab === "notifications" && (
-                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">Notification Preferences</h3>
                   <div className="space-y-3">
                     {[
@@ -390,7 +390,7 @@ function SettingsContent() {
                       { title: "Credits low", desc: "Alert when credits fall below 20%", default: true },
                       { title: "Weekly summary", desc: "Receive weekly usage summary", default: false },
                     ].map((item) => (
-                      <label key={item.title} className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50 cursor-pointer hover:border-gray-300 dark:hover:border-zinc-600/50">
+                      <label key={item.title} className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer hover:border-gray-300 dark:hover:border-zinc-600/50">
                         <div>
                           <p className="text-sm text-gray-900 dark:text-white">{item.title}</p>
                           <p className="text-xs text-gray-500 dark:text-zinc-500">{item.desc}</p>
@@ -404,10 +404,10 @@ function SettingsContent() {
 
               {/* Security Tab */}
               {activeTab === "security" && (
-                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">Security Settings</h3>
                   <div className="space-y-4">
-                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50">
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <p className="text-sm text-gray-900 dark:text-white">Two-Factor Authentication</p>
@@ -417,7 +417,7 @@ function SettingsContent() {
                       </div>
                       <Button variant="outline" size="sm">Manage 2FA</Button>
                     </div>
-                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700/50">
+                    <div className="p-4 rounded-lg bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <p className="text-sm text-gray-900 dark:text-white">Password</p>
@@ -432,7 +432,7 @@ function SettingsContent() {
 
               {/* Appearance Tab */}
               {activeTab === "appearance" && (
-                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+                <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">Theme</h3>
                   <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">
                     Choose how Flowsmith looks for you. Select a theme or sync with your system settings.

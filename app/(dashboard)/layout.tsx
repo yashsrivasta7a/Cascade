@@ -14,7 +14,7 @@ export default function DashboardLayout({
   const isWorkflowEditor = pathname.match(/^\/workflows\/[^/]+$/);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-[#09090b]">
+    <div className="flex h-screen overflow-hidden bg-[#909192] dark:bg-[#09090b]">
       {!isWorkflowEditor && <Sidebar />}
       <main className={cn("flex-1 overflow-hidden", isWorkflowEditor && "w-full")}>
         {children}

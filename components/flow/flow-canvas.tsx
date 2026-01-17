@@ -18,6 +18,7 @@ import ReactFlow, {
   getBezierPath,
   getSmoothStepPath,
   ConnectionLineComponentProps,
+  SelectionMode,
   getStraightPath,
 } from "reactflow";
 import "reactflow/dist/style.css";
@@ -28,6 +29,8 @@ import { NodeTypeModal } from "./node-type-modal";
 import { NodeContextMenu } from "./node-context-menu";
 import { showInvalidConnection, showCycleDetected, showLLMParseError } from "@/lib/toast";
 import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "@/lib/workflow/llm-type-parser";
+import { Play, Loader2, Square } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface PendingConnection {
   sourceNodeId: string;
@@ -41,6 +44,90 @@ interface FlowCanvasProps {
   placingComment?: boolean;
   onPlaceComment?: (position: { x: number; y: number }) => void;
   onCancelPlacement?: () => void;
+  selectionMode?: "pan" | "select";
+  onSelectionModeChange?: (mode: "pan" | "select") => void;
+}
+
+// Component to show Run button above selected nodes
+function RunSelectedButton({ 
+  selectedNodes, 
+  isRunning, 
+  onRun,
+  onStop,
+  reactFlowWrapper
+}: { 
+  selectedNodes: Node[];
+  isRunning: boolean;
+  onRun: () => void;
+  onStop: () => void;
+  reactFlowWrapper: React.RefObject<HTMLDivElement>;
+}) {
+  const { getViewport } = useReactFlow();
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (selectedNodes.length < 2 || !reactFlowWrapper.current) {
+      setPosition(null);
+      return;
+    }
+
+    // Calculate bounding box of selected nodes
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity;
+    
+    for (const node of selectedNodes) {
+      const nodeWidth = 280; // Approximate node width
+      minX = Math.min(minX, node.position.x);
+      maxX = Math.max(maxX, node.position.x + nodeWidth);
+      minY = Math.min(minY, node.position.y);
+    }
+
+    // Convert flow coordinates to screen coordinates
+    const vp = getViewport();
+    const centerX = ((minX + maxX) / 2) * vp.zoom + vp.x;
+    const topY = minY * vp.zoom + vp.y - 50; // 50px above the top-most node
+
+    setPosition({ x: centerX, y: topY });
+  }, [selectedNodes, getViewport, reactFlowWrapper]);
+
+  if (!position || selectedNodes.length < 2) return null;
+
+  return (
+    <div 
+      className="absolute z-20 pointer-events-auto"
+      style={{
+        left: position.x,
+        top: Math.max(10, position.y), // Don't go above viewport
+        transform: 'translateX(-50%)',
+      }}
+    >
+      <button
+        onClick={isRunning ? onStop : onRun}
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all shadow-lg group/runbtn",
+          isRunning
+            ? "bg-zinc-800 hover:bg-red-600 border border-zinc-700 hover:border-red-500"
+            : "border border-white/10 hover:brightness-110"
+        )}
+        style={!isRunning ? { backgroundColor: "#058b61" } : undefined}
+        title={isRunning ? "Click to stop" : `Run ${selectedNodes.length} nodes`}
+      >
+        {isRunning ? (
+          <>
+            <Loader2 className="w-3.5 h-3.5 animate-spin group-hover/runbtn:hidden" />
+            <Square className="w-3.5 h-3.5 fill-current hidden group-hover/runbtn:block" />
+            <span className="group-hover/runbtn:hidden">Running {selectedNodes.length}</span>
+            <span className="hidden group-hover/runbtn:block">Stop</span>
+          </>
+        ) : (
+          <>
+            <Play className="w-3.5 h-3.5" />
+            <span>Run {selectedNodes.length}</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
 }
 
 let nodeIdCounter = 1;
@@ -758,9 +845,17 @@ function PipelineHighlightOverlay({ nodes, highlightedNodeIds }: PipelineHighlig
   );
 }
 
-function FlowCanvasInner({ className, storageKey, placingComment = false, onPlaceComment, onCancelPlacement }: FlowCanvasProps) {
+function FlowCanvasInner({ 
+  className, 
+  storageKey, 
+  placingComment = false, 
+  onPlaceComment, 
+  onCancelPlacement,
+  selectionMode: externalSelectionMode,
+  onSelectionModeChange 
+}: FlowCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds } = useReactFlow();
+  const { screenToFlowPosition, getViewport, setViewport, setCenter, fitBounds, fitView } = useReactFlow();
 
   // Theme detection for background dots
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -788,6 +883,15 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
 
   // Comment placement ghost preview
   const [ghostPosition, setGhostPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Selection mode: "pan" = normal pan mode, "select" = drag to select
+  // Use external state if provided, otherwise use internal state
+  const [internalSelectionMode, setInternalSelectionMode] = useState<"pan" | "select">("pan");
+  const selectionMode = externalSelectionMode ?? internalSelectionMode;
+  const setSelectionMode = onSelectionModeChange ?? setInternalSelectionMode;
+
+  // State for running multiple selected nodes
+  const [isRunningSelected, setIsRunningSelected] = useState(false);
 
   // Track mouse position for ghost preview when placing comment
   useEffect(() => {
@@ -830,6 +934,7 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
     setEdges,
     selectNode,
     selectedNode,
+    selectedNodeIds,
     setContextMenuPosition,
     deleteNode,
     duplicateNode,
@@ -841,7 +946,45 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
     highlightedNodeIds,
     clearHighlight,
     recordHistory,
+    pendingFitView,
+    clearFitView,
+    runNode,
+    cancelNode,
   } = useFlowStore();
+
+  // Get selected nodes (from ReactFlow's selected state)
+  const selectedNodes = useMemo(() => {
+    return nodes.filter(n => n.selected);
+  }, [nodes]);
+
+  // Stop all selected nodes
+  const handleStopSelectedNodes = useCallback(() => {
+    selectedNodes.forEach(node => cancelNode(node.id));
+    setIsRunningSelected(false);
+  }, [selectedNodes, cancelNode]);
+
+  // Run all selected nodes
+  const handleRunSelectedNodes = useCallback(async () => {
+    if (selectedNodes.length === 0) return;
+    setIsRunningSelected(true);
+    try {
+      // Run all selected nodes in parallel
+      await Promise.all(selectedNodes.map(node => runNode(node.id)));
+    } finally {
+      setIsRunningSelected(false);
+    }
+  }, [selectedNodes, runNode]);
+
+  // Handle pendingFitView - center view on all nodes after auto-layout
+  useEffect(() => {
+    if (!pendingFitView || nodes.length === 0) return;
+    
+    // Fit view to show all nodes with padding
+    fitView({ padding: 0.2, duration: 300 });
+    
+    // Clear the flag
+    clearFitView();
+  }, [pendingFitView, nodes.length, fitView, clearFitView]);
 
   // Focus on node when focusNodeId changes - pan so the NODE is at screen center
   // This is used for single node focus (clicking on a node in Activity panel)
@@ -967,7 +1110,6 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
     selectAllNodes,
     deleteSelectedNodes,
     duplicateSelectedNodes,
-    selectedNodeIds,
   } = useFlowStore();
 
   // Keyboard shortcuts - comprehensive list
@@ -1854,7 +1996,10 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={null}
         selectionKeyCode={null}
-        multiSelectionKeyCode={null}
+        multiSelectionKeyCode="Shift"
+        selectionOnDrag={selectionMode === "select"}
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={selectionMode === "select" ? [1, 2] : true}
         style={{ background: isDarkMode ? '#101010' : '#F3F4F6' }}
       >
         <Background
@@ -1865,7 +2010,7 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
         />
         <Controls
           showInteractive={false}
-          className="!bg-white dark:!bg-zinc-900/80 !backdrop-blur-none dark:!backdrop-blur-md !border-gray-200 dark:!border-white/5 !rounded-xl !shadow-md dark:!shadow-2xl !p-1"
+          className="!bg-[#f8f9fb] dark:!bg-zinc-900/80 !backdrop-blur-none dark:!backdrop-blur-md !border-0 !rounded-xl !shadow-md dark:!shadow-2xl !p-1 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:hover:!bg-gray-100 dark:[&>button]:hover:!bg-white/5"
         />
         <MiniMap
           nodeStrokeWidth={3}
@@ -1875,7 +2020,19 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
           maskColor="rgba(59, 130, 246, 0.1)"
           nodeColor="#9CA3AF"
         />
+
       </ReactFlow>
+
+      {/* Floating Run Selected Button - shows above selected nodes when multiple are selected */}
+      {selectedNodes.length > 1 && (
+        <RunSelectedButton 
+          selectedNodes={selectedNodes}
+          isRunning={isRunningSelected}
+          onRun={handleRunSelectedNodes}
+          onStop={handleStopSelectedNodes}
+          reactFlowWrapper={reactFlowWrapper}
+        />
+      )}
 
       {/* Pipeline Highlight Overlay - Dotted container around highlighted nodes */}
       {/* Rendered outside ReactFlow to avoid blocking canvas interactions */}
@@ -1913,6 +2070,7 @@ function FlowCanvasInner({ className, storageKey, placingComment = false, onPlac
           Click anywhere to place comment • Press ESC to cancel
         </div>
       )}
+
     </div>
   );
 }

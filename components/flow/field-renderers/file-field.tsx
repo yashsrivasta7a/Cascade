@@ -4,6 +4,7 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Upload, X, Loader2, Image as ImageIcon, Film, Volume2, Play, Pause } from "lucide-react";
 import type { FileFieldConfig } from "@/lib/config/types";
+import { showError, showWarning } from "@/lib/toast";
 
 // Format time in mm:ss format
 function formatTime(seconds: number): string {
@@ -284,7 +285,9 @@ function FileFieldComponent({
 
       // Check file type
       if (config.accept && !file.type.match(config.accept.replace("/*", "/.*"))) {
-        alert(`Invalid file type. Please select a ${fileType} file.`);
+        showWarning(`Invalid file type`, {
+          description: `Please select a ${fileType} file. Got: ${file.type || "unknown"}`,
+        });
         return;
       }
 
@@ -293,7 +296,9 @@ function FileFieldComponent({
       if (file.size > maxSize) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const maxMB = (maxSize / (1024 * 1024)).toFixed(0);
-        alert(`File too large (${sizeMB}MB). Maximum size is ${maxMB}MB.`);
+        showError(`File too large (${sizeMB}MB)`, {
+          description: `Maximum file size is ${maxMB}MB. Try compressing the file or using a smaller one.`,
+        });
         return;
       }
 
@@ -320,7 +325,9 @@ function FileFieldComponent({
             if (!signResponse.ok) {
               const errorText = await signResponse.text();
               console.error(`[FileField] Failed to get upload signature:`, errorText);
-              alert(`Upload failed: Could not initialize upload. ${errorText}`);
+              showError("Upload failed", {
+                description: "Could not initialize upload. Please try again.",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -362,7 +369,9 @@ function FileFieldComponent({
               result = JSON.parse(responseText);
             } catch {
               console.error(`[FileField] Failed to parse Transloadit response`);
-              alert(`Upload failed: Invalid response from server`);
+              showError("Upload failed", {
+                description: "Invalid response from server. Please try again.",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -370,7 +379,9 @@ function FileFieldComponent({
 
             if (result.error || uploadResponse.status >= 400) {
               console.error(`[FileField] Transloadit error:`, result.error, result.message, result.reason);
-              alert(`Upload failed: ${result.message || result.error || "Unknown error"}`);
+              showError("Upload failed", {
+                description: result.message || result.error || "Unknown error occurred",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -409,7 +420,9 @@ function FileFieldComponent({
                 }
               } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
                 console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
-                alert(`Upload failed: ${status.message || status.error || "Assembly failed"}`);
+                showError("Upload failed", {
+                  description: status.message || status.error || "Assembly processing failed",
+                });
                 setIsUploading(false);
                 onUploadingChange?.(false);
                 return;
@@ -421,13 +434,17 @@ function FileFieldComponent({
             }
             
             console.error(`[FileField] Direct upload timed out`);
-            alert("Upload timed out. Please try again.");
+            showError("Upload timed out", {
+              description: "The upload took too long. Please try again with a smaller file.",
+            });
             setIsUploading(false);
             onUploadingChange?.(false);
             return;
           } catch (err) {
             console.error("[FileField] Direct upload failed:", err);
-            alert(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+            showError("Upload failed", {
+              description: err instanceof Error ? err.message : "Unknown error occurred",
+            });
             setIsUploading(false);
             onUploadingChange?.(false);
             return;
@@ -512,9 +529,9 @@ function FileFieldComponent({
     <div className={className}>
       {/* Label */}
       {config.label && (
-        <label className="block text-[10px] text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <label className="block text-[10px] text-gray-600 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
           {config.label}
-          {config.required && <span className="text-red-400 ml-0.5">*</span>}
+          {config.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 
@@ -542,7 +559,7 @@ function FileFieldComponent({
             ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
             : value
             ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5"
-            : "border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] hover:border-gray-300 dark:hover:border-white/20",
+            : "border-gray-500 dark:border-white/20 bg-white dark:bg-white/[0.02] hover:border-gray-600 dark:hover:border-white/30",
           !value && !disabled && "cursor-pointer"
         )}
       >
@@ -646,7 +663,7 @@ function FileFieldComponent({
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-4 text-gray-400 dark:text-zinc-500">
+          <div className="flex flex-col items-center justify-center py-4 text-gray-500 dark:text-zinc-500">
             <Upload className="w-5 h-5 mb-1" />
             <span className="text-[10px]">
               Drop {fileType} or click to upload

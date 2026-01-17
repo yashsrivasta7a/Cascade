@@ -22,7 +22,7 @@ function MediaSkeleton({ type, className }: { type: OutputType; className?: stri
         className
       )}
     >
-      <span className="text-[11px] text-zinc-600" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <span className="text-[11px] text-gray-500 dark:text-zinc-600" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
         Results will be shown here
       </span>
     </div>
@@ -152,7 +152,7 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
     <div
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg",
-        "bg-gray-100 dark:bg-white/[0.02] border border-gray-200 dark:border-white/10",
+        "bg-gray-50 dark:bg-white/[0.02] border border-gray-400 dark:border-white/10",
         className
       )}
     >
@@ -234,7 +234,7 @@ function TextDisplay({ text, className }: { text: string; className?: string }) 
     <div
       className={cn(
         "p-3 rounded-lg",
-        "bg-gray-100 dark:bg-white/[0.02] border border-gray-200 dark:border-white/10",
+        "bg-gray-50 dark:bg-white/[0.02] border border-gray-400 dark:border-white/10",
         className
       )}
     >

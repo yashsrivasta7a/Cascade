@@ -149,7 +149,7 @@ export default function ActivityPage() {
   const failedCount = runs.filter(r => r.status === "failed").length;
 
   return (
-    <div className="h-full flex flex-col bg-gray-100 dark:bg-[#09090b] relative overflow-hidden">
+    <div className="h-full flex flex-col bg-[#909192] dark:bg-[#09090b] relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden">
         <DotPattern className="text-gray-300 dark:text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
@@ -158,10 +158,10 @@ export default function ActivityPage() {
       </div>
 
       {/* Top Bar */}
-      <div className="relative shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+      <div className="relative shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
-            <Activity className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
+          <div className="w-8 h-8 rounded-lg bg-violet-200 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-violet-600 dark:text-zinc-400" />
           </div>
           <div>
             <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Workflow Runs</h1>
@@ -171,12 +171,12 @@ export default function ActivityPage() {
 
         <div className="flex items-center gap-3">
           {runningCount > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-200 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/20 rounded-full">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
               </span>
-              <span className="text-[11px] font-medium text-blue-400">{runningCount} running</span>
+              <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">{runningCount} running</span>
             </div>
           )}
           <button
@@ -207,7 +207,7 @@ export default function ActivityPage() {
               >
                 {tab}
                 {tab === "errors" && failedCount > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/20 text-red-400 rounded">
+                  <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-red-200 text-red-700 dark:bg-red-500/20 dark:text-red-400 rounded">
                     {failedCount}
                   </span>
                 )}
@@ -226,18 +226,18 @@ export default function ActivityPage() {
           <div className="flex items-center gap-6 py-3">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-xs text-zinc-400">Success</span>
-              <span className="text-xs font-semibold text-white">{stats.successRate}</span>
+              <span className="text-xs text-gray-500 dark:text-zinc-400">Success</span>
+              <span className="text-xs font-bold text-gray-900 dark:text-white">{stats.successRate}</span>
             </div>
             <div className="flex items-center gap-2">
               <Timer className="w-3.5 h-3.5 text-blue-500" />
-              <span className="text-xs text-zinc-400">Avg</span>
-              <span className="text-xs font-semibold text-white">{stats.avgDuration}</span>
+              <span className="text-xs text-gray-500 dark:text-zinc-400">Avg</span>
+              <span className="text-xs font-bold text-gray-900 dark:text-white">{stats.avgDuration}</span>
             </div>
             <div className="flex items-center gap-2">
               <Coins className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-xs text-zinc-400">Credits</span>
-              <span className="text-xs font-semibold text-white">{stats.creditsUsed}</span>
+              <span className="text-xs text-gray-500 dark:text-zinc-400">Credits</span>
+              <span className="text-xs font-bold text-gray-900 dark:text-white">{stats.creditsUsed}</span>
             </div>
           </div>
         </div>
@@ -274,8 +274,8 @@ export default function ActivityPage() {
                     className={cn(
                         "h-8 px-3 text-xs font-medium rounded-md capitalize transition-all",
                         statusFilter === status
-                          ? "bg-zinc-800 text-white shadow-sm"
-                        : "text-zinc-500 hover:text-zinc-300"
+                          ? "bg-gray-800 text-white shadow-sm dark:bg-zinc-800"
+                        : "text-gray-500 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-300"
                     )}
                   >
                       {status}
@@ -287,7 +287,7 @@ export default function ActivityPage() {
               {/* Runs List */}
               <div className="flex-1 overflow-auto">
                 {isLoading ? (
-                  <div className="divide-y divide-gray-100 dark:divide-zinc-800/50">
+                  <div className="divide-y divide-[#6b6b6b] dark:divide-zinc-800/50">
                     {[...Array(8)].map((_, i) => (
                       <div
                         key={i}
@@ -432,14 +432,17 @@ function WorkflowRun({
         {/* Status Indicator */}
         <div className={cn(
           "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
-          run.status === "running" ? "bg-blue-500/10" :
-          run.status === "completed" ? "bg-emerald-500/10" :
-          run.status === "failed" ? "bg-red-500/10" :
-          "bg-zinc-800"
+          run.status === "running" ? "bg-blue-200 dark:bg-blue-500/10" :
+          run.status === "completed" ? "bg-emerald-200 dark:bg-emerald-500/10" :
+          run.status === "failed" ? "bg-red-200 dark:bg-red-500/10" :
+          "bg-gray-200 dark:bg-zinc-800"
         )}>
           <StatusIcon className={cn(
             "w-4 h-4",
-            status.text,
+            run.status === "running" ? "text-blue-600 dark:text-blue-400" :
+            run.status === "completed" ? "text-emerald-600 dark:text-emerald-400" :
+            run.status === "failed" ? "text-red-600 dark:text-red-400" :
+            "text-gray-600 dark:text-zinc-400",
             "spin" in status && status.spin && "animate-spin"
           )} />
                           </div>
@@ -480,7 +483,7 @@ function WorkflowRun({
         {/* Progress/Status Badge */}
         <div className="w-20 shrink-0">
           {run.status === "running" ? (
-            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-gray-300 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <motion.div 
                 className="h-full bg-blue-500"
                             initial={{ width: 0 }}
@@ -491,10 +494,10 @@ function WorkflowRun({
           ) : (
             <span className={cn(
               "inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md",
-              run.status === "completed" && "bg-emerald-500/10 text-emerald-400",
-              run.status === "failed" && "bg-red-500/10 text-red-400",
-              run.status === "cancelled" && "bg-zinc-800 text-zinc-400",
-              !["completed", "failed", "cancelled", "running"].includes(run.status) && "bg-zinc-800 text-zinc-400"
+              run.status === "completed" && "bg-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+              run.status === "failed" && "bg-red-200 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+              run.status === "cancelled" && "bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400",
+              !["completed", "failed", "cancelled", "running"].includes(run.status) && "bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400"
             )}>
               {status.label}
             </span>
@@ -523,14 +526,14 @@ function WorkflowRun({
               <div className="flex items-center gap-2 mb-4 ml-[52px]">
                 {run.workflowId && (
                   <Link href={`/workflows/${run.workflowId}`}>
-                    <button className="h-7 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
+                    <button className="h-7 px-3 text-xs font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 border border-gray-300 dark:text-zinc-400 dark:hover:text-white dark:bg-zinc-800/80 dark:hover:bg-zinc-800 dark:border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
                       <ExternalLink className="w-3 h-3" />
                       View Workflow
                     </button>
-                                  </Link>
+                  </Link>
                                 )}
                 {run.status === "failed" && (
-                  <button className="h-7 px-3 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
+                  <button className="h-7 px-3 text-xs font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 border border-gray-300 dark:text-zinc-400 dark:hover:text-white dark:bg-zinc-800/80 dark:hover:bg-zinc-800 dark:border-zinc-700/50 rounded-md flex items-center gap-1.5 transition-all">
                     <RotateCcw className="w-3 h-3" />
                     Retry
                   </button>
@@ -540,7 +543,7 @@ function WorkflowRun({
               {/* Node Timeline */}
               <div className="relative ml-[52px]">
                 {/* Timeline Line */}
-                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-zinc-800" />
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gray-300 dark:bg-zinc-800" />
 
                 <div className="space-y-1">
                   {nodes.map((node, nodeIdx) => {
@@ -554,7 +557,7 @@ function WorkflowRun({
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: nodeIdx * 0.03 }}
-                        className="relative flex items-center gap-3 py-2 px-3 -ml-3 rounded-lg hover:bg-zinc-800/40 transition-colors cursor-pointer group/node"
+                        className="relative flex items-center gap-3 py-2 px-3 -ml-3 rounded-lg hover:bg-gray-200/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer group/node"
                         onClick={() => run.workflowId && router.push(`/workflows/${run.workflowId}`)}
                       >
                         {/* Node Status Dot */}
@@ -583,7 +586,7 @@ function WorkflowRun({
                             {nodeDef?.label || node.label}
                           </span>
                           {node.provider && (
-                            <span className="text-[10px] text-zinc-600 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-gray-600 bg-gray-200 dark:text-zinc-600 dark:bg-zinc-800/80 px-1.5 py-0.5 rounded">
                               {node.provider}
                             </span>
                           )}
@@ -598,7 +601,7 @@ function WorkflowRun({
                             <span className="text-xs text-zinc-600">{node.cost}c</span>
                           )}
                           {node.error && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-red-500/10 text-red-400 rounded font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 bg-red-200 text-red-700 dark:bg-red-500/10 dark:text-red-400 rounded font-medium">
                               Error
                             </span>
                           )}
@@ -632,7 +635,7 @@ function ErrorsPanel() {
         {/* Stats skeleton */}
         <div className="grid grid-cols-3 gap-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-4 h-4 rounded bg-gray-200 dark:bg-zinc-700 animate-pulse" />
                 <div className="h-3 w-16 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
@@ -644,7 +647,7 @@ function ErrorsPanel() {
         {/* Error list skeleton */}
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+            <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
                 <div className="flex-1 space-y-2">
@@ -670,10 +673,10 @@ function ErrorsPanel() {
           <DotPattern className="text-zinc-500/5 group-hover:text-zinc-500/10 transition-colors" />
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="w-4 h-4 text-zinc-500" />
-              <span className="text-xs text-zinc-500">Total Errors</span>
+              <AlertCircle className="w-4 h-4 text-gray-500 dark:text-zinc-500" />
+              <span className="text-xs text-gray-500 dark:text-zinc-500">Total Errors</span>
             </div>
-            <span className="text-2xl font-semibold text-white">{stats.total}</span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</span>
           </div>
         </div>
         <div className="relative p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-red-500/20 transition-colors">
@@ -681,9 +684,9 @@ function ErrorsPanel() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
               <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-xs text-zinc-500">Critical</span>
+              <span className="text-xs text-gray-500 dark:text-zinc-500">Critical</span>
             </div>
-            <span className="text-2xl font-semibold text-red-400">{stats.critical}</span>
+            <span className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.critical}</span>
           </div>
         </div>
         <div className="relative p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-amber-500/20 transition-colors">
@@ -691,9 +694,9 @@ function ErrorsPanel() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
-              <span className="text-xs text-zinc-500">Warnings</span>
+              <span className="text-xs text-gray-500 dark:text-zinc-500">Warnings</span>
             </div>
-            <span className="text-2xl font-semibold text-amber-400">{stats.warning}</span>
+            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.warning}</span>
           </div>
         </div>
       </div>
@@ -727,12 +730,12 @@ function ErrorsPanel() {
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                    isCritical ? "bg-red-500/10" : "bg-amber-500/10"
+                    isCritical ? "bg-red-200 dark:bg-red-500/10" : "bg-amber-200 dark:bg-amber-500/10"
                   )}>
                     {isCritical ? (
-                      <XCircle className="w-4 h-4 text-red-400" />
+                      <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
                     ) : (
-                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -742,7 +745,7 @@ function ErrorsPanel() {
                       </span>
                       <span className={cn(
                         "px-1.5 py-0.5 text-[10px] font-medium uppercase rounded",
-                        isCritical ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"
+                        isCritical ? "bg-red-200 text-red-700 dark:bg-red-500/10 dark:text-red-400" : "bg-amber-200 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
                       )}>
                         {err.severity}
                       </span>
@@ -780,7 +783,7 @@ function HealthPanel() {
           <div className="h-3 w-20 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
           <div className="grid grid-cols-4 gap-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-4 h-4 rounded bg-gray-200 dark:bg-zinc-700 animate-pulse" />
                   <div className="h-3 w-20 bg-gray-100 dark:bg-zinc-800/50 rounded animate-pulse" />
@@ -795,7 +798,7 @@ function HealthPanel() {
           <div className="h-3 w-24 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl">
+              <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
@@ -900,9 +903,9 @@ function HealthPanel() {
                     <span className="text-xs text-zinc-500">{provider.lastSuccess || "No data"}</span>
                     <span className={cn(
                       "px-2 py-1 text-[11px] font-medium rounded capitalize",
-                      provider.status === "healthy" ? "bg-emerald-500/10 text-emerald-400" :
-                      provider.status === "degraded" ? "bg-amber-500/10 text-amber-400" :
-                      "bg-red-500/10 text-red-400"
+                      provider.status === "healthy" ? "bg-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                      provider.status === "degraded" ? "bg-amber-200 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400" :
+                      "bg-red-200 text-red-700 dark:bg-red-500/10 dark:text-red-400"
                     )}>
                       {provider.status}
                     </span>

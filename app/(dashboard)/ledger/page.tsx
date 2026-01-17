@@ -137,10 +137,10 @@ const PROVIDER_PRICING: ProviderPricing[] = [
 ];
 
 const colorClasses = {
-  blue: { bg: "bg-blue-500/10", border: "border-blue-500/20", text: "text-blue-400" },
-  emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400" },
-  violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400" },
-  amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400" },
+  blue: { bg: "bg-blue-200 dark:bg-blue-500/10", border: "border-blue-300 dark:border-blue-500/20", text: "text-blue-600 dark:text-blue-400" },
+  emerald: { bg: "bg-emerald-200 dark:bg-emerald-500/10", border: "border-emerald-300 dark:border-emerald-500/20", text: "text-emerald-600 dark:text-emerald-400" },
+  violet: { bg: "bg-violet-200 dark:bg-violet-500/10", border: "border-violet-300 dark:border-violet-500/20", text: "text-violet-600 dark:text-violet-400" },
+  amber: { bg: "bg-amber-200 dark:bg-amber-500/10", border: "border-amber-300 dark:border-amber-500/20", text: "text-amber-600 dark:text-amber-400" },
 };
 
 const categoryLabels = {
@@ -154,10 +154,10 @@ export default function LedgerPage() {
   return (
     <PageBackground>
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
-            <BookOpen className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
+          <div className="w-8 h-8 rounded-lg bg-emerald-200 dark:bg-zinc-800/50 flex items-center justify-center">
+            <BookOpen className="w-4 h-4 text-emerald-600 dark:text-zinc-400" />
           </div>
           <div>
             <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Pricing Ledger</h1>
@@ -171,16 +171,16 @@ export default function LedgerPage() {
         <div className="max-w-5xl mx-auto space-y-6">
           {/* Info Banner */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="relative p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden">
+            <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
               <DotPattern className="text-amber-500/5" />
               <div className="relative flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
-                  <Calculator className="w-6 h-6 text-amber-400" />
+                <div className="w-12 h-12 rounded-xl bg-amber-200 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/20 flex items-center justify-center shrink-0">
+                  <Calculator className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-white mb-1">Credit Conversion</h2>
-                  <p className="text-xs text-zinc-500">
-                    <strong className="text-white">1,000,000 credits = $1.00 USD</strong>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Credit Conversion</h2>
+                  <p className="text-xs text-gray-500 dark:text-zinc-500">
+                    <strong className="text-gray-900 dark:text-white">1,000,000 credits = $1.00 USD</strong>
                     <br />
                     Credits are deducted based on actual usage. Costs shown are estimates.
                   </p>
@@ -200,9 +200,9 @@ export default function LedgerPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + providerIndex * 0.03 }}
               >
-                <div className="bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden">
+                <div className="bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
                   {/* Provider Header */}
-                  <div className="p-5 border-b border-zinc-800/60">
+                  <div className="p-5 border-b border-[#6b6b6b] dark:border-zinc-800/60">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-4">
                         <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center border", colors.bg, colors.border, colors.text)}>
@@ -210,16 +210,16 @@ export default function LedgerPage() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-white">{provider.provider}</h3>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{provider.provider}</h3>
                             <Badge className={cn("text-[10px]", colors.bg, colors.text)}>
                               {categoryLabels[provider.category]}
                             </Badge>
                           </div>
-                          <p className="text-xs text-zinc-500 mt-1">{provider.description}</p>
+                          <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1">{provider.description}</p>
                         </div>
                       </div>
                       {provider.docsUrl && (
-                        <a href={provider.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-zinc-500 hover:text-white">
+                        <a href={provider.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:text-zinc-500 dark:hover:text-white">
                           <ExternalLink className="w-3 h-3" /> Docs
                         </a>
                       )}
@@ -228,29 +228,29 @@ export default function LedgerPage() {
 
                   {/* Pricing Table */}
                   <div className="p-5">
-                    <h4 className="text-xs font-medium text-zinc-500 mb-3 flex items-center gap-2">
+                    <h4 className="text-xs font-medium text-gray-500 dark:text-zinc-500 mb-3 flex items-center gap-2">
                       <DollarSign className="w-3.5 h-3.5" /> Pricing Tiers
                     </h4>
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-zinc-800/60">
-                          <th className="text-left text-[11px] font-medium text-zinc-500 pb-2">Tier</th>
-                          <th className="text-left text-[11px] font-medium text-zinc-500 pb-2">Unit</th>
-                          <th className="text-right text-[11px] font-medium text-zinc-500 pb-2">USD</th>
-                          <th className="text-right text-[11px] font-medium text-zinc-500 pb-2">Credits</th>
-                          <th className="text-left text-[11px] font-medium text-zinc-500 pb-2 pl-4">Notes</th>
+                        <tr className="border-b border-[#6b6b6b] dark:border-zinc-800/60">
+                          <th className="text-left text-[11px] font-medium text-gray-500 dark:text-zinc-500 pb-2">Tier</th>
+                          <th className="text-left text-[11px] font-medium text-gray-500 dark:text-zinc-500 pb-2">Unit</th>
+                          <th className="text-right text-[11px] font-medium text-gray-500 dark:text-zinc-500 pb-2">USD</th>
+                          <th className="text-right text-[11px] font-medium text-gray-500 dark:text-zinc-500 pb-2">Credits</th>
+                          <th className="text-left text-[11px] font-medium text-gray-500 dark:text-zinc-500 pb-2 pl-4">Notes</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-800/40">
+                      <tbody className="divide-y divide-gray-200 dark:divide-zinc-800/40">
                         {provider.tiers.map((tier, tierIndex) => (
-                          <tr key={tierIndex} className="hover:bg-zinc-800/20">
-                            <td className="py-2.5 text-sm text-white">{tier.name}</td>
-                            <td className="py-2.5 text-xs text-zinc-500">{tier.unit}</td>
-                            <td className="py-2.5 text-right text-sm font-medium text-emerald-400">${tier.dollarCost.toFixed(tier.dollarCost < 0.01 ? 3 : 2)}</td>
-                            <td className="py-2.5 text-right text-sm font-medium text-white">{formatCredits(tier.credits)}</td>
+                          <tr key={tierIndex} className="hover:bg-gray-50 dark:hover:bg-zinc-800/20">
+                            <td className="py-2.5 text-sm text-gray-900 dark:text-white">{tier.name}</td>
+                            <td className="py-2.5 text-xs text-gray-500 dark:text-zinc-500">{tier.unit}</td>
+                            <td className="py-2.5 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">${tier.dollarCost.toFixed(tier.dollarCost < 0.01 ? 3 : 2)}</td>
+                            <td className="py-2.5 text-right text-sm font-bold text-gray-900 dark:text-white">{formatCredits(tier.credits)}</td>
                             <td className="py-2.5 pl-4">
                               {tier.notes && (
-                                <span className="text-[11px] text-zinc-600 flex items-center gap-1">
+                                <span className="text-[11px] text-gray-500 dark:text-zinc-600 flex items-center gap-1">
                                   <Info className="w-3 h-3" /> {tier.notes}
                                 </span>
                               )}
@@ -262,15 +262,15 @@ export default function LedgerPage() {
 
                     {/* Examples */}
                     {provider.examples && provider.examples.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-zinc-800/40">
-                        <h4 className="text-xs font-medium text-zinc-500 mb-3 flex items-center gap-2">
+                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-zinc-800/40">
+                        <h4 className="text-xs font-medium text-gray-500 dark:text-zinc-500 mb-3 flex items-center gap-2">
                           <Zap className="w-3.5 h-3.5" /> Examples
                         </h4>
                         <div className="grid grid-cols-3 gap-3">
                           {provider.examples.map((example, exIndex) => (
-                            <div key={exIndex} className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-800/60">
-                              <p className="text-[11px] text-zinc-500 mb-1">{example.description}</p>
-                              <p className="text-sm font-medium text-white">{formatCredits(example.cost)}</p>
+                            <div key={exIndex} className="p-3 rounded-lg bg-gray-100 dark:bg-zinc-800/30 border border-gray-200 dark:border-zinc-800/60">
+                              <p className="text-[11px] text-gray-500 dark:text-zinc-500 mb-1">{example.description}</p>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white">{formatCredits(example.cost)}</p>
                             </div>
                           ))}
                         </div>
@@ -284,7 +284,7 @@ export default function LedgerPage() {
 
           {/* Footer */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="text-center py-8">
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-gray-500 dark:text-zinc-600">
               Prices based on provider APIs as of January 2025. We pass through costs with no markup.
             </p>
           </motion.div>

@@ -206,7 +206,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
         initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
         onClick={onToggle}
-        className="fixed left-3 top-20 z-40 w-10 h-10 rounded-xl bg-black/40 backdrop-blur-xl border border-white/[0.08] flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:border-white/[0.15] transition-all"
+        className="fixed left-3 top-20 z-40 w-10 h-10 rounded-xl bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-gray-200 dark:border-white/[0.08] flex items-center justify-center text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:border-gray-300 dark:hover:border-white/[0.15] transition-all shadow-md dark:shadow-none"
       >
         <Layers className="w-4 h-4" />
       </motion.button>
@@ -218,17 +218,17 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
       initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -16 }}
-      className="fixed left-3 top-16 bottom-3 z-40 w-72 bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/[0.08] rounded-2xl flex flex-col overflow-hidden shadow-2xl shadow-black/40"
+      className="fixed left-3 top-16 bottom-3 z-40 w-72 bg-white dark:bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border border-gray-200 dark:border-white/[0.08] rounded-2xl flex flex-col overflow-hidden shadow-xl shadow-gray-200/80 dark:shadow-2xl dark:shadow-black/40"
     >
       {/* Header with tabs */}
-      <div className="flex items-center border-b border-zinc-800/50">
+      <div className="flex items-center border-b border-gray-100 dark:border-zinc-800/50">
         <button
           onClick={() => setActiveTab("nodes")}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-all border-b-2 -mb-px",
             activeTab === "nodes"
-              ? "text-zinc-100 border-zinc-100"
-              : "text-zinc-500 border-transparent hover:text-zinc-300"
+              ? "text-gray-900 dark:text-zinc-100 border-gray-900 dark:border-zinc-100"
+              : "text-gray-500 dark:text-zinc-500 border-transparent hover:text-gray-700 dark:hover:text-zinc-300"
           )}
         >
           <Sparkles className="w-3.5 h-3.5" />
@@ -239,8 +239,8 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-all border-b-2 -mb-px",
             activeTab === "history"
-              ? "text-zinc-100 border-zinc-100"
-              : "text-zinc-500 border-transparent hover:text-zinc-300"
+              ? "text-gray-900 dark:text-zinc-100 border-gray-900 dark:border-zinc-100"
+              : "text-gray-500 dark:text-zinc-500 border-transparent hover:text-gray-700 dark:hover:text-zinc-300"
           )}
         >
           <History className="w-3.5 h-3.5" />
@@ -248,7 +248,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
         </button>
         <button
           onClick={onToggle}
-          className="p-2.5 mr-1 text-zinc-600 hover:text-zinc-400 transition-colors"
+          className="p-2.5 mr-1 text-gray-400 dark:text-zinc-600 hover:text-gray-600 dark:hover:text-zinc-400 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -265,15 +265,15 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             className="flex-1 flex flex-col overflow-hidden"
           >
             {/* Search & Filter */}
-            <div className="p-3 space-y-2 border-b border-zinc-800/30">
+            <div className="p-3 space-y-2 border-b border-gray-100 dark:border-zinc-800/30">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-zinc-600" />
                 <input
                   type="text"
                   placeholder="Search nodes..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full h-8 pl-8 pr-3 rounded-lg bg-zinc-900/80 border border-zinc-800/50 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 transition-colors"
+                  className="w-full h-8 pl-8 pr-3 rounded-lg bg-gray-100 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800/50 text-xs text-gray-700 dark:text-zinc-300 placeholder:text-gray-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-gray-300 dark:focus:border-zinc-700 transition-colors"
                 />
               </div>
               <div className="flex items-center gap-1">
@@ -282,8 +282,8 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                   className={cn(
                     "px-2.5 py-1 rounded-md text-[10px] font-medium transition-all",
                     !activeCategory
-                      ? "bg-zinc-100 text-zinc-900"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                      ? "bg-gray-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                      : "text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800/50"
                   )}
                 >
                   All
@@ -295,8 +295,8 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                     className={cn(
                       "p-1.5 rounded-md transition-all",
                       activeCategory === cat
-                        ? "bg-zinc-100 text-zinc-900"
-                        : "text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
+                        ? "bg-gray-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                        : "text-gray-500 dark:text-zinc-600 hover:text-gray-700 dark:hover:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800/50"
                     )}
                     title={CATEGORY_META[cat].label}
                   >
@@ -310,7 +310,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             <div className="flex-1 overflow-y-auto p-2">
               {filteredNodes.length === 0 ? (
                 <div className="py-12 text-center">
-                  <p className="text-xs text-zinc-600">No nodes found</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-600">No nodes found</p>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -321,24 +321,24 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                       onDragStart={(e) => handleDragStart(e, node.type)}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.98 }}
-                      className="group flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700/50 cursor-grab active:cursor-grabbing transition-all"
+                      className="group flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 dark:bg-zinc-900/40 hover:bg-gray-100 dark:hover:bg-zinc-800/60 border border-transparent hover:border-gray-200 dark:hover:border-zinc-700/50 cursor-grab active:cursor-grabbing transition-all"
                     >
                       <div className={cn(
                         "w-8 h-8 rounded-lg flex items-center justify-center",
-                        "bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700/50",
-                        "text-zinc-400 group-hover:text-zinc-200 transition-colors"
+                        "bg-gray-100 dark:bg-gradient-to-br dark:from-zinc-800 dark:to-zinc-900 border border-gray-200 dark:border-zinc-700/50",
+                        "text-gray-500 dark:text-zinc-400 group-hover:text-gray-700 dark:group-hover:text-zinc-200 transition-colors"
                       )}>
                         {categoryIcons[node.category]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium text-zinc-200 truncate">
+                        <p className="text-[11px] font-medium text-gray-700 dark:text-zinc-200 truncate">
                           {node.label}
                         </p>
-                        <p className="text-[10px] text-zinc-500 truncate">
+                        <p className="text-[10px] text-gray-500 dark:text-zinc-500 truncate">
                           {node.provider}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Coins className="w-3 h-3" />
                         <span>{node.estimatedCost || 0}</span>
                       </div>
@@ -349,8 +349,8 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             </div>
 
             {/* Footer */}
-            <div className="px-3 py-2 border-t border-zinc-800/30">
-              <p className="text-[10px] text-zinc-600 text-center">
+            <div className="px-3 py-2 border-t border-gray-100 dark:border-zinc-800/30">
+              <p className="text-[10px] text-gray-500 dark:text-zinc-600 text-center">
                 Drag nodes to canvas
               </p>
             </div>
@@ -364,14 +364,14 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             className="flex-1 flex flex-col overflow-hidden"
           >
             {/* Refresh button */}
-            <div className="px-3 py-2 border-b border-zinc-800/30 flex items-center justify-between">
-              <span className="text-[10px] text-zinc-500">
+            <div className="px-3 py-2 border-b border-gray-100 dark:border-zinc-800/30 flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 dark:text-zinc-500">
                 {executions.length} executions
               </span>
               <button
                 onClick={fetchExecutions}
                 disabled={isLoading}
-                className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-all disabled:opacity-50"
+                className="p-1.5 rounded-md text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800/50 transition-all disabled:opacity-50"
               >
                 <RotateCcw className={cn("w-3 h-3", isLoading && "animate-spin")} />
               </button>
@@ -381,13 +381,13 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             <div className="flex-1 overflow-y-auto">
               {isLoading && executions.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
-                  <Loader2 className="w-4 h-4 text-zinc-600 animate-spin" />
+                  <Loader2 className="w-4 h-4 text-gray-400 dark:text-zinc-600 animate-spin" />
                 </div>
               ) : executions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-40 text-center px-8">
-                  <Inbox className="w-8 h-8 text-zinc-800 mb-3" />
-                  <p className="text-xs text-zinc-500">No runs yet</p>
-                  <p className="text-[10px] text-zinc-600 mt-1">
+                  <Inbox className="w-8 h-8 text-gray-300 dark:text-zinc-800 mb-3" />
+                  <p className="text-xs text-gray-500 dark:text-zinc-500">No runs yet</p>
+                  <p className="text-[10px] text-gray-400 dark:text-zinc-600 mt-1">
                     Run your workflow to see history
                   </p>
                 </div>
@@ -399,10 +399,10 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                     const isRunning = statusKey === "RUNNING";
 
                     return (
-                      <div key={exec.id} className="border-b border-zinc-800/20 last:border-0">
+                      <div key={exec.id} className="border-b border-gray-100 dark:border-zinc-800/20 last:border-0">
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : exec.id)}
-                          className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-zinc-900/50 transition-colors"
+                          className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-zinc-900/50 transition-colors"
                         >
                           {/* Status dot */}
                           <div className="relative flex-shrink-0">
@@ -427,16 +427,16 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                               )}>
                                 {statusKey.charAt(0) + statusKey.slice(1).toLowerCase()}
                               </span>
-                              <span className="text-[10px] text-zinc-600">
+                              <span className="text-[10px] text-gray-400 dark:text-zinc-600">
                                 {formatTimeAgo(exec.createdAt)}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-zinc-600">
+                              <span className="text-[10px] text-gray-400 dark:text-zinc-600">
                                 {formatDuration(exec.startedAt, exec.completedAt)}
                               </span>
                               {(exec.totalCost ?? 0) > 0 && (
-                                <span className="text-[10px] text-zinc-600">
+                                <span className="text-[10px] text-gray-400 dark:text-zinc-600">
                                   {exec.totalCost}c
                                 </span>
                               )}
@@ -444,11 +444,11 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                           </div>
 
                           {/* Node count */}
-                          <span className="text-[10px] text-zinc-600 flex-shrink-0">
+                          <span className="text-[10px] text-gray-400 dark:text-zinc-600 flex-shrink-0">
                             {exec.nodeExecutions.length}n
                           </span>
                           <ChevronRight className={cn(
-                            "w-3 h-3 text-zinc-600 transition-transform flex-shrink-0",
+                            "w-3 h-3 text-gray-400 dark:text-zinc-600 transition-transform flex-shrink-0",
                             isExpanded && "rotate-90"
                           )} />
                         </button>
@@ -463,7 +463,7 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                               transition={{ duration: 0.15 }}
                               className="overflow-hidden"
                             >
-                              <div className="px-3 pb-3 pt-1 ml-4 border-l border-zinc-800/50">
+                              <div className="px-3 pb-3 pt-1 ml-4 border-l border-gray-200 dark:border-zinc-800/50">
                                 {exec.nodeExecutions.map((node, idx) => {
                                   const nodeStatus = (node.status?.toUpperCase?.() ?? "PENDING") as keyof typeof statusColors;
                                   
@@ -476,11 +476,11 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
                                         "w-1.5 h-1.5 rounded-full flex-shrink-0",
                                         statusDots[nodeStatus] || statusDots.PENDING
                                       )} />
-                                      <span className="text-[10px] text-zinc-400 flex-1 truncate">
+                                      <span className="text-[10px] text-gray-500 dark:text-zinc-400 flex-1 truncate">
                                         {node.nodeLabel}
                                       </span>
                                       {node.error && (
-                                        <XCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
+                                        <XCircle className="w-3 h-3 text-red-500 dark:text-red-400 flex-shrink-0" />
                                       )}
                                     </div>
                                   );
@@ -497,8 +497,8 @@ export function EditorSidebar({ workflowId, onDragStart, isOpen, onToggle }: Edi
             </div>
 
             {/* Footer */}
-            <div className="px-3 py-2 border-t border-zinc-800/30">
-              <p className="text-[10px] text-zinc-600 text-center flex items-center justify-center gap-1.5">
+            <div className="px-3 py-2 border-t border-gray-100 dark:border-zinc-800/30">
+              <p className="text-[10px] text-gray-500 dark:text-zinc-600 text-center flex items-center justify-center gap-1.5">
                 <Clock className="w-3 h-3" />
                 Auto-refreshes every 5s
               </p>

@@ -674,12 +674,12 @@ html.dark .react-flow__container {
 
 /* Light Mode Color Tokens */
 html.light {
-  --light-background: #F7F7F7;
-  --light-background-soft: #FAFAFA;
+  --light-background: #909192;
+  --light-background-soft: #9a9b9c;
   --light-surface: #FFFFFF;
   --light-surface-elevated: #FFFFFF;
-  --light-surface-overlay: #F5F5F5;
-  --light-surface-muted: #FAFAFA;
+  --light-surface-overlay: #f5f5f5;
+  --light-surface-muted: #fafafa;
   
   /* Primary accent - consistent indigo/blue */
   --light-accent: #4F46E5;
@@ -1097,8 +1097,8 @@ html.light .bg-zinc-900\/90 {
 
 /* Sidebar styles for light mode */
 html.light aside {
-  background-color: var(--light-surface) !important;
-  border-color: var(--light-border) !important;
+  background: #f8f9fb !important;
+  border-color: rgba(229, 231, 235, 0.8) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1271,9 +1271,9 @@ html.light .bg-zinc-950\/95 {
 }
 
 /* Dashboard sidebar */
-html.light aside.w-56 {
-  background-color: #FFFFFF !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
+html.light aside.w-60 {
+  background: #f8f9fb !important;
+  border-color: rgba(229, 231, 235, 0.8) !important;
 }
 
 /* Main content area */
@@ -1450,16 +1450,6 @@ html.light .bg-red-500\/10 {
 
 html.light .bg-amber-500\/10 {
   background-color: rgba(217, 119, 6, 0.08) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LIGHT MODE - NODE HANDLE LABELS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Handle labels - using class targeting */
-html.light .react-flow__node span {
-  background-color: #FFFFFF !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2005,13 +1995,30 @@ html.light .react-flow__node .bg-blue-500\/10 {
   background-color: rgba(59, 130, 246, 0.12) !important;
 }
 
-/* Image upload area */
+/* Image upload area - dashed border */
 html.light .react-flow__node .border-dashed.border-white\/10 {
   border-color: #D1D5DB !important;
 }
 
 html.light .react-flow__node .border-dashed.border-white\/10:hover {
   border-color: #9CA3AF !important;
+}
+
+/* File upload dashed border - ensure visibility in light mode */
+html.light .react-flow__node .border-dashed.border-gray-500 {
+  border-color: #6B7280 !important;
+}
+
+html.light .react-flow__node .border-dashed.border-gray-500:hover {
+  border-color: #4B5563 !important;
+}
+
+html.light .react-flow__node .border-2.border-dashed {
+  border-color: #6B7280 !important;
+}
+
+html.light .react-flow__node .border-2.border-dashed:hover {
+  border-color: #4B5563 !important;
 }
 
 /* Negative prompt area */
@@ -3491,4 +3498,54 @@ html.light .bg-amber-500\/10.border.border-amber-500\/20 {
 /* Transaction list hover */
 html.light .hover\:bg-zinc-800\/30.transition-colors:hover {
   background-color: #F3F4F6 !important;
+}
+
+/* =============================================================================
+   DASHBOARD LIGHT MODE FIXES
+   ============================================================================= */
+
+/* Ensure all text-gray-900 is visible in light mode */
+html.light .text-gray-900 {
+  color: #111827 !important;
+}
+
+html.light .text-gray-800 {
+  color: #1F2937 !important;
+}
+
+html.light .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.light .text-gray-600 {
+  color: #4B5563 !important;
+}
+
+html.light .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+html.light .text-gray-400 {
+  color: #9CA3AF !important;
+}
+
+/* Success/error text colors in light mode */
+html.light .text-emerald-600 {
+  color: #059669 !important;
+}
+
+html.light .text-red-600 {
+  color: #DC2626 !important;
+}
+
+html.light .text-amber-600 {
+  color: #D97706 !important;
+}
+
+html.light .text-violet-600 {
+  color: #7C3AED !important;
+}
+
+html.light .text-blue-600 {
+  color: #2563EB !important;
 }

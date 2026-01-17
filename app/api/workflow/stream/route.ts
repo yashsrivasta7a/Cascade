@@ -9,6 +9,9 @@ import { uploadFromBase64, isTransloaditConfigured } from "@/lib/providers/trans
 
 // NOTE: Node executors run on Trigger.dev only - not imported here to avoid FFmpeg bundling
 
+// Vercel function config - SSE streaming needs longer timeout for complex workflows
+export const maxDuration = 300; // 5 minutes
+
 // =============================================================================
 // SSE WORKFLOW STREAMING ENDPOINT
 // =============================================================================

@@ -162,21 +162,20 @@ function SettingsHandles({ nodeId, nodeSettings }: SettingsHandlesProps) {
               data-settings-label="true"
               className={cn(
                 "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                "px-2 py-1 rounded-md",
+                "px-2.5 py-1 rounded-md",
                 "text-[10px] whitespace-nowrap",
                 "pointer-events-none",
-                "shadow-lg shadow-black/30",
+                "shadow-lg shadow-black/20 dark:shadow-black/30",
                 "opacity-0 group-hover/handle:opacity-100",
-                "transition-opacity duration-150"
+                "transition-opacity duration-150",
+                "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10"
               )}
               style={{ 
                 fontFamily: 'Inter, system-ui, sans-serif',
-                backgroundColor: settingColor.solid,
-                color: '#000',
                 fontWeight: 600,
               }}
             >
-              {setting.label}
+              <span style={{ color: settingColor.solid }}>{setting.label}</span>
             </div>
           </div>
         );
@@ -562,9 +561,9 @@ function BaseNodeComponent({
         {/* Content Area - Input fields first, Output at bottom */}
         <div className="px-4 pb-3 space-y-3">
           {/* Input Fields with darker background */}
-          <div className={cn("rounded-lg p-3 space-y-2", isDarkMode ? "bg-[#0f0f0f]" : "bg-gray-100")}>
+          <div className={cn("rounded-lg p-3 space-y-2 border", isDarkMode ? "bg-[#0f0f0f] border-zinc-800/30" : "bg-gray-50 border-gray-200")}>
             {left ?? children ?? (
-              <div className="text-[11px] text-zinc-600 italic" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+              <div className="text-[11px] text-gray-500 dark:text-zinc-600 italic" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
                 Configure node inputs
               </div>
             )}
@@ -572,12 +571,12 @@ function BaseNodeComponent({
           
           {/* Output Section - label outside, content in box */}
           <div>
-            <div className="text-[10px] text-zinc-500 mb-1.5" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <div className="text-[10px] text-gray-600 dark:text-zinc-500 mb-1.5" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
               Output
             </div>
-            <div className={cn("rounded-lg p-3", isDarkMode ? "bg-[#0f0f0f] border border-zinc-800/30" : "bg-gray-100 border border-gray-200")}>
+            <div className={cn("rounded-lg p-3 border", isDarkMode ? "bg-[#0f0f0f] border-zinc-800/30" : "bg-gray-50 border-gray-400")}>
               {right || (
-                <div className="text-[11px] text-zinc-600 text-center py-4" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                <div className="text-[11px] text-gray-500 dark:text-zinc-600 text-center py-4" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
                   Results will be shown here
                 </div>
               )}
