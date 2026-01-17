@@ -5,6 +5,7 @@ import { executeWorkflow } from "@/app/trigger/workflow-executor";
 import type { Edge, Node } from "reactflow";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { estimateNodeCost } from "@/lib/credits";
+import { uploadFromBase64, isTransloaditConfigured } from "@/lib/providers/transloadit";
 
 // NOTE: Node executors run on Trigger.dev only - not imported here to avoid FFmpeg bundling
 
@@ -58,6 +59,97 @@ interface WorkflowStreamRequest {
 
 // Helper to sleep
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// =============================================================================
+// PRE-PROCESS NODES: Upload base64 data to CDN before triggering workflow
+// =============================================================================
+// Trigger.dev has a 3MB payload limit. Base64 media can be 10+ MB.
+// We upload base64 data to CDN first, replacing with HTTP URLs.
+// =============================================================================
+
+async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
+  if (!isTransloaditConfigured()) {
+    console.log("[WorkflowStream] Transloadit not configured, skipping base64 upload");
+    return nodes;
+  }
+
+  const processedNodes: Node[] = [];
+  const uploadPromises: Promise<void>[] = [];
+
+  for (const node of nodes) {
+    const nodeData = { ...(node.data ?? {}) } as Record<string, unknown>;
+    let needsUpdate = false;
+
+    // Check all data fields for base64 URLs
+    const fieldsToCheck = [
+      "video", "audio", "image", "frame",
+      "video1", "video2",
+      "inputVideo", "inputAudio", "inputImage",
+      "inputVideo1", "inputVideo2",
+    ];
+
+    for (const field of fieldsToCheck) {
+      const value = nodeData[field];
+      
+      // Check if it's a string URL
+      if (typeof value === "string" && value.startsWith("data:") && value.length > 1000) {
+        console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field} (${value.length} bytes)`);
+        
+        // Upload to CDN
+        const fieldCopy = field;
+        const nodeCopy = node;
+        uploadPromises.push(
+          uploadFromBase64(value).then(result => {
+            if (result.url !== value) {
+              nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType };
+              needsUpdate = true;
+              console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy} → ${result.url.slice(0, 60)}...`);
+            }
+          }).catch(err => {
+            console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}:`, err);
+          })
+        );
+      }
+      
+      // Check if it's an object with a base64 url field
+      if (typeof value === "object" && value !== null) {
+        const obj = value as { url?: string; mimeType?: string };
+        if (typeof obj.url === "string" && obj.url.startsWith("data:") && obj.url.length > 1000) {
+          console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field}.url (${obj.url.length} bytes)`);
+          
+          const fieldCopy = field;
+          const nodeCopy = node;
+          uploadPromises.push(
+            uploadFromBase64(obj.url).then(result => {
+              if (result.url !== obj.url) {
+                nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType || obj.mimeType };
+                needsUpdate = true;
+                console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy}.url → ${result.url.slice(0, 60)}...`);
+              }
+            }).catch(err => {
+              console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}.url:`, err);
+            })
+          );
+        }
+      }
+    }
+
+    // Create updated node with processed data
+    processedNodes.push({
+      ...node,
+      data: nodeData,
+    });
+  }
+
+  // Wait for all uploads to complete
+  if (uploadPromises.length > 0) {
+    console.log(`[WorkflowStream] Waiting for ${uploadPromises.length} base64 uploads...`);
+    await Promise.all(uploadPromises);
+    console.log(`[WorkflowStream] All base64 uploads completed`);
+  }
+
+  return processedNodes;
+}
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -170,6 +262,11 @@ export async function POST(request: NextRequest) {
           sendEvent(controller, "node-queued", { nodeId: node.id, nodeType: node.type, nodeLabel });
         }
 
+        // Pre-process nodes: upload base64 data to CDN to reduce payload size
+        // Trigger.dev has a 3MB payload limit - base64 media can exceed this
+        console.log(`[WorkflowStream] Pre-processing nodes to upload base64 data...`);
+        const processedNodes = await preprocessNodesForTrigger(nodes);
+
         // Trigger the workflow executor task (creates parent-child hierarchy)
         console.log(`[WorkflowStream] Triggering executeWorkflow task...`);
         console.log(`[WorkflowStream] TRIGGER_SECRET_KEY present: ${!!process.env.TRIGGER_SECRET_KEY}`);
@@ -180,7 +277,7 @@ export async function POST(request: NextRequest) {
             workflowExecutionId: workflowExecution.id,
             workflowId: workflow.id,
             userId: user.id,
-            nodes,
+            nodes: processedNodes,
             edges,
           });
           console.log(`[WorkflowStream] Workflow task started with run ID: ${handle.id}`);
