@@ -68,9 +68,35 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // =============================================================================
 
 async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
-  if (!isTransloaditConfigured()) {
-    console.log("[WorkflowStream] Transloadit not configured, skipping base64 upload");
-    return nodes;
+  console.log(`[WorkflowStream] Preprocessing ${nodes.length} nodes for Trigger.dev`);
+  
+  // Log node types and media fields for debugging
+  for (const node of nodes) {
+    const nodeData = (node.data ?? {}) as Record<string, unknown>;
+    const mediaFields = ["video", "audio", "image", "frame", "inputVideo", "inputAudio", "inputImage", "video1", "video2"];
+    const foundMedia: string[] = [];
+    for (const f of mediaFields) {
+      const val = nodeData[f];
+      if (val) {
+        if (typeof val === "string") {
+          const preview = val.startsWith("data:") ? `[base64:${val.length}]` : val.slice(0, 80);
+          foundMedia.push(`${f}=${preview}`);
+        } else if (typeof val === "object" && val !== null && "url" in val) {
+          const url = (val as { url: string }).url;
+          const preview = url.startsWith("data:") ? `[base64:${url.length}]` : url.slice(0, 80);
+          foundMedia.push(`${f}.url=${preview}`);
+        }
+      }
+    }
+    if (foundMedia.length > 0) {
+      console.log(`[WorkflowStream] Node ${node.id} (${node.type}): ${foundMedia.join(", ")}`);
+    }
+  }
+  
+  const transloaditConfigured = isTransloaditConfigured();
+  if (!transloaditConfigured) {
+    console.log("[WorkflowStream] Transloadit not configured - base64 data will NOT be uploaded to CDN");
+    console.log("[WorkflowStream] WARNING: Large base64 payloads may exceed Trigger.dev 3MB limit!");
   }
 
   const processedNodes: Node[] = [];
@@ -78,7 +104,6 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
 
   for (const node of nodes) {
     const nodeData = { ...(node.data ?? {}) } as Record<string, unknown>;
-    let needsUpdate = false;
 
     // Check all data fields for base64 URLs
     const fieldsToCheck = [
@@ -93,43 +118,51 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
       
       // Check if it's a string URL
       if (typeof value === "string" && value.startsWith("data:") && value.length > 1000) {
-        console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field} (${value.length} bytes)`);
-        
-        // Upload to CDN
-        const fieldCopy = field;
-        const nodeCopy = node;
-        uploadPromises.push(
-          uploadFromBase64(value).then(result => {
-            if (result.url !== value) {
-              nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType };
-              needsUpdate = true;
-              console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy} → ${result.url.slice(0, 60)}...`);
-            }
-          }).catch(err => {
-            console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}:`, err);
-          })
-        );
+        if (transloaditConfigured) {
+          console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field} (${value.length} bytes)`);
+          
+          // Upload to CDN
+          const fieldCopy = field;
+          const nodeCopy = node;
+          uploadPromises.push(
+            uploadFromBase64(value).then(result => {
+              if (result.url !== value) {
+                nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType };
+                console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy} → ${result.url.slice(0, 60)}...`);
+              }
+            }).catch(err => {
+              console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}:`, err);
+              // Keep original value on failure - may cause payload issues
+            })
+          );
+        } else {
+          console.warn(`[WorkflowStream] SKIPPING ${node.id}.${field} base64 upload - Transloadit not configured`);
+        }
       }
       
       // Check if it's an object with a base64 url field
       if (typeof value === "object" && value !== null) {
         const obj = value as { url?: string; mimeType?: string };
         if (typeof obj.url === "string" && obj.url.startsWith("data:") && obj.url.length > 1000) {
-          console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field}.url (${obj.url.length} bytes)`);
-          
-          const fieldCopy = field;
-          const nodeCopy = node;
-          uploadPromises.push(
-            uploadFromBase64(obj.url).then(result => {
-              if (result.url !== obj.url) {
-                nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType || obj.mimeType };
-                needsUpdate = true;
-                console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy}.url → ${result.url.slice(0, 60)}...`);
-              }
-            }).catch(err => {
-              console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}.url:`, err);
-            })
-          );
+          if (transloaditConfigured) {
+            console.log(`[WorkflowStream] Uploading base64 from ${node.id}.${field}.url (${obj.url.length} bytes)`);
+            
+            const fieldCopy = field;
+            const nodeCopy = node;
+            uploadPromises.push(
+              uploadFromBase64(obj.url).then(result => {
+                if (result.url !== obj.url) {
+                  nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType || obj.mimeType };
+                  console.log(`[WorkflowStream] Uploaded ${nodeCopy.id}.${fieldCopy}.url → ${result.url.slice(0, 60)}...`);
+                }
+              }).catch(err => {
+                console.error(`[WorkflowStream] Failed to upload ${nodeCopy.id}.${fieldCopy}.url:`, err);
+                // Keep original value on failure - may cause payload issues
+              })
+            );
+          } else {
+            console.warn(`[WorkflowStream] SKIPPING ${node.id}.${field}.url base64 upload - Transloadit not configured`);
+          }
         }
       }
     }
@@ -146,6 +179,19 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
     console.log(`[WorkflowStream] Waiting for ${uploadPromises.length} base64 uploads...`);
     await Promise.all(uploadPromises);
     console.log(`[WorkflowStream] All base64 uploads completed`);
+  }
+  
+  // Calculate approximate payload size
+  const payloadStr = JSON.stringify(processedNodes);
+  const payloadSizeMB = (payloadStr.length / (1024 * 1024)).toFixed(2);
+  console.log(`[WorkflowStream] Final payload size: ${payloadSizeMB}MB (${processedNodes.length} nodes)`);
+  
+  if (parseFloat(payloadSizeMB) > 2.5) {
+    console.error(`[WorkflowStream] CRITICAL: Payload size ${payloadSizeMB}MB exceeds safe limit (2.5MB)!`);
+    console.error(`[WorkflowStream] This WILL cause workflow execution to fail.`);
+    console.error(`[WorkflowStream] Please ensure TRANSLOADIT_AUTH_KEY and TRANSLOADIT_AUTH_SECRET are set.`);
+    // Throw error to prevent execution with oversized payload
+    throw new Error(`Payload too large (${payloadSizeMB}MB). Configure Transloadit CDN to fix this.`);
   }
 
   return processedNodes;

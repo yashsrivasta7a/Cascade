@@ -277,6 +277,23 @@ function buildNodeInput(
   console.log(`[BuildInput] === Building input for ${node.id} (${nodeType}) ===`);
   console.log(`[BuildInput] Incoming edges: ${incomingEdges.length}`);
   console.log(`[BuildInput] Outputs map keys: ${[...outputs.keys()].join(", ")}`);
+  
+  // Log all node data fields for media-related nodes
+  const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync", "seedance", "seedvr"];
+  if (mediaNodeTypes.includes(nodeType)) {
+    console.log(`[BuildInput] Node data keys: ${Object.keys(nodeData).join(", ")}`);
+    for (const key of Object.keys(nodeData)) {
+      const val = nodeData[key];
+      if (val && typeof val === "string" && val.length > 100) {
+        const preview = val.startsWith("data:") ? `[base64:${val.length}]` : val.slice(0, 80) + "...";
+        console.log(`[BuildInput]   ${key}: ${preview}`);
+      } else if (val && typeof val === "object" && "url" in (val as object)) {
+        const url = (val as { url: string }).url;
+        const preview = url.startsWith("data:") ? `[base64:${url.length}]` : url.slice(0, 80) + "...";
+        console.log(`[BuildInput]   ${key}.url: ${preview}`);
+      }
+    }
+  }
 
   // =========================================================================
   // STEP 1: Normalize node data (uploaded videos/audio/images) to schema format
@@ -289,6 +306,8 @@ function buildNodeInput(
         input[schemaField] = normalized;
         console.log(`[BuildInput] Normalized ${dataField} → ${schemaField}:`, { url: normalized.url?.slice(0, 60) });
       }
+    } else if (mediaNodeTypes.includes(nodeType) && ["inputVideo", "inputAudio", "inputImage", "video", "audio", "image"].includes(dataField)) {
+      console.log(`[BuildInput] WARNING: ${dataField} is missing or empty for ${nodeType} node`);
     }
   }
 
