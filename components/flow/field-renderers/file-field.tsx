@@ -305,8 +305,9 @@ function FileFieldComponent({
         console.log(`[FileField] Uploading ${fileType} file: ${file.name} (${sizeMB.toFixed(2)}MB)`);
 
         // For files > 3MB, use direct upload to Transloadit (bypasses Vercel limit)
+        // NO FALLBACK for large files - base64 will always fail with 413
         if (file.size > 3 * 1024 * 1024) {
-          console.log(`[FileField] File > 3MB, using direct Transloadit upload`);
+          console.log(`[FileField] File > 3MB, using direct Transloadit upload (no fallback)`);
           
           try {
             // Get upload signature from our API
@@ -316,63 +317,94 @@ function FileFieldComponent({
               body: JSON.stringify({ type: fileType }),
             });
 
-            if (signResponse.ok) {
-              const { params, signature, authKey } = await signResponse.json();
-              
-              // Upload directly to Transloadit
-              const formData = new FormData();
-              formData.append("params", params);
-              formData.append("signature", signature);
-              formData.append("file", file);
-
-              console.log(`[FileField] Uploading to Transloadit...`);
-              const uploadResponse = await fetch(`https://api2.transloadit.com/assemblies`, {
-                method: "POST",
-                body: formData,
-              });
-
-              if (uploadResponse.ok) {
-                const result = await uploadResponse.json();
-                console.log(`[FileField] Transloadit assembly created:`, result.assembly_id);
-                
-                // Poll for completion (Transloadit processes async)
-                let assemblyUrl = result.assembly_ssl_url || result.assembly_url;
-                let attempts = 0;
-                const maxAttempts = 60; // 60 seconds max
-                
-                while (attempts < maxAttempts) {
-                  const statusResponse = await fetch(assemblyUrl);
-                  const status = await statusResponse.json();
-                  
-                  if (status.ok === "ASSEMBLY_COMPLETED") {
-                    // Get the uploaded file URL
-                    const uploadedFile = status.results?.[":original"]?.[0] || status.results?.stored?.[0];
-                    if (uploadedFile?.ssl_url) {
-                      console.log(`[FileField] Direct upload complete: ${uploadedFile.ssl_url.slice(0, 80)}...`);
-                      onChange(uploadedFile.ssl_url);
-                      setIsUploading(false);
-                      onUploadingChange?.(false);
-                      return;
-                    }
-                  } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
-                    console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
-                    break;
-                  }
-                  
-                  // Wait 1 second before polling again
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  attempts++;
-                }
-                
-                console.warn(`[FileField] Direct upload timed out or failed, falling back to base64`);
-              } else {
-                console.warn(`[FileField] Transloadit upload failed:`, await uploadResponse.text());
-              }
-            } else {
-              console.warn(`[FileField] Failed to get upload signature:`, await signResponse.text());
+            if (!signResponse.ok) {
+              const errorText = await signResponse.text();
+              console.error(`[FileField] Failed to get upload signature:`, errorText);
+              alert(`Upload failed: Could not initialize upload. ${errorText}`);
+              setIsUploading(false);
+              onUploadingChange?.(false);
+              return;
             }
+
+            const { params, signature } = await signResponse.json();
+            
+            // Upload directly to Transloadit
+            const formData = new FormData();
+            formData.append("params", params);
+            formData.append("signature", signature);
+            formData.append("file", file);
+
+            console.log(`[FileField] Uploading to Transloadit...`);
+            const uploadResponse = await fetch(`https://api2.transloadit.com/assemblies`, {
+              method: "POST",
+              body: formData,
+            });
+
+            const result = await uploadResponse.json();
+            console.log(`[FileField] Transloadit response:`, result);
+
+            if (result.error) {
+              console.error(`[FileField] Transloadit error:`, result.error, result.message);
+              alert(`Upload failed: ${result.message || result.error}`);
+              setIsUploading(false);
+              onUploadingChange?.(false);
+              return;
+            }
+
+            console.log(`[FileField] Transloadit assembly created:`, result.assembly_id);
+            
+            // Poll for completion (Transloadit processes async)
+            const assemblyUrl = result.assembly_ssl_url || result.assembly_url;
+            let attempts = 0;
+            const maxAttempts = 60; // 60 seconds max
+            
+            while (attempts < maxAttempts) {
+              const statusResponse = await fetch(assemblyUrl);
+              const status = await statusResponse.json();
+              
+              console.log(`[FileField] Assembly status (${attempts}):`, status.ok);
+              
+              if (status.ok === "ASSEMBLY_COMPLETED") {
+                // Get the uploaded file URL - try multiple locations
+                const uploadedFile = 
+                  status.uploads?.[0] ||
+                  status.results?.[":original"]?.[0] || 
+                  status.results?.stored?.[0];
+                  
+                const fileUrl = uploadedFile?.ssl_url || uploadedFile?.url;
+                if (fileUrl) {
+                  console.log(`[FileField] Direct upload complete: ${fileUrl.slice(0, 80)}...`);
+                  onChange(fileUrl);
+                  setIsUploading(false);
+                  onUploadingChange?.(false);
+                  return;
+                } else {
+                  console.error(`[FileField] No URL in completed assembly:`, status);
+                }
+              } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
+                console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
+                alert(`Upload failed: ${status.message || status.error || "Assembly failed"}`);
+                setIsUploading(false);
+                onUploadingChange?.(false);
+                return;
+              }
+              
+              // Wait 1 second before polling again
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              attempts++;
+            }
+            
+            console.error(`[FileField] Direct upload timed out`);
+            alert("Upload timed out. Please try again.");
+            setIsUploading(false);
+            onUploadingChange?.(false);
+            return;
           } catch (err) {
-            console.warn("[FileField] Direct upload failed:", err);
+            console.error("[FileField] Direct upload failed:", err);
+            alert(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+            setIsUploading(false);
+            onUploadingChange?.(false);
+            return;
           }
         }
 
