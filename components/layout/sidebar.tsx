@@ -14,6 +14,8 @@ import {
   BookOpen,
   Activity,
   Sparkles,
+  ExternalLink,
+  FileText,
 } from "lucide-react";
 
 // =============================================================================
@@ -31,6 +33,9 @@ const bottomItems = [
   { label: "Pricing", href: "/ledger", icon: BookOpen },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
+
+// External links
+const DOCS_URL = "/docs"; // Redirects to Mintlify docs
 
 // =============================================================================
 // COMPONENT
@@ -163,7 +168,7 @@ export function Sidebar() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="px-3 pb-4">
+      <div className="px-3 pb-2">
         <div className="space-y-0.5">
           {bottomItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -188,6 +193,25 @@ export function Sidebar() {
             );
           })}
         </div>
+      </div>
+
+      {/* API Docs Link */}
+      <div className="px-3 pb-4">
+        <a 
+          href={DOCS_URL} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <motion.div
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-100/60 dark:hover:bg-zinc-800/40 transition-all"
+            whileHover={{ x: 2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <FileText className="w-4 h-4" />
+            <span className="font-medium">API Docs</span>
+            <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+          </motion.div>
+        </a>
       </div>
     </aside>
   );

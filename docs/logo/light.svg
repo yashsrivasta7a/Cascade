@@ -1,11 +1,17 @@
 <svg width="140" height="32" viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Icon -->
-  <path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="#7C3AED" stroke-width="2" fill="none"/>
-  <path d="M12 12L20 8" stroke="#7C3AED" stroke-width="2"/>
-  <path d="M12 12V20" stroke="#7C3AED" stroke-width="2"/>
-  <path d="M12 12L4 8" stroke="#7C3AED" stroke-width="2"/>
-  <circle cx="12" cy="12" r="2" fill="#7C3AED"/>
+  <!-- Icon with cyan-violet gradient effect -->
+  <defs>
+    <linearGradient id="gradient-light" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="url(#gradient-light)" stroke-width="2" fill="none"/>
+  <path d="M12 12L20 8" stroke="url(#gradient-light)" stroke-width="2"/>
+  <path d="M12 12V20" stroke="url(#gradient-light)" stroke-width="2"/>
+  <path d="M12 12L4 8" stroke="url(#gradient-light)" stroke-width="2"/>
+  <circle cx="12" cy="12" r="2" fill="#06b6d4"/>
   
   <!-- Text -->
-  <text x="28" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#1F2937">Flowsmith</text>
+  <text x="28" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#101010">Flowsmith</text>
 </svg>
