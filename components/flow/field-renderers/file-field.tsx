@@ -288,8 +288,8 @@ function FileFieldComponent({
         return;
       }
 
-      // Check file size
-      const maxSize = config.maxSize ?? 10 * 1024 * 1024; // 10MB default
+      // Check file size - increased to 50MB for video/audio
+      const maxSize = config.maxSize ?? 50 * 1024 * 1024; // 50MB default
       if (file.size > maxSize) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const maxMB = (maxSize / (1024 * 1024)).toFixed(0);
@@ -301,7 +301,82 @@ function FileFieldComponent({
       onUploadingChange?.(true);
 
       try {
-        // Convert to base64
+        const sizeMB = file.size / (1024 * 1024);
+        console.log(`[FileField] Uploading ${fileType} file: ${file.name} (${sizeMB.toFixed(2)}MB)`);
+
+        // For files > 3MB, use direct upload to Transloadit (bypasses Vercel limit)
+        if (file.size > 3 * 1024 * 1024) {
+          console.log(`[FileField] File > 3MB, using direct Transloadit upload`);
+          
+          try {
+            // Get upload signature from our API
+            const signResponse = await fetch("/api/media/upload-direct", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: fileType }),
+            });
+
+            if (signResponse.ok) {
+              const { params, signature, authKey } = await signResponse.json();
+              
+              // Upload directly to Transloadit
+              const formData = new FormData();
+              formData.append("params", params);
+              formData.append("signature", signature);
+              formData.append("file", file);
+
+              console.log(`[FileField] Uploading to Transloadit...`);
+              const uploadResponse = await fetch(`https://api2.transloadit.com/assemblies`, {
+                method: "POST",
+                body: formData,
+              });
+
+              if (uploadResponse.ok) {
+                const result = await uploadResponse.json();
+                console.log(`[FileField] Transloadit assembly created:`, result.assembly_id);
+                
+                // Poll for completion (Transloadit processes async)
+                let assemblyUrl = result.assembly_ssl_url || result.assembly_url;
+                let attempts = 0;
+                const maxAttempts = 60; // 60 seconds max
+                
+                while (attempts < maxAttempts) {
+                  const statusResponse = await fetch(assemblyUrl);
+                  const status = await statusResponse.json();
+                  
+                  if (status.ok === "ASSEMBLY_COMPLETED") {
+                    // Get the uploaded file URL
+                    const uploadedFile = status.results?.[":original"]?.[0] || status.results?.stored?.[0];
+                    if (uploadedFile?.ssl_url) {
+                      console.log(`[FileField] Direct upload complete: ${uploadedFile.ssl_url.slice(0, 80)}...`);
+                      onChange(uploadedFile.ssl_url);
+                      setIsUploading(false);
+                      onUploadingChange?.(false);
+                      return;
+                    }
+                  } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
+                    console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
+                    break;
+                  }
+                  
+                  // Wait 1 second before polling again
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  attempts++;
+                }
+                
+                console.warn(`[FileField] Direct upload timed out or failed, falling back to base64`);
+              } else {
+                console.warn(`[FileField] Transloadit upload failed:`, await uploadResponse.text());
+              }
+            } else {
+              console.warn(`[FileField] Failed to get upload signature:`, await signResponse.text());
+            }
+          } catch (err) {
+            console.warn("[FileField] Direct upload failed:", err);
+          }
+        }
+
+        // For smaller files or as fallback, use base64 through our API
         const reader = new FileReader();
         reader.onload = async (e) => {
           const base64 = e.target?.result as string;
@@ -324,12 +399,15 @@ function FileFieldComponent({
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
+            } else {
+              console.warn(`[FileField] CDN upload failed (${response.status}):`, await response.text());
             }
           } catch (err) {
             console.warn("[FileField] CDN upload failed, using base64:", err);
           }
 
           // Fallback to base64 if CDN upload fails
+          console.log(`[FileField] Using base64 fallback (${(base64.length / 1024 / 1024).toFixed(2)}MB)`);
           onChange(base64);
           setIsUploading(false);
           onUploadingChange?.(false);
