@@ -59,6 +59,9 @@ async function safeUpdateNodeExecution(
 
 export const executeNode = task({
   id: "execute-node",
+  // Use medium machine (2 vCPU, 4GB RAM) to handle FFmpeg video processing
+  // Small 1x (0.5GB) causes OOM crashes with local FFmpeg fallback
+  machine: { preset: "medium-2x" },
   retry: {
     maxAttempts: 2,
     factor: 2,

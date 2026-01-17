@@ -188,7 +188,7 @@ async function mergeAudioVideoWithTransloadit(
             url: audioUrl,
             ignore_errors: ["meta"],
           },
-          // Merge audio with video using /video/encode with custom FFmpeg
+          // Merge audio with video using /video/encode with filter_complex
           merged: {
             robot: "/video/encode",
             use: {
@@ -199,23 +199,23 @@ async function mergeAudioVideoWithTransloadit(
             },
             preset: "iphone-high",
             ffmpeg_stack: "v6.0.0",
-            // Custom FFmpeg options to replace audio
+            // Use filter_complex to replace audio track
+            // This is more reliable than multiple -map options
             ffmpeg: input.replaceAudio ? {
-              // -map 0:v = video from first input (video file)
-              // -map 1:a = audio from second input (audio file) 
-              // This replaces the original audio track
-              "-map": "0:v -map 1:a",
-              "-c:a": "aac",
-              "-b:a": "192k",
-              "-shortest": true,
+              // Replace original audio with new audio, use shortest duration
+              "filter_complex": "[1:a]asetpts=PTS-STARTPTS[aud]",
+              "map": ["0:v", "[aud]"],
+              "c:v": "copy",
+              "c:a": "aac",
+              "b:a": "192k",
+              "shortest": "",
             } : {
-              // Mix both audio tracks
-              "-filter_complex": "[0:a][1:a]amerge=inputs=2[a]",
-              "-map": "0:v -map [a]",
-              "-c:a": "aac",
-              "-b:a": "192k",
-              "-ac": "2",
-              "-shortest": true,
+              // Mix both audio tracks together
+              "filter_complex": "[0:a][1:a]amix=inputs=2:duration=shortest[aout]",
+              "map": ["0:v", "[aout]"],
+              "c:v": "copy",
+              "c:a": "aac",
+              "b:a": "192k",
             },
           },
         },
