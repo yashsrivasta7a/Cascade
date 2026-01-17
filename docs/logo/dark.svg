@@ -1,0 +1,11 @@
+<svg width="140" height="32" viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Icon -->
+  <path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="#A78BFA" stroke-width="2" fill="none"/>
+  <path d="M12 12L20 8" stroke="#A78BFA" stroke-width="2"/>
+  <path d="M12 12V20" stroke="#A78BFA" stroke-width="2"/>
+  <path d="M12 12L4 8" stroke="#A78BFA" stroke-width="2"/>
+  <circle cx="12" cy="12" r="2" fill="#A78BFA"/>
+  
+  <!-- Text -->
+  <text x="28" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#FFFFFF">Flowsmith</text>
+</svg>
