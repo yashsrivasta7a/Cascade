@@ -6,6 +6,7 @@ import { appRouter } from "@/lib/trpc/routers";
 // OPENAPI SPECIFICATION ENDPOINT
 // =============================================================================
 // Serves the OpenAPI 3.0 specification document
+// Access at: /api/openapi
 // Use this with Mintlify, Swagger UI, or any OpenAPI-compatible tool
 
 export async function GET() {

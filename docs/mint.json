@@ -68,7 +68,7 @@
   "footerSocials": {
     "github": "https://github.com/bluerocketdev/workflow-yash"
   },
-  "openapi": "https://flowsmith-ys7.vercel.app/api/openapi.json",
+  "openapi": "https://flowsmith-ys7.vercel.app/api/openapi",
   "api": {
     "baseUrl": "https://flowsmith-ys7.vercel.app/api/v1",
     "auth": {
