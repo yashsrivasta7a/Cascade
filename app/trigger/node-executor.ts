@@ -18,6 +18,38 @@ import { persistNodeOutput, isTransloaditConfigured } from "@/lib/providers";
 // The engine module (with FFmpeg) only loads on Trigger.dev workers
 
 // =============================================================================
+// NORMALIZE MEDIA INPUTS
+// =============================================================================
+// Ensure video/audio/image fields are objects { url: string } not strings
+// This fixes the "expected object, received undefined" error when
+// normalization in workflow-executor.ts doesn't work as expected
+
+function normalizeMediaInputs(input: Record<string, unknown>): Record<string, unknown> {
+  const mediaFields = ["video", "audio", "image", "frame", "video1", "video2"];
+  const normalized = { ...input };
+  
+  for (const field of mediaFields) {
+    const value = normalized[field];
+    
+    // If it's a string URL, convert to object format
+    if (typeof value === "string" && value.length > 0) {
+      if (value.startsWith("http://") || value.startsWith("https://") || 
+          value.startsWith("data:") || value.startsWith("blob:")) {
+        console.log(`[NodeExecutor] Normalizing ${field}: string → { url: "..." }`);
+        normalized[field] = { url: value };
+      }
+    }
+    // If it's already an object with url, keep it
+    else if (typeof value === "object" && value !== null && "url" in value) {
+      // Already correct format
+    }
+    // If undefined or null, leave as is (will fail validation if required)
+  }
+  
+  return normalized;
+}
+
+// =============================================================================
 // NODE EXECUTOR TASK
 // =============================================================================
 
@@ -182,8 +214,23 @@ export const executeNode = task({
       throw new Error(`Unknown node type: ${nodeType}`);
     }
 
+    // Normalize media inputs (ensure video/audio/image are objects, not strings)
+    // This fixes "expected object, received undefined" errors from malformed payloads
+    const normalizedInput = normalizeMediaInputs(input);
+    
+    // Log what we're validating for media-heavy node types
+    const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync"];
+    if (mediaNodeTypes.includes(nodeType)) {
+      console.log(`[NodeExecutor] ${nodeType} normalized input:`, JSON.stringify({
+        video: normalizedInput.video ? { url: (normalizedInput.video as { url: string }).url?.slice(0, 80) } : undefined,
+        audio: normalizedInput.audio ? { url: (normalizedInput.audio as { url: string }).url?.slice(0, 80) } : undefined,
+        video1: normalizedInput.video1 ? { url: (normalizedInput.video1 as { url: string }).url?.slice(0, 80) } : undefined,
+        video2: normalizedInput.video2 ? { url: (normalizedInput.video2 as { url: string }).url?.slice(0, 80) } : undefined,
+      }, null, 2));
+    }
+
     // Validate input
-    const inputValidation = validateNodeInput(nodeType, input);
+    const inputValidation = validateNodeInput(nodeType, normalizedInput);
     if (!inputValidation.success) {
       await markNodeFailed(nodeExecutionId, workflowExecutionId, inputValidation.error);
       throw new Error(inputValidation.error);
