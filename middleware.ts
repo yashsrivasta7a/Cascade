@@ -9,6 +9,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/test(.*)", // Test endpoints for development
   "/api/trigger-test(.*)", // Trigger.dev test endpoint
   "/api/nodes(.*)", // All node execution endpoints
+  "/api/openapi(.*)", // OpenAPI spec endpoint for Mintlify
+  "/api/v1(.*)", // REST API endpoints
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
