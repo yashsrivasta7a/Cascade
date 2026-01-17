@@ -25,27 +25,36 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Create assembly params - minimal config to just store the file
-    // Transloadit expects ISO 8601 UTC format: YYYY-MM-DDTHH:mm:ss.sssZ
-    const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    // Create assembly params - using same structure as working server-side code
+    // SDK uses: new Date().toISOString() for expires
+    const expiresDate = new Date();
+    expiresDate.setDate(expiresDate.getDate() + 1); // 1 day from now (same as SDK)
+    const expires = expiresDate.toISOString();
     
     const params = {
       auth: {
         key: authKey,
         expires: expires,
       },
-      // Empty steps = just store the original file in uploads
-      steps: {},
+      // Use same step structure as working server-side transloadit.ts
+      steps: {
+        passthrough: {
+          robot: "/file/filter",
+          use: ":original",
+          accepts: [["${file.mime}", "regex", ".*"]],
+        },
+      },
     };
 
-    // Create signature - Transloadit expects "sha384:HEXDIGEST" format
+    // Create signature exactly like SDK: sha384:HMAC_HEX
     const paramsString = JSON.stringify(params);
     const signature = "sha384:" + crypto
       .createHmac("sha384", authSecret)
       .update(Buffer.from(paramsString, "utf-8"))
       .digest("hex");
 
-    console.log("[DirectUpload] Created signature for upload, expires:", expires);
+    console.log("[DirectUpload] params:", paramsString);
+    console.log("[DirectUpload] signature:", signature.slice(0, 20) + "...");
 
     return NextResponse.json({
       params: paramsString,

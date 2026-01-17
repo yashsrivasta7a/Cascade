@@ -328,24 +328,49 @@ function FileFieldComponent({
 
             const { params, signature } = await signResponse.json();
             
+            // Log params for debugging (hide sensitive parts)
+            try {
+              const parsedParams = JSON.parse(params);
+              console.log(`[FileField] Transloadit params:`, {
+                auth: { key: parsedParams.auth?.key?.slice(0, 8) + "...", expires: parsedParams.auth?.expires },
+                steps: Object.keys(parsedParams.steps || {}),
+              });
+              console.log(`[FileField] Signature prefix:`, signature?.slice(0, 15));
+            } catch {
+              console.log(`[FileField] Raw params:`, params?.slice(0, 100));
+            }
+            
             // Upload directly to Transloadit
             const formData = new FormData();
             formData.append("params", params);
             formData.append("signature", signature);
             formData.append("file", file);
 
-            console.log(`[FileField] Uploading to Transloadit...`);
+            console.log(`[FileField] Uploading to Transloadit (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
             const uploadResponse = await fetch(`https://api2.transloadit.com/assemblies`, {
               method: "POST",
               body: formData,
             });
 
-            const result = await uploadResponse.json();
-            console.log(`[FileField] Transloadit response:`, result);
+            // Log full response for debugging
+            const responseText = await uploadResponse.text();
+            console.log(`[FileField] Transloadit response status:`, uploadResponse.status);
+            console.log(`[FileField] Transloadit response:`, responseText.slice(0, 500));
+            
+            let result;
+            try {
+              result = JSON.parse(responseText);
+            } catch {
+              console.error(`[FileField] Failed to parse Transloadit response`);
+              alert(`Upload failed: Invalid response from server`);
+              setIsUploading(false);
+              onUploadingChange?.(false);
+              return;
+            }
 
-            if (result.error) {
-              console.error(`[FileField] Transloadit error:`, result.error, result.message);
-              alert(`Upload failed: ${result.message || result.error}`);
+            if (result.error || uploadResponse.status >= 400) {
+              console.error(`[FileField] Transloadit error:`, result.error, result.message, result.reason);
+              alert(`Upload failed: ${result.message || result.error || "Unknown error"}`);
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -366,10 +391,11 @@ function FileFieldComponent({
               
               if (status.ok === "ASSEMBLY_COMPLETED") {
                 // Get the uploaded file URL - try multiple locations
+                // Order: passthrough results > uploads > :original results
                 const uploadedFile = 
+                  status.results?.passthrough?.[0] ||
                   status.uploads?.[0] ||
-                  status.results?.[":original"]?.[0] || 
-                  status.results?.stored?.[0];
+                  status.results?.[":original"]?.[0];
                   
                 const fileUrl = uploadedFile?.ssl_url || uploadedFile?.url;
                 if (fileUrl) {
@@ -379,7 +405,7 @@ function FileFieldComponent({
                   onUploadingChange?.(false);
                   return;
                 } else {
-                  console.error(`[FileField] No URL in completed assembly:`, status);
+                  console.error(`[FileField] No URL in completed assembly. Results:`, JSON.stringify(status.results), "Uploads:", JSON.stringify(status.uploads));
                 }
               } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
                 console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
