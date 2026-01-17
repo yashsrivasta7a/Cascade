@@ -14,6 +14,85 @@ import { checkCache, cacheResult } from "@/lib/cache";
 import { NODE_CONFIG } from "@/lib/config";
 import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "./llm-type-parser";
 
+// =============================================================================
+// UPLOAD LARGE MEDIA TO CDN BEFORE API CALLS
+// =============================================================================
+// Vercel has a ~4MB body limit. Base64 media can be 10MB+.
+// We upload to CDN first, then send only the URL to the API.
+
+async function uploadMediaToCDN(dataUrl: string, type: "video" | "audio" | "image"): Promise<string> {
+  // Only upload base64 data URLs
+  if (!dataUrl.startsWith("data:")) {
+    return dataUrl;
+  }
+  
+  // Check size - only upload if > 1MB (to avoid unnecessary API calls)
+  if (dataUrl.length < 1_000_000) {
+    return dataUrl;
+  }
+  
+  console.log(`[uploadMediaToCDN] Uploading ${type} (${(dataUrl.length / 1024 / 1024).toFixed(2)}MB) to CDN...`);
+  
+  try {
+    const response = await fetch("/api/media/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl, type }),
+    });
+    
+    if (response.ok) {
+      const { url } = await response.json();
+      console.log(`[uploadMediaToCDN] ${type} uploaded to CDN: ${url.slice(0, 80)}...`);
+      return url;
+    } else {
+      console.warn(`[uploadMediaToCDN] CDN upload failed (${response.status}), keeping base64`);
+      return dataUrl;
+    }
+  } catch (error) {
+    console.warn("[uploadMediaToCDN] CDN upload error:", error);
+    return dataUrl;
+  }
+}
+
+async function preprocessInputForAPI(input: unknown): Promise<unknown> {
+  if (!input || typeof input !== "object") return input;
+  
+  const obj = input as Record<string, unknown>;
+  const result: Record<string, unknown> = { ...obj };
+  
+  // Fields that might contain large media
+  const mediaFields: Record<string, "video" | "audio" | "image"> = {
+    video: "video",
+    audio: "audio",
+    image: "image",
+    inputVideo: "video",
+    inputAudio: "audio",
+    inputImage: "image",
+    video1: "video",
+    video2: "video",
+  };
+  
+  for (const [field, type] of Object.entries(mediaFields)) {
+    const value = obj[field];
+    
+    // Handle string URLs
+    if (typeof value === "string" && value.startsWith("data:") && value.length > 1_000_000) {
+      result[field] = await uploadMediaToCDN(value, type);
+    }
+    
+    // Handle object with url property
+    if (typeof value === "object" && value !== null && "url" in value) {
+      const urlObj = value as { url: string; mimeType?: string };
+      if (typeof urlObj.url === "string" && urlObj.url.startsWith("data:") && urlObj.url.length > 1_000_000) {
+        const uploadedUrl = await uploadMediaToCDN(urlObj.url, type);
+        result[field] = { ...urlObj, url: uploadedUrl };
+      }
+    }
+  }
+  
+  return result;
+}
+
 // -----------------------------------------------------------------------------
 // INPUT CHANGE DETECTION
 // -----------------------------------------------------------------------------
@@ -1016,9 +1095,12 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
     try {
       console.log(`[executeWithProvider] Calling sync API for LOCAL node: ${type}`);
       
+      // Preprocess input: upload large base64 media to CDN to avoid 413 errors
+      const processedInput = await preprocessInputForAPI(input);
+      
       // Debug: Log input for crop-image
       if (type === "crop-image") {
-        const cropInput = input as Record<string, unknown>;
+        const cropInput = processedInput as Record<string, unknown>;
         console.log(`[executeWithProvider:crop-image] INPUT TO API:`, JSON.stringify({
           xPercent: cropInput.xPercent,
           yPercent: cropInput.yPercent,
@@ -1033,7 +1115,7 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodeType: type,
-          input,
+          input: processedInput,
           // Include workflow context for Activity tab filtering
           workflowId: context?.workflowId,
           nodeId: context?.nodeId,
@@ -1060,15 +1142,18 @@ async function executeWithProvider(type: AINodeType, provider: ProviderId, input
     try {
       console.log(`[executeWithProvider] Calling Trigger.dev API for ${type}`);
       
+      // Preprocess input: upload large base64 media to CDN to avoid 413 errors
+      const processedInput = await preprocessInputForAPI(input);
+      
       // Use context nodeId or generate a unique one for this execution
-      const nodeId = context?.nodeId || (input as { nodeId?: string })?.nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const nodeId = context?.nodeId || (processedInput as { nodeId?: string })?.nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       
       const response = await fetch("/api/nodes/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodeType: type,
-          input: { ...input as object, nodeId },
+          input: { ...processedInput as object, nodeId },
           // Include workflow context for Activity tab filtering
           workflowId: context?.workflowId,
           nodeId,
