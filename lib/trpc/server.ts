@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { ensureCurrentUser, type EnsuredUser } from "@/lib/user";
+import { OpenApiMeta } from "trpc-to-openapi";
 
 // =============================================================================
 // TRPC SERVER SETUP
@@ -27,7 +28,8 @@ export async function createContext(): Promise<Context> {
   };
 }
 
-const t = initTRPC.context<Context>().create();
+// Initialize tRPC with OpenAPI meta support
+const t = initTRPC.context<Context>().meta<OpenApiMeta>().create();
 
 // Base router and procedure helpers
 export const router = t.router;

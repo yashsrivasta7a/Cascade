@@ -1,0 +1,59 @@
+---
+title: 'Update Workflow'
+api: 'PATCH /workflows/{id}'
+description: 'Updates an existing workflow'
+---
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the workflow
+</ParamField>
+
+<ParamField body="name" type="string">
+  Updated name (1-100 characters)
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated description (max 500 characters)
+</ParamField>
+
+<ParamField body="nodesJson" type="array">
+  Updated nodes array
+</ParamField>
+
+<ParamField body="edgesJson" type="array">
+  Updated edges array
+</ParamField>
+
+<ParamField body="isPublished" type="boolean">
+  Publish status
+</ParamField>
+
+<Note>
+  When `nodesJson` or `edgesJson` are updated, a new version snapshot is automatically created.
+</Note>
+
+<RequestExample>
+```bash cURL
+curl -X PATCH "https://flowsmith-ys7.vercel.app/api/v1/workflows/clm123abc" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Workflow Name",
+    "isPublished": true
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "workflow": {
+    "id": "clm123abc",
+    "name": "Updated Workflow Name",
+    "version": 4,
+    "isPublished": true,
+    "updatedAt": "2024-01-17T11:00:00.000Z"
+  }
+}
+```
+</ResponseExample>

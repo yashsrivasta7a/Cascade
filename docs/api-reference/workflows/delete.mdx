@@ -1,0 +1,37 @@
+---
+title: 'Delete Workflow'
+api: 'DELETE /workflows/{id}'
+description: 'Permanently deletes a workflow and all associated versions'
+---
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the workflow to delete
+</ParamField>
+
+<Warning>
+  This action is irreversible. All workflow versions and execution history will be permanently deleted.
+</Warning>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE "https://flowsmith-ys7.vercel.app/api/v1/workflows/clm123abc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "success": true
+}
+```
+
+```json 404
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Workflow not found"
+  }
+}
+```
+</ResponseExample>

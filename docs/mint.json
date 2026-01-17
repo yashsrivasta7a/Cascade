@@ -1,0 +1,78 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Flowsmith",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#8B5CF6",
+    "light": "#A78BFA",
+    "dark": "#7C3AED",
+    "anchors": {
+      "from": "#8B5CF6",
+      "to": "#6366F1"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Dashboard",
+      "url": "https://flowsmith-ys7.vercel.app"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "https://flowsmith-ys7.vercel.app/sign-up"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "authentication"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/introduction",
+        {
+          "group": "Workflows",
+          "pages": [
+            "api-reference/workflows/list",
+            "api-reference/workflows/get",
+            "api-reference/workflows/create",
+            "api-reference/workflows/update",
+            "api-reference/workflows/delete",
+            "api-reference/workflows/duplicate"
+          ]
+        },
+        {
+          "group": "Credits",
+          "pages": [
+            "api-reference/credits/balance",
+            "api-reference/credits/stats"
+          ]
+        }
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/bluerocketdev/workflow-yash"
+  },
+  "openapi": "https://flowsmith-ys7.vercel.app/api/openapi.json",
+  "api": {
+    "baseUrl": "https://flowsmith-ys7.vercel.app/api/v1",
+    "auth": {
+      "method": "bearer"
+    }
+  }
+}

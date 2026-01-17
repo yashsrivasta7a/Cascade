@@ -1,0 +1,83 @@
+---
+title: 'List Workflows'
+api: 'GET /workflows'
+description: 'Returns all workflows for the authenticated user'
+---
+
+## Request
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token for authentication
+</ParamField>
+
+## Response
+
+<ResponseField name="workflows" type="array">
+  Array of workflow objects
+  
+  <Expandable title="Workflow object">
+    <ResponseField name="id" type="string">
+      Unique workflow identifier
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Name of the workflow
+    </ResponseField>
+    <ResponseField name="description" type="string">
+      Optional description
+    </ResponseField>
+    <ResponseField name="version" type="number">
+      Current version number
+    </ResponseField>
+    <ResponseField name="isPublished" type="boolean">
+      Whether the workflow is published
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 creation timestamp
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string">
+      ISO 8601 last update timestamp
+    </ResponseField>
+    <ResponseField name="_count.executions" type="number">
+      Total number of executions
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X GET "https://flowsmith-ys7.vercel.app/api/v1/workflows" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://flowsmith-ys7.vercel.app/api/v1/workflows', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+const data = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "workflows": [
+    {
+      "id": "clm123abc",
+      "name": "My AI Workflow",
+      "description": "Generates images from text",
+      "version": 3,
+      "isPublished": true,
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "updatedAt": "2024-01-16T14:20:00.000Z",
+      "_count": {
+        "executions": 42
+      },
+      "thumbnailNodes": [...],
+      "thumbnailEdges": [...]
+    }
+  ]
+}
+```
+</ResponseExample>

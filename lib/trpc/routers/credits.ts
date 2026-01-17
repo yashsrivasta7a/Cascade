@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { router, protectedProcedure } from "../server";
 import { TRPCError } from "@trpc/server";
 import { 
@@ -18,7 +18,24 @@ export const creditsRouter = router({
   /**
    * Get user's current credit balance
    */
-  getBalance: protectedProcedure.query(async ({ ctx }) => {
+  getBalance: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/credits/balance",
+        tags: ["Credits"],
+        summary: "Get credit balance",
+        description: "Returns the current credit balance for the authenticated user",
+        protect: true,
+      },
+    })
+    .input(z.void())
+    .output(z.object({
+      credits: z.number(),
+      formatted: z.string(),
+      dollarValue: z.string(),
+    }))
+    .query(async ({ ctx }) => {
     const user = await ctx.db.user.findUnique({
       where: { id: ctx.userId },
       select: { credits: true },
@@ -289,7 +306,36 @@ export const creditsRouter = router({
   /**
    * Get summary stats for credits
    */
-  getStats: protectedProcedure.query(async ({ ctx }) => {
+  getStats: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/credits/stats",
+        tags: ["Credits"],
+        summary: "Get credit statistics",
+        description: "Returns detailed credit statistics including spending history and totals",
+        protect: true,
+      },
+    })
+    .input(z.void())
+    .output(z.object({
+      currentBalance: z.number(),
+      formattedBalance: z.string(),
+      dollarValue: z.string(),
+      memberSince: z.date(),
+      totalSpent: z.number(),
+      totalPurchased: z.number(),
+      totalBonuses: z.number(),
+      transactionCount: z.number(),
+      recentTransactions: z.array(z.object({
+        id: z.string(),
+        amount: z.number(),
+        type: z.string(),
+        description: z.string().nullable(),
+        createdAt: z.date(),
+      })),
+    }))
+    .query(async ({ ctx }) => {
     const [user, recentTransactions, totals] = await Promise.all([
       ctx.db.user.findUnique({
         where: { id: ctx.userId },

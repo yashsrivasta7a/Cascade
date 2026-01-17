@@ -1,0 +1,54 @@
+---
+title: 'Get Workflow'
+api: 'GET /workflows/{id}'
+description: 'Returns a single workflow by ID with recent executions'
+---
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the workflow
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -X GET "https://flowsmith-ys7.vercel.app/api/v1/workflows/clm123abc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "workflow": {
+    "id": "clm123abc",
+    "name": "My AI Workflow",
+    "description": "Generates images from text",
+    "version": 3,
+    "isPublished": true,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-16T14:20:00.000Z",
+    "nodesJson": [...],
+    "edgesJson": [...],
+    "viewportJson": { "x": 0, "y": 0, "zoom": 1 },
+    "executions": [
+      {
+        "id": "exe123",
+        "status": "COMPLETED",
+        "startedAt": "2024-01-16T14:00:00.000Z",
+        "completedAt": "2024-01-16T14:00:30.000Z",
+        "actualCost": 5000,
+        "createdAt": "2024-01-16T14:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+```json 404
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Workflow not found"
+  }
+}
+```
+</ResponseExample>

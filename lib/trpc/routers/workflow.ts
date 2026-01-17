@@ -1,6 +1,56 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 import { router, protectedProcedure } from "../server";
 import { TRPCError } from "@trpc/server";
+
+// =============================================================================
+// OPENAPI RESPONSE SCHEMAS
+// =============================================================================
+
+const WorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  version: z.number(),
+  isPublished: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  nodesJson: z.unknown(),
+  edgesJson: z.unknown(),
+  viewportJson: z.unknown().nullable(),
+});
+
+const WorkflowListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  version: z.number(),
+  isPublished: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  _count: z.object({
+    executions: z.number(),
+  }),
+  thumbnailNodes: z.array(z.object({
+    id: z.string(),
+    position: z.object({ x: z.number(), y: z.number() }),
+    width: z.number().optional(),
+    height: z.number().optional(),
+  })),
+  thumbnailEdges: z.array(z.object({
+    id: z.string(),
+    source: z.string(),
+    target: z.string(),
+  })),
+});
+
+const ExecutionSummarySchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  startedAt: z.date().nullable(),
+  completedAt: z.date().nullable(),
+  actualCost: z.number().nullable(),
+  createdAt: z.date(),
+});
 
 // Sanitize nodes to remove large base64 content when returning from DB
 function sanitizeNodesFromStorage(nodesJson: unknown): unknown[] {
@@ -70,7 +120,20 @@ const WorkflowUpdateSchema = z.object({
 
 export const workflowRouter = router({
   // List all workflows for the current user
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/workflows",
+        tags: ["Workflows"],
+        summary: "List all workflows",
+        description: "Returns all workflows for the authenticated user, ordered by last updated",
+        protect: true,
+      },
+    })
+    .input(z.void())
+    .output(z.object({ workflows: z.array(WorkflowListItemSchema) }))
+    .query(async ({ ctx }) => {
     const workflows = await ctx.db.workflow.findMany({
       where: { userId: ctx.userId },
       orderBy: { updatedAt: "desc" },
@@ -143,7 +206,22 @@ export const workflowRouter = router({
 
   // Get a single workflow by ID
   get: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/workflows/{id}",
+        tags: ["Workflows"],
+        summary: "Get workflow by ID",
+        description: "Returns a single workflow with its recent executions",
+        protect: true,
+      },
+    })
     .input(z.object({ id: z.string() }))
+    .output(z.object({
+      workflow: WorkflowSchema.extend({
+        executions: z.array(ExecutionSummarySchema),
+      }),
+    }))
     .query(async ({ ctx, input }) => {
       const workflow = await ctx.db.workflow.findFirst({
         where: {
@@ -184,7 +262,18 @@ export const workflowRouter = router({
 
   // Create a new workflow
   create: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/workflows",
+        tags: ["Workflows"],
+        summary: "Create a new workflow",
+        description: "Creates a new workflow with the provided nodes and edges",
+        protect: true,
+      },
+    })
     .input(WorkflowCreateSchema)
+    .output(z.object({ workflow: WorkflowSchema }))
     .mutation(async ({ ctx, input }) => {
       const workflow = await ctx.db.workflow.create({
         data: {
@@ -202,7 +291,18 @@ export const workflowRouter = router({
 
   // Update an existing workflow (auto-creates version on save)
   update: protectedProcedure
+    .meta({
+      openapi: {
+        method: "PATCH",
+        path: "/workflows/{id}",
+        tags: ["Workflows"],
+        summary: "Update a workflow",
+        description: "Updates an existing workflow. Auto-creates a version snapshot when nodes or edges change.",
+        protect: true,
+      },
+    })
     .input(WorkflowUpdateSchema)
+    .output(z.object({ workflow: WorkflowSchema }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...updateData } = input;
 
@@ -265,10 +365,20 @@ export const workflowRouter = router({
       return { workflow };
     }),
 
-  // Delete a workflow
   // Duplicate a workflow
   duplicate: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/workflows/{id}/duplicate",
+        tags: ["Workflows"],
+        summary: "Duplicate a workflow",
+        description: "Creates a copy of an existing workflow with '(Copy)' appended to the name",
+        protect: true,
+      },
+    })
     .input(z.object({ id: z.string() }))
+    .output(WorkflowSchema)
     .mutation(async ({ ctx, input }) => {
       // Verify ownership and get original workflow
       const original = await ctx.db.workflow.findFirst({
@@ -299,8 +409,20 @@ export const workflowRouter = router({
       return duplicated;
     }),
 
+  // Delete a workflow
   delete: protectedProcedure
+    .meta({
+      openapi: {
+        method: "DELETE",
+        path: "/workflows/{id}",
+        tags: ["Workflows"],
+        summary: "Delete a workflow",
+        description: "Permanently deletes a workflow and all associated versions",
+        protect: true,
+      },
+    })
     .input(z.object({ id: z.string() }))
+    .output(z.object({ success: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       // Verify ownership
       const existing = await ctx.db.workflow.findFirst({

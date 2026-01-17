@@ -1,0 +1,53 @@
+---
+title: 'Get Credit Statistics'
+api: 'GET /credits/stats'
+description: 'Returns detailed credit statistics including spending history and totals'
+---
+
+<RequestExample>
+```bash cURL
+curl -X GET "https://flowsmith-ys7.vercel.app/api/v1/credits/stats" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "currentBalance": 150000,
+  "formattedBalance": "150K",
+  "dollarValue": "$15.00",
+  "memberSince": "2024-01-01T00:00:00.000Z",
+  "totalSpent": 50000,
+  "totalPurchased": 200000,
+  "totalBonuses": 10000,
+  "transactionCount": 25,
+  "recentTransactions": [
+    {
+      "id": "txn_123",
+      "amount": -5000,
+      "type": "EXECUTION",
+      "description": "Image generation",
+      "createdAt": "2024-01-17T10:00:00.000Z"
+    },
+    {
+      "id": "txn_122",
+      "amount": 100000,
+      "type": "PURCHASE",
+      "description": "Credit purchase",
+      "createdAt": "2024-01-15T14:00:00.000Z"
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Transaction Types
+
+| Type | Description |
+|------|-------------|
+| `EXECUTION` | Credits spent on workflow/node execution |
+| `PURCHASE` | Credits purchased |
+| `BONUS` | Promotional or referral credits |
+| `REFUND` | Refunded credits |
+| `ADJUSTMENT` | Manual balance adjustment |

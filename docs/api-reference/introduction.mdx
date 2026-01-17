@@ -1,0 +1,76 @@
+---
+title: 'API Reference'
+description: 'Complete reference for the Flowsmith REST API'
+---
+
+## Base URL
+
+```
+https://flowsmith-ys7.vercel.app/api/v1
+```
+
+## OpenAPI Specification
+
+The full OpenAPI 3.0 specification is available at:
+
+```
+https://flowsmith-ys7.vercel.app/api/openapi.json
+```
+
+You can import this into tools like Postman, Insomnia, or any OpenAPI-compatible client.
+
+## Available Endpoints
+
+### Workflows
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/workflows` | List all workflows |
+| `GET` | `/workflows/{id}` | Get a specific workflow |
+| `POST` | `/workflows` | Create a new workflow |
+| `PATCH` | `/workflows/{id}` | Update a workflow |
+| `DELETE` | `/workflows/{id}` | Delete a workflow |
+| `POST` | `/workflows/{id}/duplicate` | Duplicate a workflow |
+
+### Credits
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/credits/balance` | Get current credit balance |
+| `GET` | `/credits/stats` | Get credit usage statistics |
+
+## Response Format
+
+All responses are returned as JSON with the following structure:
+
+### Success Response
+
+```json
+{
+  "data": { ... },
+  "meta": {
+    "requestId": "req_abc123"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Workflow not found"
+  }
+}
+```
+
+## Common Error Codes
+
+| Code | Description |
+|------|-------------|
+| `UNAUTHORIZED` | Missing or invalid authentication |
+| `FORBIDDEN` | Insufficient permissions |
+| `NOT_FOUND` | Resource not found |
+| `BAD_REQUEST` | Invalid request parameters |
+| `INTERNAL_SERVER_ERROR` | Server error |

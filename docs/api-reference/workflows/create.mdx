@@ -1,0 +1,55 @@
+---
+title: 'Create Workflow'
+api: 'POST /workflows'
+description: 'Creates a new workflow'
+---
+
+<ParamField body="name" type="string" required>
+  Name of the workflow (1-100 characters)
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description (max 500 characters)
+</ParamField>
+
+<ParamField body="nodesJson" type="array" required>
+  Array of node objects defining the workflow
+</ParamField>
+
+<ParamField body="edgesJson" type="array" required>
+  Array of edge objects connecting nodes
+</ParamField>
+
+<ParamField body="viewportJson" type="object">
+  Viewport settings (x, y, zoom)
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -X POST "https://flowsmith-ys7.vercel.app/api/v1/workflows" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "New Workflow",
+    "description": "My new AI workflow",
+    "nodesJson": [],
+    "edgesJson": []
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "workflow": {
+    "id": "clm456def",
+    "name": "New Workflow",
+    "description": "My new AI workflow",
+    "version": 1,
+    "isPublished": false,
+    "createdAt": "2024-01-17T10:00:00.000Z",
+    "updatedAt": "2024-01-17T10:00:00.000Z"
+  }
+}
+```
+</ResponseExample>
