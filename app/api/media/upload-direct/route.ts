@@ -26,13 +26,15 @@ export async function POST(request: NextRequest) {
 
   try {
     // Create assembly params - minimal config to just store the file
+    // Transloadit expects ISO 8601 UTC format: YYYY-MM-DDTHH:mm:ss.sssZ
+    const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    
     const params = {
       auth: {
         key: authKey,
-        // Transloadit requires specific date format: YYYY/MM/DD HH:MM:SS+00:00
-        expires: formatTransloaditDate(new Date(Date.now() + 30 * 60 * 1000)),
+        expires: expires,
       },
-      // Empty steps = just store the original file
+      // Empty steps = just store the original file in uploads
       steps: {},
     };
 
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
       .update(Buffer.from(paramsString, "utf-8"))
       .digest("hex");
 
-    console.log("[DirectUpload] Created signature for upload");
+    console.log("[DirectUpload] Created signature for upload, expires:", expires);
 
     return NextResponse.json({
       params: paramsString,
@@ -56,23 +58,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Format date as Transloadit expects: YYYY/MM/DD HH:MM:SS+00:00
-function formatTransloaditDate(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return (
-    date.getUTCFullYear() +
-    "/" +
-    pad(date.getUTCMonth() + 1) +
-    "/" +
-    pad(date.getUTCDate()) +
-    " " +
-    pad(date.getUTCHours()) +
-    ":" +
-    pad(date.getUTCMinutes()) +
-    ":" +
-    pad(date.getUTCSeconds()) +
-    "+00:00"
-  );
 }
