@@ -2760,6 +2760,23 @@ html.light .react-flow__node span.bg-white {
   border-color: #E5E7EB !important;
 }
 
+/* Node handle hover tooltips - ensure visible in light mode */
+html.light .react-flow__node .group\/handle > div.bg-white,
+html.light .react-flow__node div.bg-white.border-gray-200 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  color: #374151 !important;
+}
+
+/* Ensure tooltip text is visible */
+html.light .react-flow__node .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.light .react-flow__node .text-\[11px\].text-gray-700 {
+  color: #374151 !important;
+}
+
 /* Node palette panel */
 html.light .bg-black\/60.backdrop-blur-2xl {
   background-color: #FFFFFF !important;
@@ -3498,6 +3515,46 @@ html.light .bg-amber-500\/10.border.border-amber-500\/20 {
 /* Transaction list hover */
 html.light .hover\:bg-zinc-800\/30.transition-colors:hover {
   background-color: #F3F4F6 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE - SELECT DROPDOWN STYLING
+   Native select/option elements need explicit dark mode styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Dark mode select dropdowns */
+html.dark select,
+.dark select {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+/* Dark mode option elements inside select */
+html.dark select option,
+.dark select option {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+html.dark select option:hover,
+.dark select option:hover,
+html.dark select option:checked,
+.dark select option:checked {
+  background-color: #27272a !important;
+  color: #fafafa !important;
+}
+
+/* ReactFlow node select dropdowns in dark mode */
+html.dark .react-flow__node select,
+.dark .react-flow__node select {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+html.dark .react-flow__node select option,
+.dark .react-flow__node select option {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
 }
 
 /* =============================================================================

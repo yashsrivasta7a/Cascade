@@ -468,7 +468,7 @@ export const NODE_CONFIG: NodeConfigRegistry = {
           temperature: "temperature",
           maxTokens: "maxTokens",
           context: "context",
-          imageUrl: "imageUrl",
+          imageUrl: "imageUrl",  // Can be string URL or {url, mimeType} object
         },
         outputMapping: {
           text: "text",

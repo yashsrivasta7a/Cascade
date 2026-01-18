@@ -123,16 +123,16 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
           top: contextMenuPosition.y,
         }}
       >
-        <div className="bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden min-w-[180px] shadow-2xl shadow-black/50">
+        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden min-w-[180px] shadow-2xl shadow-black/10 dark:shadow-black/50">
           {/* Header */}
-          <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 bg-white/5">
-            <span className="text-zinc-400">{categoryIcons[nodeDef.category]}</span>
-            <span className="text-xs font-medium text-zinc-200 truncate flex-1">
+          <div className="px-3 py-2 border-b border-gray-100 dark:border-white/10 flex items-center gap-2 bg-gray-50 dark:bg-white/5">
+            <span className="text-gray-500 dark:text-zinc-400">{categoryIcons[nodeDef.category]}</span>
+            <span className="text-xs font-medium text-gray-900 dark:text-zinc-200 truncate flex-1">
               {nodeDef.label}
             </span>
             <button
               onClick={closeMenu}
-              className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/10 transition-colors"
+              className="p-1 rounded text-gray-400 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
             >
               <X className="w-3 h-3" />
             </button>
@@ -142,27 +142,27 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
           <div className="p-1.5">
             <button
               onClick={handleDuplicate}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-300 hover:bg-white/10 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-gray-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
             >
-              <Copy className="w-3.5 h-3.5 text-zinc-500" />
+              <Copy className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500" />
               Duplicate
             </button>
 
             {connectedEdgesCount > 0 && (
               <button
                 onClick={handleDisconnect}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-amber-300 hover:bg-amber-500/10 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
               >
                 <Unlink className="w-3.5 h-3.5 text-amber-500" />
                 Disconnect All ({connectedEdgesCount})
               </button>
             )}
 
-            <div className="my-1.5 h-px bg-white/10" />
+            <div className="my-1.5 h-px bg-gray-100 dark:bg-white/10" />
 
             <button
               onClick={handleDelete}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete Node

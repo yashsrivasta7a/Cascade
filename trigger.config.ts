@@ -1,5 +1,6 @@
 import { defineConfig } from "@trigger.dev/sdk";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
+import { ffmpeg } from "@trigger.dev/build/extensions/core";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
@@ -63,6 +64,9 @@ export default defineConfig({
       prismaExtension({
         schema: "prisma/schema.prisma",
       }),
+      // FFmpeg for video processing (merge-videos, extract-audio, etc.)
+      // This installs FFmpeg in the Trigger.dev worker environment
+      ffmpeg({ version: "7" }),
     ],
   },
 

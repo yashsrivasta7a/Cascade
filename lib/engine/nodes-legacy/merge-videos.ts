@@ -261,7 +261,8 @@ async function mergeVideosWithTransloadit(
       return null;
     }
 
-    // Create assembly to concatenate videos
+    // Create assembly to concatenate videos (simple concat only - no transitions)
+    // Transitions require local FFmpeg with xfade filter
     const assembly = await client.createAssembly({
       params: {
         steps: {
@@ -277,7 +278,7 @@ async function mergeVideosWithTransloadit(
             url: video2Url,
             ignore_errors: ["meta"],
           },
-          // Concatenate videos
+          // Simple concatenation (no transitions)
           concatenated: {
             robot: "/video/concat",
             use: {
@@ -287,10 +288,7 @@ async function mergeVideosWithTransloadit(
               ],
             },
             preset: "iphone-high",
-            // Add transition if specified
-            ...(input.transition !== "none" && {
-              ffmpeg_stack: "v6.0.0",
-            }),
+            ffmpeg_stack: "v6.0.0",
           },
         },
       },
@@ -546,17 +544,24 @@ export const mergeVideosExecutor: NodeExecutor<MergeVideosInput, MergeVideosOutp
     input: MergeVideosInput,
     context: NodeExecutionContext
   ): Promise<NodeExecutionResult> {
+    const hasTransition = input.transition !== "none";
+    
     // ==========================================================================
-    // PREFER TRANSLOADIT (cloud processing) - avoids OOM on small machines
+    // TRANSLOADIT (cloud processing) - only for simple concatenation (no transitions)
+    // Transloadit's /video/concat doesn't support xfade transitions well
     // ==========================================================================
-    if (isTransloaditConfigured()) {
-      console.log("[MergeVideos] Transloadit configured - using cloud processing (recommended)");
+    if (isTransloaditConfigured() && !hasTransition) {
+      console.log("[MergeVideos] Transloadit configured - using cloud processing for simple concat");
       const transloaditResult = await mergeVideosWithTransloadit(input);
       if (transloaditResult) {
         console.log("[MergeVideos] Transloadit processing successful");
         return transloaditResult;
       }
       console.warn("[MergeVideos] Transloadit failed, falling back to local FFmpeg");
+    }
+    
+    if (hasTransition) {
+      console.log(`[MergeVideos] Using local FFmpeg for ${input.transition} transition (Transloadit doesn't support xfade)`);
     }
 
     // ==========================================================================

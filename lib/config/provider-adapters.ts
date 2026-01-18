@@ -173,7 +173,17 @@ class OpenRouterAdapter implements ProviderAdapter {
     let userContent: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
     const prompt = params.input.prompt as string;
     const context = params.input.context as string | undefined;
-    const imageUrl = params.input.imageUrl as string | undefined;
+    
+    // Handle imageUrl as either string or object {url, mimeType}
+    const rawImageUrl = params.input.imageUrl;
+    let imageUrl: string | undefined;
+    if (rawImageUrl) {
+      if (typeof rawImageUrl === "string") {
+        imageUrl = rawImageUrl;
+      } else if (typeof rawImageUrl === "object" && rawImageUrl !== null && "url" in rawImageUrl) {
+        imageUrl = (rawImageUrl as { url: string }).url;
+      }
+    }
 
     if (imageUrl) {
       // Vision request with image

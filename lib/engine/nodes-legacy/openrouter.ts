@@ -57,7 +57,17 @@ export const openrouterExecutor: NodeExecutor<OpenRouterInput, OpenRouterOutput>
       // Build user message content
       let userContent: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
 
+      // Handle imageUrl as either string or object {url, mimeType}
+      let imageUrl: string | undefined;
       if (input.imageUrl) {
+        if (typeof input.imageUrl === "string") {
+          imageUrl = input.imageUrl;
+        } else if (typeof input.imageUrl === "object" && input.imageUrl !== null && "url" in (input.imageUrl as object)) {
+          imageUrl = (input.imageUrl as { url: string }).url;
+        }
+      }
+
+      if (imageUrl) {
         // Vision request with image
         userContent = [
           { type: "text", text: input.prompt },
@@ -67,7 +77,7 @@ export const openrouterExecutor: NodeExecutor<OpenRouterInput, OpenRouterOutput>
         }
         userContent.push({
           type: "image_url",
-          image_url: { url: input.imageUrl },
+          image_url: { url: imageUrl },
         });
       } else {
         // Text-only request
