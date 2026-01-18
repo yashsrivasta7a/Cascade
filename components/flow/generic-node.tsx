@@ -65,13 +65,14 @@ interface FieldRendererProps {
   value: unknown;
   onChange: (value: unknown) => void;
   isConnected?: boolean;
+  connectedValue?: string | null;
   disabled?: boolean;
   onUploadingChange?: (uploading: boolean) => void;
   /** Optional crop overlay for image fields (used by crop-image node) */
   cropOverlay?: CropOverlay;
 }
 
-function FieldRenderer({ field, value, onChange, isConnected, disabled, onUploadingChange, cropOverlay }: FieldRendererProps) {
+function FieldRenderer({ field, value, onChange, isConnected, connectedValue, disabled, onUploadingChange, cropOverlay }: FieldRendererProps) {
   switch (field.type) {
     case "textarea":
     case "text":
@@ -104,6 +105,8 @@ function FieldRenderer({ field, value, onChange, isConnected, disabled, onUpload
           disabled={disabled}
           onUploadingChange={onUploadingChange}
           cropOverlay={cropOverlay}
+          isConnected={isConnected}
+          connectedValue={connectedValue}
         />
       );
 
@@ -158,6 +161,7 @@ interface FieldWithHandleProps {
   value: unknown;
   onChange: (value: unknown) => void;
   isConnected?: boolean;
+  connectedValue?: string | null;
   disabled?: boolean;
   handleType: DataType;
   isDragging?: boolean;
@@ -171,7 +175,8 @@ function FieldWithHandle({
   field, 
   value, 
   onChange, 
-  isConnected, 
+  isConnected,
+  connectedValue,
   disabled,
   handleType,
   isDragging,
@@ -256,6 +261,7 @@ function FieldWithHandle({
         value={value}
         onChange={onChange}
         isConnected={isConnected}
+        connectedValue={connectedValue}
         disabled={disabled}
         onUploadingChange={onUploadingChange}
         cropOverlay={cropOverlay}
@@ -335,6 +341,36 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       return isHandleConnected(id, fieldId);
     },
     [id, isHandleConnected]
+  );
+
+  // Get connected output value for a field (for preview in file fields)
+  const getConnectedOutput = useCallback(
+    (fieldId: string): string | null => {
+      const source = getHandleSource(id, fieldId);
+      if (!source) return null;
+      
+      const sourceNode = nodes.find(n => n.id === source.sourceNodeId);
+      if (!sourceNode) return null;
+      
+      const sourceData = sourceNode.data as Record<string, unknown>;
+      
+      // Check common output locations
+      if (sourceData.result && typeof sourceData.result === "string") {
+        return sourceData.result;
+      }
+      if (sourceData.outputVideo && typeof sourceData.outputVideo === "string") {
+        return sourceData.outputVideo;
+      }
+      if (sourceData.outputAudio && typeof sourceData.outputAudio === "string") {
+        return sourceData.outputAudio;
+      }
+      if (sourceData.outputImage && typeof sourceData.outputImage === "string") {
+        return sourceData.outputImage;
+      }
+      
+      return null;
+    },
+    [id, getHandleSource, nodes]
   );
 
   // Run a connected parent node if it doesn't have output yet
@@ -844,6 +880,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
                 value={data[field.id]}
                 onChange={(v) => handleFieldChange(field.id, v)}
                 isConnected={isFieldConnected(field.id)}
+                connectedValue={getConnectedOutput(field.id)}
                 disabled={isProcessing}
                 handleType={getFieldHandleType(field)}
                 isDragging={isDragging}
@@ -878,6 +915,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
                     value={data[field.id]}
                     onChange={(v) => handleFieldChange(field.id, v)}
                     isConnected={isFieldConnected(field.id)}
+                    connectedValue={getConnectedOutput(field.id)}
                     disabled={isProcessing}
                     handleType={getFieldHandleType(field)}
                     isDragging={isDragging}

@@ -97,14 +97,16 @@ export function parseElevenlabsResult(falResult: unknown): ElevenlabsOutput {
 }
 
 function executeMock(_input: ElevenlabsInput): NodeExecutionResult {
+  // Use base64 silent audio to avoid CORS issues with mock responses
+  const mockAudioBase64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAB8ANX9AAAItMK7P80IACqu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/+1DEJgAAA0gAAAAAu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7";
   return {
     success: true,
     output: {
       type: "audio",
       audio: {
-        url: "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav",
-        mimeType: "audio/wav",
-        durationMs: 60000,
+        url: mockAudioBase64,
+        mimeType: "audio/mp3",
+        durationMs: 1000,
       },
     },
     providerUsed: "mock",

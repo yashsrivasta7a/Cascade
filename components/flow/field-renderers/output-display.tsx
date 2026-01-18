@@ -34,7 +34,19 @@ function ImageDisplay({ url, className }: { url: string; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
+  // Check for Transloadit URLs (they expire after 24h)
+  const isTransloaditUrl = url?.includes("transloadit.com") || url?.includes("tlcdn.com") || url?.includes("tmp.transloadit");
+
   if (error) {
+    // Check if it's likely an expired Transloadit URL
+    if (isTransloaditUrl) {
+      return (
+        <div className={cn("flex flex-col items-center justify-center bg-amber-50 dark:bg-amber-500/10 rounded-lg p-3 gap-1", className)}>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">Image URL expired (24h limit)</span>
+          <span className="text-[9px] text-amber-500 dark:text-amber-500/70">Re-run the node for fresh image</span>
+        </div>
+      );
+    }
     return (
       <div className={cn("flex items-center justify-center bg-red-50 dark:bg-red-500/10 rounded-lg", className)}>
         <span className="text-[10px] text-red-500 dark:text-red-400">Failed to load image</span>
@@ -65,7 +77,19 @@ function VideoDisplay({ url, className }: { url: string; className?: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
 
+  // Check for Transloadit URLs (they expire after 24h)
+  const isTransloaditUrl = url?.includes("transloadit.com") || url?.includes("tlcdn.com") || url?.includes("tmp.transloadit");
+
   if (error) {
+    // Check if it's likely an expired Transloadit URL
+    if (isTransloaditUrl) {
+      return (
+        <div className={cn("flex flex-col items-center justify-center bg-amber-50 dark:bg-amber-500/10 rounded-lg p-3 gap-1", className)}>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">Video URL expired (24h limit)</span>
+          <span className="text-[9px] text-amber-500 dark:text-amber-500/70">Re-run the node for fresh video</span>
+        </div>
+      );
+    }
     return (
       <div className={cn("flex items-center justify-center bg-red-50 dark:bg-red-500/10 rounded-lg", className)}>
         <span className="text-[10px] text-red-500 dark:text-red-400">Failed to load video</span>
@@ -109,6 +133,22 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
   const [duration, setDuration] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
+  // Check for known problematic URLs (old mock URLs with CORS issues)
+  const isProblematicUrl = url?.includes("www2.cs.uic.edu") || url?.includes("StarWars");
+  
+  // If URL is problematic, show error immediately
+  if (isProblematicUrl) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center bg-amber-50 dark:bg-amber-500/10 rounded-lg p-3 gap-1", className)}>
+        <span className="text-[10px] text-amber-600 dark:text-amber-400">Audio from previous run</span>
+        <span className="text-[9px] text-amber-500 dark:text-amber-500/70">Re-run the node for fresh audio</span>
+      </div>
+    );
+  }
+
+  // Check for Transloadit URLs (they expire after 24h)
+  const isTransloaditUrl = url?.includes("transloadit.com") || url?.includes("tlcdn.com") || url?.includes("tmp.transloadit");
+
   // Handle play/pause toggle
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -141,6 +181,15 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (error) {
+    // Check if it's likely an expired Transloadit URL
+    if (isTransloaditUrl) {
+      return (
+        <div className={cn("flex flex-col items-center justify-center bg-amber-50 dark:bg-amber-500/10 rounded-lg p-3 gap-1", className)}>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">Audio URL expired (24h limit)</span>
+          <span className="text-[9px] text-amber-500 dark:text-amber-500/70">Re-run the node for fresh audio</span>
+        </div>
+      );
+    }
     return (
       <div className={cn("flex items-center justify-center bg-red-50 dark:bg-red-500/10 rounded-lg p-3", className)}>
         <span className="text-[10px] text-red-500 dark:text-red-400">Failed to load audio</span>
@@ -198,7 +247,7 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
       {/* Volume Icon */}
       <Volume2 className="w-4 h-4 text-gray-400 dark:text-zinc-500 shrink-0" />
 
-      {/* Hidden Audio Element */}
+      {/* Hidden Audio Element - don't use crossOrigin as it breaks data URLs and some CDNs */}
       <audio
         ref={audioRef}
         src={url}
@@ -217,7 +266,10 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
         onTimeUpdate={(e) => {
           setCurrentTime(e.currentTarget.currentTime);
         }}
-        onError={() => setError(true)}
+        onError={(e) => {
+          console.error("[AudioDisplay] Failed to load audio:", url?.slice(0, 100), e);
+          setError(true);
+        }}
         className="hidden"
       />
     </div>

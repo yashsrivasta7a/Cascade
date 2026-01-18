@@ -438,9 +438,10 @@ export const NODE_CONFIG: NodeConfigRegistry = {
     mockResponse: () => ({
       type: "audio",
       audio: {
-        url: "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav",
-        mimeType: "audio/wav",
-        durationMs: 60000,
+        // Use a small base64 silent MP3 for mock to avoid CORS issues
+        url: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAB8ANX9AAAItMK7P80IACqu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/+1DEJgAAA0gAAAAAu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7",
+        mimeType: "audio/mp3",
+        durationMs: 1000,
       },
     }),
   },
@@ -484,7 +485,11 @@ export const NODE_CONFIG: NodeConfigRegistry = {
       temperature: z.number().min(0).max(2).default(0.7),
       maxTokens: z.number().min(1).max(128000).default(4096),
       context: z.string().optional(),
-      imageUrl: z.string().optional(),
+      // Accept both string URL and object {url, mimeType} from connected image nodes
+      imageUrl: z.union([
+        z.string(),
+        z.object({ url: z.string(), mimeType: z.string().optional() }),
+      ]).optional(),
     }),
     
     outputSchema: TextOutSchema,
@@ -828,8 +833,9 @@ export const NODE_CONFIG: NodeConfigRegistry = {
     mockResponse: () => ({
       type: "audio",
       audio: {
-        url: "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav",
-        mimeType: "audio/wav",
+        // Use a small base64 silent MP3 for mock to avoid CORS issues
+        url: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAB8ANX9AAAItMK7P80IACqu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/+1DEJgAAA0gAAAAAu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7",
+        mimeType: "audio/mp3",
       },
     }),
   },

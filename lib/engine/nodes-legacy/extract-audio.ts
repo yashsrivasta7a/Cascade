@@ -333,12 +333,14 @@ export const extractAudioExecutor: NodeExecutor<ExtractAudioInput, ExtractAudioO
       if (process.env.NODE_ENV === "development") {
         console.log("[ExtractAudio] FFmpeg not found, using mock audio for development");
         const mockMimeType = FORMAT_MIMETYPES[input.format] ?? "audio/mpeg";
+        // Use base64 silent audio to avoid CORS issues
+        const mockAudioBase64 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAB8ANX9AAAItMK7P80IACqu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7v/+1DEJgAAA0gAAAAAu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7";
         return {
           success: true,
           output: {
             type: "audio",
             audio: {
-              url: "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav",
+              url: mockAudioBase64,
               mimeType: mockMimeType,
             },
           },
