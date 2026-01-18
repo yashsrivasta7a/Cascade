@@ -999,11 +999,47 @@ function WorkflowEditorContent() {
             if (outputsApplied > 0) {
               console.log(`[SSE] Fallback: Applied ${outputsApplied} outputs from database`);
             }
+            
+            // Finalize ALL node statuses based on database - ensure no nodes stuck in queued/running
+            const { setNodes: finalSetNodes } = useFlowStore.getState();
+            const nodeStatusMap = new Map<string, string>();
+            for (const ne of nodeExecutions) {
+              nodeStatusMap.set(ne.nodeId, ne.status);
+            }
+            
+            finalSetNodes((prevNodes) => 
+              prevNodes.map((n) => {
+                const nodeData = n.data as Record<string, unknown>;
+                const dbStatus = nodeStatusMap.get(n.id);
+                
+                // If node is still showing queued/running but has a final status in DB, update it
+                if ((nodeData.status === "queued" || nodeData.status === "running") && dbStatus) {
+                  const finalStatus = dbStatus === "COMPLETED" ? "completed" 
+                    : dbStatus === "FAILED" ? "failed" 
+                    : "completed"; // Default to completed if unknown status
+                  console.log(`[SSE] Finalizing node ${n.id} status: ${nodeData.status} -> ${finalStatus}`);
+                  return { ...n, data: { ...nodeData, status: finalStatus, progress: 100 } };
+                }
+                return n;
+              })
+            );
           }
         } catch (err) {
           console.error(`[SSE] Failed to fetch outputs from database:`, err);
         }
       }
+      
+      // Also finalize any remaining queued/running nodes that weren't in the database
+      setNodes((prevNodes) => 
+        prevNodes.map((n) => {
+          const nodeData = n.data as Record<string, unknown>;
+          if (nodeData.status === "queued" || nodeData.status === "running") {
+            console.log(`[SSE] Final cleanup: marking ${n.id} as completed`);
+            return { ...n, data: { ...nodeData, status: "completed", progress: 100 } };
+          }
+          return n;
+        })
+      );
       
       // Small delay to ensure React has time to render the outputs
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -1828,52 +1864,57 @@ function WorkflowEditorContent() {
               {/* Divider */}
               <div className="w-px h-6 bg-gradient-to-b from-transparent via-gray-300 dark:via-zinc-600/50 to-transparent mx-1" />
 
-              {/* Run/Stop button */}
-              <div className="relative group/runwrap">
-                <motion.button
-                  onClick={() => (isWorkflowRunning && !isFinalizing) ? handleStopWorkflow() : (!isWorkflowRunning && !isFinalizing) ? setIsRunModalOpen(true) : undefined}
-                  onMouseEnter={() => setHoveredAction("run")}
-                  onMouseLeave={() => setHoveredAction(null)}
-                  whileTap={{ scale: isFinalizing ? 1 : 0.98 }}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all",
-                    isFinalizing 
-                      ? "bg-amber-100 text-amber-600 border-2 border-amber-400 cursor-wait dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/50"
-                      : isWorkflowRunning 
-                        ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
-                        : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
-                  )}
-                  disabled={isFinalizing}
-                >
-                  {isFinalizing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : isWorkflowRunning ? (
-                    <Square className="w-4 h-4 fill-current" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
-                  <span>
-                    {isFinalizing ? "Finalizing..." : isWorkflowRunning ? "Stop" : "Execute"}
-                  </span>
-                </motion.button>
-                
-                <AnimatePresence>
-                  {hoveredAction === "run" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 4 }}
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+              {/* Run/Stop button - use both isWorkflowRunning and isSSERunning for reliability */}
+              {(() => {
+                const isRunning = isWorkflowRunning || isSSERunning;
+                return (
+                  <div className="relative group/runwrap">
+                    <motion.button
+                      onClick={() => (isRunning && !isFinalizing) ? handleStopWorkflow() : (!isRunning && !isFinalizing) ? setIsRunModalOpen(true) : undefined}
+                      onMouseEnter={() => setHoveredAction("run")}
+                      onMouseLeave={() => setHoveredAction(null)}
+                      whileTap={{ scale: isFinalizing ? 1 : 0.98 }}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all",
+                        isFinalizing 
+                          ? "bg-amber-100 text-amber-600 border-2 border-amber-400 cursor-wait dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/50"
+                          : isRunning 
+                            ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
+                            : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
+                      )}
+                      disabled={isFinalizing}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-700 dark:text-zinc-300">{isFinalizing ? "Loading outputs..." : isWorkflowRunning ? "Stop" : "Execute"}</span>
-                        <Kbd>{isFinalizing ? "..." : isWorkflowRunning ? "Esc" : "R"}</Kbd>
-                      </div>
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                      {isFinalizing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isRunning ? (
+                        <Square className="w-4 h-4 fill-current" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isFinalizing ? "Finalizing..." : isRunning ? "Stop" : "Execute"}
+                      </span>
+                    </motion.button>
+                    
+                    <AnimatePresence>
+                      {hoveredAction === "run" && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-700 dark:text-zinc-300">{isFinalizing ? "Loading outputs..." : isRunning ? "Stop" : "Execute"}</span>
+                            <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>
+                          </div>
+                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })()}
             </div>
           </motion.div>
         </div>

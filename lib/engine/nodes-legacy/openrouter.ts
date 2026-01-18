@@ -15,7 +15,11 @@ export const OpenRouterInputSchema = z.object({
   maxTokens: z.number().min(1).max(128000).default(4096),
   // Context from previous nodes (could be text or image URL)
   context: z.string().optional(),
-  imageUrl: z.string().optional(), // Can be URL or base64 data URL
+  // Accept both string URL and object {url, mimeType} from connected image nodes
+  imageUrl: z.union([
+    z.string(),
+    z.object({ url: z.string(), mimeType: z.string().optional() }),
+  ]).optional(),
 });
 
 export type OpenRouterInput = z.infer<typeof OpenRouterInputSchema>;
