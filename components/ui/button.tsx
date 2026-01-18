@@ -30,15 +30,15 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = `
       relative inline-flex items-center justify-center gap-2
       font-medium transition-all duration-200
-      focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101010]
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#101010]
       disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none
     `;
 
     const variants = {
       primary: `
-        bg-gradient-to-r from-[#1e3a5f] to-[#2a4a6f] text-white font-semibold
-        shadow-lg shadow-[#0f1f33]/50
-        hover:from-[#2a4a6f] hover:to-[#3a5a7f]
+        bg-gradient-to-r from-cyan-500 to-violet-500 text-white font-semibold
+        shadow-lg shadow-cyan-500/25
+        hover:from-cyan-600 hover:to-violet-600
         active:scale-[0.98]
       `,
       gradient: `
@@ -48,29 +48,32 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         active:scale-[0.98]
       `,
       secondary: `
-        bg-zinc-800 text-white font-semibold
-        border border-zinc-700/50
-        hover:bg-zinc-700 hover:border-zinc-600/50
+        bg-gray-100 text-gray-700 font-semibold
+        border border-gray-300
+        hover:bg-gray-200 hover:border-gray-400
+        dark:bg-zinc-800 dark:text-white
+        dark:border-zinc-700/50
+        dark:hover:bg-zinc-700 dark:hover:border-zinc-600/50
         active:scale-[0.98]
       `,
       ghost: `
         bg-transparent
-        text-zinc-400
-        hover:text-white
-        hover:bg-zinc-800/50
+        text-gray-500 dark:text-zinc-400
+        hover:text-gray-900 dark:hover:text-white
+        hover:bg-gray-100 dark:hover:bg-zinc-800/50
       `,
       outline: `
         bg-transparent
-        border border-zinc-700/50
-        text-zinc-300
-        hover:border-zinc-600
-        hover:bg-zinc-800/50
-        hover:text-white
+        border border-gray-300 dark:border-zinc-700/50
+        text-gray-600 dark:text-zinc-300
+        hover:border-gray-400 dark:hover:border-zinc-600
+        hover:bg-gray-100 dark:hover:bg-zinc-800/50
+        hover:text-gray-900 dark:hover:text-white
       `,
       danger: `
-        bg-red-500/10 text-red-400
-        border border-red-500/20
-        hover:bg-red-500/20 hover:border-red-500/30
+        bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400
+        border border-red-200 dark:border-red-500/20
+        hover:bg-red-100 dark:hover:bg-red-500/20 hover:border-red-300 dark:hover:border-red-500/30
       `,
     };
 

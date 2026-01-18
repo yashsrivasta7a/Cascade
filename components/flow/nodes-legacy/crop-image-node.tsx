@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useCallback, useRef, useMemo } from "react";
+import { memo, useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { NodeProps } from "reactflow";
 import { Crop, Play, Loader2, Upload, X, Maximize2, Download, Lock, ChevronDown } from "lucide-react";
 import { BaseNode, type BaseNodeData, isSettingInherited } from "../base-node";
@@ -58,6 +58,63 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [imageBounds, setImageBounds] = useState<{ offsetX: number; offsetY: number; width: number; height: number } | null>(null);
+
+  // Calculate actual image bounds within container (accounting for object-contain)
+  const updateImageBounds = useCallback(() => {
+    const img = imageRef.current;
+    const container = containerRef.current;
+    if (!img || !container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const naturalAspect = img.naturalWidth / img.naturalHeight;
+    const containerAspect = containerRect.width / containerRect.height;
+
+    let displayWidth: number, displayHeight: number, offsetX: number, offsetY: number;
+
+    if (naturalAspect > containerAspect) {
+      // Image is wider - fits width, letterboxed top/bottom
+      displayWidth = containerRect.width;
+      displayHeight = containerRect.width / naturalAspect;
+      offsetX = 0;
+      offsetY = (containerRect.height - displayHeight) / 2;
+    } else {
+      // Image is taller - fits height, letterboxed left/right
+      displayHeight = containerRect.height;
+      displayWidth = containerRect.height * naturalAspect;
+      offsetX = (containerRect.width - displayWidth) / 2;
+      offsetY = 0;
+    }
+
+    setImageBounds({ offsetX, offsetY, width: displayWidth, height: displayHeight });
+  }, []);
+
+  // Update bounds when image loads or changes
+  useEffect(() => {
+    const img = imageRef.current;
+    if (!img) return;
+
+    const handleLoad = () => updateImageBounds();
+    img.addEventListener("load", handleLoad);
+    
+    // Also update on resize
+    const resizeObserver = new ResizeObserver(updateImageBounds);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    // Initial calculation if image already loaded
+    if (img.complete) {
+      updateImageBounds();
+    }
+
+    return () => {
+      img.removeEventListener("load", handleLoad);
+      resizeObserver.disconnect();
+    };
+  }, [updateImageBounds, data.inputImage]);
 
   const handleImageUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
@@ -262,38 +319,55 @@ function CropImageNodeComponent(props: NodeProps<CropImageNodeData>) {
                 ) : data.inputImage ? (
                   <div className="relative">
                     {/* Image with crop overlay */}
-                    <div className="relative">
+                    <div ref={containerRef} className="relative bg-black/20">
                       <img 
+                        ref={imageRef}
                         src={data.inputImage} 
                         alt="Input" 
-                        className="w-full h-auto max-h-[120px] object-contain bg-black/20" 
+                        className="w-full h-auto max-h-[160px] object-contain" 
                       />
-                      {/* Crop overlay - darkens non-cropped areas */}
-                      <div 
-                        className="absolute inset-0 pointer-events-none"
-                        style={{
-                          background: `linear-gradient(to right, 
-                            rgba(0,0,0,0.6) ${data.xPercent || 0}%, 
-                            transparent ${data.xPercent || 0}%, 
-                            transparent ${(data.xPercent || 0) + (data.widthPercent || 100)}%, 
-                            rgba(0,0,0,0.6) ${(data.xPercent || 0) + (data.widthPercent || 100)}%
-                          )`,
-                        }}
-                      />
-                      {/* Crop area indicator */}
-                      <div 
-                        className="absolute border-2 border-emerald-400/80 bg-emerald-400/5 pointer-events-none"
-                        style={{
-                          left: `${data.xPercent || 0}%`,
-                          top: `${data.yPercent || 0}%`,
-                          width: `${data.widthPercent || 100}%`,
-                          height: `${data.heightPercent || 100}%`,
-                        }}
-                      />
+                      {/* Crop overlay - positioned within actual image bounds */}
+                      {imageBounds && (
+                        <>
+                          {/* Dark overlay for non-cropped areas */}
+                          <div 
+                            className="absolute pointer-events-none bg-black/50"
+                            style={{
+                              left: imageBounds.offsetX,
+                              top: imageBounds.offsetY,
+                              width: imageBounds.width,
+                              height: imageBounds.height,
+                              clipPath: `polygon(
+                                0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+                                ${data.xPercent || 0}% ${data.yPercent || 0}%,
+                                ${data.xPercent || 0}% ${(data.yPercent || 0) + (data.heightPercent || 100)}%,
+                                ${(data.xPercent || 0) + (data.widthPercent || 100)}% ${(data.yPercent || 0) + (data.heightPercent || 100)}%,
+                                ${(data.xPercent || 0) + (data.widthPercent || 100)}% ${data.yPercent || 0}%,
+                                ${data.xPercent || 0}% ${data.yPercent || 0}%
+                              )`,
+                            }}
+                          />
+                          {/* Crop area indicator - yellow box */}
+                          <div 
+                            className="absolute border-2 border-amber-400 pointer-events-none"
+                            style={{
+                              left: imageBounds.offsetX + (imageBounds.width * (data.xPercent || 0) / 100),
+                              top: imageBounds.offsetY + (imageBounds.height * (data.yPercent || 0) / 100),
+                              width: imageBounds.width * (data.widthPercent || 100) / 100,
+                              height: imageBounds.height * (data.heightPercent || 100) / 100,
+                            }}
+                          >
+                            {/* Dimension label */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 bg-amber-500 rounded text-[9px] font-bold text-black whitespace-nowrap">
+                              {data.widthPercent || 100}% × {data.heightPercent || 100}%
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                     {!isProcessing && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); updateNode(id, { inputImage: undefined, result: undefined }); }}
+                        onClick={(e) => { e.stopPropagation(); updateNode(id, { inputImage: undefined, result: undefined }); setImageBounds(null); }}
                         className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-lg hover:bg-black/90 transition-colors"
                       >
                         <X className="w-3 h-3 text-white" />

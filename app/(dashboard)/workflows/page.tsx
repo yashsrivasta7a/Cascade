@@ -287,10 +287,10 @@ export default function WorkflowsPage() {
       />
 
       {/* Header */}
-      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800/60">
+      <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-zinc-800/50 flex items-center justify-center">
-            <Workflow className="w-4 h-4 text-gray-600 dark:text-zinc-400" />
+          <div className="w-8 h-8 rounded-lg bg-blue-200 dark:bg-zinc-800/50 flex items-center justify-center">
+            <Workflow className="w-4 h-4 text-blue-600 dark:text-zinc-400" />
           </div>
           <div>
             <h1 className="text-sm font-semibold text-gray-900 dark:text-white">Workflows</h1>
@@ -306,7 +306,7 @@ export default function WorkflowsPage() {
           <button
             onClick={handleImport}
             disabled={isImporting}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 bg-gray-100 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 bg-gray-100 dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800 rounded-lg transition-colors disabled:opacity-50"
           >
             {isImporting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -324,7 +324,7 @@ export default function WorkflowsPage() {
               placeholder="Search workflows..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-56 bg-gray-100 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-lg pl-9 pr-4 py-1.5 text-sm text-gray-900 dark:text-zinc-200 placeholder:text-gray-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-gray-300 dark:focus:border-zinc-700 focus:ring-1 focus:ring-gray-300 dark:focus:ring-zinc-700 transition-colors"
+              className="w-56 bg-gray-100 dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800 rounded-lg pl-9 pr-4 py-1.5 text-sm text-gray-900 dark:text-zinc-200 placeholder:text-gray-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-gray-300 dark:focus:border-zinc-700 focus:ring-1 focus:ring-gray-300 dark:focus:ring-zinc-700 transition-colors"
             />
           </div>
 
@@ -332,7 +332,7 @@ export default function WorkflowsPage() {
           <div className="relative">
             <button
               onClick={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 bg-gray-100 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-200 bg-gray-100 dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800 rounded-lg transition-colors"
             >
               {sortOptions.find((o) => o.id === sortBy)?.label}
               <ChevronDown className="w-3.5 h-3.5" />
@@ -343,7 +343,7 @@ export default function WorkflowsPage() {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50"
+                  className="absolute right-0 top-full mt-2 w-36 bg-white dark:bg-zinc-900 border border-[#6b6b6b] dark:border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50"
                 >
                   {sortOptions.map((option) => (
                     <button
@@ -377,7 +377,7 @@ export default function WorkflowsPage() {
         {isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {/* Skeleton for New Workflow Card */}
-            <div className="relative bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 border-dashed rounded-xl overflow-hidden">
+            <div className="relative bg-[#f8f9fb] dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-800/60 border-dashed rounded-xl overflow-hidden shadow-md">
               <div className="aspect-[4/3] flex flex-col items-center justify-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-800 animate-pulse" />
                 <div className="h-4 w-24 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
@@ -387,7 +387,7 @@ export default function WorkflowsPage() {
             {[...Array(9)].map((_, i) => (
               <div
                 key={i}
-                className="relative bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden"
+                className="relative bg-[#f8f9fb] dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-800/60 rounded-xl overflow-hidden shadow-md"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 {/* Thumbnail skeleton */}
@@ -426,16 +426,15 @@ export default function WorkflowsPage() {
             {/* New Workflow Card - Dashboard style */}
             <Link href="/workflows/new">
               <motion.div
-                whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="group relative bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 border-dashed rounded-xl overflow-hidden transition-colors hover:border-blue-300 dark:hover:border-blue-500/20"
+                className="group relative bg-[#f8f9fb] dark:bg-zinc-900/50 border-2 border-blue-300 dark:border-zinc-800/60 border-dashed rounded-xl overflow-hidden transition-all shadow-md hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-500/20"
               >
                 <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
                 <div className="relative aspect-[4/3] flex flex-col items-center justify-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 transition-colors">
-                    <Plus className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-200 dark:bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-300 dark:group-hover:bg-blue-500/20 transition-colors">
+                    <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <span className="text-sm font-medium text-gray-500 dark:text-zinc-400 group-hover:text-gray-700 dark:group-hover:text-zinc-300">
+                  <span className="text-sm font-bold text-blue-600 dark:text-zinc-400 group-hover:text-blue-700 dark:group-hover:text-zinc-300">
                     New Workflow
                   </span>
                 </div>
@@ -455,7 +454,7 @@ export default function WorkflowsPage() {
                 <Link href={`/workflows/${workflow.id}`}>
                   <div
                     className={cn(
-                      "group relative bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden transition-colors hover:border-violet-300 dark:hover:border-violet-500/20"
+                      "group relative bg-[#f8f9fb] dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-800/60 rounded-xl overflow-hidden transition-all shadow-md hover:shadow-lg hover:border-violet-400 dark:hover:border-violet-500/20"
                     )}
                   >
                     <DotPattern className="text-violet-500/5 group-hover:text-violet-500/10 transition-colors" />
@@ -506,11 +505,11 @@ export default function WorkflowsPage() {
 
         {/* Empty State - Dashboard style */}
         {!isLoading && workflows.length === 0 && (
-          <div className="relative bg-white dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800/60 rounded-xl overflow-hidden">
-            <DotPattern className="text-violet-500/5 [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
+          <div className="relative bg-[#f8f9fb] dark:bg-zinc-900/50 border border-gray-300 dark:border-zinc-800/60 rounded-xl overflow-hidden shadow-md">
+            <DotPattern className="text-blue-500/5 [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
             <div className="relative flex flex-col items-center justify-center py-20">
-              <div className="w-14 h-14 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center mb-5">
-                <Workflow className="w-7 h-7 text-violet-500 dark:text-violet-400" />
+              <div className="w-14 h-14 rounded-xl bg-blue-200 dark:bg-violet-500/10 flex items-center justify-center mb-5">
+                <Workflow className="w-7 h-7 text-blue-600 dark:text-violet-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-800 dark:text-zinc-200 mb-1">
                 No workflows yet
@@ -520,7 +519,7 @@ export default function WorkflowsPage() {
               </p>
               <div className="flex items-center gap-3">
                 <Link href="/workflows/new">
-                  <button className="px-4 py-2.5 bg-zinc-900 dark:bg-white/10 hover:bg-zinc-800 dark:hover:bg-white/15 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-2">
+                  <button className="px-4 py-2.5 bg-blue-100 hover:bg-blue-200 border-2 border-blue-400 hover:border-blue-500 dark:bg-white/10 dark:hover:bg-white/15 dark:border-0 text-blue-600 dark:text-white text-sm font-bold rounded-lg transition-all flex items-center gap-2">
                     <Plus className="w-4 h-4" />
                     Create Workflow
                   </button>
@@ -566,7 +565,7 @@ export default function WorkflowsPage() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
-            className="fixed z-[100] w-40 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden"
+            className="fixed z-[100] w-40 bg-white dark:bg-zinc-900 border border-[#6b6b6b] dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden"
             style={{
               left: Math.min(contextMenu.x, typeof window !== 'undefined' ? window.innerWidth - 176 : contextMenu.x),
               top: Math.min(contextMenu.y, typeof window !== 'undefined' ? window.innerHeight - 160 : contextMenu.y),
@@ -632,7 +631,7 @@ export default function WorkflowsPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl shadow-2xl p-6 w-96"
+              className="bg-white dark:bg-zinc-900 border border-[#6b6b6b] dark:border-zinc-800 rounded-xl shadow-2xl p-6 w-96"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rename Workflow</h3>

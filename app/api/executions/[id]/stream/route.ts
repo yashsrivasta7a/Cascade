@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
+// Vercel function config
+export const maxDuration = 300; // 5 minutes for streaming
+
 // =============================================================================
 // EXECUTION STREAM API - Real-time updates via Trigger.dev
 // =============================================================================

@@ -610,7 +610,7 @@ export const executeWorkflow = task({
     };
 
     // Helper: Mark a node and all its downstream dependents as failed
-    const markNodeAndDependentsFailed = (failedNodeId: string) => {
+    const markNodeAndDependentsFailed = async (failedNodeId: string, originalError?: string) => {
       const toMark = [failedNodeId];
       const marked = new Set<string>();
       
@@ -621,10 +621,34 @@ export const executeWorkflow = task({
         
         failedNodes.add(nodeId);
         pendingNodes.delete(nodeId);
+        runningNodes.delete(nodeId); // Also remove from running if present
+        
+        // Update database for this node
+        const nodeExecutionId = nodeExecutionIds.get(nodeId);
+        if (nodeExecutionId) {
+          const isOriginalFailure = nodeId === failedNodeId;
+          const errorMessage = isOriginalFailure 
+            ? (originalError ?? "Node execution failed")
+            : `Dependency failed: ${failedNodeId}`;
+          
+          try {
+            await db.nodeExecution.update({
+              where: { id: nodeExecutionId },
+              data: { 
+                status: "FAILED", 
+                error: errorMessage,
+                completedAt: new Date(),
+              },
+            });
+            console.log(`[DAG] Updated DB: ${nodeId} -> FAILED (${errorMessage})`);
+          } catch (err) {
+            console.error(`[DAG] Failed to update node ${nodeId} status in DB:`, err);
+          }
+        }
         
         // Find all nodes that depend on this node
         for (const [otherId, deps] of dependencies.entries()) {
-          if (deps.has(nodeId) && !marked.has(otherId)) {
+          if (deps.has(nodeId) && !marked.has(otherId) && !completedNodes.has(otherId)) {
             toMark.push(otherId);
           }
         }
@@ -711,16 +735,7 @@ export const executeWorkflow = task({
       for (const pendingNodeId of Array.from(pendingNodes)) {
         if (hasDependencyFailed(pendingNodeId)) {
           console.log(`[DAG] Node ${pendingNodeId} has failed dependency, marking as failed`);
-          markNodeAndDependentsFailed(pendingNodeId);
-          
-          // Update DB status
-          const nodeExecutionId = nodeExecutionIds.get(pendingNodeId);
-          if (nodeExecutionId) {
-            await db.nodeExecution.update({
-              where: { id: nodeExecutionId },
-              data: { status: "FAILED", error: "Dependency failed" },
-            });
-          }
+          await markNodeAndDependentsFailed(pendingNodeId, "Dependency failed");
         }
       }
       
@@ -794,20 +809,8 @@ export const executeWorkflow = task({
             
             runningNodes.delete(nodeId);
             
-            // Mark this node and all its dependents as failed (but DON'T cancel other chains)
-            markNodeAndDependentsFailed(nodeId);
-            
-            // Only update the DB for non-FAILED statuses, because:
-            // - For FAILED status: node executor already called markNodeFailed()
-            // - For RESCHEDULED, INTERRUPTED, etc: node executor doesn't know about these
-            const nodeExecutionId = nodeExecutionIds.get(nodeId);
-            if (nodeExecutionId && status !== "FAILED") {
-              await db.nodeExecution.update({
-                where: { id: nodeExecutionId },
-                data: { status: "FAILED", error: `Failed with status: ${status}` },
-              });
-              console.log(`[DAG] Updated nodeExecution ${nodeExecutionId} to FAILED (status was: ${status})`);
-            }
+            // Mark this node and all its dependents as failed (updates DB for all)
+            await markNodeAndDependentsFailed(nodeId, `Failed with status: ${status}`);
           } else if (!ACTIVE_STATES.has(status)) {
             // Unknown status - log warning but treat as still running for safety
             // This prevents infinite loops if Trigger.dev adds new statuses
@@ -822,15 +825,7 @@ export const executeWorkflow = task({
           if (errorMsg.includes("not found") || errorMsg.includes("404")) {
             console.error(`[DAG] Run ${runId} not found, marking node ${nodeId} as failed`);
             runningNodes.delete(nodeId);
-            markNodeAndDependentsFailed(nodeId);
-            
-            const nodeExecutionId = nodeExecutionIds.get(nodeId);
-            if (nodeExecutionId) {
-              await db.nodeExecution.update({
-                where: { id: nodeExecutionId },
-                data: { status: "FAILED", error: "Run not found" },
-              });
-            }
+            await markNodeAndDependentsFailed(nodeId, "Run not found");
           }
         }
       }

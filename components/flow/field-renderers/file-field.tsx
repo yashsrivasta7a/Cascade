@@ -4,6 +4,7 @@ import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Upload, X, Loader2, Image as ImageIcon, Film, Volume2, Play, Pause } from "lucide-react";
 import type { FileFieldConfig } from "@/lib/config/types";
+import { showError, showWarning } from "@/lib/toast";
 
 // Format time in mm:ss format
 function formatTime(seconds: number): string {
@@ -210,6 +211,10 @@ interface FileFieldProps {
   onUploadingChange?: (uploading: boolean) => void;
   /** Optional crop overlay to show what area will be cropped */
   cropOverlay?: CropOverlay;
+  /** Whether this field has an incoming connection */
+  isConnected?: boolean;
+  /** The value from the connected upstream node (for preview) */
+  connectedValue?: string | null;
 }
 
 function FileFieldComponent({
@@ -220,6 +225,8 @@ function FileFieldComponent({
   className,
   onUploadingChange,
   cropOverlay,
+  isConnected = false,
+  connectedValue,
 }: FileFieldProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -284,7 +291,9 @@ function FileFieldComponent({
 
       // Check file type
       if (config.accept && !file.type.match(config.accept.replace("/*", "/.*"))) {
-        alert(`Invalid file type. Please select a ${fileType} file.`);
+        showWarning(`Invalid file type`, {
+          description: `Please select a ${fileType} file. Got: ${file.type || "unknown"}`,
+        });
         return;
       }
 
@@ -293,7 +302,9 @@ function FileFieldComponent({
       if (file.size > maxSize) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const maxMB = (maxSize / (1024 * 1024)).toFixed(0);
-        alert(`File too large (${sizeMB}MB). Maximum size is ${maxMB}MB.`);
+        showError(`File too large (${sizeMB}MB)`, {
+          description: `Maximum file size is ${maxMB}MB. Try compressing the file or using a smaller one.`,
+        });
         return;
       }
 
@@ -320,7 +331,9 @@ function FileFieldComponent({
             if (!signResponse.ok) {
               const errorText = await signResponse.text();
               console.error(`[FileField] Failed to get upload signature:`, errorText);
-              alert(`Upload failed: Could not initialize upload. ${errorText}`);
+              showError("Upload failed", {
+                description: "Could not initialize upload. Please try again.",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -362,7 +375,9 @@ function FileFieldComponent({
               result = JSON.parse(responseText);
             } catch {
               console.error(`[FileField] Failed to parse Transloadit response`);
-              alert(`Upload failed: Invalid response from server`);
+              showError("Upload failed", {
+                description: "Invalid response from server. Please try again.",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -370,7 +385,9 @@ function FileFieldComponent({
 
             if (result.error || uploadResponse.status >= 400) {
               console.error(`[FileField] Transloadit error:`, result.error, result.message, result.reason);
-              alert(`Upload failed: ${result.message || result.error || "Unknown error"}`);
+              showError("Upload failed", {
+                description: result.message || result.error || "Unknown error occurred",
+              });
               setIsUploading(false);
               onUploadingChange?.(false);
               return;
@@ -409,7 +426,9 @@ function FileFieldComponent({
                 }
               } else if (status.ok === "ASSEMBLY_CANCELED" || status.error) {
                 console.error(`[FileField] Transloadit assembly failed:`, status.error || status.message);
-                alert(`Upload failed: ${status.message || status.error || "Assembly failed"}`);
+                showError("Upload failed", {
+                  description: status.message || status.error || "Assembly processing failed",
+                });
                 setIsUploading(false);
                 onUploadingChange?.(false);
                 return;
@@ -421,13 +440,17 @@ function FileFieldComponent({
             }
             
             console.error(`[FileField] Direct upload timed out`);
-            alert("Upload timed out. Please try again.");
+            showError("Upload timed out", {
+              description: "The upload took too long. Please try again with a smaller file.",
+            });
             setIsUploading(false);
             onUploadingChange?.(false);
             return;
           } catch (err) {
             console.error("[FileField] Direct upload failed:", err);
-            alert(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+            showError("Upload failed", {
+              description: err instanceof Error ? err.message : "Unknown error occurred",
+            });
             setIsUploading(false);
             onUploadingChange?.(false);
             return;
@@ -512,9 +535,9 @@ function FileFieldComponent({
     <div className={className}>
       {/* Label */}
       {config.label && (
-        <label className="block text-[10px] text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <label className="block text-[10px] text-gray-600 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
           {config.label}
-          {config.required && <span className="text-red-400 ml-0.5">*</span>}
+          {config.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 
@@ -527,133 +550,160 @@ function FileFieldComponent({
         className="hidden"
       />
 
-      {/* Drop zone */}
-      <div
-        onDrop={handleDrop}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onClick={() => !value && !disabled && fileInputRef.current?.click()}
-        className={cn(
-          "nodrag nowheel relative rounded-lg border-2 border-dashed transition-all",
-          isDragOver
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
-            : value
-            ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5"
-            : "border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02] hover:border-gray-300 dark:hover:border-white/20",
-          !value && !disabled && "cursor-pointer"
-        )}
-      >
-        {isUploading ? (
+      {/* Use connected value for preview if connected and no manual value */}
+      {(() => {
+        const displayValue = value || (isConnected ? connectedValue : null);
+        const hasConnectedPreview = isConnected && connectedValue && !value;
+        
+        return (
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onClick={() => !displayValue && !disabled && fileInputRef.current?.click()}
+            className={cn(
+              "nodrag nowheel relative rounded-lg border-2 border-dashed transition-all",
+              isDragOver
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
+                : hasConnectedPreview
+                ? "border-violet-300 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/5"
+                : displayValue
+                ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5"
+                : isConnected
+                ? "border-violet-300 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/5"
+                : "border-gray-500 dark:border-white/20 bg-white dark:bg-white/[0.02] hover:border-gray-600 dark:hover:border-white/30",
+              !displayValue && !disabled && !isConnected && "cursor-pointer"
+            )}
+          >
+            {/* Connected indicator badge */}
+            {isConnected && (
+              <div className="absolute top-1 right-1 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/20 border border-violet-200 dark:border-violet-500/30">
+                <span className="text-[8px] text-violet-600 dark:text-violet-400 font-medium">
+                  {connectedValue ? "Linked" : "Waiting..."}
+                </span>
+              </div>
+            )}
+            
+            {isUploading ? (
           <div className="flex flex-col items-center justify-center py-4 text-blue-500 dark:text-blue-400">
             <Loader2 className="w-5 h-5 mb-1 animate-spin" />
             <span className="text-[10px]">Uploading...</span>
           </div>
-        ) : value ? (
-          <div className="relative p-1">
-            {/* Preview with optional crop overlay */}
-            {config.preview && fileType === "image" && (
-              <CropPreview 
-                src={value} 
-                cropOverlay={cropOverlay}
-                maxHeight={cropOverlay ? 160 : 80}
-              />
-            )}
-            {config.preview && fileType === "video" && (
-              <video
-                src={value}
-                className="w-full h-16 object-cover rounded"
-                muted
-              />
-            )}
-            {/* Audio player with controls */}
-            {fileType === "audio" && (
-              <div className="flex items-center gap-2 p-2">
-                {/* Play/Pause button */}
-                <button
-                  onClick={toggleAudioPlayback}
-                  disabled={!audioLoaded}
-                  className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
-                    "bg-amber-500 text-white hover:bg-amber-600 transition-colors",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
-                  )}
-                >
-                  {!audioLoaded ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : audioPlaying ? (
-                    <Pause className="w-3.5 h-3.5" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5 ml-0.5" />
-                  )}
-                </button>
+            ) : displayValue ? (
+              <div className="relative p-1">
+                {/* Preview with optional crop overlay */}
+                {config.preview && fileType === "image" && (
+                  <CropPreview 
+                    src={displayValue} 
+                    cropOverlay={cropOverlay}
+                    maxHeight={cropOverlay ? 160 : 80}
+                  />
+                )}
+                {config.preview && fileType === "video" && (
+                  <video
+                    src={displayValue}
+                    className="w-full h-16 object-cover rounded"
+                    muted
+                  />
+                )}
+                {/* Audio player with controls */}
+                {fileType === "audio" && (
+                  <div className="flex items-center gap-2 p-2">
+                    {/* Play/Pause button */}
+                    <button
+                      onClick={toggleAudioPlayback}
+                      disabled={!audioLoaded}
+                      className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center shrink-0",
+                        "bg-amber-500 text-white hover:bg-amber-600 transition-colors",
+                        "disabled:opacity-50 disabled:cursor-not-allowed"
+                      )}
+                    >
+                      {!audioLoaded ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : audioPlaying ? (
+                        <Pause className="w-3.5 h-3.5" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 ml-0.5" />
+                      )}
+                    </button>
 
-                {/* Progress bar and time */}
-                <div className="flex-1 min-w-0">
-                  <div
-                    onClick={handleAudioSeek}
-                    className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden cursor-pointer"
-                  >
-                    <div
-                      className="h-full bg-amber-500 transition-all duration-100"
-                      style={{ width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%` }}
+                    {/* Progress bar and time */}
+                    <div className="flex-1 min-w-0">
+                      <div
+                        onClick={handleAudioSeek}
+                        className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden cursor-pointer"
+                      >
+                        <div
+                          className="h-full bg-amber-500 transition-all duration-100"
+                          style={{ width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[8px] text-gray-500 dark:text-zinc-500 font-mono mt-0.5">
+                        <span>{formatTime(audioCurrentTime)}</span>
+                        <span>{formatTime(audioDuration)}</span>
+                      </div>
+                    </div>
+
+                    {/* Hidden audio element */}
+                    <audio
+                      ref={audioRef}
+                      src={displayValue}
+                      preload="metadata"
+                      onPlay={() => setAudioPlaying(true)}
+                      onPause={() => setAudioPlaying(false)}
+                      onEnded={() => {
+                        setAudioPlaying(false);
+                        setAudioCurrentTime(0);
+                      }}
+                      onLoadedMetadata={(e) => {
+                        setAudioDuration(e.currentTarget.duration);
+                        setAudioLoaded(true);
+                      }}
+                      onTimeUpdate={(e) => setAudioCurrentTime(e.currentTarget.currentTime)}
+                      className="hidden"
                     />
                   </div>
-                  <div className="flex justify-between text-[8px] text-gray-500 dark:text-zinc-500 font-mono mt-0.5">
-                    <span>{formatTime(audioCurrentTime)}</span>
-                    <span>{formatTime(audioDuration)}</span>
+                )}
+                {/* Non-preview file display (not audio) */}
+                {!config.preview && fileType !== "audio" && (
+                  <div className="flex items-center gap-2 p-2">
+                    <FileIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
+                    <span className="text-[10px] text-gray-600 dark:text-zinc-400 truncate flex-1">
+                      File selected
+                    </span>
                   </div>
-                </div>
+                )}
 
-                {/* Hidden audio element */}
-                <audio
-                  ref={audioRef}
-                  src={value}
-                  preload="metadata"
-                  onPlay={() => setAudioPlaying(true)}
-                  onPause={() => setAudioPlaying(false)}
-                  onEnded={() => {
-                    setAudioPlaying(false);
-                    setAudioCurrentTime(0);
-                  }}
-                  onLoadedMetadata={(e) => {
-                    setAudioDuration(e.currentTarget.duration);
-                    setAudioLoaded(true);
-                  }}
-                  onTimeUpdate={(e) => setAudioCurrentTime(e.currentTarget.currentTime)}
-                  className="hidden"
-                />
+                {/* Clear button - only show for manual uploads, not connected values */}
+                {!hasConnectedPreview && (
+                  <button
+                    onClick={handleClear}
+                    className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                )}
               </div>
-            )}
-            {/* Non-preview file display (not audio) */}
-            {!config.preview && fileType !== "audio" && (
-              <div className="flex items-center gap-2 p-2">
-                <FileIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
-                <span className="text-[10px] text-gray-600 dark:text-zinc-400 truncate flex-1">
-                  File selected
+            ) : isConnected ? (
+              <div className="flex flex-col items-center justify-center py-4 text-violet-500 dark:text-violet-400">
+                <Loader2 className="w-5 h-5 mb-1 animate-spin" />
+                <span className="text-[10px]">Waiting for input...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-4 text-gray-500 dark:text-zinc-500">
+                <Upload className="w-5 h-5 mb-1" />
+                <span className="text-[10px]">
+                  Drop {fileType} or click to upload
                 </span>
               </div>
             )}
-
-            {/* Clear button */}
-            <button
-              onClick={handleClear}
-              className="absolute top-2 right-2 p-1 bg-black/60 rounded-full hover:bg-black/80 transition-colors"
-            >
-              <X className="w-3 h-3 text-white" />
-            </button>
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-4 text-gray-400 dark:text-zinc-500">
-            <Upload className="w-5 h-5 mb-1" />
-            <span className="text-[10px]">
-              Drop {fileType} or click to upload
-            </span>
-          </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Description */}
       {config.description && (

@@ -5,6 +5,9 @@ import { executeWorkflow } from "@/app/trigger/workflow-executor";
 import type { Node, Edge } from "reactflow";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 
+// Vercel function config
+export const maxDuration = 300; // 5 minutes for workflow execution
+
 // =============================================================================
 // WORKFLOW EXECUTION API
 // =============================================================================

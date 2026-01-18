@@ -674,18 +674,21 @@ export const TYPE_COMPATIBILITY_GROUPS: Record<string, string[]> = {
   duration: ["number", "seed", "duration", "temperature"],
   temperature: ["temperature", "number", "seed", "duration"],
 
-  // Text types can connect to each other
-  text: ["text", "prompt", "negative"],
+  // Text types can connect to text-based fields AND settings fields (LLM outputs can be parsed)
+  // LLM text output can connect to any settings handle - the llm-type-parser will convert the text
+  text: ["text", "prompt", "negative", "aspectRatio", "model", "boolean", "number", "seed", "duration", "temperature"],
   prompt: ["text", "prompt", "negative"],
   negative: ["text", "prompt", "negative"],
 
-  // Strict types: only connect to same type
-  boolean: ["boolean"],
-  aspectRatio: ["aspectRatio"],
+  // Settings types: accept same type OR text (from LLM)
+  boolean: ["boolean", "text"],
+  aspectRatio: ["aspectRatio", "text"],
+  model: ["model", "text"],
+  
+  // Media types: strict - only connect to same type
   image: ["image"],
   video: ["video"],
   audio: ["audio"],
-  model: ["model"],
   
   // Any connects to anything
   any: [],

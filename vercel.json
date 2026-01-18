@@ -1,11 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
+    "app/api/workflow/stream/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/nodes/execute-sync/route.ts": {
       "maxDuration": 300
     },
     "app/api/nodes/llm/stream/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/executions/[id]/stream/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/workflows/[id]/execute/route.ts": {
+      "maxDuration": 300
     }
   }
 }

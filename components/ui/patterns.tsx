@@ -63,7 +63,7 @@ export function PageBackground({
   className?: string;
 }) {
   return (
-    <div className={cn("h-full flex flex-col bg-gray-100 dark:bg-[#09090b] relative overflow-hidden", className)}>
+    <div className={cn("h-full flex flex-col bg-[#909192] dark:bg-[#09090b] relative overflow-hidden", className)}>
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {showDots && (

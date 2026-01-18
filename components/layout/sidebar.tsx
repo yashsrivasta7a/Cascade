@@ -14,6 +14,8 @@ import {
   BookOpen,
   Activity,
   Sparkles,
+  ExternalLink,
+  FileText,
 } from "lucide-react";
 
 // =============================================================================
@@ -32,6 +34,9 @@ const bottomItems = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
+// External links
+const DOCS_URL = "/docs"; // Redirects to Mintlify docs
+
 // =============================================================================
 // COMPONENT
 // =============================================================================
@@ -40,13 +45,13 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 h-screen flex flex-col bg-gradient-to-b from-slate-50 to-gray-100 dark:from-zinc-950 dark:to-zinc-900 border-r border-gray-200/80 dark:border-zinc-800/50">
+    <aside className="w-60 h-screen flex flex-col bg-[#f8f9fb] dark:bg-gradient-to-b dark:from-zinc-950 dark:to-zinc-900 border-r border-gray-200/80 dark:border-zinc-800/50">
       {/* Logo Header */}
       <Link 
         href="/dashboard" 
-        className="h-16 px-5 flex items-center gap-3 border-b border-gray-200/80 dark:border-zinc-800/50 group"
+        className="h-14 px-5 flex items-center gap-3 border-b border-gray-200/80 dark:border-zinc-800/50 group"
       >
-        <div className="w-9 h-9 rounded-xl bg-zinc-900 dark:bg-white/10 flex items-center justify-center border border-zinc-800 dark:border-white/10">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
           <Zap className="w-5 h-5 text-white" />
         </div>
         <div className="flex flex-col">
@@ -58,14 +63,12 @@ export function Sidebar() {
       {/* New Workflow Button */}
       <div className="px-3 pt-4 pb-2">
         <Link href="/workflows/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full h-10 px-4 bg-zinc-900 dark:bg-white/10 hover:bg-zinc-800 dark:hover:bg-white/15 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 border border-zinc-800 dark:border-white/10 transition-all"
+          <button
+            className="w-full h-10 px-4 bg-blue-100 hover:bg-blue-200 text-blue-600 text-sm font-bold rounded-xl flex items-center justify-center gap-2 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70 transition-all"
           >
             <Plus className="w-4 h-4" />
             New Workflow
-          </motion.button>
+          </button>
         </Link>
       </div>
 
@@ -148,7 +151,7 @@ export function Sidebar() {
             Unlock unlimited workflows and priority support
           </p>
           <Link href="/billing">
-            <button className="w-full h-8 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 hover:bg-amber-200 dark:hover:bg-amber-500/30 rounded-lg border border-amber-300/50 dark:border-amber-500/30 transition-colors">
+            <button className="w-full h-8 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg border border-amber-600 dark:border-amber-400 shadow-sm transition-colors">
               Upgrade Now
             </button>
           </Link>
@@ -163,7 +166,7 @@ export function Sidebar() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="px-3 pb-4">
+      <div className="px-3 pb-2">
         <div className="space-y-0.5">
           {bottomItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
@@ -188,6 +191,25 @@ export function Sidebar() {
             );
           })}
         </div>
+      </div>
+
+      {/* API Docs Link */}
+      <div className="px-3 pb-4">
+        <a 
+          href={DOCS_URL} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <motion.div
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-100/60 dark:hover:bg-zinc-800/40 transition-all"
+            whileHover={{ x: 2 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <FileText className="w-4 h-4" />
+            <span className="font-medium">API Docs</span>
+            <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+          </motion.div>
+        </a>
       </div>
     </aside>
   );

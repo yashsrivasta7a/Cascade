@@ -29,9 +29,9 @@ function SelectFieldComponent({
     <div className={className}>
       {/* Label */}
       {config.label && (
-        <label className="block text-[10px] text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <label className="block text-[10px] text-gray-600 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
           {config.label}
-          {config.required && <span className="text-red-400 ml-0.5">*</span>}
+          {config.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 
@@ -42,15 +42,21 @@ function SelectFieldComponent({
           disabled={disabled}
           className={cn(
             "nodrag nowheel w-full h-8 px-3 pr-8 rounded-lg border text-xs appearance-none",
-            "bg-gray-50 dark:bg-white/[0.03] border-gray-200 dark:border-white/10",
+            "bg-white dark:bg-zinc-900 border-gray-400 dark:border-white/10",
             "text-gray-900 dark:text-zinc-300",
-            "focus:outline-none focus:border-gray-400 dark:focus:border-white/20",
+            "focus:outline-none focus:border-blue-400 dark:focus:border-white/20",
             "transition-colors cursor-pointer",
+            "[&>option]:bg-white [&>option]:dark:bg-zinc-900",
+            "[&>option]:text-gray-900 [&>option]:dark:text-zinc-300",
             disabled && "cursor-not-allowed opacity-60"
           )}
         >
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+            <option 
+              key={opt.value} 
+              value={opt.value}
+              className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-zinc-300"
+            >
               {opt.label}
             </option>
           ))}

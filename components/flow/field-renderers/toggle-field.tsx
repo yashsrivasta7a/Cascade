@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ function ToggleFieldComponent({
     <label
       className={cn(
         "nodrag nowheel flex items-center justify-between gap-3 p-2.5 rounded-lg cursor-pointer",
-        "bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/10",
+        "bg-white dark:bg-white/[0.02] border border-gray-400 dark:border-white/10",
         "hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors",
         disabled && "cursor-not-allowed opacity-60",
         className

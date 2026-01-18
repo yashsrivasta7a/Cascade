@@ -51,9 +51,9 @@ function NumberFieldComponent({
     <div className={className}>
       {/* Label */}
       {config.label && (
-        <label className="block text-[10px] text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <label className="block text-[10px] text-gray-600 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
           {config.label}
-          {config.required && <span className="text-red-400 ml-0.5">*</span>}
+          {config.required && <span className="text-red-500 ml-0.5">*</span>}
         </label>
       )}
 
@@ -68,10 +68,10 @@ function NumberFieldComponent({
         disabled={disabled}
         className={cn(
           "nodrag nowheel w-full h-8 px-3 rounded-lg border text-xs",
-          "bg-gray-50 dark:bg-zinc-900/60 border-gray-200 dark:border-white/10",
+          "bg-white dark:bg-zinc-900/60 border-gray-400 dark:border-white/10",
           "text-gray-900 dark:text-zinc-100",
           "placeholder-gray-400 dark:placeholder-zinc-600",
-          "focus:outline-none focus:border-gray-400 dark:focus:border-white/20",
+          "focus:outline-none focus:border-blue-400 dark:focus:border-white/20",
           "transition-colors",
           disabled && "cursor-not-allowed opacity-60"
         )}
@@ -131,13 +131,13 @@ function SliderFieldComponent({
       {/* Label with value */}
       <div className="flex items-center justify-between mb-1">
         {config.label && (
-          <label className="text-[10px] text-zinc-500" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+          <label className="text-[10px] text-gray-600 dark:text-zinc-500" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             {config.label}
-            {config.required && <span className="text-red-400 ml-0.5">*</span>}
+            {config.required && <span className="text-red-500 ml-0.5">*</span>}
           </label>
         )}
         {config.showValue && (
-          <span className="text-[10px] text-gray-600 dark:text-zinc-400 font-mono">
+          <span className="text-[10px] text-gray-700 dark:text-zinc-400 font-mono font-medium">
             {clampedValue}
           </span>
         )}
@@ -145,9 +145,9 @@ function SliderFieldComponent({
 
       {/* Slider track */}
       <div className="relative h-6 flex items-center">
-        <div className="absolute inset-x-0 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+        <div className="absolute inset-x-0 h-1.5 bg-gray-400 dark:bg-zinc-600 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-500 dark:bg-white rounded-full transition-all"
+            className="h-full bg-blue-500 rounded-full transition-all"
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -173,7 +173,7 @@ function SliderFieldComponent({
         {/* Thumb indicator */}
         <div
           className={cn(
-            "absolute w-4 h-4 bg-white dark:bg-zinc-200 rounded-full shadow-md border border-gray-200 dark:border-zinc-400",
+            "absolute w-4 h-4 bg-blue-500 rounded-full shadow-md shadow-blue-500/30 border-2 border-white dark:border-blue-400",
             "pointer-events-none transition-all"
           )}
           style={{ left: `calc(${percentage}% - 8px)` }}

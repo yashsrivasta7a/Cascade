@@ -18,9 +18,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Find the most recent node execution for this nodeId
+    // Order by createdAt (always set) instead of startedAt (can be NULL for new executions)
+    // This ensures we get the newest execution even if it hasn't started yet
     const nodeExecution = await db.nodeExecution.findFirst({
       where: { nodeId },
-      orderBy: { startedAt: "desc" },
+      orderBy: { createdAt: "desc" },
       include: {
         workflowExecution: {
           select: {
