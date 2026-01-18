@@ -94,14 +94,19 @@ describe("Type Compatibility System", () => {
         expect(isTypeCompatible("number", "boolean")).toBe(false);
       });
 
-      it("aspectRatio does not connect to text", () => {
-        expect(isTypeCompatible("aspectRatio", "text")).toBe(false);
-        expect(isTypeCompatible("text", "aspectRatio")).toBe(false);
+      it("aspectRatio accepts text (for LLM outputs)", () => {
+        // aspectRatio can receive text (from LLM) which gets parsed
+        expect(isTypeCompatible("aspectRatio", "text")).toBe(true);
+        // text can connect TO aspectRatio handles
+        expect(isTypeCompatible("text", "aspectRatio")).toBe(true);
       });
 
-      it("model only connects to model", () => {
-        expect(isTypeCompatible("model", "text")).toBe(false);
+      it("model accepts text and model", () => {
+        // model can receive text (from LLM) which gets parsed
+        expect(isTypeCompatible("model", "text")).toBe(true);
+        // model doesn't connect to prompt (different semantic)
         expect(isTypeCompatible("model", "prompt")).toBe(false);
+        // model connects to model
         expect(isTypeCompatible("model", "model")).toBe(true);
       });
     });
@@ -271,9 +276,17 @@ describe("Type Compatibility System", () => {
       expect(TYPE_COMPATIBILITY_GROUPS.text).toContain("negative");
     });
 
-    it("strict types have only themselves", () => {
-      expect(TYPE_COMPATIBILITY_GROUPS.boolean).toEqual(["boolean"]);
-      expect(TYPE_COMPATIBILITY_GROUPS.aspectRatio).toEqual(["aspectRatio"]);
+    it("settings types accept text for LLM parsing", () => {
+      // Settings types now accept text so LLM outputs can be parsed
+      expect(TYPE_COMPATIBILITY_GROUPS.boolean).toEqual(["boolean", "text"]);
+      expect(TYPE_COMPATIBILITY_GROUPS.aspectRatio).toEqual(["aspectRatio", "text"]);
+      expect(TYPE_COMPATIBILITY_GROUPS.model).toEqual(["model", "text"]);
+    });
+
+    it("media types are strict (no text)", () => {
+      expect(TYPE_COMPATIBILITY_GROUPS.image).toEqual(["image"]);
+      expect(TYPE_COMPATIBILITY_GROUPS.video).toEqual(["video"]);
+      expect(TYPE_COMPATIBILITY_GROUPS.audio).toEqual(["audio"]);
     });
   });
 });
