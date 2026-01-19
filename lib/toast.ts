@@ -212,11 +212,18 @@ export function showWorkflowComplete(nodeCount?: number) {
 
 /**
  * Show LLM parsing error when LLM output cannot be converted to expected type
+ * Uses simple format: "{field} not supported"
  */
-export function showLLMParseError(targetNode: string, targetField: string, error: string) {
-  return showError(`LLM output invalid for ${targetNode}`, {
-    description: `Cannot set "${targetField}": ${error}`,
-    duration: 6000,
+export function showLLMParseError(targetNode: string, targetField: string, _error: string) {
+  // Format field name for display (camelCase to Title Case)
+  const fieldDisplay = targetField
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+  
+  return showError(`${fieldDisplay} not supported`, {
+    description: `The LLM response for "${targetNode}" doesn't match expected format`,
+    duration: 4000,
   });
 }
 

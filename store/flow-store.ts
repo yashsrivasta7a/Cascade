@@ -194,6 +194,9 @@ export interface FlowState {
   
   // Propagate output from a node to all connected downstream nodes
   propagateOutput: (sourceNodeId: string, output: string) => void;
+  
+  // Propagate streaming output from LLM node (debounced, no validation during streaming)
+  propagateStreamingOutput: (sourceNodeId: string, partialText: string) => void;
 
   // Check if a handle on a node has an incoming connection
   isHandleConnected: (nodeId: string, handleId: string) => boolean;
@@ -1429,6 +1432,55 @@ export const useFlowStore = create<FlowState>()(
         for (const failure of failedNodes) {
           showLLMParseError(failure.nodeName, failure.handle, failure.error);
         }
+      },
+
+      // Streaming propagation - updates text handles in real-time without validation
+      // This is called during LLM streaming to show partial output in connected nodes
+      propagateStreamingOutput: (sourceNodeId, partialText) => {
+        const state = get();
+        
+        // Find the source node
+        const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
+        if (!sourceNode) return;
+
+        // Find all edges that start from this source node
+        const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
+        if (outgoingEdges.length === 0) return;
+
+        // Text-compatible handles that can show streaming preview
+        const textHandles = ["prompt", "context", "text", "systemPrompt", "negativePrompt"];
+
+        // Update target nodes with streaming text (no validation)
+        const updatedNodes = state.nodes.map((node) => {
+          const edgesToNode = outgoingEdges.filter((e) => e.target === node.id);
+          if (edgesToNode.length === 0) return node;
+
+          let nodeData = { ...(node.data as Record<string, unknown>) };
+          let updated = false;
+
+          for (const edge of edgesToNode) {
+            const targetHandle = edge.targetHandle;
+            const edgeData = edge.data as Record<string, unknown> | undefined;
+            const isSettingsConnection = edgeData?.isSettingsConnection === true || 
+                                         edgeData?.fromSettingsPopover === true ||
+                                         (edge.sourceHandle?.endsWith("-setting") ?? false);
+            
+            // Skip settings connections during streaming
+            if (isSettingsConnection) continue;
+
+            // Only update text-compatible handles during streaming
+            if (targetHandle && textHandles.includes(targetHandle)) {
+              nodeData[targetHandle] = partialText;
+              // Also show streaming indicator
+              nodeData._streamingFrom = sourceNodeId;
+              updated = true;
+            }
+          }
+
+          return updated ? { ...node, data: nodeData } : node;
+        });
+
+        set({ nodes: updatedNodes });
       },
 
       isHandleConnected: (nodeId, handleId) => {
