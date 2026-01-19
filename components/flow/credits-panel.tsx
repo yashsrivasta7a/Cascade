@@ -20,6 +20,10 @@ import {
   Mic,
   Wallet,
   Calendar,
+  TrendingUp,
+  Target,
+  Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
@@ -176,6 +180,50 @@ export function CreditsPanel({
   }, [isOpen, fetchHistory]);
 
   const balance = creditsData?.credits ?? 0;
+  
+  // Calculate usage statistics
+  const usageStats = useMemo(() => {
+    // Assume a starting balance based on current + spent (this is an approximation)
+    // In a real app, you'd want to track the initial/total purchased amount
+    const totalAvailable = balance + totalSpent;
+    const usedPercent = totalAvailable > 0 ? (totalSpent / totalAvailable) * 100 : 0;
+    const remainingPercent = 100 - usedPercent;
+    
+    // Calculate average cost per run
+    const avgCostPerRun = creditHistory.length > 0 ? totalSpent / creditHistory.length : 0;
+    
+    // Estimate runs remaining
+    const estimatedRunsRemaining = avgCostPerRun > 0 ? Math.floor(balance / avgCostPerRun) : 0;
+    
+    // Calculate spending by node type
+    const spendingByType: Record<string, number> = {};
+    creditHistory.forEach(item => {
+      spendingByType[item.nodeType] = (spendingByType[item.nodeType] || 0) + item.cost;
+    });
+    
+    // Sort by highest spending
+    const topSpending = Object.entries(spendingByType)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3);
+    
+    // Balance status
+    let balanceStatus: "healthy" | "warning" | "critical" = "healthy";
+    if (balance < avgCostPerRun * 5) {
+      balanceStatus = "critical";
+    } else if (balance < avgCostPerRun * 20) {
+      balanceStatus = "warning";
+    }
+    
+    return {
+      totalAvailable,
+      usedPercent,
+      remainingPercent,
+      avgCostPerRun,
+      estimatedRunsRemaining,
+      topSpending,
+      balanceStatus,
+    };
+  }, [balance, totalSpent, creditHistory]);
 
   return (
     <AnimatePresence>
@@ -186,21 +234,18 @@ export function CreditsPanel({
           exit={{ opacity: 0, x: 20 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
           style={{ right: "16px" }}
-          className="fixed top-16 z-50 w-[340px] bg-white dark:bg-black/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-gray-200 dark:border-white/[0.08] overflow-hidden shadow-xl shadow-gray-200/80 dark:shadow-black/40 flex flex-col max-h-[calc(100vh-120px)]"
+          className="fixed top-16 z-50 w-[340px] bg-white dark:bg-black/60 backdrop-blur-2xl backdrop-saturate-150 rounded-2xl border border-gray-200 dark:border-white/[0.08] overflow-hidden shadow-xl shadow-gray-200/80 dark:shadow-black/40 flex flex-col max-h-[calc(100vh-90px)]"
         >
-          {/* Dot Pattern */}
-          {/* Dots removed - now only on ReactFlow background */}
-
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-100 dark:border-white/[0.06] bg-gray-50 dark:bg-white/[0.02] shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-amber-500 dark:bg-gradient-to-br dark:from-amber-500/20 dark:to-amber-600/10 border border-amber-600 dark:border-amber-500/20 flex items-center justify-center">
-                  <Coins className="w-3.5 h-3.5 text-white dark:text-amber-400" />
+                <div className="w-7 h-7 rounded-lg bg-amber-500 dark:bg-amber-500/30 border border-amber-400 dark:border-amber-500/40 flex items-center justify-center">
+                  <Coins className="w-3.5 h-3.5 text-white dark:text-amber-300" />
                 </div>
                 <div>
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">Credits</span>
-                  <p className="text-[10px] text-gray-500 dark:text-zinc-500">Usage & History</p>
+                  <p className="text-[10px] text-gray-500 dark:text-zinc-500">Usage & Analytics</p>
                 </div>
               </div>
               <button
@@ -212,46 +257,167 @@ export function CreditsPanel({
             </div>
           </div>
 
-          {/* Balance Card */}
+          {/* Balance Card with Usage Bar */}
           <div className="p-3 border-b border-gray-100 dark:border-white/[0.04] shrink-0">
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/10 dark:to-emerald-600/5 rounded-xl border-l-4 border-l-emerald-500 border border-emerald-200 dark:border-emerald-500/20 p-4">
-              <div className="flex items-center justify-between">
+            <div className={cn(
+              "rounded-xl p-4 border-l-4 border",
+              usageStats.balanceStatus === "critical" 
+                ? "bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-500/10 dark:to-red-600/5 border-red-500 border-red-200 dark:border-red-500/20"
+                : usageStats.balanceStatus === "warning"
+                ? "bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-amber-600/5 border-amber-500 border-amber-200 dark:border-amber-500/20"
+                : "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/10 dark:to-emerald-600/5 border-emerald-500 border-emerald-200 dark:border-emerald-500/20"
+            )}>
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider font-semibold">Balance</span>
+                    <Wallet className={cn(
+                      "w-4 h-4",
+                      usageStats.balanceStatus === "critical" ? "text-red-600 dark:text-red-400" :
+                      usageStats.balanceStatus === "warning" ? "text-amber-600 dark:text-amber-400" :
+                      "text-emerald-600 dark:text-emerald-400"
+                    )} />
+                    <span className={cn(
+                      "text-[10px] uppercase tracking-wider font-semibold",
+                      usageStats.balanceStatus === "critical" ? "text-red-700 dark:text-red-400" :
+                      usageStats.balanceStatus === "warning" ? "text-amber-700 dark:text-amber-400" :
+                      "text-emerald-700 dark:text-emerald-400"
+                    )}>Balance</span>
+                    {usageStats.balanceStatus === "critical" && (
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 dark:text-red-400 animate-pulse" />
+                    )}
                   </div>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatCredits(balance)} <span className="text-sm font-normal text-emerald-600 dark:text-emerald-400">credits</span></p>
+                  <p className={cn(
+                    "text-2xl font-bold",
+                    usageStats.balanceStatus === "critical" ? "text-red-700 dark:text-red-400" :
+                    usageStats.balanceStatus === "warning" ? "text-amber-700 dark:text-amber-400" :
+                    "text-emerald-700 dark:text-emerald-400"
+                  )}>
+                    {formatCredits(balance)} <span className="text-sm font-normal opacity-80">credits</span>
+                  </p>
                 </div>
                 <Link href="/billing">
                   <button className="h-8 px-3 text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-gradient-to-r dark:from-[#1e3a5f] dark:to-[#2a4a6f] dark:hover:from-[#2a4a6f] dark:hover:to-[#3a5a7f] rounded-lg flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/25 dark:shadow-[#0f1f33]/50">
                     <CreditCard className="w-3.5 h-3.5" />
-                    Buy Credits
+                    Top Up
                   </button>
                 </Link>
+              </div>
+              
+              {/* Usage Bar */}
+              {usageStats.totalAvailable > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[9px]">
+                    <span className="text-gray-500 dark:text-zinc-500">Usage this session</span>
+                    <span className="font-medium text-gray-700 dark:text-zinc-300">
+                      {formatCredits(totalSpent)} / {formatCredits(usageStats.totalAvailable)}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-200 dark:bg-white/[0.1] rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(usageStats.usedPercent, 100)}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      className={cn(
+                        "h-full rounded-full",
+                        usageStats.usedPercent > 80 
+                          ? "bg-gradient-to-r from-red-500 to-red-400"
+                          : usageStats.usedPercent > 50 
+                          ? "bg-gradient-to-r from-amber-500 to-amber-400"
+                          : "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                      )}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-gray-500 dark:text-zinc-500">
+                    <span>{usageStats.usedPercent.toFixed(1)}% used</span>
+                    <span>{usageStats.remainingPercent.toFixed(1)}% remaining</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="p-3 border-b border-gray-100 dark:border-white/[0.04] shrink-0">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Estimated Runs */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-[9px] text-gray-500 dark:text-zinc-400 uppercase font-semibold">Est. Runs Left</span>
+                </div>
+                <p className="text-xl font-bold text-blue-700 dark:text-blue-400">
+                  {usageStats.estimatedRunsRemaining > 0 ? (
+                    usageStats.estimatedRunsRemaining > 100 ? "100+" : usageStats.estimatedRunsRemaining
+                  ) : (
+                    <span className="text-gray-400 dark:text-zinc-500">-</span>
+                  )}
+                </p>
+                <p className="text-[8px] text-gray-500 dark:text-zinc-500 mt-0.5">
+                  based on avg {formatCredits(usageStats.avgCostPerRun)}/run
+                </p>
+              </div>
+              
+              {/* Total Transactions */}
+              <div className="p-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 dark:border-violet-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                  <span className="text-[9px] text-gray-500 dark:text-zinc-400 uppercase font-semibold">Total Runs</span>
+                </div>
+                <p className="text-xl font-bold text-violet-700 dark:text-violet-400">{creditHistory.length}</p>
+                <p className="text-[8px] text-gray-500 dark:text-zinc-500 mt-0.5">
+                  {workflowId && workflowId !== "new" ? "this workflow" : "all workflows"}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Workflow Spending */}
-          <div className="p-3 border-b border-gray-100 dark:border-white/[0.04] shrink-0">
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-amber-600/5 rounded-xl border-l-4 border-l-amber-500 border border-amber-200 dark:border-amber-500/20 p-4">
+          {/* Top Spending Categories */}
+          {usageStats.topSpending.length > 0 && (
+            <div className="p-3 border-b border-gray-100 dark:border-white/[0.04] shrink-0">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span className="text-[10px] text-amber-700 dark:text-amber-600 uppercase tracking-wider font-semibold">
-                  {workflowId && workflowId !== "new" ? "This Workflow" : "All Workflows"}
-                </span>
+                <TrendingUp className="w-3.5 h-3.5 text-gray-500 dark:text-zinc-400" />
+                <span className="text-[9px] text-gray-600 dark:text-zinc-400 uppercase tracking-wider font-semibold">Top Spending</span>
               </div>
-              <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{formatCredits(totalSpent)} <span className="text-xs font-normal text-amber-600 dark:text-amber-400">credits</span></p>
-              <p className="text-[9px] text-gray-500 dark:text-zinc-500 mt-1">{creditHistory.length} transactions</p>
+              <div className="space-y-1.5">
+                {usageStats.topSpending.map(([nodeType, amount]) => {
+                  const nodeDef = NODE_DEFINITIONS[nodeType as AINodeType];
+                  const percentage = totalSpent > 0 ? (amount / totalSpent) * 100 : 0;
+                  
+                  return (
+                    <div key={nodeType} className="flex items-center gap-2">
+                      <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 border", getNodeColor(nodeType))}>
+                        {getNodeIcon(nodeType)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-medium text-gray-700 dark:text-zinc-300 truncate">
+                            {nodeDef?.label || nodeType}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            {formatCredits(amount)}
+                          </span>
+                        </div>
+                        <div className="h-1 bg-gray-200 dark:bg-white/[0.1] rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${percentage}%` }}
+                            transition={{ duration: 0.5, delay: 0.1 }}
+                            className="h-full bg-amber-400 dark:bg-amber-500 rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* History */}
           <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-white/10">
             <div className="flex items-center gap-2 px-1 mb-2">
-              <History className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500" />
-              <span className="text-[9px] text-gray-500 dark:text-zinc-500 uppercase tracking-wider font-semibold">Recent Spending</span>
+              <History className="w-3.5 h-3.5 text-gray-500 dark:text-zinc-400" />
+              <span className="text-[9px] text-gray-600 dark:text-zinc-400 uppercase tracking-wider font-semibold">Recent Transactions</span>
             </div>
             
             {isLoading ? (
@@ -266,7 +432,7 @@ export function CreditsPanel({
               </div>
             ) : (
               <div className="space-y-1.5">
-                {creditHistory.slice(0, 20).map((item, idx) => (
+                {creditHistory.slice(0, 15).map((item, idx) => (
                   <motion.div
                     key={`${item.id}-${idx}`}
                     initial={{ opacity: 0, x: -8 }}
@@ -281,14 +447,6 @@ export function CreditsPanel({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-semibold text-gray-800 dark:text-zinc-300 truncate">{item.nodeName}</span>
-                          <span className={cn(
-                            "text-[7px] px-1.5 py-0.5 rounded uppercase shrink-0 font-bold",
-                            item.executionType === "pipeline" 
-                              ? "bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400" 
-                              : "bg-gray-200 dark:bg-white/[0.04] text-gray-600 dark:text-zinc-500"
-                          )}>
-                            {item.executionType}
-                          </span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
                           <Calendar className="w-2.5 h-2.5 text-gray-400 dark:text-zinc-600" />

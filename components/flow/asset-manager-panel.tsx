@@ -223,8 +223,8 @@ export function AssetManagerPanel({
           <div className="px-4 py-3 border-b border-gray-100 dark:border-white/[0.06] bg-gray-50 dark:bg-white/[0.02] shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-blue-500 dark:bg-blue-500/20 border border-blue-600 dark:border-blue-500/30 flex items-center justify-center">
-                  <FolderOpen className="w-3.5 h-3.5 text-white dark:text-blue-400" />
+                <div className="w-7 h-7 rounded-lg bg-blue-500 dark:bg-blue-500/30 border border-blue-400 dark:border-blue-500/40 flex items-center justify-center">
+                  <FolderOpen className="w-3.5 h-3.5 text-white dark:text-blue-300" />
                 </div>
                 <div>
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">Asset Manager</span>

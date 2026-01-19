@@ -190,6 +190,95 @@ lib/config/
 2. Add to `NODE_CONFIG` object
 3. **Done** - no component code needed
 
+#### Example: Adding "Stable Diffusion 3" Node
+
+```typescript
+// In lib/config/node-config.ts
+
+export const NODE_CONFIG: NodeConfigRegistry = {
+  // ... existing nodes ...
+
+  stableDiffusion3: {
+    type: "stableDiffusion3",
+    version: "1.0.0",
+    category: "image",
+    label: "Stable Diffusion 3",
+    description: "Generate images with SD3 model",
+    color: "violet",  // Node header color
+    
+    // Provider configuration (API integration)
+    providers: [
+      {
+        id: "fal",
+        model: "fal-ai/stable-diffusion-3",
+        inputMapping: {
+          prompt: "prompt",
+          negativePrompt: "negative_prompt",
+          aspectRatio: "image_size",
+          seed: "seed",
+        },
+        outputMapping: {
+          "image.url": "images[0].url",
+          "image.mimeType": "images[0].content_type",
+          "image.width": "images[0].width",
+          "image.height": "images[0].height",
+        },
+      },
+    ],
+    
+    // Input validation schema (Zod)
+    inputSchema: z.object({
+      prompt: z.string().min(1).max(4096),
+      negativePrompt: z.string().optional(),
+      aspectRatio: z.enum(["1:1", "16:9", "9:16"]).default("1:1"),
+      seed: z.number().int().optional(),
+      steps: z.number().int().min(1).max(50).default(28),
+    }),
+    
+    // Output schema
+    outputSchema: ImageOutSchema,
+    
+    // Execution settings
+    execution: {
+      timeout: "5m",
+      retryPerProvider: 2,
+      maxRetries: 3,
+    },
+    
+    // UI field definitions (auto-rendered)
+    ui: {
+      inputs: [
+        { id: "prompt", type: "textarea", label: "Prompt", required: true, rows: 3 },
+        { id: "negativePrompt", type: "textarea", label: "Negative Prompt", rows: 2, advanced: true },
+        { id: "aspectRatio", type: "select", label: "Aspect Ratio", options: ["1:1", "16:9", "9:16"] },
+        { id: "seed", type: "number", label: "Seed", placeholder: "Random", advanced: true },
+        { id: "steps", type: "slider", label: "Steps", min: 1, max: 50, defaultValue: 28, advanced: true },
+      ],
+      outputs: [
+        { id: "image", type: "image", label: "Generated Image" },
+      ],
+    },
+    
+    // Credit cost (1 credit = $0.000001)
+    estimatedCost: 35_000,
+    estimatedTime: "~8s",
+    
+    // Mock response for testing
+    mockResponse: () => ({
+      type: "image",
+      image: {
+        url: "https://picsum.photos/1024/1024",
+        mimeType: "image/jpeg",
+        width: 1024,
+        height: 1024,
+      },
+    }),
+  },
+};
+```
+
+**That's it!** The `GenericNode` component auto-renders the UI fields, handles connections, and the execution engine knows how to call the provider API.
+
 ### Provider Support
 
 | Provider | Nodes | Features |

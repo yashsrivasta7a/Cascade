@@ -799,7 +799,7 @@ function BaseNodeComponent({
               }
             }}
             className={cn(
-              "nodrag nowheel absolute -right-14 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn min-w-[88px]",
+              "nodrag nowheel absolute left-full ml-3 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn min-w-[88px] z-50",
               isUploading
                 ? "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
                 : status === "running"
@@ -859,7 +859,7 @@ function BaseNodeComponent({
               onSkipToggle?.(!skip);
             }}
             className={cn(
-              "nodrag nowheel absolute -right-14 top-14 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg min-w-[88px] justify-start",
+              "nodrag nowheel absolute left-full ml-3 top-14 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg min-w-[88px] justify-start z-50",
               isRunningOrQueued
                 ? "bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800 opacity-50"
                 : skip

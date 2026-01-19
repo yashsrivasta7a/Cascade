@@ -94,6 +94,7 @@ export { EditorSidebar } from "./editor-sidebar";
 export { RunModal, demoNodes } from "./run-modal";
 export { NodeTypeModal } from "./node-type-modal";
 export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node-settings-modal";
+export { KeyboardShortcutsModal } from "./keyboard-shortcuts-modal";
 
 // ============================================================================
 // SPECIAL NODES (Non-AI annotation nodes)

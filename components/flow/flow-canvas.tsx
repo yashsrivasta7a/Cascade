@@ -2006,7 +2006,7 @@ function FlowCanvasInner({
           variant={BackgroundVariant.Dots}
           gap={30}
           size={2}
-          color={isDarkMode ? "#3f3f46" : "#9ca3af"}
+          color={isDarkMode ? "#3f3f46" : "#000000"}
         />
         <Controls
           showInteractive={false}
