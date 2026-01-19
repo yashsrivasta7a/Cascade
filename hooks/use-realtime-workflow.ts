@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useCallback, useState, useRef } from "react";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
 import type { Node, Edge } from "reactflow";
 
 // =============================================================================
-// REALTIME WORKFLOW HOOK - Fast polling for production reliability
+// REALTIME WORKFLOW HOOK - Uses Trigger.dev React hooks
 // =============================================================================
-// This hook triggers workflows and provides real-time updates via fast polling.
-// It's designed to work reliably on Vercel without SSE buffering issues.
+// Triggers workflow via our API, then uses useRealtimeRun to subscribe to
+// real-time updates directly from Trigger.dev. This bypasses Vercel's SSE
+// buffering by connecting the browser directly to Trigger.dev.
 // =============================================================================
 
 export type NodeStatus = "queued" | "running" | "completed" | "failed";
@@ -36,107 +38,113 @@ interface TriggerResponse {
   success: boolean;
   workflowExecutionId?: string;
   triggerRunId?: string;
+  publicToken?: string;
   estimatedCost?: number;
   error?: string;
 }
 
-interface NodeExecution {
-  nodeId: string;
+interface NodeStatusFromMetadata {
+  status: "queued" | "started" | "completed" | "failed";
   nodeType: string;
-  status: string;
+  nodeLabel?: string;
+  output?: unknown;
   error?: string;
-  outputJson?: unknown;
-}
-
-interface WorkflowExecution {
-  id: string;
-  status: string;
-  nodeExecutions: NodeExecution[];
+  timestamp: number;
 }
 
 export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWorkflowCallbacks) {
   const [isRunning, setIsRunning] = useState(false);
-  const [workflowExecutionId, setWorkflowExecutionId] = useState<string | null>(null);
   const [triggerRunId, setTriggerRunId] = useState<string | null>(null);
+  const [publicToken, setPublicToken] = useState<string | null>(null);
+  const [workflowExecutionId, setWorkflowExecutionId] = useState<string | null>(null);
   
-  // Track processed events and previous statuses to detect changes
-  const previousStatuses = useRef<Map<string, string>>(new Map());
+  // Track which events we've already processed
+  const processedEvents = useRef<Set<string>>(new Set());
   const callbacksRef = useRef(callbacks);
   callbacksRef.current = callbacks;
 
-  // Poll for execution status updates
+  // Subscribe to Trigger.dev run updates using their React hook
+  // This connects directly to Trigger.dev, bypassing Vercel
+  const { run, error: realtimeError } = useRealtimeRun(triggerRunId ?? undefined, {
+    accessToken: publicToken ?? undefined,
+    enabled: Boolean(triggerRunId && publicToken),
+  });
+
+  // Process run updates from Trigger.dev realtime
   useEffect(() => {
-    if (!isRunning || !workflowExecutionId) return;
+    if (!run || !isRunning) return;
 
-    let isCancelled = false;
-    const pollInterval = 500; // Poll every 500ms for fast updates
+    console.log(`[RealtimeWorkflow] Run update: status=${run.status}, id=${run.id}`);
 
-    const pollStatus = async () => {
-      if (isCancelled) return;
+    // Process metadata for node updates
+    const metadata = run.metadata as Record<string, unknown> | undefined;
+    if (metadata) {
+      for (const [key, value] of Object.entries(metadata)) {
+        // Node status keys are like "node:nodeId"
+        if (key.startsWith("node:")) {
+          const nodeId = key.replace("node:", "");
+          const nodeStatus = value as NodeStatusFromMetadata;
+          const eventKey = `${nodeId}-${nodeStatus.status}-${nodeStatus.timestamp}`;
 
-      try {
-        const response = await fetch(`/api/workflow-executions/${workflowExecutionId}`);
-        if (!response.ok) return;
+          // Skip if we've already processed this event
+          if (processedEvents.current.has(eventKey)) continue;
+          processedEvents.current.add(eventKey);
 
-        const data = await response.json();
-        const execution: WorkflowExecution = data.execution;
+          console.log(`[RealtimeWorkflow] Node ${nodeId}: ${nodeStatus.status}`);
 
-        if (!execution) return;
-
-        // Process node updates
-        for (const ne of execution.nodeExecutions) {
-          const prevStatus = previousStatuses.current.get(ne.nodeId);
-          const newStatus = ne.status.toLowerCase();
-
-          // Skip if status hasn't changed
-          if (prevStatus === newStatus) continue;
-          previousStatuses.current.set(ne.nodeId, newStatus);
-
-          console.log(`[RealtimeWorkflow] Node ${ne.nodeId}: ${prevStatus ?? 'none'} → ${newStatus}`);
-
-          if (newStatus === "running" || newStatus === "waiting") {
-            callbacksRef.current?.onNodeStarted?.(ne.nodeId, ne.nodeType);
-          } else if (newStatus === "completed") {
-            callbacksRef.current?.onNodeCompleted?.(ne.nodeId, ne.nodeType, ne.outputJson);
-          } else if (newStatus === "failed") {
-            callbacksRef.current?.onNodeFailed?.(ne.nodeId, ne.nodeType, ne.error || "Unknown error");
+          if (nodeStatus.status === "queued") {
+            callbacksRef.current?.onNodeQueued?.(nodeId, nodeStatus.nodeType);
+          } else if (nodeStatus.status === "started") {
+            callbacksRef.current?.onNodeStarted?.(nodeId, nodeStatus.nodeType);
+          } else if (nodeStatus.status === "completed") {
+            callbacksRef.current?.onNodeCompleted?.(nodeId, nodeStatus.nodeType, nodeStatus.output);
+          } else if (nodeStatus.status === "failed") {
+            callbacksRef.current?.onNodeFailed?.(nodeId, nodeStatus.nodeType, nodeStatus.error || "Unknown error");
           }
         }
 
-        // Check workflow status
-        const workflowStatus = execution.status.toUpperCase();
-        if (workflowStatus === "COMPLETED" || workflowStatus === "FAILED") {
-          const successCount = execution.nodeExecutions.filter(ne => ne.status.toUpperCase() === "COMPLETED").length;
-          const failCount = execution.nodeExecutions.filter(ne => ne.status.toUpperCase() === "FAILED").length;
-
-          console.log(`[RealtimeWorkflow] Workflow ${workflowStatus}: ${successCount} succeeded, ${failCount} failed`);
-
-          callbacksRef.current?.onWorkflowCompleted?.({
-            successCount,
-            failCount,
-            status: workflowStatus,
-            workflowExecutionId,
-          });
-
-          setIsRunning(false);
+        // Workflow completion status
+        if (key === "workflow") {
+          const workflowStatus = value as { status: string; successCount: number; failCount: number };
+          if (workflowStatus.status === "completed") {
+            console.log(`[RealtimeWorkflow] Workflow completed: ${workflowStatus.successCount} succeeded, ${workflowStatus.failCount} failed`);
+            callbacksRef.current?.onWorkflowCompleted?.({
+              successCount: workflowStatus.successCount,
+              failCount: workflowStatus.failCount,
+              status: "COMPLETED",
+              workflowExecutionId: workflowExecutionId ?? undefined,
+            });
+            setIsRunning(false);
+          }
         }
-      } catch (error) {
-        console.error("[RealtimeWorkflow] Poll error:", error);
       }
+    }
 
-      // Schedule next poll if still running
-      if (!isCancelled && isRunning) {
-        setTimeout(pollStatus, pollInterval);
+    // Check for terminal states
+    const terminalStates = ["COMPLETED", "FAILED", "CRASHED", "SYSTEM_FAILURE", "CANCELED", "TIMED_OUT"];
+    if (terminalStates.includes(run.status)) {
+      console.log(`[RealtimeWorkflow] Run reached terminal state: ${run.status}`);
+      
+      if (run.status !== "COMPLETED") {
+        callbacksRef.current?.onWorkflowCompleted?.({
+          successCount: 0,
+          failCount: 1,
+          status: run.status,
+          workflowExecutionId: workflowExecutionId ?? undefined,
+        });
       }
-    };
+      
+      setIsRunning(false);
+    }
+  }, [run, isRunning, workflowExecutionId]);
 
-    // Start polling
-    pollStatus();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isRunning, workflowExecutionId]);
+  // Handle realtime errors
+  useEffect(() => {
+    if (realtimeError && isRunning) {
+      console.error("[RealtimeWorkflow] Realtime subscription error:", realtimeError);
+      // Don't stop running - the task might still complete, we just won't see updates
+    }
+  }, [realtimeError, isRunning]);
 
   // Trigger the workflow
   const runWorkflow = useCallback(async (nodes: Node[], edges: Edge[], overrideWorkflowId?: string) => {
@@ -150,9 +158,10 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
 
     // Reset state
     setIsRunning(true);
-    setWorkflowExecutionId(null);
     setTriggerRunId(null);
-    previousStatuses.current.clear();
+    setPublicToken(null);
+    setWorkflowExecutionId(null);
+    processedEvents.current.clear();
 
     // Mark all nodes as queued initially
     for (const node of nodes) {
@@ -160,7 +169,8 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
     }
 
     try {
-      // Trigger workflow via API
+      // Trigger workflow via our API - this starts the Trigger.dev task
+      // and returns the run ID + public token for realtime subscription
       const response = await fetch("/api/workflow/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,19 +184,21 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
 
       const data: TriggerResponse = await response.json();
 
-      if (!data.success) {
+      if (!data.success || !data.triggerRunId || !data.publicToken) {
         throw new Error(data.error || "Failed to trigger workflow");
       }
 
-      console.log("[RealtimeWorkflow] Workflow triggered:", data.workflowExecutionId);
+      console.log("[RealtimeWorkflow] Workflow triggered, runId:", data.triggerRunId);
 
+      // Store IDs for subscription
       setWorkflowExecutionId(data.workflowExecutionId ?? null);
-      setTriggerRunId(data.triggerRunId ?? null);
+      setTriggerRunId(data.triggerRunId);
+      setPublicToken(data.publicToken);
 
       // Notify that workflow started
       callbacksRef.current?.onWorkflowStarted?.({
         workflowExecutionId: data.workflowExecutionId!,
-        triggerRunId: data.triggerRunId!,
+        triggerRunId: data.triggerRunId,
         estimatedCost: data.estimatedCost ?? 0,
       });
 
@@ -211,6 +223,8 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
       }
     }
     setIsRunning(false);
+    setTriggerRunId(null);
+    setPublicToken(null);
   }, [workflowExecutionId]);
 
   return {
