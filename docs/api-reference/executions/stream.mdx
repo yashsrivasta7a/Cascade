@@ -1,0 +1,194 @@
+---
+title: 'Stream Execution'
+api: 'GET /executions/{id}/stream'
+description: 'Stream real-time execution progress updates via Server-Sent Events (SSE)'
+---
+
+## Overview
+
+Establishes a Server-Sent Events (SSE) connection to receive real-time updates about a workflow execution. This is the recommended way to track execution progress in real-time.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the execution to stream
+</ParamField>
+
+## Request
+
+<CodeGroup>
+```bash cURL
+curl -N https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+```javascript JavaScript
+const eventSource = new EventSource(
+  'https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+
+eventSource.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Update:', data);
+};
+
+eventSource.onerror = (error) => {
+  console.error('Stream error:', error);
+  eventSource.close();
+};
+```
+
+```python Python
+import sseclient
+import requests
+
+response = requests.get(
+    'https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Accept': 'text/event-stream'
+    },
+    stream=True
+)
+
+client = sseclient.SSEClient(response)
+for event in client.events():
+    print(f"Update: {event.data}")
+```
+</CodeGroup>
+
+## Event Types
+
+The stream sends different event types as the execution progresses:
+
+### `execution.started`
+
+Sent when the execution begins.
+
+```json
+{
+  "type": "execution.started",
+  "executionId": "exec_abc123",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### `node.started`
+
+Sent when a node begins processing.
+
+```json
+{
+  "type": "node.started",
+  "executionId": "exec_abc123",
+  "nodeId": "node_2",
+  "nodeType": "image-gen",
+  "nodeLabel": "Generate Image",
+  "timestamp": "2024-01-15T10:30:01Z"
+}
+```
+
+### `node.progress`
+
+Sent periodically for nodes that support progress updates (like image generation).
+
+```json
+{
+  "type": "node.progress",
+  "executionId": "exec_abc123",
+  "nodeId": "node_2",
+  "progress": 45,
+  "message": "Generating image...",
+  "timestamp": "2024-01-15T10:30:20Z"
+}
+```
+
+### `node.completed`
+
+Sent when a node finishes successfully.
+
+```json
+{
+  "type": "node.completed",
+  "executionId": "exec_abc123",
+  "nodeId": "node_2",
+  "nodeType": "image-gen",
+  "output": {
+    "type": "image",
+    "url": "https://cdn.flowsmith.com/outputs/abc123.png"
+  },
+  "cost": 10,
+  "duration": "41.5s",
+  "timestamp": "2024-01-15T10:30:42Z"
+}
+```
+
+### `node.failed`
+
+Sent when a node encounters an error.
+
+```json
+{
+  "type": "node.failed",
+  "executionId": "exec_abc123",
+  "nodeId": "node_2",
+  "error": "Provider timeout after 60 seconds",
+  "timestamp": "2024-01-15T10:31:01Z"
+}
+```
+
+### `execution.completed`
+
+Sent when the entire execution finishes successfully.
+
+```json
+{
+  "type": "execution.completed",
+  "executionId": "exec_abc123",
+  "totalCost": 12,
+  "duration": "45.2s",
+  "timestamp": "2024-01-15T10:30:45Z"
+}
+```
+
+### `execution.failed`
+
+Sent when the execution fails.
+
+```json
+{
+  "type": "execution.failed",
+  "executionId": "exec_abc123",
+  "error": "Node 'Generate Image' failed: Provider timeout",
+  "timestamp": "2024-01-15T10:31:01Z"
+}
+```
+
+### `execution.cancelled`
+
+Sent when the execution is cancelled.
+
+```json
+{
+  "type": "execution.cancelled",
+  "executionId": "exec_abc123",
+  "timestamp": "2024-01-15T10:30:30Z"
+}
+```
+
+## Connection Handling
+
+<Note>
+The stream automatically closes when the execution completes, fails, or is cancelled. You should handle reconnection logic in your client if needed.
+</Note>
+
+### Best Practices
+
+1. **Always handle errors** - Implement error handlers to gracefully handle connection drops
+2. **Close connections** - Close the EventSource when navigating away to prevent memory leaks
+3. **Reconnection** - The stream closes on completion; only reconnect if the execution is still running
+4. **Timeout handling** - Consider implementing a client-side timeout for very long executions

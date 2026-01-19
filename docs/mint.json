@@ -12,27 +12,53 @@
     "dark": "#0891b2",
     "background": {
       "dark": "#101010",
-      "light": "#ffffff"
+      "light": "#F3F4F6"
     },
     "anchors": {
       "from": "#06b6d4",
       "to": "#8b5cf6"
     }
   },
+  "theme": "quill",
+  "layout": "topnav",
   "modeToggle": {
-    "default": "dark"
+    "default": "dark",
+    "isHidden": false
+  },
+  "rounded": "default",
+  "font": {
+    "headings": {
+      "family": "Inter",
+      "weight": 600
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 400
+    }
+  },
+  "topbar": {
+    "style": "gradient"
   },
   "topbarLinks": [
     {
       "name": "Dashboard",
       "url": "https://flowsmith-ys7.vercel.app"
+    },
+    {
+      "name": "Changelog",
+      "url": "https://flowsmith-ys7.vercel.app/changelog"
     }
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "https://flowsmith-ys7.vercel.app/sign-up"
+    "url": "https://flowsmith-ys7.vercel.app/sign-up",
+    "style": "roundedRectangle"
   },
   "tabs": [
+    {
+      "name": "Documentation",
+      "url": "/"
+    },
     {
       "name": "API Reference",
       "url": "api-reference"
@@ -50,36 +76,66 @@
     {
       "group": "API Reference",
       "pages": [
-        "api-reference/introduction",
-        {
-          "group": "Workflows",
-          "pages": [
-            "api-reference/workflows/list",
-            "api-reference/workflows/get",
-            "api-reference/workflows/create",
-            "api-reference/workflows/update",
-            "api-reference/workflows/delete",
-            "api-reference/workflows/duplicate"
-          ]
-        },
-        {
-          "group": "Credits",
-          "pages": [
-            "api-reference/credits/balance",
-            "api-reference/credits/stats"
-          ]
-        }
+        "api-reference/introduction"
+      ]
+    },
+    {
+      "group": "Workflows",
+      "pages": [
+        "api-reference/workflows/list",
+        "api-reference/workflows/get",
+        "api-reference/workflows/create",
+        "api-reference/workflows/update",
+        "api-reference/workflows/delete",
+        "api-reference/workflows/duplicate",
+        "api-reference/workflows/execute"
+      ]
+    },
+    {
+      "group": "Executions",
+      "pages": [
+        "api-reference/executions/list",
+        "api-reference/executions/get",
+        "api-reference/executions/cancel",
+        "api-reference/executions/stream"
+      ]
+    },
+    {
+      "group": "Credits",
+      "pages": [
+        "api-reference/credits/balance",
+        "api-reference/credits/stats"
+      ]
+    },
+    {
+      "group": "Dashboard",
+      "pages": [
+        "api-reference/dashboard/stats"
       ]
     }
   ],
   "footerSocials": {
     "github": "https://github.com/bluerocketdev/workflow-yash"
   },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  },
   "openapi": "https://flowsmith-ys7.vercel.app/api/openapi",
   "api": {
     "baseUrl": "https://flowsmith-ys7.vercel.app/api/v1",
     "auth": {
-      "method": "bearer"
+      "method": "bearer",
+      "name": "Authorization"
+    },
+    "playground": {
+      "mode": "simple"
+    }
+  },
+  "analytics": {
+    "posthog": {
+      "apiKey": ""
     }
   }
 }
