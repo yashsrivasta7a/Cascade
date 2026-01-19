@@ -5,7 +5,7 @@ import { NodeProps } from "reactflow";
 import { createPortal } from "react-dom";
 import { useFlowStore } from "@/store";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Palette, Trash2, Check } from "lucide-react";
+import { MessageSquare, Trash2, Check } from "lucide-react";
 
 // Available color themes for comments - with hex values for swatches
 const COMMENT_COLORS = [
@@ -34,6 +34,7 @@ export function getRandomColorIndex(): number {
 export interface CommentNodeData {
   label: string;
   text?: string;
+  title?: string;
   colorIndex?: number;
 }
 
@@ -42,10 +43,13 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const colorIndex = data.colorIndex ?? 0;
   const colorTheme = COMMENT_COLORS[colorIndex] ?? COMMENT_COLORS[0];
@@ -57,14 +61,30 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     [id, updateNode]
   );
 
+  const handleTitleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      updateNode(id, { title: e.target.value });
+    },
+    [id, updateNode]
+  );
+
   // Double click to edit for better UX
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
   }, []);
 
+  const handleTitleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+  }, []);
+
   const handleBlur = useCallback(() => {
     setIsEditing(false);
+  }, []);
+
+  const handleTitleBlur = useCallback(() => {
+    setIsEditingTitle(false);
   }, []);
 
   const handleColorChange = useCallback((newColorIndex: number) => {
@@ -78,6 +98,7 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
 
   const toggleColorPicker = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setShowColorPicker(prev => !prev);
   }, []);
 
@@ -90,19 +111,32 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     }
   }, [isEditing]);
 
-  // Close color picker when clicking outside
+  // Focus title input when entering edit mode
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  // Close color picker when clicking outside (check both button and dropdown)
   useEffect(() => {
     if (!showColorPicker) return;
     
     const handleClickOutside = (e: MouseEvent) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const isInsideButton = colorPickerRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+      
+      if (!isInsideButton && !isInsideDropdown) {
         setShowColorPicker(false);
       }
     };
     
+    // Use a small delay to avoid immediate close
     const timer = setTimeout(() => {
       document.addEventListener("mousedown", handleClickOutside);
-    }, 0);
+    }, 10);
     
     return () => {
       clearTimeout(timer);
@@ -115,8 +149,10 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
         setIsEditing(false);
+        setIsEditingTitle(false);
         setShowColorPicker(false);
         textareaRef.current?.blur();
+        titleInputRef.current?.blur();
       }
       e.stopPropagation();
     },
@@ -143,18 +179,46 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
       {/* Decorative accent bar at top */}
       <div className={cn("h-1 w-full", colorTheme.accent)} />
 
-      {/* Header with icon */}
+      {/* Header with icon and editable title */}
       <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
         <div className={cn(
-          "w-5 h-5 rounded-md flex items-center justify-center",
+          "w-5 h-5 rounded-md flex items-center justify-center shrink-0",
           colorTheme.accent,
           "bg-opacity-20"
         )}>
           <MessageSquare className={cn("w-3 h-3", colorTheme.text)} strokeWidth={2.5} />
         </div>
-        <span className={cn("text-[10px] font-semibold uppercase tracking-wider", colorTheme.muted)}>
-          Note
-        </span>
+        {isEditingTitle ? (
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={data.title ?? ""}
+            onChange={handleTitleChange}
+            onBlur={handleTitleBlur}
+            onKeyDown={handleKeyDown}
+            placeholder="Note"
+            className={cn(
+              "flex-1 min-w-0 bg-transparent",
+              "text-[10px] font-semibold uppercase tracking-wider",
+              colorTheme.text,
+              "placeholder:opacity-50",
+              "focus:outline-none",
+              "nodrag"
+            )}
+            autoFocus
+          />
+        ) : (
+          <span 
+            className={cn(
+              "text-[10px] font-semibold uppercase tracking-wider cursor-text truncate",
+              data.title ? colorTheme.text : colorTheme.muted
+            )}
+            onDoubleClick={handleTitleDoubleClick}
+            title="Double-click to edit title"
+          >
+            {data.title || "Note"}
+          </span>
+        )}
       </div>
 
       {/* Content area */}
@@ -218,11 +282,14 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
           {/* Inline color picker dropdown */}
           {showColorPicker && typeof document !== "undefined" && createPortal(
             <div
+              ref={dropdownRef}
               className="fixed z-[9999]"
               style={{
                 left: colorPickerRef.current?.getBoundingClientRect().left ?? 0,
                 top: (colorPickerRef.current?.getBoundingClientRect().bottom ?? 0) + 8,
               }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <div className={cn(
                 "bg-zinc-900/95 backdrop-blur-xl",
@@ -237,8 +304,10 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
                       key={color.name}
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         handleColorChange(index);
                       }}
+                      onMouseDown={(e) => e.stopPropagation()}
                       className={cn(
                         "w-10 h-10 rounded-lg transition-all duration-150",
                         "hover:scale-110 hover:z-10",
