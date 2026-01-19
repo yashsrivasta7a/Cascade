@@ -448,13 +448,19 @@ export function ActivityPanel({
       if (workflowId) params.set("workflowId", workflowId);
       params.set("_t", Date.now().toString());
       
-      const response = await fetch(`/api/trigger-runs?${params.toString()}`, {
+      const response = await fetch(`/api/workflow-executions?${params.toString()}`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
       
       if (response.ok) {
         const data = await response.json();
+        
+        // Debug: log raw data
+        console.log(`[ActivityPanel] Received ${data.executions?.length || 0} executions`);
+        data.executions?.forEach((e: any) => {
+          console.log(`[ActivityPanel] Execution ${e.id}: status=${e.status}, nodes=${e.nodeExecutions?.length || 0}`);
+        });
         
         const transformed: ExecutionRecord[] = (data.executions || []).map((exec: any) => {
           let durationMs: number | undefined;
@@ -971,9 +977,16 @@ export function ActivityPanel({
                             </AnimatePresence>
                           </>
                         ) : (
-                          // Single node execution
+                          // Single node execution or no nodes
                           <div className="p-3 pl-4">
-                            {singleNode && renderNodeWithError(singleNode, exec.id, 0)}
+                            {singleNode ? (
+                              renderNodeWithError(singleNode, exec.id, 0)
+                            ) : (
+                              <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-zinc-600">
+                                <Clock className="w-3 h-3" />
+                                <span>No node data available</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </motion.div>

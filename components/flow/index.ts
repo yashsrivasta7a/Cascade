@@ -74,23 +74,16 @@ export type { ExtractAudioNodeData } from "./nodes-legacy/extract-audio-node";
 // FLOW COMPONENTS
 // ============================================================================
 
-export { DemoFlow } from "./demo-flow";
-export { HeroFlow } from "./hero-flow";
 export { NodePalette } from "./node-palette";
 export { FlowCanvas } from "./flow-canvas";
 export { NodeInspector } from "./node-inspector";
 export { NodeContextMenu } from "./node-context-menu";
 export { ExecutionPanel } from "./execution-panel";
-export { ExecutionHistoryPanel } from "./execution-history-panel";
-export { VersionHistoryPanel } from "./version-history-panel";
-export { ErrorInspectorPanel } from "./error-inspector-panel";
-export type { WorkflowError, ErrorSeverity } from "./error-inspector-panel";
 export { ActivityPanel } from "./activity-panel";
 export type { ActivityPanelError } from "./activity-panel";
 export { AssetManagerPanel } from "./asset-manager-panel";
 export { CreditsPanel } from "./credits-panel";
 export { WorkflowSidebar } from "./workflow-sidebar";
-export { EditorSidebar } from "./editor-sidebar";
 export { RunModal, demoNodes } from "./run-modal";
 export { NodeTypeModal } from "./node-type-modal";
 export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node-settings-modal";

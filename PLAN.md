@@ -290,6 +290,105 @@ export const NODE_CONFIG: NodeConfigRegistry = {
 
 ---
 
+## 📡 Realtime Data Flow
+
+The execution engine uses **Trigger.dev Realtime** with metadata subscriptions for instant updates - no polling required.
+
+### Architecture
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  workflow-executor.ts (Trigger.dev Worker)                      │
+│                                                                 │
+│  Orchestrates DAG execution, updates metadata on status change: │
+│                                                                 │
+│    metadata.set("node:abc123", {                                │
+│      status: "started" | "completed" | "failed",                │
+│      nodeType: "seedream",                                      │
+│      output: { image: { url: "..." } },  // on completion       │
+│      timestamp: 1234567890                                      │
+│    })                                                           │
+│                                                                 │
+│    metadata.set("workflow", {                                   │
+│      status: "completed",                                       │
+│      successCount: 3,                                           │
+│      failCount: 0                                               │
+│    })                                                           │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Trigger.dev Realtime
+                              │ (WebSocket - instant metadata updates)
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│  /api/workflow/stream (Vercel API Route)                        │
+│                                                                 │
+│  Subscribes to run, reads metadata, converts to SSE:            │
+│                                                                 │
+│    for await (const run of runs.subscribeToRun(handle.id)) {    │
+│      // Read node statuses from run.metadata                    │
+│      for (const [key, value] of Object.entries(run.metadata)) { │
+│        if (key.startsWith("node:")) {                           │
+│          sendEvent(controller, "node-started", {...})           │
+│          sendEvent(controller, "node-completed", {...})         │
+│        }                                                        │
+│      }                                                          │
+│    }                                                            │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Server-Sent Events (SSE)
+                              │ (Browser-compatible streaming)
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│  Frontend (useWorkflowStream hook)                              │
+│                                                                 │
+│  Receives SSE events, triggers callbacks:                       │
+│                                                                 │
+│    onNodeStarted({ nodeId, nodeType })                          │
+│    onNodeCompleted({ nodeId, nodeType, output })                │
+│    onNodeFailed({ nodeId, nodeType, error })                    │
+│    onWorkflowCompleted()                                        │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+| Layer | Technology | Reason |
+|-------|------------|--------|
+| Worker → API | Trigger.dev Realtime (metadata) | Native to Trigger.dev, instant updates, no polling |
+| API → Frontend | SSE | Browser-compatible, works with existing hooks, no WebSocket setup |
+
+### Key Benefits
+
+1. **No Polling** - Updates flow instantly via WebSocket from worker to API
+2. **Low Latency** - Node status changes appear in UI immediately
+3. **Lower DB Load** - No more polling queries every 500ms
+4. **Fallback Safety** - Falls back to DB polling if subscription fails
+
+### Metadata Schema
+
+```typescript
+// Node status (key: "node:{nodeId}")
+interface NodeStatus {
+  status: "queued" | "started" | "completed" | "failed";
+  nodeType: string;
+  nodeLabel?: string;
+  output?: unknown;      // Present when status = "completed"
+  error?: string;        // Present when status = "failed"
+  timestamp: number;
+}
+
+// Workflow status (key: "workflow")
+interface WorkflowStatus {
+  status: "completed";
+  successCount: number;
+  failCount: number;
+  finalStatus: "COMPLETED" | "FAILED" | "PARTIAL";
+  timestamp: number;
+}
+```
+
+---
+
 ## 📁 Project Structure
 
 ```

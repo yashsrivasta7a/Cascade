@@ -364,9 +364,10 @@ describe("Toast Utilities", () => {
       it("shows LLM parse error with details", () => {
         showLLMParseError("Seedream", "aspectRatio", "Invalid value: widescreen");
         expect(toast.error).toHaveBeenCalledWith(
-          "LLM output invalid for Seedream",
+          "Aspect Ratio not supported",
           expect.objectContaining({
-            description: 'Cannot set "aspectRatio": Invalid value: widescreen',
+            description: 'The LLM response for "Seedream" doesn\'t match expected format',
+            duration: 4000,
           })
         );
       });

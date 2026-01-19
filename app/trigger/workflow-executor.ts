@@ -1,10 +1,22 @@
-import { task, wait, runs } from "@trigger.dev/sdk/v3";
+import { task, wait, runs, metadata } from "@trigger.dev/sdk/v3";
 import { config } from "dotenv";
 import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
 import { NODE_CONFIG } from "@/lib/config";
+
+// =============================================================================
+// NODE STATUS TYPES FOR METADATA
+// =============================================================================
+interface NodeStatus {
+  status: "queued" | "started" | "completed" | "failed";
+  nodeType: string;
+  nodeLabel?: string;
+  output?: unknown;
+  error?: string;
+  timestamp: number;
+}
 
 // Load environment variables for Trigger.dev workers
 config({ path: ".env" });
@@ -616,21 +628,29 @@ export const executeWorkflow = task({
     const failedNodes = new Set<string>(); // Nodes that failed or have failed dependencies
 
     // Create all node execution records upfront
+    console.log(`[DAG] Creating ${nodes.length} node execution records for workflow ${workflowExecutionId}`);
     for (const node of nodes) {
       const nodeType = node.type as AINodeType;
       const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
 
-      const nodeExecution = await db.nodeExecution.create({
-        data: {
-          workflowExecutionId,
-          nodeId: node.id,
-          nodeType,
-          nodeLabel: nodeLabel ?? node.type,
-          status: "QUEUED",
-        },
-      });
-      nodeExecutionIds.set(node.id, nodeExecution.id);
+      try {
+        const nodeExecution = await db.nodeExecution.create({
+          data: {
+            workflowExecutionId,
+            nodeId: node.id,
+            nodeType,
+            nodeLabel: nodeLabel ?? node.type,
+            status: "QUEUED",
+          },
+        });
+        nodeExecutionIds.set(node.id, nodeExecution.id);
+        console.log(`[DAG] Created node execution ${nodeExecution.id} for node ${node.id} (${nodeType})`);
+      } catch (err) {
+        console.error(`[DAG] FAILED to create node execution for ${node.id}:`, err);
+        throw err; // Re-throw to fail the task
+      }
     }
+    console.log(`[DAG] Successfully created ${nodeExecutionIds.size} node execution records`);
 
     // Helper: Check if a node can start (all its dependencies are completed, none failed)
     const canStart = (nodeId: string): boolean => {
@@ -797,6 +817,15 @@ export const executeWorkflow = task({
       runningNodes.set(node.id, { runId: handle.id, node });
       pendingNodes.delete(node.id);
       console.log(`[DAG] Node ${node.id} triggered with runId: ${handle.id}`);
+      
+      // Update metadata with node status (triggers realtime subscription)
+      const nodeLabel = (nodeData.label as string) || nodeType;
+      await metadata.set(`node:${node.id}`, {
+        status: "started",
+        nodeType,
+        nodeLabel,
+        timestamp: Date.now(),
+      } satisfies NodeStatus);
     };
 
     // Start all nodes that have no dependencies
@@ -901,6 +930,17 @@ export const executeWorkflow = task({
             completedNodes.add(nodeId);
             runningNodes.delete(nodeId);
             
+            // Update metadata with node completion (triggers realtime subscription)
+            const nodeData = (node.data ?? {}) as Record<string, unknown>;
+            const nodeLabel = (nodeData.label as string) || nodeType;
+            await metadata.set(`node:${nodeId}`, {
+              status: "completed",
+              nodeType,
+              nodeLabel,
+              output: taskOutput?.output,
+              timestamp: Date.now(),
+            } satisfies NodeStatus);
+            
             // Update nodeExecution as a FALLBACK
             // The node executor should have already saved the output, but DB connection
             // issues on Trigger.dev workers can cause silent failures.
@@ -937,6 +977,17 @@ export const executeWorkflow = task({
             console.error(`[DAG] Node ${nodeId} (${nodeType}) FAILED with terminal status: ${status}`);
             
             runningNodes.delete(nodeId);
+            
+            // Update metadata with node failure (triggers realtime subscription)
+            const nodeData = (node.data ?? {}) as Record<string, unknown>;
+            const nodeLabel = (nodeData.label as string) || nodeType;
+            await metadata.set(`node:${nodeId}`, {
+              status: "failed",
+              nodeType,
+              nodeLabel,
+              error: `Failed with status: ${status}`,
+              timestamp: Date.now(),
+            } satisfies NodeStatus);
             
             // Mark this node and all its dependents as failed (updates DB for all)
             await markNodeAndDependentsFailed(nodeId, `Failed with status: ${status}`);
@@ -1021,6 +1072,15 @@ export const executeWorkflow = task({
         completedAt: new Date(),
         error: errorMessage,
       },
+    });
+
+    // Update metadata with workflow completion (triggers realtime subscription)
+    await metadata.set("workflow", {
+      status: "completed",
+      successCount: completedNodes.size,
+      failCount: failedNodes.size,
+      finalStatus,
+      timestamp: Date.now(),
     });
 
     return {
