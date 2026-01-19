@@ -60,6 +60,24 @@ Monitor and manage your credit balance.
 | `GET` | `/credits/balance` | [Get current credit balance](/api-reference/credits/balance) |
 | `GET` | `/credits/stats` | [Get credit usage statistics](/api-reference/credits/stats) |
 
+### Nodes
+
+Execute individual AI nodes programmatically.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/nodes/execute` | [Execute any node asynchronously](/api-reference/nodes/execute) |
+| `GET` | `/api/nodes/status` | [Check node execution status](/api-reference/nodes/status) |
+| `POST` | `/api/nodes/llm/realtime` | [Stream LLM responses (SSE)](/api-reference/nodes/llm-realtime) |
+
+### Media
+
+Upload and manage media files.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/media/upload` | [Upload media to CDN](/api-reference/media/upload) |
+
 ### Dashboard
 
 Get aggregate statistics and overview data.

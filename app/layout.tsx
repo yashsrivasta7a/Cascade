@@ -27,7 +27,7 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
-  title: "Flowsmith - Visual AI Workflow Builder",
+  title: "Flowsmith",
   description: "Build powerful AI automations visually. Connect models, APIs, and data sources with drag-and-drop simplicity.",
   keywords: ["AI", "workflow", "automation", "GPT-4", "Claude", "visual builder"],
   icons: {

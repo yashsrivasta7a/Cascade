@@ -1,0 +1,154 @@
+---
+title: 'Upload Media'
+description: 'Upload images, videos, or audio files to the CDN'
+api: 'POST /api/media/upload'
+---
+
+<Note>
+This endpoint uploads base64-encoded media to the CDN and returns a permanent URL. Maximum file size is approximately 3MB due to base64 encoding overhead.
+</Note>
+
+## Request
+
+<ParamField body="dataUrl" type="string" required>
+  Base64 data URL of the media file (e.g., `data:image/png;base64,iVBORw0...`).
+  
+  If you provide an HTTP/HTTPS URL instead, it will be returned as-is without re-uploading.
+</ParamField>
+
+<ParamField body="type" type="string">
+  Media type hint: `image`, `video`, or `audio`. Auto-detected from MIME type if not provided.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Optional filename for the uploaded file.
+</ParamField>
+
+## Response
+
+<ResponseField name="url" type="string">
+  CDN URL of the uploaded file.
+</ResponseField>
+
+<ResponseField name="mimeType" type="string">
+  MIME type of the uploaded file.
+</ResponseField>
+
+## Example
+
+### Upload Base64 Image
+
+```bash
+curl -X POST https://flowsmiths.vercel.app/api/media/upload \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "type": "image",
+    "filename": "my-image.png"
+  }'
+```
+
+<ResponseExample>
+```json
+{
+  "url": "https://cdn.flowsmith.com/uploads/abc123/my-image.png",
+  "mimeType": "image/png"
+}
+```
+</ResponseExample>
+
+### Pass-through HTTP URL
+
+If you already have an HTTP URL, it passes through unchanged:
+
+```bash
+curl -X POST https://flowsmiths.vercel.app/api/media/upload \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataUrl": "https://example.com/existing-image.jpg"
+  }'
+```
+
+```json
+{
+  "url": "https://example.com/existing-image.jpg"
+}
+```
+
+## JavaScript Example
+
+```javascript
+// Convert file to base64 and upload
+async function uploadFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      
+      const response = await fetch('https://flowsmiths.vercel.app/api/media/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer YOUR_API_KEY',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dataUrl,
+          type: file.type.split('/')[0], // 'image', 'video', or 'audio'
+          filename: file.name,
+        }),
+      });
+      
+      const result = await response.json();
+      resolve(result.url);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Usage
+const file = document.querySelector('input[type="file"]').files[0];
+const cdnUrl = await uploadFile(file);
+console.log('Uploaded to:', cdnUrl);
+```
+
+## Supported Formats
+
+| Type | Formats |
+|------|---------|
+| Image | PNG, JPEG, WebP, GIF |
+| Video | MP4, WebM, MOV |
+| Audio | MP3, WAV, OGG, AAC |
+
+## Size Limits
+
+- **Maximum file size**: ~3MB (base64 encoding adds ~33% overhead to the 4MB API limit)
+- For larger files, consider using direct upload or chunked uploads
+
+## Error Responses
+
+<ResponseField name="400 Bad Request">
+```json
+{
+  "error": "Missing dataUrl"
+}
+```
+</ResponseField>
+
+<ResponseField name="401 Unauthorized">
+```json
+{
+  "error": "Unauthorized"
+}
+```
+</ResponseField>
+
+<ResponseField name="500 Server Error">
+```json
+{
+  "error": "Upload failed"
+}
+```
+</ResponseField>

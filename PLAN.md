@@ -335,6 +335,66 @@ flowsmith/
 
 ---
 
+## 📡 API Endpoints
+
+### Documented (Public API)
+
+These endpoints are documented in Mintlify and available for external integrations.
+
+| Category | Endpoint | Method | Description | Source |
+|----------|----------|--------|-------------|--------|
+| **Workflows** | `/api/v1/workflows` | GET | List all workflows | tRPC (auto) |
+| | `/api/v1/workflows/{id}` | GET | Get workflow by ID | tRPC (auto) |
+| | `/api/v1/workflows` | POST | Create workflow | tRPC (auto) |
+| | `/api/v1/workflows/{id}` | PATCH | Update workflow | tRPC (auto) |
+| | `/api/v1/workflows/{id}` | DELETE | Delete workflow | tRPC (auto) |
+| | `/api/v1/workflows/{id}/duplicate` | POST | Duplicate workflow | tRPC (auto) |
+| | `/api/v1/workflows/{id}/execute` | POST | Execute workflow | tRPC (auto) |
+| **Executions** | `/api/v1/executions` | GET | List executions | tRPC (auto) |
+| | `/api/v1/executions/{id}` | GET | Get execution details | tRPC (auto) |
+| | `/api/v1/executions/{id}/cancel` | POST | Cancel execution | tRPC (auto) |
+| | `/api/v1/executions/{id}/stream` | GET | Stream updates (SSE) | tRPC (auto) |
+| **Credits** | `/api/v1/credits/balance` | GET | Get credit balance | tRPC (auto) |
+| | `/api/v1/credits/stats` | GET | Get usage statistics | tRPC (auto) |
+| **Dashboard** | `/api/v1/dashboard/stats` | GET | Dashboard statistics | tRPC (auto) |
+| **Nodes** | `/api/nodes/execute` | POST | Execute any node async | REST (manual) |
+| | `/api/nodes/status` | GET | Check node status | REST (manual) |
+| | `/api/nodes/llm/realtime` | POST | LLM streaming (SSE) | REST (manual) |
+| **Media** | `/api/media/upload` | POST | Upload to CDN | REST (manual) |
+
+**Total: 18 public endpoints**
+
+### Not Documented (Internal Only)
+
+These endpoints exist but are intentionally not documented - they are for internal use only.
+
+| Endpoint | Method | Reason Not Documented |
+|----------|--------|----------------------|
+| `/api/nodes/execute-sync` | POST | Internal - limited to utility nodes only |
+| `/api/nodes/llm/stream` | POST | Deprecated - replaced by `/llm/realtime` |
+| `/api/nodes/image/generate` | POST | Redundant - use `/nodes/execute` instead |
+| `/api/nodes/deduct-credits` | POST | Security - internal accounting only |
+| `/api/media/upload-direct` | POST | Internal - duplicate of `/upload` |
+| `/api/webhooks/fal` | POST | Infrastructure - provider callback |
+| `/api/webhooks/clerk` | POST | Infrastructure - auth callback |
+| `/api/debug/execution/{id}` | GET | Development - debugging only |
+| `/api/test/*` | * | Development - test endpoints |
+| `/api/trigger-runs` | POST | Infrastructure - Trigger.dev internal |
+| `/api/trigger-test` | POST | Development - testing |
+| `/api/openapi` | GET | Reference - serves OpenAPI spec |
+
+### Documentation Generation
+
+```
+tRPC Routers ──► trpc-to-openapi ──► /api/openapi ──► Mintlify (auto)
+REST Routes  ──► Manual MDX files ──────────────────► Mintlify (manual)
+```
+
+- **Auto-generated**: tRPC routes use `.meta({ openapi: {...} })` for automatic OpenAPI spec generation
+- **Manual**: REST routes (streaming, webhooks) documented with MDX files in `docs/api-reference/`
+
+---
+
 ## 📋 Backlog / Future Ideas
 
 - [ ] Node templates (save & reuse node groups)

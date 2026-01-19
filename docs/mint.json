@@ -80,41 +80,55 @@
     {
       "group": "API Reference",
       "pages": [
-        "api-reference/introduction"
-      ]
-    },
-    {
-      "group": "Workflows",
-      "pages": [
-        "api-reference/workflows/list",
-        "api-reference/workflows/get",
-        "api-reference/workflows/create",
-        "api-reference/workflows/update",
-        "api-reference/workflows/delete",
-        "api-reference/workflows/duplicate",
-        "api-reference/workflows/execute"
-      ]
-    },
-    {
-      "group": "Executions",
-      "pages": [
-        "api-reference/executions/list",
-        "api-reference/executions/get",
-        "api-reference/executions/cancel",
-        "api-reference/executions/stream"
-      ]
-    },
-    {
-      "group": "Credits",
-      "pages": [
-        "api-reference/credits/balance",
-        "api-reference/credits/stats"
-      ]
-    },
-    {
-      "group": "Dashboard",
-      "pages": [
-        "api-reference/dashboard/stats"
+        "api-reference/introduction",
+        {
+          "group": "Workflows",
+          "pages": [
+            "api-reference/workflows/list",
+            "api-reference/workflows/get",
+            "api-reference/workflows/create",
+            "api-reference/workflows/update",
+            "api-reference/workflows/delete",
+            "api-reference/workflows/duplicate",
+            "api-reference/workflows/execute"
+          ]
+        },
+        {
+          "group": "Executions",
+          "pages": [
+            "api-reference/executions/list",
+            "api-reference/executions/get",
+            "api-reference/executions/cancel",
+            "api-reference/executions/stream"
+          ]
+        },
+        {
+          "group": "Nodes",
+          "pages": [
+            "api-reference/nodes/execute",
+            "api-reference/nodes/status",
+            "api-reference/nodes/llm-realtime"
+          ]
+        },
+        {
+          "group": "Media",
+          "pages": [
+            "api-reference/media/upload"
+          ]
+        },
+        {
+          "group": "Credits",
+          "pages": [
+            "api-reference/credits/balance",
+            "api-reference/credits/stats"
+          ]
+        },
+        {
+          "group": "Dashboard",
+          "pages": [
+            "api-reference/dashboard/stats"
+          ]
+        }
       ]
     }
   ],

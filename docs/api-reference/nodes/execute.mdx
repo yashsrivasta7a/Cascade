@@ -1,0 +1,149 @@
+---
+title: 'Execute Node'
+description: 'Execute any AI node asynchronously via Trigger.dev'
+api: 'POST /api/nodes/execute'
+---
+
+<Note>
+This endpoint executes nodes asynchronously through Trigger.dev. For synchronous execution of utility nodes (crop, merge, extract), use [Execute Sync](/api-reference/nodes/execute-sync) instead.
+</Note>
+
+## Request
+
+<ParamField body="nodeType" type="string" required>
+  The type of node to execute. Available types:
+  - `openrouter` - LLM text generation
+  - `seedream` - Image generation
+  - `seedvr` - Image upscaling
+  - `seedance` - Video generation
+  - `elevenlabs` - Text-to-speech
+  - `lipsync` - Lip sync video
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  Node-specific input parameters. See examples below.
+</ParamField>
+
+<ParamField body="workflowId" type="string">
+  Optional workflow ID to associate the execution with.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Always `"triggered"` for successful requests.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable status message.
+</ResponseField>
+
+<ResponseField name="nodeExecutionId" type="string">
+  Unique ID to track this node execution.
+</ResponseField>
+
+<ResponseField name="workflowExecutionId" type="string">
+  Parent workflow execution ID.
+</ResponseField>
+
+<ResponseField name="triggerRunId" type="string">
+  Trigger.dev run ID for debugging.
+</ResponseField>
+
+## Examples
+
+### OpenRouter LLM
+
+```bash
+curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodeType": "openrouter",
+    "input": {
+      "prompt": "Write a haiku about coding",
+      "model": "openai/gpt-4o-mini",
+      "temperature": 0.7,
+      "maxTokens": 1000
+    }
+  }'
+```
+
+<ResponseExample>
+```json
+{
+  "status": "triggered",
+  "message": "openrouter node execution started via Trigger.dev!",
+  "nodeExecutionId": "node_abc123",
+  "workflowExecutionId": "wf_xyz789",
+  "triggerRunId": "run_def456"
+}
+```
+</ResponseExample>
+
+### Seedream Image Generation
+
+```bash
+curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodeType": "seedream",
+    "input": {
+      "prompt": "A majestic mountain at sunset, photorealistic",
+      "aspectRatio": "16:9",
+      "numInferenceSteps": 30
+    }
+  }'
+```
+
+### ElevenLabs Text-to-Speech
+
+```bash
+curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodeType": "elevenlabs",
+    "input": {
+      "text": "Hello, welcome to Flowsmith!",
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "stability": 0.5,
+      "clarity": 0.75
+    }
+  }'
+```
+
+## Polling for Results
+
+After triggering, use the [Node Status](/api-reference/nodes/status) endpoint to check completion:
+
+```bash
+curl "https://flowsmiths.vercel.app/api/nodes/status?nodeId=YOUR_NODE_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Error Responses
+
+<ResponseField name="402 Payment Required">
+```json
+{
+  "error": "Insufficient credits. You have 50K but need 100K to run this node.",
+  "insufficientCredits": true,
+  "balance": 50000,
+  "required": 100000
+}
+```
+</ResponseField>
+
+<ResponseField name="400 Bad Request">
+```json
+{
+  "error": "Missing or invalid nodeType",
+  "usage": {
+    "nodeType": "openrouter | seedream | seedvr | etc.",
+    "input": "{ ...node-specific input }"
+  }
+}
+```
+</ResponseField>
