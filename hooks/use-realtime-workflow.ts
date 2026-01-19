@@ -207,10 +207,9 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
         } catch (error) {
           console.error("[RealtimeWorkflow] Fallback poll error:", error);
         }
-      }, 1000);
+    }, 1000);
 
-      return () => clearInterval(pollInterval);
-    }
+    return () => clearInterval(pollInterval);
   }, [realtimeError, isRunning, workflowExecutionId, triggerRunId, publicToken]);
 
   // Trigger the workflow
