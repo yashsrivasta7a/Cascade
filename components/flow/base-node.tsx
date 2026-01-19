@@ -14,6 +14,9 @@ import {
   Clock,
   Square,
   Info,
+  SkipForward,
+  AlertTriangle,
+  Lock,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
 import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType, isTypeCompatible } from "@/types/nodes";
@@ -51,6 +54,12 @@ interface BaseNodeProps extends NodeProps<BaseNodeData> {
   outputs?: HandleConfig[];
   isUtility?: boolean;
   layout?: "horizontal" | "vertical";
+  /** Whether this node should skip execution and use existing output */
+  skip?: boolean;
+  /** Whether this node has existing output that can be used when skipped */
+  hasOutput?: boolean;
+  /** Callback when skip toggle is clicked */
+  onSkipToggle?: (skip: boolean) => void;
 }
 
 // Color mapping for accent bars
@@ -267,6 +276,9 @@ function BaseNodeComponent({
   layout = "horizontal",
   id,
   type: reactFlowType,
+  skip = false,
+  hasOutput = false,
+  onSkipToggle,
 }: BaseNodeProps) {
   // Use explicit nodeType prop if provided, otherwise fall back to React Flow type
   const nodeTypeFromProps = nodeTypeProp || reactFlowType;
@@ -787,7 +799,7 @@ function BaseNodeComponent({
               }
             }}
             className={cn(
-              "nodrag nowheel absolute -right-14 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn",
+              "nodrag nowheel absolute left-full ml-3 top-4 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg group/runbtn min-w-[88px] z-50",
               isUploading
                 ? "bg-zinc-900 text-zinc-500 cursor-not-allowed border border-zinc-800"
                 : status === "running"
@@ -825,6 +837,54 @@ function BaseNodeComponent({
                 <Play className="w-3.5 h-3.5" />
                 <span className="text-xs font-medium">Run</span>
               </>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Skip Toggle Button - below Run button, appears on hover */}
+      <AnimatePresence>
+        {(isNodeHovered || skip) && (
+          <motion.button
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.15, delay: 0.05 }}
+            type="button"
+            disabled={isRunningOrQueued}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isRunningOrQueued) return; // Can't toggle skip while running
+              onSkipToggle?.(!skip);
+            }}
+            className={cn(
+              "nodrag nowheel absolute left-full ml-3 top-14 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all shadow-lg min-w-[88px] justify-start z-50",
+              isRunningOrQueued
+                ? "bg-zinc-900 text-zinc-600 cursor-not-allowed border border-zinc-800 opacity-50"
+                : skip
+                ? "bg-amber-500/30 text-amber-400 border border-amber-500/50 hover:bg-amber-500/40"
+                : "bg-zinc-900 text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-300"
+            )}
+            title={
+              isRunningOrQueued 
+                ? "Cannot change skip while running" 
+                : skip 
+                ? hasOutput 
+                  ? "Click to run normally (currently using cached output)" 
+                  : "Click to run normally (no cached output available!)"
+                : "Click to skip execution and use existing output"
+            }
+          >
+            {skip ? (
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <SkipForward className="w-3.5 h-3.5" />
+            )}
+            <span className="text-xs font-medium">{skip ? "Skipped" : "Skip"}</span>
+            {/* Warning indicator when skip is enabled but no output */}
+            {skip && !hasOutput && (
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
             )}
           </motion.button>
         )}

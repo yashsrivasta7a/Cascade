@@ -13,7 +13,7 @@ Authorization: Bearer YOUR_API_KEY
 
 ## Getting Your API Key
 
-1. Log into your [Flowsmith Dashboard](https://flowsmith-ys7.vercel.app)
+1. Log into your [Flowsmith Dashboard](https://flowsmiths.vercel.app)
 2. Navigate to **Settings → API Keys**
 3. Click **Generate New Key**
 4. Copy and securely store your API key
@@ -30,12 +30,12 @@ Authorization: Bearer YOUR_API_KEY
 <CodeGroup>
 
 ```bash cURL
-curl -X GET "https://flowsmith-ys7.vercel.app/api/v1/workflows" \
+curl -X GET "https://flowsmiths.vercel.app/api/v1/workflows" \
   -H "Authorization: Bearer sk_live_abc123..."
 ```
 
 ```javascript JavaScript
-const response = await fetch('https://flowsmith-ys7.vercel.app/api/v1/workflows', {
+const response = await fetch('https://flowsmiths.vercel.app/api/v1/workflows', {
   headers: {
     'Authorization': 'Bearer sk_live_abc123...',
     'Content-Type': 'application/json'
@@ -52,7 +52,7 @@ headers = {
 }
 
 response = requests.get(
-    'https://flowsmith-ys7.vercel.app/api/v1/workflows',
+    'https://flowsmiths.vercel.app/api/v1/workflows',
     headers=headers
 )
 ```

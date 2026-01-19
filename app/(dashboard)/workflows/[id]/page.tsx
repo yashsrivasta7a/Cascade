@@ -9,11 +9,9 @@ import {
   Loader2,
   Check,
   Save,
-  ChevronLeft,
   Layers,
   Activity,
   Target,
-  GitBranch,
   LayoutGrid,
   Square,
   FolderOpen,
@@ -22,12 +20,15 @@ import {
   Redo2,
   MessageSquare,
   RotateCcw,
+  Keyboard,
+  ChevronLeft,
 } from "lucide-react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { FlowCanvas } from "@/components/flow/flow-canvas";
 import { NodeContextMenu } from "@/components/flow/node-context-menu";
 import { NodeTypeModal } from "@/components/flow/node-type-modal";
-import { NodePalette, VersionHistoryPanel, ActivityPanel, AssetManagerPanel, CreditsPanel } from "@/components/flow";
+import { NodePalette, ActivityPanel, AssetManagerPanel, CreditsPanel } from "@/components/flow";
+import { KeyboardShortcutsModal } from "@/components/flow/keyboard-shortcuts-modal";
 import type { WorkflowError } from "@/components/flow";
 import { WorkflowSidebar } from "@/components/flow/workflow-sidebar";
 import { useFlowStore } from "@/store";
@@ -193,12 +194,11 @@ function WorkflowEditorContent() {
   const router = useRouter();
   const workflowId = params?.id ?? "unknown";
   const focusParam = searchParams?.get("focus");
-  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode } = useFlowStore();
+  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode, isAnyNodeUploading } = useFlowStore();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [versionsOpen, setVersionsOpen] = useState(false);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
   const [workflowSidebarOpen, setWorkflowSidebarOpen] = useState(false);
@@ -207,6 +207,7 @@ function WorkflowEditorContent() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [placingComment, setPlacingComment] = useState(false);
   const [selectionMode, setSelectionMode] = useState<"pan" | "select">("pan");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   
   // Fetch real credit balance from API with real-time updates
   const { data: creditsData, refetch: refetchCredits } = trpc.credits.getBalance.useQuery(undefined, {
@@ -231,6 +232,9 @@ function WorkflowEditorContent() {
   
   // Ref for stop workflow function (used in keyboard handler)
   const stopWorkflowRef = useRef<(() => void) | null>(null);
+  
+  // Ref for save function (used in keyboard handler)
+  const saveRef = useRef<(() => void) | null>(null);
 
   // Keyboard shortcuts (panel toggles only - canvas shortcuts are in FlowCanvas)
   useEffect(() => {
@@ -241,13 +245,21 @@ function WorkflowEditorContent() {
         return;
       }
       
-      // Don't intercept if modifier keys are pressed (let FlowCanvas handle Ctrl+C, Ctrl+V, etc.)
+      const key = e.key.toLowerCase();
+      
+      // Handle Ctrl/Cmd+S for save
+      if ((e.ctrlKey || e.metaKey) && key === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        saveRef.current?.();
+        return;
+      }
+      
+      // Don't intercept other modifier key combos (let FlowCanvas handle Ctrl+C, Ctrl+V, etc.)
       const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
       if (hasModifier) {
         return;
       }
-      
-      const key = e.key.toLowerCase();
       
       switch (key) {
         case "n":
@@ -271,15 +283,10 @@ function WorkflowEditorContent() {
           e.stopPropagation();
           setCreditsOpen(prev => !prev);
           break;
-        case "v":
-          e.preventDefault();
-          e.stopPropagation();
-          setVersionsOpen(prev => !prev);
-          break;
         case "r":
           e.preventDefault();
           e.stopPropagation();
-          if (!isWorkflowRunning && !isFinalizing) setIsRunModalOpen(true);
+          if (!isWorkflowRunning && !isFinalizing && !isAnyNodeUploading()) setIsRunModalOpen(true);
           break;
         case "w":
         case "t":
@@ -292,6 +299,11 @@ function WorkflowEditorContent() {
           e.stopPropagation();
           handleAutoLayout();
           break;
+        case "s":
+          e.preventDefault();
+          e.stopPropagation();
+          setShortcutsOpen(prev => !prev);
+          break;
         case "escape":
           // If workflow is running (but not finalizing), stop it
           if (isWorkflowRunning && !isFinalizing) {
@@ -303,23 +315,20 @@ function WorkflowEditorContent() {
             // Otherwise, close all panels and modals
             setPaletteOpen(false);
             setActivityOpen(false);
-            setVersionsOpen(false);
             setAssetManagerOpen(false);
             setCreditsOpen(false);
             setWorkflowSidebarOpen(false);
             setIsAddModalOpen(false);
             setIsRunModalOpen(false);
+            setShortcutsOpen(false);
           }
           break;
       }
     };
 
-    // Use both window and document to ensure we catch the event
     window.addEventListener("keydown", handleKeyDown, true);
-    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);
-      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [isWorkflowRunning, isFinalizing, router]);
 
@@ -1092,10 +1101,14 @@ function WorkflowEditorContent() {
     );
   }, [cancelWorkflow, setWorkflowRunning, setNodes]);
   
-  // Update ref for keyboard handler
+  // Update refs for keyboard handler
   useEffect(() => {
     stopWorkflowRef.current = handleStopWorkflow;
   }, [handleStopWorkflow]);
+  
+  useEffect(() => {
+    saveRef.current = handleSave;
+  }, [handleSave]);
 
   const handleRunWorkflow = useCallback(async () => {
     // Only include connected nodes for cost calculation
@@ -1308,15 +1321,13 @@ function WorkflowEditorContent() {
 
         {/* Top Left: Studio Menu + Workflow Name */}
         <div className="fixed top-3 left-3 z-50 flex items-center gap-3">
-          {/* Studio Menu Button */}
+          {/* Back to Workflows Button */}
           <button
             onClick={() => setWorkflowSidebarOpen(true)}
-            className="group flex items-center gap-2 px-3 py-1.5 bg-white/90 dark:bg-zinc-950/90 hover:bg-gray-100/90 dark:hover:bg-zinc-900/90 backdrop-blur-xl border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700 rounded-xl transition-all shadow-lg shadow-gray-200/50 dark:shadow-black/20"
+            className="group flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 dark:bg-blue-500/10 hover:bg-blue-500/20 dark:hover:bg-blue-500/20 backdrop-blur-xl border border-blue-300 dark:border-blue-500/30 hover:border-blue-400 dark:hover:border-blue-500/50 rounded-xl transition-all shadow-lg shadow-blue-500/10 dark:shadow-blue-500/5"
           >
-            <div className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-              <LayoutGrid className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium text-gray-600 dark:text-zinc-400 group-hover:text-gray-900 dark:group-hover:text-zinc-200 transition-colors">Your Space</span>
+            <ChevronLeft className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors" />
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">Workflows</span>
           </button>
 
           {/* Workflow Name Input */}
@@ -1359,21 +1370,6 @@ function WorkflowEditorContent() {
               <span className="text-[10px] text-gray-500 dark:text-zinc-500 leading-none">credits</span>
             </div>
           </button>
-
-          {/* Versions Button */}
-          <div className="flex items-center gap-2 bg-white/90 dark:bg-zinc-950/90 border border-gray-200 dark:border-zinc-800 rounded-xl px-2 py-1.5 shadow-lg shadow-gray-200/50 dark:shadow-black/20">
-            <button
-              onClick={() => setVersionsOpen((v) => !v)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                versionsOpen 
-                  ? "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10" 
-                  : "text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800/50"
-              }`}
-              title="Version History (V)"
-            >
-              <GitBranch className="w-4 h-4" />
-            </button>
-          </div>
         </div>
 
         {/* Workflow Sidebar */}
@@ -1488,48 +1484,30 @@ function WorkflowEditorContent() {
                 </AnimatePresence>
               </div>
 
-              {/* Selection Mode Toggle */}
-              <div className="relative flex items-center">
-                <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-0.5">
-                  <motion.button
-                    onClick={() => setSelectionMode("pan")}
-                    onMouseEnter={() => setHoveredAction("pan")}
-                    onMouseLeave={() => setHoveredAction(null)}
-                    whileTap={{ scale: 0.95 }}
-                    className={`relative p-2 rounded-md transition-all duration-200 ${
-                      selectionMode === "pan"
-                        ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm"
-                        : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <MousePointer2 className="w-3.5 h-3.5 relative z-10" />
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setSelectionMode("select")}
-                    onMouseEnter={() => setHoveredAction("select")}
-                    onMouseLeave={() => setHoveredAction(null)}
-                    whileTap={{ scale: 0.95 }}
-                    className={`relative p-2 rounded-md transition-all duration-200 ${
-                      selectionMode === "select"
-                        ? "bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm"
-                        : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <BoxSelect className="w-3.5 h-3.5 relative z-10" />
-                  </motion.button>
-                </div>
+              {/* Keyboard Shortcuts */}
+              <div className="relative">
+                <motion.button
+                  onClick={() => setShortcutsOpen(true)}
+                  onMouseEnter={() => setHoveredAction("shortcuts")}
+                  onMouseLeave={() => setHoveredAction(null)}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2.5 rounded-xl text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-all duration-200"
+                >
+                  <Keyboard className="w-4 h-4" />
+                </motion.button>
                 
                 <AnimatePresence>
-                  {(hoveredAction === "pan" || hoveredAction === "select") && (
+                  {hoveredAction === "shortcuts" && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 4 }}
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
                     >
-                      <span className="text-xs text-gray-700 dark:text-zinc-300">
-                        {hoveredAction === "pan" ? "Pan Mode" : "Select Mode"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-700 dark:text-zinc-300">Shortcuts</span>
+                        <Kbd>S</Kbd>
+                      </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
                     </motion.div>
                   )}
@@ -1541,7 +1519,7 @@ function WorkflowEditorContent() {
 
               {/* ═══ GROUP 2: Panels ═══ */}
 
-              {/* Activity toggle */}
+              {/* Timeline toggle */}
               <div className="relative">
                 <motion.button
                   onClick={() => setActivityOpen((v) => !v)}
@@ -1583,7 +1561,7 @@ function WorkflowEditorContent() {
                       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-700 dark:text-zinc-300">Activity</span>
+                        <span className="text-xs text-gray-700 dark:text-zinc-300">Timeline</span>
                         <Kbd>H</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
@@ -1853,6 +1831,8 @@ function WorkflowEditorContent() {
                         <span className="text-xs text-gray-700 dark:text-zinc-300">
                           {saveStatus === "saved" ? "Saved!" : "Save"}
                         </span>
+                        <Kbd>Ctrl</Kbd>
+                        <span className="text-xs text-gray-400 dark:text-zinc-600">+</span>
                         <Kbd>S</Kbd>
                       </div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
@@ -1867,24 +1847,37 @@ function WorkflowEditorContent() {
               {/* Run/Stop button - use both isWorkflowRunning and isSSERunning for reliability */}
               {(() => {
                 const isRunning = isWorkflowRunning || isSSERunning;
+                const isUploading = isAnyNodeUploading();
+                const isDisabled = isFinalizing || isUploading;
                 return (
                   <div className="relative group/runwrap">
                     <motion.button
-                      onClick={() => (isRunning && !isFinalizing) ? handleStopWorkflow() : (!isRunning && !isFinalizing) ? setIsRunModalOpen(true) : undefined}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        if (isRunning) {
+                          handleStopWorkflow();
+                        } else {
+                          setIsRunModalOpen(true);
+                        }
+                      }}
                       onMouseEnter={() => setHoveredAction("run")}
                       onMouseLeave={() => setHoveredAction(null)}
-                      whileTap={{ scale: isFinalizing ? 1 : 0.98 }}
+                      whileTap={{ scale: isDisabled ? 1 : 0.98 }}
                       className={cn(
                         "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all",
                         isFinalizing 
                           ? "bg-amber-100 text-amber-600 border-2 border-amber-400 cursor-wait dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/50"
-                          : isRunning 
-                            ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
-                            : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
+                          : isUploading
+                            ? "bg-zinc-100 text-zinc-400 border-2 border-zinc-300 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-500 dark:border-zinc-700"
+                            : isRunning 
+                              ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
+                              : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
                       )}
-                      disabled={isFinalizing}
+                      disabled={isDisabled}
                     >
                       {isFinalizing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isUploading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : isRunning ? (
                         <Square className="w-4 h-4 fill-current" />
@@ -1892,7 +1885,7 @@ function WorkflowEditorContent() {
                         <Play className="w-4 h-4" />
                       )}
                       <span>
-                        {isFinalizing ? "Finalizing..." : isRunning ? "Stop" : "Execute"}
+                        {isFinalizing ? "Finalizing..." : isUploading ? "Uploading..." : isRunning ? "Stop" : "Execute"}
                       </span>
                     </motion.button>
                     
@@ -1905,8 +1898,10 @@ function WorkflowEditorContent() {
                           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-700 dark:text-zinc-300">{isFinalizing ? "Loading outputs..." : isRunning ? "Stop" : "Execute"}</span>
-                            <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>
+                            <span className="text-xs text-gray-700 dark:text-zinc-300">
+                              {isFinalizing ? "Loading outputs..." : isUploading ? "Wait for uploads to finish" : isRunning ? "Stop" : "Execute"}
+                            </span>
+                            {!isUploading && <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>}
                           </div>
                           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
                         </motion.div>
@@ -1922,7 +1917,7 @@ function WorkflowEditorContent() {
         {/* Floating context menu near selected node */}
         <NodeContextMenu />
 
-        {/* Activity Panel (combined runs + errors) */}
+        {/* Timeline Panel (runs + versions) */}
         <ActivityPanel 
           workflowId={dbWorkflowId ?? workflowId} 
           isOpen={activityOpen}
@@ -1934,16 +1929,8 @@ function WorkflowEditorContent() {
             focusNode(nodeId);
             setActivityOpen(false);
           }}
-        />
-
-        {/* Version History Panel */}
-        <VersionHistoryPanel
-          workflowId={dbWorkflowId ?? workflowId}
-          isOpen={versionsOpen}
-          onClose={() => setVersionsOpen(false)}
-          onRestore={(nodesJson, edgesJson, viewportJson) => {
+          onVersionRestore={(nodesJson, edgesJson, viewportJson) => {
             loadFlow(nodesJson as Node[], edgesJson as Edge[]);
-            // Reload the page data
             window.location.reload();
           }}
         />
@@ -1994,6 +1981,114 @@ function WorkflowEditorContent() {
         workflowName={workflowName}
         nodes={runNodesEstimate()}
         creditBalance={creditBalance}
+      />
+
+      {/* Pan/Select Mode Floating Bar - Left of main bottom bar */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.3 }}
+        className="fixed bottom-5 z-50"
+        style={{ right: 'calc(50% + 280px + 1.5%)' }}
+      >
+        <div className="relative group">
+          {/* Subtle glow effect - same as main bar */}
+          <div className="absolute inset-0 bg-gray-500/10 dark:bg-white/[0.03] rounded-2xl blur-2xl opacity-60 group-hover:opacity-80 transition-opacity" />
+          
+          {/* Main container - Glass effect matching bottom bar */}
+          <div className="relative flex items-center gap-0.5 bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl backdrop-saturate-150 border border-gray-200 dark:border-white/[0.08] rounded-2xl px-1.5 py-1.5 shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/40">
+            {/* Glass inner highlight */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-gray-100/50 dark:from-white/[0.05] to-transparent pointer-events-none" />
+            
+            <div className="relative">
+              <motion.button
+                onClick={() => setSelectionMode("pan")}
+                onMouseEnter={() => setHoveredAction("pan")}
+                onMouseLeave={() => setHoveredAction(null)}
+                whileTap={{ scale: 0.95 }}
+                className={cn(
+                  "relative p-2.5 rounded-xl transition-all duration-200",
+                  selectionMode === "pan"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
+                )}
+              >
+                <MousePointer2 className="w-4 h-4 relative z-10" />
+                {selectionMode === "pan" && (
+                  <>
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                    <motion.div
+                      layoutId="panSelectIndicator"
+                      className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  </>
+                )}
+              </motion.button>
+              
+              <AnimatePresence>
+                {hoveredAction === "pan" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+                  >
+                    <span className="text-xs text-gray-700 dark:text-zinc-300">Pan Mode</span>
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            
+            <div className="relative">
+              <motion.button
+                onClick={() => setSelectionMode("select")}
+                onMouseEnter={() => setHoveredAction("select")}
+                onMouseLeave={() => setHoveredAction(null)}
+                whileTap={{ scale: 0.95 }}
+                className={cn(
+                  "relative p-2.5 rounded-xl transition-all duration-200",
+                  selectionMode === "select"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5"
+                )}
+              >
+                <BoxSelect className="w-4 h-4 relative z-10" />
+                {selectionMode === "select" && (
+                  <>
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+                    <motion.div
+                      layoutId="panSelectIndicator"
+                      className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+                    />
+                  </>
+                )}
+              </motion.button>
+              
+              <AnimatePresence>
+                {hoveredAction === "select" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+                  >
+                    <span className="text-xs text-gray-700 dark:text-zinc-300">Select Mode</span>
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
     </div>
   );

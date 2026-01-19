@@ -1,17 +1,56 @@
-<svg width="140" height="32" viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Icon with cyan-violet gradient effect -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 50" fill="none">
+  <!-- Import Orbitron font -->
   <defs>
-    <linearGradient id="gradient-light" x1="4" y1="4" x2="20" y2="20" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#06b6d4"/>
-      <stop offset="100%" stop-color="#8b5cf6"/>
-    </linearGradient>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&amp;display=swap');
+    </style>
   </defs>
-  <path d="M4 8L12 4L20 8V16L12 20L4 16V8Z" stroke="url(#gradient-light)" stroke-width="2" fill="none"/>
-  <path d="M12 12L20 8" stroke="url(#gradient-light)" stroke-width="2"/>
-  <path d="M12 12V20" stroke="url(#gradient-light)" stroke-width="2"/>
-  <path d="M12 12L4 8" stroke="url(#gradient-light)" stroke-width="2"/>
-  <circle cx="12" cy="12" r="2" fill="#06b6d4"/>
   
-  <!-- Text -->
-  <text x="28" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#101010">Flowsmith</text>
+  <!-- Logo Icon (scaled down) -->
+  <g transform="translate(0, 5) scale(0.2)">
+    <!-- Gear at top-left -->
+    <g transform="translate(28, 28)">
+      <path d="M12 0L14 6L20 4L18 10L24 12L18 14L20 20L14 18L12 24L10 18L4 20L6 14L0 12L6 10L4 4L10 6L12 0Z" 
+            fill="#1F7A65" stroke="#1F7A65" stroke-width="1"/>
+      <circle cx="12" cy="12" r="5" fill="#F3F4F6"/>
+      <circle cx="12" cy="12" r="3" fill="#1F7A65"/>
+    </g>
+    
+    <!-- Main F circuit traces -->
+    <g stroke="#1F7A65" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M40 52 L40 170 Q40 180 50 180 L70 180"/>
+      <path d="M40 52 L130 52 Q140 52 140 62 L140 72 Q140 82 150 82 L170 82"/>
+      <path d="M170 82 L170 52 Q170 42 160 42 L90 42"/>
+      <path d="M40 100 L80 100 Q90 100 90 110 L90 130 Q90 140 100 140 L130 140"/>
+      <path d="M80 100 L110 100 Q120 100 120 90 L120 70"/>
+      <path d="M40 130 L60 130 Q70 130 70 140 L70 160"/>
+      <path d="M70 180 L100 180 Q110 180 110 170 L110 155"/>
+      <path d="M110 155 L140 155 Q150 155 150 165 L150 180"/>
+      <path d="M130 140 L130 120 Q130 110 140 110 L160 110"/>
+      <path d="M160 110 L160 130"/>
+    </g>
+    
+    <!-- Orange circuit nodes -->
+    <g fill="#EA580C">
+      <circle cx="40" cy="52" r="5"/>
+      <circle cx="90" cy="42" r="5"/>
+      <circle cx="170" cy="52" r="4"/>
+      <circle cx="170" cy="82" r="5"/>
+      <circle cx="120" cy="70" r="4"/>
+      <circle cx="80" cy="100" r="4"/>
+      <circle cx="130" cy="140" r="5"/>
+      <circle cx="160" cy="110" r="4"/>
+      <circle cx="160" cy="130" r="4"/>
+      <circle cx="70" cy="160" r="4"/>
+      <circle cx="70" cy="180" r="5"/>
+      <circle cx="110" cy="155" r="4"/>
+      <circle cx="150" cy="180" r="5"/>
+      <circle cx="40" cy="170" r="4"/>
+    </g>
+  </g>
+  
+  <!-- FLOWSMITH Text in Orbitron -->
+  <text x="52" y="35" font-family="Orbitron, sans-serif" font-weight="700" font-size="24" fill="#111827" letter-spacing="3">
+    FLOWSMITH
+  </text>
 </svg>

@@ -13,6 +13,7 @@ import { estimateNodeCost } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { NODE_CONFIG } from "@/lib/config";
 import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "./llm-type-parser";
+import { showSkipWarning, showAllSkippedWarning } from "@/lib/toast";
 
 // =============================================================================
 // UPLOAD LARGE MEDIA TO CDN BEFORE API CALLS
@@ -1324,6 +1325,33 @@ export async function runWorkflow(
     }
   }
   
+  // ==========================================================================
+  // ALL NODES SKIPPED CHECK - Warn if every node is skipped
+  // ==========================================================================
+  const allNodesSkipped = allNodes.every(node => {
+    const nodeData = node.data as Record<string, unknown> | undefined;
+    return nodeData?.skip === true;
+  });
+  
+  if (allNodesSkipped && allNodes.length > 0) {
+    console.log("[RunWorkflow] All nodes are skipped - nothing to execute");
+    showAllSkippedWarning();
+    // Mark all as completed with skip status
+    for (const node of allNodes) {
+      const nodeData = node.data as Record<string, unknown>;
+      const existingResult = nodeData?.result as string | undefined;
+      if (existingResult) {
+        callbacks.onNodeStatus?.(node.id, "completed", { skipped: true, progress: 100 });
+      } else {
+        callbacks.onNodeStatus?.(node.id, "failed", { 
+          error: "Skip enabled but no cached output available",
+          skipped: true 
+        });
+      }
+    }
+    return;
+  }
+  
   // Track node states
   const completed = new Set<string>();
   const failed = new Set<string>();
@@ -1368,6 +1396,53 @@ export async function runWorkflow(
       callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
       failed.add(node.id);
       return;
+    }
+
+    // ==========================================================================
+    // SKIP CHECK - Use existing output if skip is enabled
+    // ==========================================================================
+    if (data.skip === true) {
+      const existingResult = data.result as string | undefined;
+      const nodeName = data.label || NODE_DEFINITIONS[type]?.label || type;
+      
+      if (existingResult && typeof existingResult === "string" && existingResult.trim().length > 0) {
+        // Node has output - use it instead of executing
+        console.log(`[RunWorkflow] Node ${node.id} (${type}) SKIPPED - using existing output`);
+        
+        // Determine output type based on node type
+        const outputType = NodePrimaryOutputType[type];
+        let skipOutput: AnyOut;
+        
+        if (outputType === "text") {
+          skipOutput = { type: "text", text: existingResult };
+        } else if (outputType === "image") {
+          skipOutput = { type: "image", image: { url: existingResult } };
+        } else if (outputType === "video") {
+          skipOutput = { type: "video", video: { url: existingResult } };
+        } else {
+          skipOutput = { type: "audio", audio: { url: existingResult } };
+        }
+        
+        outputs.set(node.id, skipOutput);
+        completed.add(node.id);
+        
+        callbacks.onNodeResult?.(node.id, existingResult, skipOutput);
+        callbacks.onNodeStatus?.(node.id, "completed", {
+          progress: 100,
+          skipped: true,
+        });
+        return;
+      } else {
+        // Skip enabled but no output available - show warning and fail
+        console.log(`[RunWorkflow] Node ${node.id} (${type}) SKIP FAILED - no existing output`);
+        showSkipWarning(nodeName);
+        callbacks.onNodeStatus?.(node.id, "failed", {
+          error: "Skip enabled but no cached output available",
+          skipped: true,
+        });
+        failed.add(node.id);
+        return;
+      }
     }
 
     running.add(node.id);
@@ -1856,6 +1931,53 @@ async function runWorkflowSubset(
       return;
     }
 
+    // ==========================================================================
+    // SKIP CHECK - Use existing output if skip is enabled
+    // ==========================================================================
+    if (data.skip === true) {
+      const existingResult = data.result as string | undefined;
+      const nodeName = data.label || NODE_DEFINITIONS[type]?.label || type;
+      
+      if (existingResult && typeof existingResult === "string" && existingResult.trim().length > 0) {
+        // Node has output - use it instead of executing
+        console.log(`[runWorkflowSubset] Node ${node.id} (${type}) SKIPPED - using existing output`);
+        
+        // Determine output type based on node type
+        const outputType = NodePrimaryOutputType[type];
+        let skipOutput: AnyOut;
+        
+        if (outputType === "text") {
+          skipOutput = { type: "text", text: existingResult };
+        } else if (outputType === "image") {
+          skipOutput = { type: "image", image: { url: existingResult } };
+        } else if (outputType === "video") {
+          skipOutput = { type: "video", video: { url: existingResult } };
+        } else {
+          skipOutput = { type: "audio", audio: { url: existingResult } };
+        }
+        
+        outputs.set(node.id, skipOutput);
+        completed.add(node.id);
+        
+        callbacks.onNodeResult?.(node.id, existingResult, skipOutput);
+        callbacks.onNodeStatus?.(node.id, "completed", {
+          progress: 100,
+          skipped: true,
+        });
+        return;
+      } else {
+        // Skip enabled but no output available - show warning and fail
+        console.log(`[runWorkflowSubset] Node ${node.id} (${type}) SKIP FAILED - no existing output`);
+        showSkipWarning(nodeName);
+        callbacks.onNodeStatus?.(node.id, "failed", {
+          error: "Skip enabled but no cached output available",
+          skipped: true,
+        });
+        failed.add(node.id);
+        return;
+      }
+    }
+
     running.add(node.id);
     callbacks.onNodeStatus?.(node.id, "running", { progress: 10 });
 
@@ -2071,10 +2193,54 @@ export async function runSingleNode(
   const startTime = Date.now();
   const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny | undefined;
   const outputSchema = NodeOutputSchemas[type] as z.ZodTypeAny | undefined;
+  const data = (node.data ?? {}) as Record<string, unknown>;
 
   if (!inputSchema || !outputSchema) {
     callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
     return;
+  }
+
+  // ==========================================================================
+  // SKIP CHECK - Use existing output if skip is enabled
+  // ==========================================================================
+  if (data.skip === true) {
+    const existingResult = data.result as string | undefined;
+    const nodeName = (data.label as string) || NODE_DEFINITIONS[type]?.label || type;
+    
+    if (existingResult && typeof existingResult === "string" && existingResult.trim().length > 0) {
+      // Node has output - use it instead of executing
+      console.log(`[runSingleNode] Node ${node.id} (${type}) SKIPPED - using existing output`);
+      
+      // Determine output type based on node type
+      const outputType = NodePrimaryOutputType[type];
+      let skipOutput: AnyOut;
+      
+      if (outputType === "text") {
+        skipOutput = { type: "text", text: existingResult };
+      } else if (outputType === "image") {
+        skipOutput = { type: "image", image: { url: existingResult } };
+      } else if (outputType === "video") {
+        skipOutput = { type: "video", video: { url: existingResult } };
+      } else {
+        skipOutput = { type: "audio", audio: { url: existingResult } };
+      }
+      
+      callbacks.onNodeResult?.(node.id, existingResult, skipOutput);
+      callbacks.onNodeStatus?.(node.id, "completed", {
+        progress: 100,
+        skipped: true,
+      });
+      return;
+    } else {
+      // Skip enabled but no output available - show warning and fail
+      console.log(`[runSingleNode] Node ${node.id} (${type}) SKIP FAILED - no existing output`);
+      showSkipWarning(nodeName);
+      callbacks.onNodeStatus?.(node.id, "failed", {
+        error: "Skip enabled but no cached output available",
+        skipped: true,
+      });
+      return;
+    }
   }
 
   callbacks.onNodeStatus?.(node.id, "queued");

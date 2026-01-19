@@ -16,12 +16,12 @@ const isPublicRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, req) => {
   const { pathname } = req.nextUrl;
 
-  // Redirect root to workflows
+  // Redirect root to dashboard
   if (pathname === "/") {
     const { userId } = await auth();
     if (userId) {
-      // Authenticated - go to workflows
-      return NextResponse.redirect(new URL("/workflows", req.url));
+      // Authenticated - go to dashboard
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     } else {
       // Not authenticated - go to sign-in
       return NextResponse.redirect(new URL("/sign-in", req.url));

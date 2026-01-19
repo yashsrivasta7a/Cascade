@@ -1,12 +1,17 @@
 ---
 title: 'API Reference'
 description: 'Complete reference for the Flowsmith REST API'
+icon: 'code'
 ---
+
+<Note>
+All API requests require authentication. See the [Authentication](/authentication) guide for details.
+</Note>
 
 ## Base URL
 
 ```
-https://flowsmith-ys7.vercel.app/api/v1
+https://flowsmiths.vercel.app/api/v1
 ```
 
 ## OpenAPI Specification
@@ -14,7 +19,7 @@ https://flowsmith-ys7.vercel.app/api/v1
 The full OpenAPI 3.0 specification is available at:
 
 ```
-https://flowsmith-ys7.vercel.app/api/openapi.json
+https://flowsmiths.vercel.app/api/openapi
 ```
 
 You can import this into tools like Postman, Insomnia, or any OpenAPI-compatible client.
@@ -23,21 +28,63 @@ You can import this into tools like Postman, Insomnia, or any OpenAPI-compatible
 
 ### Workflows
 
+Manage your AI workflows - create, update, execute, and delete.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/workflows` | List all workflows |
-| `GET` | `/workflows/{id}` | Get a specific workflow |
-| `POST` | `/workflows` | Create a new workflow |
-| `PATCH` | `/workflows/{id}` | Update a workflow |
-| `DELETE` | `/workflows/{id}` | Delete a workflow |
-| `POST` | `/workflows/{id}/duplicate` | Duplicate a workflow |
+| `GET` | `/workflows` | [List all workflows](/api-reference/workflows/list) |
+| `GET` | `/workflows/{id}` | [Get a specific workflow](/api-reference/workflows/get) |
+| `POST` | `/workflows` | [Create a new workflow](/api-reference/workflows/create) |
+| `PATCH` | `/workflows/{id}` | [Update a workflow](/api-reference/workflows/update) |
+| `DELETE` | `/workflows/{id}` | [Delete a workflow](/api-reference/workflows/delete) |
+| `POST` | `/workflows/{id}/duplicate` | [Duplicate a workflow](/api-reference/workflows/duplicate) |
+| `POST` | `/workflows/{id}/execute` | [Execute a workflow](/api-reference/workflows/execute) |
+
+### Executions
+
+Track and manage workflow executions.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/executions` | [List all executions](/api-reference/executions/list) |
+| `GET` | `/executions/{id}` | [Get execution details](/api-reference/executions/get) |
+| `POST` | `/executions/{id}/cancel` | [Cancel an execution](/api-reference/executions/cancel) |
+| `GET` | `/executions/{id}/stream` | [Stream execution updates](/api-reference/executions/stream) |
 
 ### Credits
 
+Monitor and manage your credit balance.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/credits/balance` | Get current credit balance |
-| `GET` | `/credits/stats` | Get credit usage statistics |
+| `GET` | `/credits/balance` | [Get current credit balance](/api-reference/credits/balance) |
+| `GET` | `/credits/stats` | [Get credit usage statistics](/api-reference/credits/stats) |
+
+### Nodes
+
+Execute individual AI nodes programmatically.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/nodes/execute` | [Execute any node asynchronously](/api-reference/nodes/execute) |
+| `GET` | `/api/nodes/status` | [Check node execution status](/api-reference/nodes/status) |
+| `POST` | `/api/nodes/llm/realtime` | [Stream LLM responses (SSE)](/api-reference/nodes/llm-realtime) |
+
+### Media
+
+Upload and manage media files.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/media/upload` | [Upload media to CDN](/api-reference/media/upload) |
+
+### Dashboard
+
+Get aggregate statistics and overview data.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/dashboard/stats` | [Get dashboard statistics](/api-reference/dashboard/stats) |
 
 ## Response Format
 
@@ -65,12 +112,41 @@ All responses are returned as JSON with the following structure:
 }
 ```
 
-## Common Error Codes
+## HTTP Status Codes
 
-| Code | Description |
-|------|-------------|
-| `UNAUTHORIZED` | Missing or invalid authentication |
-| `FORBIDDEN` | Insufficient permissions |
-| `NOT_FOUND` | Resource not found |
-| `BAD_REQUEST` | Invalid request parameters |
-| `INTERNAL_SERVER_ERROR` | Server error |
+| Status | Description |
+|--------|-------------|
+| `200` | Success |
+| `201` | Created successfully |
+| `400` | Bad request - Invalid parameters |
+| `401` | Unauthorized - Missing or invalid authentication |
+| `402` | Payment required - Insufficient credits |
+| `403` | Forbidden - Insufficient permissions |
+| `404` | Not found - Resource doesn't exist |
+| `429` | Rate limited - Too many requests |
+| `500` | Internal server error |
+
+## Rate Limits
+
+The API is rate limited to ensure fair usage:
+
+| Plan | Requests per minute |
+|------|---------------------|
+| Free | 60 |
+| Pro | 300 |
+| Enterprise | Custom |
+
+<Warning>
+When you exceed the rate limit, you'll receive a `429 Too Many Requests` response. Implement exponential backoff in your client to handle this gracefully.
+</Warning>
+
+## SDKs & Libraries
+
+<CardGroup cols={2}>
+  <Card title="JavaScript/TypeScript" icon="js" href="https://github.com/flowsmith/sdk-js">
+    Official SDK for Node.js and browser
+  </Card>
+  <Card title="Python" icon="python" href="https://github.com/flowsmith/sdk-python">
+    Official SDK for Python 3.8+
+  </Card>
+</CardGroup>

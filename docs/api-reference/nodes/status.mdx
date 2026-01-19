@@ -1,0 +1,166 @@
+---
+title: 'Node Status'
+description: 'Check the execution status and retrieve results for a node'
+api: 'GET /api/nodes/status'
+---
+
+## Request
+
+<ParamField query="nodeId" type="string" required>
+  The node ID to check status for. This is returned when you execute a node.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Current execution status:
+  - `queued` - Waiting to start
+  - `running` - Currently executing
+  - `completed` - Finished successfully
+  - `failed` - Execution failed
+  - `not_found` - No execution found for this node
+</ResponseField>
+
+<ResponseField name="nodeId" type="string">
+  The node identifier.
+</ResponseField>
+
+<ResponseField name="nodeType" type="string">
+  Type of node (e.g., `openrouter`, `seedream`).
+</ResponseField>
+
+<ResponseField name="nodeLabel" type="string">
+  Display label for the node.
+</ResponseField>
+
+<ResponseField name="output" type="object">
+  Execution output (only present when `status` is `completed`).
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message (only present when `status` is `failed`).
+</ResponseField>
+
+<ResponseField name="providerUsed" type="string">
+  Which provider handled the execution.
+</ResponseField>
+
+<ResponseField name="startedAt" type="string">
+  ISO timestamp when execution started.
+</ResponseField>
+
+<ResponseField name="completedAt" type="string">
+  ISO timestamp when execution completed.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  Execution duration in milliseconds.
+</ResponseField>
+
+## Example
+
+```bash
+curl "https://flowsmiths.vercel.app/api/nodes/status?nodeId=node-123456" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Completed Response
+
+<ResponseExample>
+```json
+{
+  "status": "completed",
+  "nodeId": "node-123456",
+  "nodeType": "seedream",
+  "nodeLabel": "Seedream 4.5",
+  "output": {
+    "type": "image",
+    "image": {
+      "url": "https://cdn.flowsmith.com/generated-abc123.jpg",
+      "mimeType": "image/jpeg",
+      "width": 1024,
+      "height": 576
+    }
+  },
+  "providerUsed": "fal",
+  "startedAt": "2024-01-15T10:30:00.000Z",
+  "completedAt": "2024-01-15T10:30:15.000Z",
+  "duration": 15000,
+  "executionId": "exec_xyz789",
+  "workflowExecutionId": "wf_abc123",
+  "triggerRunId": "run_def456"
+}
+```
+</ResponseExample>
+
+### Running Response
+
+```json
+{
+  "status": "running",
+  "nodeId": "node-123456",
+  "nodeType": "seedream",
+  "nodeLabel": "Seedream 4.5",
+  "providerUsed": "fal",
+  "startedAt": "2024-01-15T10:30:00.000Z",
+  "duration": 5000,
+  "executionId": "exec_xyz789"
+}
+```
+
+### Failed Response
+
+```json
+{
+  "status": "failed",
+  "nodeId": "node-123456",
+  "nodeType": "openrouter",
+  "nodeLabel": "OpenRouter LLM",
+  "error": "API rate limit exceeded",
+  "startedAt": "2024-01-15T10:30:00.000Z",
+  "completedAt": "2024-01-15T10:30:02.000Z",
+  "duration": 2000,
+  "executionId": "exec_xyz789"
+}
+```
+
+### Not Found Response
+
+```json
+{
+  "status": "not_found",
+  "nodeId": "node-123456"
+}
+```
+
+## Polling Pattern
+
+For asynchronous node execution, implement a polling loop:
+
+```javascript
+async function waitForCompletion(nodeId, maxWaitMs = 120000) {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitMs) {
+    const response = await fetch(
+      `https://flowsmiths.vercel.app/api/nodes/status?nodeId=${nodeId}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` } }
+    );
+    
+    const data = await response.json();
+    
+    if (data.status === 'completed') {
+      return data.output;
+    }
+    
+    if (data.status === 'failed') {
+      throw new Error(data.error);
+    }
+    
+    // Wait 1 second before next poll
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  throw new Error('Timeout waiting for node completion');
+}
+```

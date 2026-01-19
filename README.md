@@ -1,117 +1,138 @@
 # Flowsmith
 
-A visual AI workflow builder that lets you create, connect, and execute AI-powered pipelines with a node-based interface.
+<div align="center">
+
+![Flowsmith](public/logo.svg)
+
+**Visual AI Workflow Builder**
+
+Create, connect, and execute AI-powered pipelines with an intuitive node-based interface.
+
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://flowsmiths.vercel.app)
+[![Documentation](https://img.shields.io/badge/docs-mintlify-blue?style=for-the-badge)](https://docs.flowsmiths.vercel.app)
+[![Tests](https://img.shields.io/badge/tests-357%2B%20passing-success?style=for-the-badge)](#test-coverage)
+
+</div>
 
 ---
 
-## Features
+## ✨ Features
 
-- **Visual Workflow Editor** – Drag-and-drop node-based interface powered by ReactFlow
-- **AI Node Types** – Image generation, video generation, audio synthesis, LLM processing, and more
-- **Real-time Execution** – SSE streaming for live workflow progress updates
-- **Background Processing** – Long-running tasks handled by Trigger.dev workers
-- **Media Processing** – Video/audio manipulation with cloud-based FFmpeg
-- **Credit System** – Track AI usage with a built-in credit ledger
-- **Version History** – Restore previous workflow versions
-- **Dark/Light Mode** – Full theme support
+### Visual Workflow Editor
+- **Drag-and-drop** node-based interface powered by ReactFlow
+- **Smart connections** with type validation and compatibility hints
+- **Auto-layout** algorithm for clean DAG visualization
+- **Keyboard shortcuts** for power users (copy, paste, undo, redo)
+- **Multi-select** and bulk operations
+- **Version history** with one-click restore
+
+### AI Node Types
+| Node | Provider | Description |
+|------|----------|-------------|
+| **Seedream** | fal.ai | High-quality image generation |
+| **Seedance** | fal.ai | AI video generation |
+| **SeedVR** | fal.ai | VR content generation |
+| **OpenRouter LLM** | OpenRouter | GPT-4, Claude, Llama, Gemini |
+| **ElevenLabs** | ElevenLabs | Text-to-speech synthesis |
+| **Merge Videos** | Internal | Combine videos with transitions |
+| **Extract Audio** | Internal | Extract audio from video |
+| **Crop Image** | Internal | Crop and resize images |
+
+### Execution Engine
+- **DAG-based parallel execution** – Independent nodes run simultaneously
+- **Real-time streaming** – SSE updates for live progress
+- **Skip node** – Cache results and skip re-execution to save credits
+- **Cascading failures** – Automatic error propagation
+- **Credit tracking** – Per-execution cost breakdown
+
+### Developer Experience
+- **Config-driven nodes** – Add new nodes without writing component code
+- **Type-safe API** – Full tRPC integration with Zod validation
+- **Auto-generated docs** – OpenAPI spec via trpc-to-openapi
+- **357+ tests** – Unit, integration, and E2E coverage
 
 ---
 
-## Setup Instructions
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Node.js** 18+ 
-- **PostgreSQL** database (or use Neon.tech)
+- **Node.js** 18+
+- **PostgreSQL** database (or [Neon.tech](https://neon.tech))
 - **Clerk** account for authentication
 - **Trigger.dev** account for background jobs
 
-### 1. Clone and Install
+### Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/your-repo/flowsmith.git
 cd flowsmith
+
+# Install dependencies
 npm install
-```
 
-### 2. Environment Variables
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
 
-Create a `.env.local` file in the root directory:
-
-```env
-# ═══════════════════════════════════════════════════════════════════════════════
-# DATABASE
-# ═══════════════════════════════════════════════════════════════════════════════
-DATABASE_URL="postgresql://user:password@host:5432/flowsmith?sslmode=require"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# AUTHENTICATION (Clerk)
-# ═══════════════════════════════════════════════════════════════════════════════
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
-CLERK_SECRET_KEY="sk_test_..."
-CLERK_WEBHOOK_SECRET="whsec_..."  # For user sync webhooks
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TRIGGER.DEV (Background Jobs)
-# ═══════════════════════════════════════════════════════════════════════════════
-TRIGGER_SECRET_KEY="tr_dev_..."
-TRIGGER_PROJECT_REF="proj_..."
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# AI PROVIDERS
-# ═══════════════════════════════════════════════════════════════════════════════
-FAL_KEY="..."                    # For Seedream, Seedance, Seedvr (fal.ai)
-OPENROUTER_API_KEY="..."         # For LLM nodes (OpenRouter)
-ELEVENLABS_API_KEY="..."         # For text-to-speech (ElevenLabs)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# MEDIA PROCESSING (Transloadit)
-# ═══════════════════════════════════════════════════════════════════════════════
-TRANSLOADIT_AUTH_KEY="..."       # For cloud video/audio processing
-TRANSLOADIT_AUTH_SECRET="..."
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# APP CONFIG
-# ═══════════════════════════════════════════════════════════════════════════════
-NEXT_PUBLIC_APP_URL="http://localhost:3000"  # Your deployment URL
-WEBHOOK_BASE_URL="http://localhost:3000"     # Webhook callback URL
-```
-
-### 3. Database Setup
-
-```bash
-# Generate Prisma client
+# Set up database
 npm run db:generate
-
-# Push schema to database
 npm run db:push
 
-# (Optional) Open Prisma Studio
-npm run db:studio
+# Start development servers
+npm run dev          # Terminal 1: Next.js
+npm run trigger:dev  # Terminal 2: Trigger.dev worker
 ```
 
-### 4. Start Development
-
-```bash
-# Terminal 1: Next.js dev server
-npm run dev
-
-# Terminal 2: Trigger.dev worker (for background jobs)
-npm run trigger:dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to access Flowsmith.
-
-### 5. Production Build
-
-```bash
-npm run build
-npm run start
-```
+Open [http://localhost:3000](http://localhost:3000) to start building workflows.
 
 ---
 
-## Architecture Overview
+## 🔧 Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 14, React 18, TypeScript |
+| **State** | Zustand with persistence |
+| **Styling** | Tailwind CSS, Framer Motion |
+| **Canvas** | ReactFlow |
+| **Backend** | tRPC, Prisma, PostgreSQL |
+| **Auth** | Clerk |
+| **Jobs** | Trigger.dev |
+| **AI** | fal.ai, OpenRouter, ElevenLabs |
+| **Media** | Transloadit (CDN), FFmpeg |
+| **Testing** | Vitest, Playwright |
+| **Docs** | Mintlify |
+
+---
+
+## 📡 API Reference
+
+Full API documentation is available at [docs.flowsmiths.vercel.app](https://docs.flowsmiths.vercel.app).
+
+### Public Endpoints
+
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| **Workflows** | 7 | CRUD, duplicate, execute |
+| **Executions** | 4 | List, get, cancel, stream |
+| **Nodes** | 3 | Execute, status, LLM streaming |
+| **Credits** | 2 | Balance, statistics |
+| **Media** | 1 | Upload to CDN |
+| **Dashboard** | 1 | Aggregate stats |
+
+### OpenAPI Spec
+
+```
+https://flowsmiths.vercel.app/api/openapi
+```
+
+Import into Postman, Insomnia, or any OpenAPI-compatible client.
+
+---
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -145,101 +166,43 @@ npm run start
 └──────────────────┘     └──────────────────┘
 ```
 
-### Key Components
+### Key Files
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| **Flow Canvas** | `components/flow/flow-canvas.tsx` | Main workflow editor with ReactFlow |
-| **Node Types** | `components/flow/generic-node.tsx` | Unified node component for all AI types |
-| **Node Definitions** | `types/nodes.ts` | Schema definitions for all node types |
-| **Workflow Executor** | `app/trigger/workflow-executor.ts` | DAG-based parallel execution |
-| **Node Executor** | `app/trigger/node-executor.ts` | Individual node processing |
-| **State Management** | `store/flow-store.ts` | Zustand store for workflow state |
-| **API Routes** | `app/api/` | REST/tRPC endpoints |
-
-### Data Flow
-
-1. **User builds workflow** → ReactFlow nodes/edges stored in Zustand
-2. **User clicks Run** → API creates execution record in PostgreSQL
-3. **Trigger.dev picks up** → Workflow executor analyzes DAG dependencies
-4. **Parallel execution** → Independent nodes run simultaneously
-5. **SSE streaming** → Real-time updates pushed to frontend
-6. **Results cached** → Outputs stored for downstream nodes
+| Flow Canvas | `components/flow/flow-canvas.tsx` | Main workflow editor |
+| Generic Node | `components/flow/generic-node.tsx` | Unified node component |
+| Node Config | `lib/config/node-config.ts` | Declarative node definitions |
+| Workflow Executor | `app/trigger/workflow-executor.ts` | DAG execution engine |
+| Node Executor | `app/trigger/node-executor.ts` | Individual node processing |
+| Flow Store | `store/flow-store.ts` | Zustand state management |
 
 ---
 
-## Design Decisions & Trade-offs
+## 🧪 Test Coverage
 
-### 1. Trigger.dev for Background Jobs
+**357+ tests passing** across unit, integration, and E2E suites.
 
-**Decision**: Use Trigger.dev instead of serverless functions for AI execution.
+| Category | Tests | Coverage |
+|----------|-------|----------|
+| Unit Tests | ~310 | Type compatibility, credits, UI components |
+| Integration Tests | ~46 | API endpoints, tRPC procedures |
+| E2E Tests | ~45 | Auth flows, workflow editor, navigation |
 
-**Why**:
-- ✅ No 60-second timeout limits (Vercel serverless)
-- ✅ Automatic retries with exponential backoff
-- ✅ Built-in run tracking and debugging
-- ✅ Parallel batch execution support
+```bash
+# Run all tests
+npm test
 
-**Trade-off**: Additional service dependency, but essential for AI workloads that can take 2-5 minutes.
+# Run with coverage
+npm run test:coverage
 
-### 2. Dynamic FFmpeg Imports
-
-**Decision**: Import FFmpeg only inside Trigger.dev `run()` functions.
-
-**Why**:
-- ✅ Prevents 50MB+ binary from being bundled into Vercel functions
-- ✅ FFmpeg only loads on Trigger.dev workers where it's needed
-- ✅ Keeps API routes fast and under size limits
-
-**Trade-off**: Slightly more complex import patterns.
-
-### 3. Transloadit for Large Media
-
-**Decision**: Direct client uploads to Transloadit for files > 3MB.
-
-**Why**:
-- ✅ Bypasses Vercel's 4.5MB body limit
-- ✅ Cloud-based video/audio processing (no local FFmpeg needed)
-- ✅ Automatic CDN delivery with HTTP URLs
-
-**Trade-off**: External dependency cost, but necessary for production media handling.
-
-### 4. Zustand + localStorage for State
-
-**Decision**: Use Zustand with persistence instead of server-side state.
-
-**Why**:
-- ✅ Instant UI updates during editing
-- ✅ Offline capability (draft workflows saved locally)
-- ✅ No database writes during active editing
-
-**Trade-off**: State sync complexity when saving to server.
-
-### 5. Generic Node Architecture
-
-**Decision**: Single `GenericNode` component handles all node types via configuration.
-
-**Why**:
-- ✅ Consistent UI/UX across all nodes
-- ✅ Easy to add new node types (just add to `NODE_DEFINITIONS`)
-- ✅ Centralized field rendering logic
-
-**Trade-off**: Complex field renderer system, but pays off at scale.
-
-### 6. SSE over WebSockets
-
-**Decision**: Server-Sent Events for real-time workflow updates.
-
-**Why**:
-- ✅ Works with Vercel serverless (no persistent connections needed)
-- ✅ Simpler than WebSocket infrastructure
-- ✅ Automatic reconnection handling
-
-**Trade-off**: One-way communication only (sufficient for our use case).
+# Run E2E tests
+npm run test:e2e
+```
 
 ---
 
-## Keyboard Shortcuts
+## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -247,29 +210,83 @@ npm run start
 | `Ctrl/Cmd + Shift + Z` | Redo |
 | `Ctrl/Cmd + C` | Copy selected nodes |
 | `Ctrl/Cmd + V` | Paste nodes |
-| `Ctrl/Cmd + D` | Duplicate selected nodes |
-| `Delete / Backspace` | Delete selected nodes |
-| `Ctrl/Cmd + A` | Select all nodes |
-| `Escape` | Deselect all / Cancel operation |
-| `Ctrl/Cmd + S` | Manual save (even with auto-save) |
-| `Ctrl/Cmd + E` | Export workflow |
-| `Space + Drag` | Pan canvas |
-| `Ctrl/Cmd + +/-` | Zoom in/out |
-| `Ctrl/Cmd + 0` | Zoom to fit |
+| `Ctrl/Cmd + S` | Save workflow |
+| `Delete` | Delete selected nodes |
+| `Escape` | Deselect / Cancel |
+| `R` | Run workflow |
+| `S` | Open shortcuts panel |
+| `H` | Toggle Timeline panel |
+| `A` | Toggle Asset Manager |
+| `W` | Toggle Workflow sidebar |
 
 ---
 
-## API Documentation
+## 🔐 Environment Variables
 
-API documentation is available via Mintlify at your configured docs URL. The API provides endpoints for:
+Create a `.env.local` file:
 
-- **Workflows** – Create, read, update, delete workflows
-- **Executions** – Trigger and monitor workflow runs
-- **Nodes** – Execute individual nodes
-- **Credits** – Check balance and usage history
+```env
+# Database
+DATABASE_URL="postgresql://..."
+
+# Authentication (Clerk)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_..."
+CLERK_SECRET_KEY="sk_..."
+
+# Background Jobs (Trigger.dev)
+TRIGGER_SECRET_KEY="tr_dev_..."
+TRIGGER_PROJECT_REF="proj_..."
+
+# AI Providers
+FAL_KEY="..."                    # fal.ai
+OPENROUTER_API_KEY="..."         # OpenRouter
+ELEVENLABS_API_KEY="..."         # ElevenLabs
+
+# Media Processing (Transloadit)
+TRANSLOADIT_AUTH_KEY="..."
+TRANSLOADIT_AUTH_SECRET="..."
+
+# App Config
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
 ---
 
-## License
+## 📜 Scripts
+
+```bash
+# Development
+npm run dev              # Start Next.js dev server
+npm run trigger:dev      # Start Trigger.dev worker
+
+# Database
+npm run db:generate      # Generate Prisma client
+npm run db:push          # Push schema changes
+npm run db:studio        # Open Prisma Studio
+
+# Testing
+npm test                 # Run all tests
+npm run test:coverage    # With coverage report
+npm run test:e2e         # Playwright E2E tests
+
+# Production
+npm run build            # Build for production
+npm run start            # Start production server
+
+# Documentation
+cd docs && npx mintlify dev  # Start docs locally
+```
+
+---
+
+## 📄 License
 
 Private project - All rights reserved.
+
+---
+
+<div align="center">
+
+**[Live Demo](https://flowsmiths.vercel.app)** · **[Documentation](https://docs.flowsmiths.vercel.app)** · **[API Reference](https://flowsmiths.vercel.app/api/openapi)**
+
+</div>

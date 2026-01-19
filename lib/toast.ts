@@ -212,10 +212,51 @@ export function showWorkflowComplete(nodeCount?: number) {
 
 /**
  * Show LLM parsing error when LLM output cannot be converted to expected type
+ * Uses simple format: "{field} not supported"
  */
-export function showLLMParseError(targetNode: string, targetField: string, error: string) {
-  return showError(`LLM output invalid for ${targetNode}`, {
-    description: `Cannot set "${targetField}": ${error}`,
-    duration: 6000,
+export function showLLMParseError(targetNode: string, targetField: string, _error: string) {
+  // Format field name for display (camelCase to Title Case)
+  const fieldDisplay = targetField
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase())
+    .trim();
+  
+  return showError(`${fieldDisplay} not supported`, {
+    description: `The LLM response for "${targetNode}" doesn't match expected format`,
+    duration: 4000,
+  });
+}
+
+// =============================================================================
+// SKIP NODE TOASTS
+// =============================================================================
+
+/**
+ * Show warning when skip is enabled but node has no output to use
+ */
+export function showSkipWarning(nodeName: string) {
+  return showWarning(`${nodeName} is skipped but has no output`, {
+    description: "Run this node first or disable skip to continue.",
+    duration: 5000,
+  });
+}
+
+/**
+ * Show info when all nodes in workflow are skipped
+ */
+export function showAllSkippedWarning() {
+  return showInfo("All nodes are skipped", {
+    description: "Nothing to execute. 0 credits used.",
+    duration: 4000,
+  });
+}
+
+/**
+ * Show success when node execution was skipped (used existing output)
+ */
+export function showSkipped(nodeName: string) {
+  return showInfo(`${nodeName} skipped`, {
+    description: "Using existing output. 0 credits used.",
+    duration: 2000,
   });
 }

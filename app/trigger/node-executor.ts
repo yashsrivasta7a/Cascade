@@ -1,4 +1,5 @@
 import { task, wait } from "@trigger.dev/sdk";
+import { config } from "dotenv";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import type { AINodeType } from "@/types/nodes";
@@ -12,6 +13,10 @@ import {
 } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { persistNodeOutput, isTransloaditConfigured } from "@/lib/providers";
+
+// Load environment variables for Trigger.dev workers
+config({ path: ".env" });
+config({ path: ".env.local" });
 
 // NOTE: Engine imports are done dynamically inside the run() function
 // This prevents FFmpeg from being bundled for Vercel API routes

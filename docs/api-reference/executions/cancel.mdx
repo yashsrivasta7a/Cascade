@@ -1,0 +1,108 @@
+---
+title: 'Cancel Execution'
+api: 'POST /executions/{id}/cancel'
+description: 'Cancel a running workflow execution'
+---
+
+## Overview
+
+Cancels a workflow execution that is currently running. Once cancelled, any pending nodes will not be executed, and credits for incomplete nodes will not be charged.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the execution to cancel
+</ParamField>
+
+## Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://flowsmiths.vercel.app/api/v1/executions/{id}/cancel \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://flowsmiths.vercel.app/api/v1/executions/{id}/cancel',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://flowsmiths.vercel.app/api/v1/executions/{id}/cancel',
+    headers={'Authorization': 'Bearer YOUR_API_KEY'}
+)
+data = response.json()
+```
+</CodeGroup>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Whether the cancellation request was successful
+</ResponseField>
+
+<ResponseField name="executionId" type="string">
+  The ID of the cancelled execution
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The new status of the execution (`cancelled`)
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable status message
+</ResponseField>
+
+### Success Response (200)
+
+```json
+{
+  "success": true,
+  "executionId": "exec_abc123def456",
+  "status": "cancelled",
+  "message": "Execution cancelled successfully"
+}
+```
+
+### Error Responses
+
+<Accordion title="400 Bad Request - Already Completed">
+```json
+{
+  "error": "Cannot cancel a completed execution"
+}
+```
+</Accordion>
+
+<Accordion title="404 Not Found">
+```json
+{
+  "error": "Execution not found"
+}
+```
+</Accordion>
+
+<Warning>
+Cancellation is not instant. Nodes that are currently processing may complete before the cancellation takes effect. You will only be charged for nodes that completed successfully.
+</Warning>
+
+## Cancellable States
+
+Executions can only be cancelled when in these states:
+
+| Status | Can Cancel? |
+|--------|-------------|
+| `pending` | Yes |
+| `running` | Yes |
+| `completed` | No |
+| `failed` | No |
+| `cancelled` | No |

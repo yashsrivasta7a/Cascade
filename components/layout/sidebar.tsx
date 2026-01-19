@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Workflow,
-  Zap,
   CreditCard,
   Settings,
   Plus,
@@ -29,9 +28,9 @@ const navItems = [
 ];
 
 const bottomItems = [
-  { label: "Billing", href: "/billing", icon: CreditCard },
-  { label: "Pricing", href: "/ledger", icon: BookOpen },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Pricing", href: "/ledger", icon: BookOpen },      // See costs first
+  { label: "Billing", href: "/billing", icon: CreditCard },   // Then manage payments
+  { label: "Settings", href: "/settings", icon: Settings },   // Account settings last
 ];
 
 // External links
@@ -49,15 +48,17 @@ export function Sidebar() {
       {/* Logo Header */}
       <Link 
         href="/dashboard" 
-        className="h-14 px-5 flex items-center gap-3 border-b border-gray-200/80 dark:border-zinc-800/50 group"
+        className="h-16 px-5 flex items-center gap-3 border-b border-gray-200/60 dark:border-white/[0.06] group transition-all hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
       >
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-          <Zap className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-bold text-base text-gray-900 dark:text-white tracking-tight">Flowsmith</span>
-          <span className="text-[10px] text-gray-500 dark:text-zinc-500 font-medium">Workflow Studio</span>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img 
+          src="/logo.svg" 
+          alt="Flowsmith" 
+          className="w-10 h-10 transition-transform duration-300 group-hover:scale-105" 
+        />
+        <span className="font-bold text-lg text-gray-900 dark:text-white tracking-wider uppercase" style={{ fontFamily: 'var(--font-orbitron)' }}>
+          Flowsmith
+        </span>
       </Link>
 
       {/* New Workflow Button */}

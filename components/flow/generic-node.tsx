@@ -1,11 +1,12 @@
 "use client";
 
-import { memo, useState, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { NodeProps, Handle, Position } from "reactflow";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "./base-node";
 import { useFlowStore } from "@/store";
 import { getNodeConfig } from "@/lib/config";
+
 import type { NodeConfig, FieldConfig } from "@/lib/config/types";
 import { dataTypeColors, type DataType, isTypeCompatible } from "@/types/nodes";
 import { cn } from "@/lib/utils";
@@ -284,6 +285,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   // Store hooks
   const updateNode = useFlowStore((s) => s.updateNode);
   const propagateOutput = useFlowStore((s) => s.propagateOutput);
+  const propagateStreamingOutput = useFlowStore((s) => s.propagateStreamingOutput);
   const setWorkflowRunning = useFlowStore((s) => s.setWorkflowRunning);
   const isHandleConnected = useFlowStore((s) => s.isHandleConnected);
   const getHandleSource = useFlowStore((s) => s.getHandleSource);
@@ -291,6 +293,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   const runNode = useFlowStore((s) => s.runNode);
   const workflowId = useFlowStore((s) => s.workflowId);
   const connectingFrom = useFlowStore((s) => s.connectingFrom);
+  const setNodeUploading = useFlowStore((s) => s.setNodeUploading);
   
   // Dragging state for handle compatibility
   const isDragging = Boolean(connectingFrom);
@@ -304,7 +307,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   const isProcessing = data.status === "running" || data.status === "queued" || isGenerating;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Track uploading state per field
+  // Track uploading state per field and report to global store
   const handleUploadingChange = useCallback((fieldId: string, uploading: boolean) => {
     setUploadingFields((prev) => {
       const next = new Set(prev);
@@ -313,9 +316,18 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       } else {
         next.delete(fieldId);
       }
+      // Report to global store: node is uploading if ANY field is uploading
+      setNodeUploading(id, next.size > 0);
       return next;
     });
-  }, []);
+  }, [id, setNodeUploading]);
+  
+  // Clean up upload status when component unmounts
+  useEffect(() => {
+    return () => {
+      setNodeUploading(id, false);
+    };
+  }, [id, setNodeUploading]);
 
   // Handle field value change
   const handleFieldChange = useCallback(
@@ -538,9 +550,9 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
         input.prompt = freshData.prompt || "";
       }
 
-      // Handle OpenRouter LLM specially - use streaming endpoint
+      // Handle OpenRouter LLM with real-time streaming
       if (nodeType === "openrouter") {
-        const response = await fetch("/api/nodes/llm/stream", {
+        const response = await fetch("/api/nodes/llm/realtime", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -564,19 +576,83 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "LLM request failed");
+          const errorText = await response.text();
+          try {
+            const error = JSON.parse(errorText);
+            throw new Error(error.error || "LLM request failed");
+          } catch {
+            throw new Error(errorText || "LLM request failed");
+          }
         }
 
-        const result = await response.json();
-        
-        if (result.text) {
-          updateNode(id, { result: result.text, status: "completed" });
-          propagateOutput(id, result.text);
-        } else if (result.error) {
-          throw new Error(result.error);
-        } else {
-          throw new Error("No response received");
+        // Read the SSE stream
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("No response stream available");
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullText = "";
+        let lastPropagateTime = 0;
+        const PROPAGATE_DEBOUNCE_MS = 100; // Debounce streaming updates
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process SSE lines
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                
+                try {
+                  const parsed = JSON.parse(data);
+                  
+                  if (parsed.type === "chunk") {
+                    // Update the node's result with partial text
+                    fullText = parsed.partial || (fullText + (parsed.content || ""));
+                    updateNode(id, { result: fullText });
+                    
+                    // Propagate streaming output (debounced)
+                    const now = Date.now();
+                    if (now - lastPropagateTime > PROPAGATE_DEBOUNCE_MS) {
+                      propagateStreamingOutput(id, fullText);
+                      lastPropagateTime = now;
+                    }
+                  } else if (parsed.type === "done") {
+                    // Stream complete - use the final text
+                    fullText = parsed.text || fullText;
+                    updateNode(id, { result: fullText, status: "completed" });
+                    // Final propagation with validation
+                    propagateOutput(id, fullText);
+                  } else if (parsed.type === "error") {
+                    throw new Error(parsed.error || "Stream error");
+                  }
+                } catch (parseError) {
+                  // Ignore JSON parse errors for incomplete data
+                  if (data !== "[DONE]") {
+                    console.warn("[LLM Stream] Parse error:", parseError);
+                  }
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        // Ensure final text is propagated if stream ended without "done" event
+        if (fullText && !fullText.includes("[DONE]")) {
+          updateNode(id, { result: fullText, status: "completed" });
+          propagateOutput(id, fullText);
         }
         
         setIsGenerating(false);
@@ -836,12 +912,28 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
     return true;
   }, [nodeConfig, data, isFieldConnected]);
 
+  // Check if node has output (for skip feature)
+  const hasOutput = Boolean(data.result && (typeof data.result === "string" ? data.result.trim().length > 0 : true));
+  
+  // Skip toggle handler - update node data and propagate if has output
+  const handleSkipToggle = useCallback((newSkip: boolean) => {
+    updateNode(id, { skip: newSkip });
+    
+    // If enabling skip and we have output, propagate it to downstream nodes
+    if (newSkip && hasOutput && data.result) {
+      propagateOutput(id, data.result as string);
+    }
+  }, [id, updateNode, hasOutput, data.result, propagateOutput]);
+
   return (
     <BaseNode
       {...props}
       nodeType={nodeType}
       color={nodeConfig.color as any}
       layout={nodeConfig.ui.layout || "vertical"}
+      skip={data.skip === true}
+      hasOutput={hasOutput}
+      onSkipToggle={handleSkipToggle}
       data={{
         ...data,
         nodeType, // Also include in data for consistency

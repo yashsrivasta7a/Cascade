@@ -119,6 +119,9 @@ export interface FlowState {
   currentTriggerRunId: string | null;
   runningNodeIds: Map<string, { executionId: string; triggerRunId?: string }>; // node ID -> execution info
   nodeAbortControllers: Map<string, AbortController>; // node ID -> AbortController for cancellation
+  
+  // Upload tracking - prevents running workflow while any node is uploading
+  uploadingNodeIds: Set<string>;
 
   // Connection dragging state for highlighting compatible nodes
   connectingFrom: {
@@ -146,6 +149,10 @@ export interface FlowState {
   clearNodeRunning: (nodeId: string) => void;
   cancelWorkflow: () => Promise<boolean>;
   cancelNode: (nodeId: string) => Promise<boolean>;
+  
+  // Upload tracking actions
+  setNodeUploading: (nodeId: string, uploading: boolean) => void;
+  isAnyNodeUploading: () => boolean;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -187,6 +194,9 @@ export interface FlowState {
   
   // Propagate output from a node to all connected downstream nodes
   propagateOutput: (sourceNodeId: string, output: string) => void;
+  
+  // Propagate streaming output from LLM node (debounced, no validation during streaming)
+  propagateStreamingOutput: (sourceNodeId: string, partialText: string) => void;
 
   // Check if a handle on a node has an incoming connection
   isHandleConnected: (nodeId: string, handleId: string) => boolean;
@@ -228,6 +238,8 @@ export const useFlowStore = create<FlowState>()(
         runningNodeIds: new Map(),
         // AbortController map for cancelling running nodes
         nodeAbortControllers: new Map<string, AbortController>(),
+        // Upload tracking - nodes currently uploading files
+        uploadingNodeIds: new Set<string>(),
 
         setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
         setWorkflowId: (workflowId) => set({ workflowId }),
@@ -253,6 +265,22 @@ export const useFlowStore = create<FlowState>()(
           const newMap = new Map(state.runningNodeIds);
           newMap.delete(nodeId);
           set({ runningNodeIds: newMap });
+        },
+        
+        // Upload tracking - prevents running workflow while any node is uploading
+        setNodeUploading: (nodeId, uploading) => {
+          const state = get();
+          const newSet = new Set(state.uploadingNodeIds);
+          if (uploading) {
+            newSet.add(nodeId);
+          } else {
+            newSet.delete(nodeId);
+          }
+          set({ uploadingNodeIds: newSet });
+        },
+        
+        isAnyNodeUploading: () => {
+          return get().uploadingNodeIds.size > 0;
         },
       
       cancelWorkflow: async () => {
@@ -752,6 +780,7 @@ export const useFlowStore = create<FlowState>()(
         get().recordHistory();
 
         const newId = `node-${Date.now()}-dup`;
+        const originalData = original.data as Record<string, unknown>;
         const newNode: Node = {
           ...original,
           id: newId,
@@ -760,6 +789,11 @@ export const useFlowStore = create<FlowState>()(
             y: original.position.y + 40,
           },
           selected: false,
+          data: {
+            ...originalData,
+            // Don't copy skip flag - duplicated nodes should default to running normally
+            skip: false,
+          },
         };
 
         set({
@@ -1021,10 +1055,11 @@ export const useFlowStore = create<FlowState>()(
           selected: true,
           data: {
             ...(node.data as Record<string, unknown>),
-            // Clear execution state
+            // Clear execution state and skip flag
             status: undefined,
             error: undefined,
             result: undefined,
+            skip: false, // Pasted nodes should default to running normally
           },
         }));
         
@@ -1101,15 +1136,23 @@ export const useFlowStore = create<FlowState>()(
         
         // Create duplicated nodes
         const nodesToDuplicate = state.nodes.filter(n => selectedIds.includes(n.id));
-        const newNodes: Node[] = nodesToDuplicate.map(node => ({
-          ...JSON.parse(JSON.stringify(node)),
-          id: idMap.get(node.id)!,
-          position: {
-            x: node.position.x + 40,
-            y: node.position.y + 40,
-          },
-          selected: true,
-        }));
+        const newNodes: Node[] = nodesToDuplicate.map(node => {
+          const clonedNode = JSON.parse(JSON.stringify(node));
+          return {
+            ...clonedNode,
+            id: idMap.get(node.id)!,
+            position: {
+              x: node.position.x + 40,
+              y: node.position.y + 40,
+            },
+            selected: true,
+            data: {
+              ...clonedNode.data,
+              // Don't copy skip flag - duplicated nodes should default to running normally
+              skip: false,
+            },
+          };
+        });
         
         // Duplicate edges between selected nodes
         const edgesToDuplicate = state.edges.filter(
@@ -1210,17 +1253,28 @@ export const useFlowStore = create<FlowState>()(
           const edgesToNode = outgoingEdges.filter((e) => e.target === node.id);
           if (edgesToNode.length === 0) return node;
           
-          // Filter out settings connections - they are synced separately in updateNode
+          // Filter out settings connections - BUT keep them if source is LLM (for parsing)
           const nonSettingsEdges = edgesToNode.filter((edge) => {
             const edgeData = edge.data as Record<string, unknown> | undefined;
             const sourceHandle = edge.sourceHandle;
+            const sourceNodeType = edgeData?.sourceNodeType;
             const isSettingsConnection = edgeData?.isSettingsConnection === true || 
                                          edgeData?.fromSettingsPopover === true ||
                                          (sourceHandle?.endsWith("-setting") ?? false);
             const isFullInheritance = edgeData?.isFullInheritance === true;
             
-            // Keep full inheritance edges, skip individual settings edges
-            if (isSettingsConnection && !isFullInheritance) {
+            // Keep full inheritance edges
+            if (isFullInheritance) return true;
+            
+            // IMPORTANT: Keep settings connections from LLM nodes
+            // These need to go through LLM parsing logic
+            if (isSettingsConnection && sourceNodeType === "openrouter") {
+              console.log(`[propagateOutput] Keeping LLM->settings edge ${sourceHandle} -> ${edge.targetHandle} for parsing`);
+              return true;
+            }
+            
+            // Skip other settings edges (they are synced separately)
+            if (isSettingsConnection) {
               console.log(`[propagateOutput] Skipping settings edge ${sourceHandle} -> ${edge.targetHandle}`);
               return false;
             }
@@ -1389,6 +1443,55 @@ export const useFlowStore = create<FlowState>()(
         for (const failure of failedNodes) {
           showLLMParseError(failure.nodeName, failure.handle, failure.error);
         }
+      },
+
+      // Streaming propagation - updates text handles in real-time without validation
+      // This is called during LLM streaming to show partial output in connected nodes
+      propagateStreamingOutput: (sourceNodeId, partialText) => {
+        const state = get();
+        
+        // Find the source node
+        const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
+        if (!sourceNode) return;
+
+        // Find all edges that start from this source node
+        const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
+        if (outgoingEdges.length === 0) return;
+
+        // Text-compatible handles that can show streaming preview
+        const textHandles = ["prompt", "context", "text", "systemPrompt", "negativePrompt"];
+
+        // Update target nodes with streaming text (no validation)
+        const updatedNodes = state.nodes.map((node) => {
+          const edgesToNode = outgoingEdges.filter((e) => e.target === node.id);
+          if (edgesToNode.length === 0) return node;
+
+          let nodeData = { ...(node.data as Record<string, unknown>) };
+          let updated = false;
+
+          for (const edge of edgesToNode) {
+            const targetHandle = edge.targetHandle;
+            const edgeData = edge.data as Record<string, unknown> | undefined;
+            const isSettingsConnection = edgeData?.isSettingsConnection === true || 
+                                         edgeData?.fromSettingsPopover === true ||
+                                         (edge.sourceHandle?.endsWith("-setting") ?? false);
+            
+            // Skip settings connections during streaming
+            if (isSettingsConnection) continue;
+
+            // Only update text-compatible handles during streaming
+            if (targetHandle && textHandles.includes(targetHandle)) {
+              nodeData[targetHandle] = partialText;
+              // Also show streaming indicator
+              nodeData._streamingFrom = sourceNodeId;
+              updated = true;
+            }
+          }
+
+          return updated ? { ...node, data: nodeData } : node;
+        });
+
+        set({ nodes: updatedNodes });
       },
 
       isHandleConnected: (nodeId, handleId) => {

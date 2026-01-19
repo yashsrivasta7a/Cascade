@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Orbitron } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
@@ -19,10 +19,22 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+// Orbitron - Futuristic geometric font for branding
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Flowsmith - Visual AI Workflow Builder",
+  title: "Flowsmith",
   description: "Build powerful AI automations visually. Connect models, APIs, and data sources with drag-and-drop simplicity.",
   keywords: ["AI", "workflow", "automation", "GPT-4", "Claude", "visual builder"],
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
@@ -46,7 +58,7 @@ export default function RootLayout({
         },
         elements: {
           formButtonPrimary:
-            "bg-gradient-to-r from-cyan-500 to-violet-500 hover:from-cyan-400 hover:to-violet-400 border-0 shadow-lg shadow-cyan-500/25",
+            "bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-2 border-blue-500/50 hover:border-blue-500/70 rounded-xl font-bold transition-all",
           card: "bg-zinc-900/80 backdrop-blur-xl border border-white/10 shadow-2xl",
           headerTitle: "text-2xl font-bold text-white",
           headerSubtitle: "text-zinc-400",
@@ -87,7 +99,7 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
+          className={`${inter.variable} ${jetbrainsMono.variable} ${orbitron.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
         >
           <Providers>{children}</Providers>
         </body>
