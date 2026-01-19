@@ -5,26 +5,26 @@ import { NodeProps } from "reactflow";
 import { createPortal } from "react-dom";
 import { useFlowStore } from "@/store";
 import { cn } from "@/lib/utils";
-import { Palette, Trash2 } from "lucide-react";
+import { MessageSquare, Palette, Trash2, Check } from "lucide-react";
 
 // Available color themes for comments - with hex values for swatches
 const COMMENT_COLORS = [
-  { name: "Zinc", bg: "from-zinc-500/10 to-zinc-600/5", border: "border-zinc-500/20", glow: "shadow-zinc-500/10", hex: "#71717a" },
-  { name: "Blue", bg: "from-blue-500/10 to-blue-600/5", border: "border-blue-500/20", glow: "shadow-blue-500/10", hex: "#3b82f6" },
-  { name: "Purple", bg: "from-purple-500/10 to-purple-600/5", border: "border-purple-500/20", glow: "shadow-purple-500/10", hex: "#a855f7" },
-  { name: "Pink", bg: "from-pink-500/10 to-pink-600/5", border: "border-pink-500/20", glow: "shadow-pink-500/10", hex: "#ec4899" },
-  { name: "Rose", bg: "from-rose-500/10 to-rose-600/5", border: "border-rose-500/20", glow: "shadow-rose-500/10", hex: "#f43f5e" },
-  { name: "Orange", bg: "from-orange-500/10 to-orange-600/5", border: "border-orange-500/20", glow: "shadow-orange-500/10", hex: "#f97316" },
-  { name: "Amber", bg: "from-amber-500/10 to-amber-600/5", border: "border-amber-500/20", glow: "shadow-amber-500/10", hex: "#f59e0b" },
-  { name: "Yellow", bg: "from-yellow-500/10 to-yellow-600/5", border: "border-yellow-500/20", glow: "shadow-yellow-500/10", hex: "#eab308" },
-  { name: "Lime", bg: "from-lime-500/10 to-lime-600/5", border: "border-lime-500/20", glow: "shadow-lime-500/10", hex: "#84cc16" },
-  { name: "Green", bg: "from-green-500/10 to-green-600/5", border: "border-green-500/20", glow: "shadow-green-500/10", hex: "#22c55e" },
-  { name: "Emerald", bg: "from-emerald-500/10 to-emerald-600/5", border: "border-emerald-500/20", glow: "shadow-emerald-500/10", hex: "#10b981" },
-  { name: "Teal", bg: "from-teal-500/10 to-teal-600/5", border: "border-teal-500/20", glow: "shadow-teal-500/10", hex: "#14b8a6" },
-  { name: "Cyan", bg: "from-cyan-500/10 to-cyan-600/5", border: "border-cyan-500/20", glow: "shadow-cyan-500/10", hex: "#06b6d4" },
-  { name: "Sky", bg: "from-sky-500/10 to-sky-600/5", border: "border-sky-500/20", glow: "shadow-sky-500/10", hex: "#0ea5e9" },
-  { name: "Indigo", bg: "from-indigo-500/10 to-indigo-600/5", border: "border-indigo-500/20", glow: "shadow-indigo-500/10", hex: "#6366f1" },
-  { name: "Violet", bg: "from-violet-500/10 to-violet-600/5", border: "border-violet-500/20", glow: "shadow-violet-500/10", hex: "#8b5cf6" },
+  { name: "Slate", bg: "bg-slate-900/80", border: "border-slate-700/50", accent: "bg-slate-500", text: "text-slate-200", muted: "text-slate-400", hex: "#64748b" },
+  { name: "Blue", bg: "bg-blue-950/80", border: "border-blue-700/50", accent: "bg-blue-500", text: "text-blue-100", muted: "text-blue-300", hex: "#3b82f6" },
+  { name: "Purple", bg: "bg-purple-950/80", border: "border-purple-700/50", accent: "bg-purple-500", text: "text-purple-100", muted: "text-purple-300", hex: "#a855f7" },
+  { name: "Pink", bg: "bg-pink-950/80", border: "border-pink-700/50", accent: "bg-pink-500", text: "text-pink-100", muted: "text-pink-300", hex: "#ec4899" },
+  { name: "Rose", bg: "bg-rose-950/80", border: "border-rose-700/50", accent: "bg-rose-500", text: "text-rose-100", muted: "text-rose-300", hex: "#f43f5e" },
+  { name: "Orange", bg: "bg-orange-950/80", border: "border-orange-700/50", accent: "bg-orange-500", text: "text-orange-100", muted: "text-orange-300", hex: "#f97316" },
+  { name: "Amber", bg: "bg-amber-950/80", border: "border-amber-700/50", accent: "bg-amber-500", text: "text-amber-100", muted: "text-amber-300", hex: "#f59e0b" },
+  { name: "Yellow", bg: "bg-yellow-950/80", border: "border-yellow-700/50", accent: "bg-yellow-500", text: "text-yellow-100", muted: "text-yellow-300", hex: "#eab308" },
+  { name: "Lime", bg: "bg-lime-950/80", border: "border-lime-700/50", accent: "bg-lime-500", text: "text-lime-100", muted: "text-lime-300", hex: "#84cc16" },
+  { name: "Green", bg: "bg-green-950/80", border: "border-green-700/50", accent: "bg-green-500", text: "text-green-100", muted: "text-green-300", hex: "#22c55e" },
+  { name: "Emerald", bg: "bg-emerald-950/80", border: "border-emerald-700/50", accent: "bg-emerald-500", text: "text-emerald-100", muted: "text-emerald-300", hex: "#10b981" },
+  { name: "Teal", bg: "bg-teal-950/80", border: "border-teal-700/50", accent: "bg-teal-500", text: "text-teal-100", muted: "text-teal-300", hex: "#14b8a6" },
+  { name: "Cyan", bg: "bg-cyan-950/80", border: "border-cyan-700/50", accent: "bg-cyan-500", text: "text-cyan-100", muted: "text-cyan-300", hex: "#06b6d4" },
+  { name: "Sky", bg: "bg-sky-950/80", border: "border-sky-700/50", accent: "bg-sky-500", text: "text-sky-100", muted: "text-sky-300", hex: "#0ea5e9" },
+  { name: "Indigo", bg: "bg-indigo-950/80", border: "border-indigo-700/50", accent: "bg-indigo-500", text: "text-indigo-100", muted: "text-indigo-300", hex: "#6366f1" },
+  { name: "Violet", bg: "bg-violet-950/80", border: "border-violet-700/50", accent: "bg-violet-500", text: "text-violet-100", muted: "text-violet-300", hex: "#8b5cf6" },
 ];
 
 export function getRandomColorIndex(): number {
@@ -42,9 +42,10 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
   const updateNode = useFlowStore((s) => s.updateNode);
   const deleteNode = useFlowStore((s) => s.deleteNode);
   const [isEditing, setIsEditing] = useState(false);
-  const [showColorMenu, setShowColorMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   const colorIndex = data.colorIndex ?? 0;
   const colorTheme = COMMENT_COLORS[colorIndex] ?? COMMENT_COLORS[0];
@@ -56,34 +57,29 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     [id, updateNode]
   );
 
-  // Single click to edit
-  const handleClick = useCallback((e: React.MouseEvent) => {
+  // Double click to edit for better UX
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isEditing) {
-      setIsEditing(true);
-    }
-  }, [isEditing]);
+    setIsEditing(true);
+  }, []);
 
   const handleBlur = useCallback(() => {
     setIsEditing(false);
   }, []);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMenuPosition({ x: e.clientX + 8, y: e.clientY - 20 });
-    setShowColorMenu(true);
-  }, []);
-
   const handleColorChange = useCallback((newColorIndex: number) => {
     updateNode(id, { colorIndex: newColorIndex });
-    setShowColorMenu(false);
+    setShowColorPicker(false);
   }, [id, updateNode]);
 
   const handleDelete = useCallback(() => {
     deleteNode(id);
-    setShowColorMenu(false);
   }, [id, deleteNode]);
+
+  const toggleColorPicker = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowColorPicker(prev => !prev);
+  }, []);
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -94,32 +90,32 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
     }
   }, [isEditing]);
 
-  // Close color menu when clicking anywhere
+  // Close color picker when clicking outside
   useEffect(() => {
-    if (!showColorMenu) return;
+    if (!showColorPicker) return;
     
-    const handleClick = () => {
-      setShowColorMenu(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
     };
     
     const timer = setTimeout(() => {
-      document.addEventListener("click", handleClick);
-      document.addEventListener("contextmenu", handleClick);
+      document.addEventListener("mousedown", handleClickOutside);
     }, 0);
     
     return () => {
       clearTimeout(timer);
-      document.removeEventListener("click", handleClick);
-      document.removeEventListener("contextmenu", handleClick);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showColorMenu]);
+  }, [showColorPicker]);
 
   // Handle keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
         setIsEditing(false);
-        setShowColorMenu(false);
+        setShowColorPicker(false);
         textareaRef.current?.blur();
       }
       e.stopPropagation();
@@ -128,128 +124,169 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
   );
 
   return (
-    <>
-      <div
-        className={cn(
-          "group relative rounded-xl transition-all duration-300",
-          "bg-gradient-to-br backdrop-blur-xl backdrop-saturate-150",
-          colorTheme.bg,
-          "border",
-          colorTheme.border,
-          "shadow-lg",
-          colorTheme.glow,
-          selected && "ring-1 ring-white/20",
-          "w-[200px] h-[100px]"
-        )}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-      >
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+    <div
+      className={cn(
+        "group relative w-[220px] min-h-[120px] transition-all duration-200 ease-out",
+        "rounded-2xl overflow-hidden",
+        colorTheme.bg,
+        "border",
+        colorTheme.border,
+        "backdrop-blur-xl",
+        "shadow-xl shadow-black/20",
+        selected && "ring-2 ring-white/30 ring-offset-2 ring-offset-transparent",
+        isHovered && !selected && "shadow-2xl shadow-black/30 scale-[1.02]"
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onDoubleClick={handleDoubleClick}
+    >
+      {/* Decorative accent bar at top */}
+      <div className={cn("h-1 w-full", colorTheme.accent)} />
 
-        <div className="p-3 h-full relative">
-          {isEditing ? (
-            <textarea
-              ref={textareaRef}
-              value={data.text ?? ""}
-              onChange={handleTextChange}
-              onBlur={handleBlur}
-              onKeyDown={handleKeyDown}
-              placeholder="Add a note..."
-              className={cn(
-                "w-full h-full resize-none bg-transparent",
-                "text-xs text-zinc-200 placeholder-zinc-500",
-                "focus:outline-none",
-                "nodrag nowheel"
-              )}
-            />
-          ) : (
-            <div
-              className={cn(
-                "w-full h-full text-xs cursor-text whitespace-pre-wrap overflow-hidden",
-                data.text ? "text-zinc-200" : "text-zinc-500 italic"
-              )}
-            >
-              {data.text || "Click to add note..."}
-            </div>
-          )}
+      {/* Header with icon */}
+      <div className="px-3 pt-2.5 pb-1 flex items-center gap-2">
+        <div className={cn(
+          "w-5 h-5 rounded-md flex items-center justify-center",
+          colorTheme.accent,
+          "bg-opacity-20"
+        )}>
+          <MessageSquare className={cn("w-3 h-3", colorTheme.text)} strokeWidth={2.5} />
         </div>
+        <span className={cn("text-[10px] font-semibold uppercase tracking-wider", colorTheme.muted)}>
+          Note
+        </span>
+      </div>
 
-        {!isEditing && (
-          <div className="absolute bottom-1 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-[9px] text-zinc-600">Right-click for colors</span>
+      {/* Content area */}
+      <div className="px-3 pb-3 pt-1">
+        {isEditing ? (
+          <textarea
+            ref={textareaRef}
+            value={data.text ?? ""}
+            onChange={handleTextChange}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            placeholder="Write something..."
+            className={cn(
+              "w-full min-h-[60px] resize-none bg-transparent",
+              "text-[13px] leading-relaxed",
+              colorTheme.text,
+              "placeholder:opacity-50",
+              "focus:outline-none",
+              "nodrag nowheel"
+            )}
+            autoFocus
+          />
+        ) : (
+          <div
+            className={cn(
+              "min-h-[60px] text-[13px] leading-relaxed cursor-text",
+              "whitespace-pre-wrap break-words",
+              data.text ? colorTheme.text : cn(colorTheme.muted, "opacity-60 italic")
+            )}
+          >
+            {data.text || "Double-click to add a note..."}
           </div>
         )}
       </div>
 
-      {/* Color picker menu - compact size matching other context menus */}
-      {showColorMenu && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed z-[9999] rounded-xl min-w-[180px]"
-          style={{
-            left: menuPosition.x,
-            top: menuPosition.y,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/50">
-            {/* Header */}
-            <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 bg-white/5">
-              <Palette className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="text-xs font-medium text-zinc-200">Note Color</span>
-            </div>
-            
-            {/* Color grid */}
-            <div className="p-2">
-              <div className="grid grid-cols-4 gap-1.5">
-                {COMMENT_COLORS.map((color, index) => (
-                  <button
-                    key={color.name}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleColorChange(index);
-                    }}
-                    className={cn(
-                      "w-7 h-7 rounded-lg transition-all",
-                      "hover:scale-110",
-                      index === colorIndex && "ring-2 ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
-                    )}
-                    style={{ backgroundColor: color.hex }}
-                    title={color.name}
-                  />
-                ))}
-              </div>
+      {/* Floating toolbar - appears on hover */}
+      <div className={cn(
+        "absolute top-2 right-2 flex items-center gap-1",
+        "transition-all duration-200",
+        (isHovered || showColorPicker) ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 pointer-events-none"
+      )}>
+        {/* Color picker button */}
+        <div className="relative" ref={colorPickerRef}>
+          <button
+            onClick={toggleColorPicker}
+            className={cn(
+              "w-6 h-6 rounded-lg flex items-center justify-center",
+              "bg-black/30 hover:bg-black/50 backdrop-blur-sm",
+              "border border-white/10 hover:border-white/20",
+              "transition-all duration-150",
+              "nodrag"
+            )}
+            title="Change color"
+          >
+            <div 
+              className="w-3 h-3 rounded-full ring-1 ring-white/30"
+              style={{ backgroundColor: colorTheme.hex }}
+            />
+          </button>
 
-              {/* Selected indicator */}
-              <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500">Selected</span>
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: colorTheme.hex }}
-                  />
-                  <span className="text-[10px] text-zinc-400">{colorTheme.name}</span>
+          {/* Inline color picker dropdown */}
+          {showColorPicker && typeof document !== "undefined" && createPortal(
+            <div
+              className="fixed z-[9999]"
+              style={{
+                left: colorPickerRef.current?.getBoundingClientRect().left ?? 0,
+                top: (colorPickerRef.current?.getBoundingClientRect().bottom ?? 0) + 8,
+              }}
+            >
+              <div className={cn(
+                "bg-zinc-900/95 backdrop-blur-xl",
+                "border border-white/10 rounded-xl",
+                "shadow-2xl shadow-black/50",
+                "p-2 w-[200px]",
+                "animate-in fade-in-0 zoom-in-95 duration-150"
+              )}>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {COMMENT_COLORS.map((color, index) => (
+                    <button
+                      key={color.name}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleColorChange(index);
+                      }}
+                      className={cn(
+                        "w-10 h-10 rounded-lg transition-all duration-150",
+                        "hover:scale-110 hover:z-10",
+                        "flex items-center justify-center",
+                        "ring-1 ring-white/10",
+                        index === colorIndex && "ring-2 ring-white/60"
+                      )}
+                      style={{ backgroundColor: color.hex }}
+                      title={color.name}
+                    >
+                      {index === colorIndex && (
+                        <Check className="w-4 h-4 text-white drop-shadow-md" strokeWidth={3} />
+                      )}
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
+          )}
+        </div>
 
-            {/* Delete */}
-            <div className="p-1.5 border-t border-white/10">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete();
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
+        {/* Delete button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDelete();
+          }}
+          className={cn(
+            "w-6 h-6 rounded-lg flex items-center justify-center",
+            "bg-black/30 hover:bg-red-500/80 backdrop-blur-sm",
+            "border border-white/10 hover:border-red-400/50",
+            "transition-all duration-150",
+            "group/delete nodrag"
+          )}
+          title="Delete note"
+        >
+          <Trash2 className="w-3 h-3 text-zinc-400 group-hover/delete:text-white transition-colors" />
+        </button>
+      </div>
+
+      {/* Subtle corner decoration */}
+      <div className={cn(
+        "absolute bottom-0 right-0 w-8 h-8",
+        "bg-gradient-to-tl from-white/5 to-transparent",
+        "rounded-tl-2xl pointer-events-none"
+      )} />
+    </div>
   );
 }
 

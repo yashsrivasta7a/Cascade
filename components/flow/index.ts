@@ -80,7 +80,7 @@ export { NodeInspector } from "./node-inspector";
 export { NodeContextMenu } from "./node-context-menu";
 export { ExecutionPanel } from "./execution-panel";
 export { ActivityPanel } from "./activity-panel";
-export type { ActivityPanelError } from "./activity-panel";
+export type { ActivityPanelError, WorkflowError, ErrorSeverity } from "./activity-panel";
 export { AssetManagerPanel } from "./asset-manager-panel";
 export { CreditsPanel } from "./credits-panel";
 export { WorkflowSidebar } from "./workflow-sidebar";

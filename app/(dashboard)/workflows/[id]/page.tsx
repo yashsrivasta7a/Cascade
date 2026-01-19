@@ -42,6 +42,7 @@ import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
 import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 import { cn } from "@/lib/utils";
+import { showInsufficientCredits } from "@/lib/toast";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
@@ -1061,6 +1062,19 @@ function WorkflowEditorContent() {
     onError: (message) => {
       console.error(`[SSE] Error: ${message}`);
       
+      // Check if it's an insufficient credits error and show toast
+      if (message.toLowerCase().includes("insufficient credits")) {
+        // Parse credits from message if available (format: "Required: X, Available: Y")
+        const match = message.match(/Required:\s*([\d,]+).*Available:\s*([\d,]+)/i);
+        if (match) {
+          const required = parseInt(match[1].replace(/,/g, ""), 10);
+          const available = parseInt(match[2].replace(/,/g, ""), 10);
+          showInsufficientCredits(required, available);
+        } else {
+          showInsufficientCredits();
+        }
+      }
+      
       const newError: WorkflowError = {
         id: `workflow-${Date.now()}`,
         nodeId: "workflow",
@@ -1129,6 +1143,9 @@ function WorkflowEditorContent() {
 
     // Check if user has enough credits
     if (creditBalance < estimatedCost) {
+      // Show toast notification for insufficient credits
+      showInsufficientCredits(estimatedCost, creditBalance);
+      
       const newError: WorkflowError = {
         id: `credits-${Date.now()}`,
         nodeId: "workflow",
