@@ -204,18 +204,39 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   
+  // Track last flush time for heartbeat mechanism
+  let lastFlushTime = Date.now();
+  const HEARTBEAT_INTERVAL = 3000; // Send heartbeat every 3 seconds to prevent buffering
+  
   const sendEvent = (controller: ReadableStreamDefaultController, event: string, data: unknown) => {
     try {
       const sanitized = sanitizeForSSE(data);
       const message = `event: ${event}\ndata: ${JSON.stringify(sanitized)}\n\n`;
       controller.enqueue(encoder.encode(message));
+      lastFlushTime = Date.now();
     } catch (e) {
       console.error("[SSE] Failed to send event:", e);
+    }
+  };
+  
+  // Send SSE comment to flush the buffer (keeps connection alive on Vercel)
+  const sendHeartbeat = (controller: ReadableStreamDefaultController) => {
+    try {
+      // SSE comment (starts with :) - doesn't trigger event handlers but flushes buffer
+      controller.enqueue(encoder.encode(": heartbeat\n\n"));
+      lastFlushTime = Date.now();
+    } catch (e) {
+      // Ignore errors during heartbeat
     }
   };
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Send initial comment immediately to kick the stream on Vercel
+      // This forces the response to start streaming right away
+      controller.enqueue(encoder.encode(": stream started\n\n"));
+      lastFlushTime = Date.now();
+      
       try {
         const { userId: clerkUserId } = await auth();
         if (!clerkUserId) {
@@ -388,6 +409,15 @@ export async function POST(request: NextRequest) {
           timestamp: number;
         }
         
+        // Start heartbeat interval to prevent Vercel buffering
+        // Declared with let so it can be accessed in catch block
+        let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+        heartbeatInterval = setInterval(() => {
+          if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+            sendHeartbeat(controller);
+          }
+        }, HEARTBEAT_INTERVAL);
+        
         try {
           // Subscribe to the run - receives updates on status AND metadata changes
           for await (const run of runs.subscribeToRun(handle.id)) {
@@ -396,6 +426,11 @@ export async function POST(request: NextRequest) {
               console.log(`[WorkflowStream] Subscription timeout reached`);
               sendEvent(controller, "error", { message: "Workflow execution timeout" });
               break;
+            }
+            
+            // Send heartbeat if no events for a while (forces Vercel buffer flush)
+            if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+              sendHeartbeat(controller);
             }
             
             console.log(`[WorkflowStream] Run update: status=${run.status}, metadata keys=${Object.keys(run.metadata || {}).join(",")}`);
@@ -459,6 +494,10 @@ export async function POST(request: NextRequest) {
           
           // Fallback to DB polling if subscription fails
           while (!workflowDone) {
+            // Send heartbeat during polling to prevent buffering
+            if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+              sendHeartbeat(controller);
+            }
             if (Date.now() - startTime > maxTime) {
               console.log(`[WorkflowStream] Polling timeout reached`);
               sendEvent(controller, "error", { message: "Workflow execution timeout" });
@@ -597,10 +636,16 @@ export async function POST(request: NextRequest) {
           status: finalWorkflow?.status || "UNKNOWN",
         });
 
+        // Clean up heartbeat interval
+        clearInterval(heartbeatInterval);
         controller.close();
 
       } catch (error) {
         console.error("[WorkflowStream] Error:", error);
+        // Clean up heartbeat interval on error (if it was created)
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+        }
         sendEvent(controller, "error", { 
           message: error instanceof Error ? error.message : "Unknown error" 
         });
@@ -612,8 +657,12 @@ export async function POST(request: NextRequest) {
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
+      // Critical for Vercel/nginx proxy - disable response buffering
+      "X-Accel-Buffering": "no",
+      // Ensure no compression which can cause buffering
+      "Content-Encoding": "none",
     },
   });
 }
