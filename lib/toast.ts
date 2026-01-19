@@ -219,3 +219,37 @@ export function showLLMParseError(targetNode: string, targetField: string, error
     duration: 6000,
   });
 }
+
+// =============================================================================
+// SKIP NODE TOASTS
+// =============================================================================
+
+/**
+ * Show warning when skip is enabled but node has no output to use
+ */
+export function showSkipWarning(nodeName: string) {
+  return showWarning(`${nodeName} is skipped but has no output`, {
+    description: "Run this node first or disable skip to continue.",
+    duration: 5000,
+  });
+}
+
+/**
+ * Show info when all nodes in workflow are skipped
+ */
+export function showAllSkippedWarning() {
+  return showInfo("All nodes are skipped", {
+    description: "Nothing to execute. 0 credits used.",
+    duration: 4000,
+  });
+}
+
+/**
+ * Show success when node execution was skipped (used existing output)
+ */
+export function showSkipped(nodeName: string) {
+  return showInfo(`${nodeName} skipped`, {
+    description: "Using existing output. 0 credits used.",
+    duration: 2000,
+  });
+}

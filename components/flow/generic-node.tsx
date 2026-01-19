@@ -847,12 +847,28 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
     return true;
   }, [nodeConfig, data, isFieldConnected]);
 
+  // Check if node has output (for skip feature)
+  const hasOutput = Boolean(data.result && (typeof data.result === "string" ? data.result.trim().length > 0 : true));
+  
+  // Skip toggle handler - update node data and propagate if has output
+  const handleSkipToggle = useCallback((newSkip: boolean) => {
+    updateNode(id, { skip: newSkip });
+    
+    // If enabling skip and we have output, propagate it to downstream nodes
+    if (newSkip && hasOutput && data.result) {
+      propagateOutput(id, data.result as string);
+    }
+  }, [id, updateNode, hasOutput, data.result, propagateOutput]);
+
   return (
     <BaseNode
       {...props}
       nodeType={nodeType}
       color={nodeConfig.color as any}
       layout={nodeConfig.ui.layout || "vertical"}
+      skip={data.skip === true}
+      hasOutput={hasOutput}
+      onSkipToggle={handleSkipToggle}
       data={{
         ...data,
         nodeType, // Also include in data for consistency

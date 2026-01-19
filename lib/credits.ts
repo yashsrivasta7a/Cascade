@@ -278,6 +278,29 @@ export function calculateWorkflowCost(nodeTypes: string[]): number {
 }
 
 /**
+ * Calculate total estimated cost for a workflow, excluding skipped nodes.
+ * Takes full node objects to check the skip flag.
+ */
+export function calculateWorkflowCostExcludingSkipped(
+  nodes: Array<{ type?: string | null; data?: Record<string, unknown> }>
+): number {
+  return nodes.reduce((total, node) => {
+    const nodeData = node.data ?? {};
+    const nodeType = node.type;
+    
+    // Skip nodes with skip=true (they won't execute)
+    if (nodeData.skip === true) {
+      return total;
+    }
+    
+    if (nodeType) {
+      return total + getNodeCost(nodeType);
+    }
+    return total;
+  }, 0);
+}
+
+/**
  * Check if user has enough credits for an estimated cost.
  */
 export function hasEnoughCredits(balance: number, estimatedCost: number): boolean {

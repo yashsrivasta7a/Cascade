@@ -777,6 +777,7 @@ export const useFlowStore = create<FlowState>()(
         get().recordHistory();
 
         const newId = `node-${Date.now()}-dup`;
+        const originalData = original.data as Record<string, unknown>;
         const newNode: Node = {
           ...original,
           id: newId,
@@ -785,6 +786,11 @@ export const useFlowStore = create<FlowState>()(
             y: original.position.y + 40,
           },
           selected: false,
+          data: {
+            ...originalData,
+            // Don't copy skip flag - duplicated nodes should default to running normally
+            skip: false,
+          },
         };
 
         set({
@@ -1046,10 +1052,11 @@ export const useFlowStore = create<FlowState>()(
           selected: true,
           data: {
             ...(node.data as Record<string, unknown>),
-            // Clear execution state
+            // Clear execution state and skip flag
             status: undefined,
             error: undefined,
             result: undefined,
+            skip: false, // Pasted nodes should default to running normally
           },
         }));
         
@@ -1126,15 +1133,23 @@ export const useFlowStore = create<FlowState>()(
         
         // Create duplicated nodes
         const nodesToDuplicate = state.nodes.filter(n => selectedIds.includes(n.id));
-        const newNodes: Node[] = nodesToDuplicate.map(node => ({
-          ...JSON.parse(JSON.stringify(node)),
-          id: idMap.get(node.id)!,
-          position: {
-            x: node.position.x + 40,
-            y: node.position.y + 40,
-          },
-          selected: true,
-        }));
+        const newNodes: Node[] = nodesToDuplicate.map(node => {
+          const clonedNode = JSON.parse(JSON.stringify(node));
+          return {
+            ...clonedNode,
+            id: idMap.get(node.id)!,
+            position: {
+              x: node.position.x + 40,
+              y: node.position.y + 40,
+            },
+            selected: true,
+            data: {
+              ...clonedNode.data,
+              // Don't copy skip flag - duplicated nodes should default to running normally
+              skip: false,
+            },
+          };
+        });
         
         // Duplicate edges between selected nodes
         const edgesToDuplicate = state.edges.filter(

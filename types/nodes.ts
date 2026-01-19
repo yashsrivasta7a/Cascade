@@ -384,12 +384,14 @@ export const SeedreamConfigSchema = z.object({
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).default("1:1"),
   seed: z.number().optional(),
   useCache: z.boolean().default(false), // When false, always execute fresh
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const SeedVRConfigSchema = z.object({
   scale: z.enum(["2x", "4x"]).default("2x"),
   enhanceFaces: z.boolean().default(false),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const SeedanceConfigSchema = z.object({
@@ -398,6 +400,7 @@ export const SeedanceConfigSchema = z.object({
   aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
   seed: z.number().optional(),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const ElevenLabsConfigSchema = z.object({
@@ -406,6 +409,7 @@ export const ElevenLabsConfigSchema = z.object({
   stability: z.number().min(0).max(1).default(0.5),
   clarity: z.number().min(0).max(1).default(0.75),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const OpenRouterConfigSchema = z.object({
@@ -419,11 +423,13 @@ export const OpenRouterConfigSchema = z.object({
   presencePenalty: z.number().min(-2).max(2).optional(), // Topic penalty
   imageUrl: z.string().optional(), // Vision input - URL or base64 data URL
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const LipsyncConfigSchema = z.object({
   model: z.enum(["sync-1.5", "sync-1.6-beta"]).default("sync-1.5"),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const CropImageConfigSchema = z.object({
@@ -433,17 +439,20 @@ export const CropImageConfigSchema = z.object({
   widthPercent: z.number().min(1).max(100).default(100),
   heightPercent: z.number().min(1).max(100).default(100),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const MergeAudioVideoConfigSchema = z.object({
   replaceAudio: z.boolean().default(true),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const MergeVideosConfigSchema = z.object({
   transition: z.enum(["none", "fade", "dissolve"]).default("none"),
   transitionDuration: z.number().min(0).max(2).default(0.5),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 export const ExtractAudioConfigSchema = z.object({
@@ -453,6 +462,7 @@ export const ExtractAudioConfigSchema = z.object({
   channels: z.enum(["1", "2"]).default("2"),
   normalize: z.boolean().default(false),
   useCache: z.boolean().default(false),
+  skip: z.boolean().default(false), // When true, use existing output instead of re-executing
 });
 
 // ============================================================================

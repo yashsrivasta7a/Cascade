@@ -1,9 +1,14 @@
 import { task, wait, runs } from "@trigger.dev/sdk/v3";
+import { config } from "dotenv";
 import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
 import { NODE_CONFIG } from "@/lib/config";
+
+// Load environment variables for Trigger.dev workers
+config({ path: ".env" });
+config({ path: ".env.local" });
 
 // NOTE: Node executors are registered inside executeNode task
 // No engine import here to avoid FFmpeg bundling for Vercel
@@ -545,6 +550,49 @@ export const executeWorkflow = task({
       data: { status: "RUNNING", startedAt: new Date() },
     });
 
+    // ==========================================================================
+    // ALL NODES SKIPPED CHECK - Complete early if all nodes are skipped
+    // ==========================================================================
+    const allNodesSkipped = nodes.every(node => {
+      const nodeData = (node.data ?? {}) as Record<string, unknown>;
+      return nodeData.skip === true;
+    });
+    
+    if (allNodesSkipped && nodes.length > 0) {
+      console.log("[DAG] All nodes are skipped - completing workflow immediately");
+      
+      // Create node execution records and mark as completed/failed based on output
+      for (const node of nodes) {
+        const nodeType = node.type as AINodeType;
+        const nodeData = (node.data ?? {}) as Record<string, unknown>;
+        const existingResult = nodeData.result as string | undefined;
+        const nodeName = (nodeData.label as string) || nodeType;
+        
+        const hasOutput = existingResult && typeof existingResult === "string" && existingResult.trim().length > 0;
+        
+        await db.nodeExecution.create({
+          data: {
+            workflowExecutionId,
+            nodeId: node.id,
+            nodeType,
+            nodeLabel: nodeName,
+            status: hasOutput ? "COMPLETED" : "FAILED",
+            startedAt: new Date(),
+            completedAt: new Date(),
+            error: hasOutput ? null : `Skip enabled but no cached output available for "${nodeName}"`,
+          },
+        });
+      }
+      
+      // Mark workflow as completed
+      await db.workflowExecution.update({
+        where: { id: workflowExecutionId },
+        data: { status: "COMPLETED", completedAt: new Date() },
+      });
+      
+      return { status: "all_skipped", message: "All nodes were skipped" };
+    }
+
     // Build dependency graph for DAG execution
     const { dependencies } = buildDependencyGraph(nodes, edges);
     
@@ -657,10 +705,72 @@ export const executeWorkflow = task({
       console.log(`[DAG] Marked ${marked.size} nodes as failed (including dependents): ${[...marked].join(", ")}`);
     };
 
-    // Helper: Start a node (non-blocking)
+    // Helper: Start a node (non-blocking) - or skip if skip=true and has output
     const startNode = async (node: Node) => {
       const nodeType = node.type as AINodeType;
       const nodeExecutionId = nodeExecutionIds.get(node.id)!;
+      const nodeData = (node.data ?? {}) as Record<string, unknown>;
+      
+      // =======================================================================
+      // SKIP CHECK - If skip=true and node has existing output, use it
+      // =======================================================================
+      if (nodeData.skip === true) {
+        const existingResult = nodeData.result as string | undefined;
+        const nodeName = (nodeData.label as string) || nodeType;
+        
+        if (existingResult && typeof existingResult === "string" && existingResult.trim().length > 0) {
+          console.log(`[DAG] Node ${node.id} (${nodeType}) SKIPPED - using existing output`);
+          
+          // Determine output type based on node type
+          const outputType = inferOutputType(nodeType);
+          let skipOutput: Record<string, unknown>;
+          
+          if (outputType === "text") {
+            skipOutput = { type: "text", text: existingResult };
+          } else if (outputType === "image") {
+            skipOutput = { type: "image", image: { url: existingResult } };
+          } else if (outputType === "video") {
+            skipOutput = { type: "video", video: { url: existingResult } };
+          } else {
+            skipOutput = { type: "audio", audio: { url: existingResult } };
+          }
+          
+          // Store output for downstream nodes
+          outputs.set(node.id, skipOutput);
+          completedNodes.add(node.id);
+          pendingNodes.delete(node.id);
+          
+          // Update database to mark as completed (skipped)
+          await db.nodeExecution.update({
+            where: { id: nodeExecutionId },
+            data: {
+              status: "COMPLETED",
+              startedAt: new Date(),
+              completedAt: new Date(),
+              outputJson: skipOutput as object,
+              error: null,
+            },
+          });
+          
+          console.log(`[DAG] Node ${node.id} skipped successfully, output:`, { url: existingResult?.slice(0, 60) });
+          return; // Don't actually execute the node
+        } else {
+          // Skip enabled but no output - mark as failed
+          console.log(`[DAG] Node ${node.id} (${nodeType}) SKIP FAILED - no existing output`);
+          await db.nodeExecution.update({
+            where: { id: nodeExecutionId },
+            data: {
+              status: "FAILED",
+              startedAt: new Date(),
+              completedAt: new Date(),
+              error: `Skip enabled but no cached output available for "${nodeName}"`,
+            },
+          });
+          
+          await markNodeAndDependentsFailed(node.id, `Skip enabled but no cached output available for "${nodeName}"`);
+          return;
+        }
+      }
 
       console.log(`[DAG] Starting ${node.id} (${nodeType})...`);
       const input = buildNodeInput(node, edges, outputs, nodes);
@@ -691,9 +801,17 @@ export const executeWorkflow = task({
 
     // Start all nodes that have no dependencies
     console.log(`[DAG] ===== Starting DAG execution for ${nodes.length} nodes =====`);
-    for (const node of nodes) {
-      if (canStart(node.id) && pendingNodes.has(node.id)) {
-        await startNode(node);
+    
+    // Keep starting nodes until no more can be started
+    // This handles the case where skipped nodes complete instantly and unblock dependents
+    let startedAny = true;
+    while (startedAny) {
+      startedAny = false;
+      for (const node of nodes) {
+        if (canStart(node.id) && pendingNodes.has(node.id)) {
+          await startNode(node);
+          startedAny = true;
+        }
       }
     }
 
@@ -736,6 +854,17 @@ export const executeWorkflow = task({
         if (hasDependencyFailed(pendingNodeId)) {
           console.log(`[DAG] Node ${pendingNodeId} has failed dependency, marking as failed`);
           await markNodeAndDependentsFailed(pendingNodeId, "Dependency failed");
+        }
+      }
+      
+      // Check if any pending nodes can now start (handles skipped nodes completing instantly)
+      for (const pendingNodeId of Array.from(pendingNodes)) {
+        if (canStart(pendingNodeId)) {
+          const pendingNode = nodes.find(n => n.id === pendingNodeId);
+          if (pendingNode) {
+            console.log(`[DAG] Poll start: Dependencies satisfied for ${pendingNodeId}, starting...`);
+            await startNode(pendingNode);
+          }
         }
       }
       
