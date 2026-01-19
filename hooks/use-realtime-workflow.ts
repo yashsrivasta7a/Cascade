@@ -103,7 +103,6 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
           if (previousStatus === status) continue;
           
           processedNodeStatuses.current.set(ne.nodeId, status);
-          console.log(`[RealtimeWorkflow] Node ${ne.nodeId}: ${previousStatus ?? 'queued'} → ${status}`);
 
           if (status === "running") {
             callbacksRef.current?.onNodeStarted?.(ne.nodeId, ne.nodeType);
@@ -126,8 +125,6 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
           const failCount = nodeExecutions.filter((ne: { status: string }) => 
             ne.status?.toUpperCase() === "FAILED"
           ).length;
-
-          console.log(`[RealtimeWorkflow] Workflow ${workflowStatus}: ${successCount} succeeded, ${failCount} failed`);
           
           callbacksRef.current?.onWorkflowCompleted?.({
             successCount,
@@ -144,8 +141,8 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
         if (!isCancelled && !workflowCompleted.current) {
           setTimeout(pollNodeStatuses, POLL_INTERVAL);
         }
-      } catch (error) {
-        console.error("[RealtimeWorkflow] Poll error:", error);
+      } catch {
+        // Poll error - retry
         if (!isCancelled && !workflowCompleted.current) {
           setTimeout(pollNodeStatuses, POLL_INTERVAL);
         }
@@ -163,12 +160,10 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
   // Trigger the workflow
   const runWorkflow = useCallback(async (nodes: Node[], edges: Edge[], overrideWorkflowId?: string) => {
     if (isRunning) {
-      console.warn("[RealtimeWorkflow] Workflow already running");
       return;
     }
 
     const effectiveWorkflowId = overrideWorkflowId || workflowId;
-    console.log("[RealtimeWorkflow] Starting workflow:", effectiveWorkflowId);
 
     // Reset state
     setIsRunning(true);
@@ -201,8 +196,6 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
         throw new Error(data.error || "Failed to trigger workflow");
       }
 
-      console.log("[RealtimeWorkflow] Workflow triggered:", data.triggerRunId);
-
       // Store IDs
       setWorkflowExecutionId(data.workflowExecutionId ?? null);
       setTriggerRunId(data.triggerRunId);
@@ -215,7 +208,6 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
       });
 
     } catch (error) {
-      console.error("[RealtimeWorkflow] Error:", error);
       callbacksRef.current?.onError?.(error instanceof Error ? error.message : "Unknown error");
       setIsRunning(false);
     }
@@ -230,8 +222,8 @@ export function useRealtimeWorkflow(workflowId: string, callbacks?: RealtimeWork
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "workflow" }),
         });
-      } catch (error) {
-        console.error("[RealtimeWorkflow] Error cancelling:", error);
+      } catch {
+        // Ignore cancel errors
       }
     }
     workflowCompleted.current = true;
