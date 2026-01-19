@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
             providerUsed: true,
             actualCost: true,
             error: true,
+            outputJson: true, // Include output for polling updates
             startedAt: true,
             completedAt: true,
             createdAt: true,
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
           provider: ne.providerUsed,
           actualCost: ne.actualCost,
           error: ne.error,
+          outputJson: ne.outputJson, // Include output for polling
           startedAt: ne.startedAt?.toISOString(),
           completedAt: ne.completedAt?.toISOString(),
         })),
