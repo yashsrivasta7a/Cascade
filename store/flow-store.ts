@@ -1253,17 +1253,28 @@ export const useFlowStore = create<FlowState>()(
           const edgesToNode = outgoingEdges.filter((e) => e.target === node.id);
           if (edgesToNode.length === 0) return node;
           
-          // Filter out settings connections - they are synced separately in updateNode
+          // Filter out settings connections - BUT keep them if source is LLM (for parsing)
           const nonSettingsEdges = edgesToNode.filter((edge) => {
             const edgeData = edge.data as Record<string, unknown> | undefined;
             const sourceHandle = edge.sourceHandle;
+            const sourceNodeType = edgeData?.sourceNodeType;
             const isSettingsConnection = edgeData?.isSettingsConnection === true || 
                                          edgeData?.fromSettingsPopover === true ||
                                          (sourceHandle?.endsWith("-setting") ?? false);
             const isFullInheritance = edgeData?.isFullInheritance === true;
             
-            // Keep full inheritance edges, skip individual settings edges
-            if (isSettingsConnection && !isFullInheritance) {
+            // Keep full inheritance edges
+            if (isFullInheritance) return true;
+            
+            // IMPORTANT: Keep settings connections from LLM nodes
+            // These need to go through LLM parsing logic
+            if (isSettingsConnection && sourceNodeType === "openrouter") {
+              console.log(`[propagateOutput] Keeping LLM->settings edge ${sourceHandle} -> ${edge.targetHandle} for parsing`);
+              return true;
+            }
+            
+            // Skip other settings edges (they are synced separately)
+            if (isSettingsConnection) {
               console.log(`[propagateOutput] Skipping settings edge ${sourceHandle} -> ${edge.targetHandle}`);
               return false;
             }
