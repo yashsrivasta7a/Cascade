@@ -1,68 +1,103 @@
 ---
 title: Introduction
-description: 'Welcome to the Flowsmith API documentation'
+description: 'Build powerful AI automations visually with Flowsmith'
 ---
 
 # Welcome to Flowsmith
 
-Flowsmith is a visual AI workflow builder that lets you create, manage, and execute AI-powered automation workflows.
+**Flowsmith** is a visual AI workflow builder that lets you create, connect, and execute AI-powered pipelines with an intuitive node-based interface. Build complex AI automations without writing code.
 
-## What you can do with the API
+<Note>
+  Generate images, create videos, synthesize speech, process text with LLMs – all connected visually.
+</Note>
+
+---
+
+## What Can You Build?
 
 <CardGroup cols={2}>
-  <Card
-    title="Manage Workflows"
-    icon="diagram-project"
-    href="/api-reference/workflows/list"
-  >
-    Create, update, and delete workflows programmatically
+  <Card title="AI Image Pipelines" icon="image">
+    Generate images with Seedream, apply transformations, crop, resize, and chain multiple AI models together.
   </Card>
-  <Card
-    title="Execute Workflows"
-    icon="play"
-    href="/api-reference/executions/create"
-  >
-    Trigger workflow executions and monitor their status
+  <Card title="Video Generation" icon="video">
+    Create AI videos with Seedance, merge clips with transitions, extract audio, and build end-to-end video workflows.
   </Card>
-  <Card
-    title="Track Credits"
-    icon="coins"
-    href="/api-reference/credits/balance"
-  >
-    Monitor your credit balance and usage
+  <Card title="Audio & Speech" icon="microphone">
+    Text-to-speech with ElevenLabs, audio extraction from videos, and audio processing pipelines.
   </Card>
-  <Card
-    title="View History"
-    icon="clock-rotate-left"
-    href="/api-reference/executions/list"
-  >
+  <Card title="LLM Automations" icon="brain">
+    Connect OpenRouter LLMs to analyze content, generate prompts, make decisions, and orchestrate complex logic.
+  </Card>
+</CardGroup>
+
+---
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Visual Drag-and-Drop Editor" icon="diagram-project">
+    Build workflows by dragging nodes onto a canvas and connecting them. No code required.
+  </Accordion>
+  
+  <Accordion title="Real-time Execution" icon="bolt">
+    Watch your workflows execute in real-time. See each node's status and output as it happens.
+  </Accordion>
+  
+  <Accordion title="Parallel Processing" icon="layer-group">
+    Independent nodes execute simultaneously for maximum speed.
+  </Accordion>
+  
+  <Accordion title="Cloud Processing" icon="cloud">
+    Heavy media processing in the cloud. No timeouts, no file size limits.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Getting Started
+
+<Steps>
+  <Step title="Create an Account">
+    Sign up at [flowsmiths.vercel.app](https://flowsmiths.vercel.app/sign-up)
+  </Step>
+  <Step title="Build Your First Workflow">
+    Drag nodes, connect them, and configure your AI pipeline.
+  </Step>
+  <Step title="Execute & Iterate">
+    Run your workflow and see real-time results.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn how to authenticate API requests
+  </Card>
+</CardGroup>
+
+---
+
+## API Access
+
+<CardGroup cols={2}>
+  <Card title="Manage Workflows" icon="diagram-project" href="/api-reference/workflows/list">
+    Create, update, and delete workflows via API
+  </Card>
+  <Card title="Execute Workflows" icon="play" href="/api-reference/workflows/execute">
+    Trigger executions and stream progress
+  </Card>
+  <Card title="Track Usage" icon="coins" href="/api-reference/credits/balance">
+    Monitor credit balance and usage
+  </Card>
+  <Card title="View History" icon="clock-rotate-left" href="/api-reference/executions/list">
     Access execution history and logs
   </Card>
 </CardGroup>
 
-## Base URL
+### Base URL
 
-All API requests should be made to:
-
+```bash
+https://flowsmiths.vercel.app/api/v1
 ```
-https://flowsmith-ys7.vercel.app/api/v1
-```
-
-## Need Help?
-
-<CardGroup cols={2}>
-  <Card
-    title="Quick Start"
-    icon="rocket"
-    href="/quickstart"
-  >
-    Get up and running in 5 minutes
-  </Card>
-  <Card
-    title="Authentication"
-    icon="key"
-    href="/authentication"
-  >
-    Learn how to authenticate your requests
-  </Card>
-</CardGroup>

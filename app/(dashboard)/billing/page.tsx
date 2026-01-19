@@ -204,12 +204,13 @@ export default function BillingPage() {
                         <span className="text-4xl font-bold text-gray-900 dark:text-white">{usageStats?.formattedBalance ?? "0"}</span>
                         <span className="text-gray-500 dark:text-zinc-500">credits</span>
                       </div>
-                      <div className="h-2.5 bg-gray-300 dark:bg-zinc-800 rounded-full overflow-hidden mb-2">
+                      <div className="h-3 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden mb-2">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${usageStats?.usagePercentage ?? 0}%` }}
                           transition={{ duration: 0.8, delay: 0.2 }}
-                          className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
+                          className="h-full rounded-full"
+                          style={{ background: 'linear-gradient(to right, #f59e0b, #ea580c)' }}
                         />
                       </div>
                       <p className="text-xs text-gray-500 dark:text-zinc-500 mb-6">{usageStats?.usagePercentage?.toFixed(0) ?? 0}% of plan</p>
@@ -217,9 +218,14 @@ export default function BillingPage() {
                   )}
 
                   <div className="flex gap-3">
-                    <Button leftIcon={<Plus className="w-4 h-4" />} onClick={() => addCreditsMutation.mutate({ amount: DEV_BONUS_CREDITS, type: "BONUS", description: "Dev bonus" })} isLoading={addCreditsMutation.isPending}>
+                    <button
+                      onClick={() => addCreditsMutation.mutate({ amount: DEV_BONUS_CREDITS, type: "BONUS", description: "Dev bonus" })}
+                      disabled={addCreditsMutation.isPending}
+                      className="h-10 px-5 bg-blue-100 hover:bg-blue-200 text-blue-600 text-sm font-bold rounded-xl flex items-center justify-center gap-2 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70 transition-all disabled:opacity-50"
+                    >
+                      {addCreditsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                       Buy Credits
-                    </Button>
+                    </button>
                     <Button variant="outline" leftIcon={<Download className="w-4 h-4" />}>Export</Button>
                   </div>
                 </div>
@@ -228,28 +234,34 @@ export default function BillingPage() {
 
             {/* Quick Stats */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="col-span-12 lg:col-span-4 grid grid-rows-2 gap-4">
-              <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
+              <div className="relative p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
                 <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
-                <div className="relative flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-200 dark:bg-blue-500/10 flex items-center justify-center">
-                    <TrendingDown className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <div className="relative">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 flex items-center justify-center">
+                      <TrendingDown className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-zinc-500 mb-1">Total Spent</p>
+                      <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatCredits(usageStats?.totalSpent ?? 0)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-zinc-500">Total Spent</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{formatCredits(usageStats?.totalSpent ?? 0)}</p>
-                  </div>
+                  <p className="text-xs text-gray-400 dark:text-zinc-600">≈ {creditsToDollars(usageStats?.totalSpent ?? 0)} USD value</p>
                 </div>
               </div>
-              <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
+              <div className="relative p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden group hover:border-blue-300 dark:hover:border-blue-500/20 transition-colors">
                 <DotPattern className="text-blue-500/5 group-hover:text-blue-500/10 transition-colors" />
-                <div className="relative flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-200 dark:bg-blue-500/10 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <div className="relative">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-14 h-14 rounded-2xl bg-violet-100 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-center">
+                      <Zap className="w-7 h-7 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-zinc-500 mb-1">Transactions</p>
+                      <p className="text-3xl font-bold text-gray-900 dark:text-white">{usageStats?.transactionCount ?? 0}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 dark:text-zinc-500">Transactions</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{usageStats?.transactionCount ?? 0}</p>
-                  </div>
+                  <p className="text-xs text-gray-400 dark:text-zinc-600">Total workflow executions</p>
                 </div>
               </div>
             </motion.div>

@@ -4,7 +4,7 @@ import { SignUp } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Zap } from "lucide-react";
+import { useEffect } from "react";
 
 const AuthFlowBackground = dynamic(
   () => import("@/components/auth/auth-flow-background").then((mod) => mod.AuthFlowBackground),
@@ -12,8 +12,22 @@ const AuthFlowBackground = dynamic(
 );
 
 export default function SignUpPage() {
+  // Force dark mode on auth pages
+  useEffect(() => {
+    const html = document.documentElement;
+    const originalTheme = html.classList.contains("light") ? "light" : "dark";
+    html.classList.remove("light");
+    html.classList.add("dark");
+    
+    return () => {
+      // Restore original theme when leaving
+      html.classList.remove("dark");
+      html.classList.add(originalTheme);
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#101010] relative">
+    <div className="dark min-h-screen bg-[#101010] relative">
       {/* Cinematic Background */}
       <AuthFlowBackground />
 
@@ -25,10 +39,9 @@ export default function SignUpPage() {
         className="fixed top-0 left-0 right-0 z-50 p-6"
       >
         <Link href="/" className="inline-flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center transition-transform group-hover:scale-105">
-            <Zap className="w-4.5 h-4.5 text-white" />
-          </div>
-          <span className="text-lg font-semibold text-white/90">Flowsmith</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="Flowsmith" className="w-9 h-9 transition-transform group-hover:scale-105" />
+          <span className="text-lg font-bold text-white/90 tracking-wide uppercase" style={{ fontFamily: 'var(--font-orbitron)' }}>Flowsmith</span>
         </Link>
       </motion.header>
 
@@ -94,7 +107,7 @@ export default function SignUpPage() {
                   formFieldInput:
                     "bg-zinc-800/40 border border-white/[0.06] text-white placeholder:text-zinc-600 focus:border-white/[0.15] focus:ring-0 rounded-xl h-11 text-[14px] px-4 transition-colors",
                   formButtonPrimary:
-                    "bg-white hover:bg-zinc-100 text-zinc-900 border-0 rounded-xl h-11 text-[14px] font-semibold transition-all hover:scale-[1.01] active:scale-[0.99]",
+                    "bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-2 border-blue-500/50 hover:border-blue-500/70 rounded-xl h-11 text-[14px] font-bold transition-all",
                   footerActionLink: "text-white hover:text-cyan-400 font-medium transition-colors",
                   identityPreviewText: "text-white",
                   identityPreviewEditButton: "text-zinc-400 hover:text-white",
@@ -110,7 +123,7 @@ export default function SignUpPage() {
               routing="path"
               path="/sign-up"
               signInUrl="/sign-in"
-              forceRedirectUrl="/workflows"
+              forceRedirectUrl="/dashboard"
             />
           </motion.div>
 

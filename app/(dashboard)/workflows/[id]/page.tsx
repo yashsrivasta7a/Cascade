@@ -193,7 +193,7 @@ function WorkflowEditorContent() {
   const router = useRouter();
   const workflowId = params?.id ?? "unknown";
   const focusParam = searchParams?.get("focus");
-  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode } = useFlowStore();
+  const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode, isAnyNodeUploading } = useFlowStore();
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -279,7 +279,7 @@ function WorkflowEditorContent() {
         case "r":
           e.preventDefault();
           e.stopPropagation();
-          if (!isWorkflowRunning && !isFinalizing) setIsRunModalOpen(true);
+          if (!isWorkflowRunning && !isFinalizing && !isAnyNodeUploading()) setIsRunModalOpen(true);
           break;
         case "w":
         case "t":
@@ -1867,24 +1867,37 @@ function WorkflowEditorContent() {
               {/* Run/Stop button - use both isWorkflowRunning and isSSERunning for reliability */}
               {(() => {
                 const isRunning = isWorkflowRunning || isSSERunning;
+                const isUploading = isAnyNodeUploading();
+                const isDisabled = isFinalizing || isUploading;
                 return (
                   <div className="relative group/runwrap">
                     <motion.button
-                      onClick={() => (isRunning && !isFinalizing) ? handleStopWorkflow() : (!isRunning && !isFinalizing) ? setIsRunModalOpen(true) : undefined}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        if (isRunning) {
+                          handleStopWorkflow();
+                        } else {
+                          setIsRunModalOpen(true);
+                        }
+                      }}
                       onMouseEnter={() => setHoveredAction("run")}
                       onMouseLeave={() => setHoveredAction(null)}
-                      whileTap={{ scale: isFinalizing ? 1 : 0.98 }}
+                      whileTap={{ scale: isDisabled ? 1 : 0.98 }}
                       className={cn(
                         "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all",
                         isFinalizing 
                           ? "bg-amber-100 text-amber-600 border-2 border-amber-400 cursor-wait dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/50"
-                          : isRunning 
-                            ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
-                            : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
+                          : isUploading
+                            ? "bg-zinc-100 text-zinc-400 border-2 border-zinc-300 cursor-not-allowed dark:bg-zinc-800/50 dark:text-zinc-500 dark:border-zinc-700"
+                            : isRunning 
+                              ? "bg-red-100 hover:bg-red-200 text-red-600 border-2 border-red-400 hover:border-red-500 dark:bg-red-500/20 dark:hover:bg-red-500/30 dark:text-red-400 dark:border-red-500/50 dark:hover:border-red-500/70"
+                              : "bg-blue-100 hover:bg-blue-200 text-blue-600 border-2 border-blue-400 hover:border-blue-500 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-400 dark:border-blue-500/50 dark:hover:border-blue-500/70"
                       )}
-                      disabled={isFinalizing}
+                      disabled={isDisabled}
                     >
                       {isFinalizing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isUploading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : isRunning ? (
                         <Square className="w-4 h-4 fill-current" />
@@ -1892,7 +1905,7 @@ function WorkflowEditorContent() {
                         <Play className="w-4 h-4" />
                       )}
                       <span>
-                        {isFinalizing ? "Finalizing..." : isRunning ? "Stop" : "Execute"}
+                        {isFinalizing ? "Finalizing..." : isUploading ? "Uploading..." : isRunning ? "Stop" : "Execute"}
                       </span>
                     </motion.button>
                     
@@ -1905,8 +1918,10 @@ function WorkflowEditorContent() {
                           className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-700 whitespace-nowrap shadow-lg"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-700 dark:text-zinc-300">{isFinalizing ? "Loading outputs..." : isRunning ? "Stop" : "Execute"}</span>
-                            <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>
+                            <span className="text-xs text-gray-700 dark:text-zinc-300">
+                              {isFinalizing ? "Loading outputs..." : isUploading ? "Wait for uploads to finish" : isRunning ? "Stop" : "Execute"}
+                            </span>
+                            {!isUploading && <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>}
                           </div>
                           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-gray-200 dark:border-zinc-700" />
                         </motion.div>

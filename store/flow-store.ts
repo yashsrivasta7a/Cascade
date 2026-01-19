@@ -119,6 +119,9 @@ export interface FlowState {
   currentTriggerRunId: string | null;
   runningNodeIds: Map<string, { executionId: string; triggerRunId?: string }>; // node ID -> execution info
   nodeAbortControllers: Map<string, AbortController>; // node ID -> AbortController for cancellation
+  
+  // Upload tracking - prevents running workflow while any node is uploading
+  uploadingNodeIds: Set<string>;
 
   // Connection dragging state for highlighting compatible nodes
   connectingFrom: {
@@ -146,6 +149,10 @@ export interface FlowState {
   clearNodeRunning: (nodeId: string) => void;
   cancelWorkflow: () => Promise<boolean>;
   cancelNode: (nodeId: string) => Promise<boolean>;
+  
+  // Upload tracking actions
+  setNodeUploading: (nodeId: string, uploading: boolean) => void;
+  isAnyNodeUploading: () => boolean;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
@@ -228,6 +235,8 @@ export const useFlowStore = create<FlowState>()(
         runningNodeIds: new Map(),
         // AbortController map for cancelling running nodes
         nodeAbortControllers: new Map<string, AbortController>(),
+        // Upload tracking - nodes currently uploading files
+        uploadingNodeIds: new Set<string>(),
 
         setWorkflowRunning: (running) => set({ isWorkflowRunning: running }),
         setWorkflowId: (workflowId) => set({ workflowId }),
@@ -253,6 +262,22 @@ export const useFlowStore = create<FlowState>()(
           const newMap = new Map(state.runningNodeIds);
           newMap.delete(nodeId);
           set({ runningNodeIds: newMap });
+        },
+        
+        // Upload tracking - prevents running workflow while any node is uploading
+        setNodeUploading: (nodeId, uploading) => {
+          const state = get();
+          const newSet = new Set(state.uploadingNodeIds);
+          if (uploading) {
+            newSet.add(nodeId);
+          } else {
+            newSet.delete(nodeId);
+          }
+          set({ uploadingNodeIds: newSet });
+        },
+        
+        isAnyNodeUploading: () => {
+          return get().uploadingNodeIds.size > 0;
         },
       
       cancelWorkflow: async () => {

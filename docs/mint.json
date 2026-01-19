@@ -7,16 +7,16 @@
   },
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#06b6d4",
-    "light": "#22d3ee",
-    "dark": "#0891b2",
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#2563EB",
     "background": {
-      "dark": "#101010",
-      "light": "#F3F4F6"
+      "dark": "#0a0a0a",
+      "light": "#F8F9FB"
     },
     "anchors": {
-      "from": "#06b6d4",
-      "to": "#8b5cf6"
+      "from": "#3B82F6",
+      "to": "#3B82F6"
     }
   },
   "theme": "quill",
@@ -42,18 +42,22 @@
   "topbarLinks": [
     {
       "name": "Dashboard",
-      "url": "https://flowsmith-ys7.vercel.app"
+      "url": "https://flowsmiths.vercel.app/dashboard"
     },
     {
       "name": "Changelog",
-      "url": "https://flowsmith-ys7.vercel.app/changelog"
+      "url": "https://flowsmiths.vercel.app/changelog"
     }
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "https://flowsmith-ys7.vercel.app/sign-up",
-    "style": "roundedRectangle"
+    "url": "https://flowsmiths.vercel.app/sign-up",
+    "style": "pill"
   },
+  "styling": {
+    "codeBlock": "dark"
+  },
+  "css": "/custom.css",
   "tabs": [
     {
       "name": "Documentation",
@@ -122,20 +126,15 @@
     "suggestEdit": true,
     "raiseIssue": true
   },
-  "openapi": "https://flowsmith-ys7.vercel.app/api/openapi",
+  "openapi": "https://flowsmiths.vercel.app/api/openapi",
   "api": {
-    "baseUrl": "https://flowsmith-ys7.vercel.app/api/v1",
+    "baseUrl": "https://flowsmiths.vercel.app/api/v1",
     "auth": {
       "method": "bearer",
       "name": "Authorization"
     },
     "playground": {
       "mode": "simple"
-    }
-  },
-  "analytics": {
-    "posthog": {
-      "apiKey": ""
     }
   }
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { memo, useState, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { NodeProps, Handle, Position } from "reactflow";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "./base-node";
 import { useFlowStore } from "@/store";
 import { getNodeConfig } from "@/lib/config";
+
 import type { NodeConfig, FieldConfig } from "@/lib/config/types";
 import { dataTypeColors, type DataType, isTypeCompatible } from "@/types/nodes";
 import { cn } from "@/lib/utils";
@@ -291,6 +292,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   const runNode = useFlowStore((s) => s.runNode);
   const workflowId = useFlowStore((s) => s.workflowId);
   const connectingFrom = useFlowStore((s) => s.connectingFrom);
+  const setNodeUploading = useFlowStore((s) => s.setNodeUploading);
   
   // Dragging state for handle compatibility
   const isDragging = Boolean(connectingFrom);
@@ -304,7 +306,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   const isProcessing = data.status === "running" || data.status === "queued" || isGenerating;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Track uploading state per field
+  // Track uploading state per field and report to global store
   const handleUploadingChange = useCallback((fieldId: string, uploading: boolean) => {
     setUploadingFields((prev) => {
       const next = new Set(prev);
@@ -313,9 +315,18 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       } else {
         next.delete(fieldId);
       }
+      // Report to global store: node is uploading if ANY field is uploading
+      setNodeUploading(id, next.size > 0);
       return next;
     });
-  }, []);
+  }, [id, setNodeUploading]);
+  
+  // Clean up upload status when component unmounts
+  useEffect(() => {
+    return () => {
+      setNodeUploading(id, false);
+    };
+  }, [id, setNodeUploading]);
 
   // Handle field value change
   const handleFieldChange = useCallback(

@@ -1,0 +1,33 @@
+/* Custom styles to match Flowsmith app design */
+
+/* CTA Button - Match "New Workflow" button style */
+.dark [class*="TopbarCta"] a,
+.dark header a[href*="sign-up"] {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 2px solid rgba(59, 130, 246, 0.5) !important;
+  color: #60A5FA !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+}
+
+.dark [class*="TopbarCta"] a:hover,
+.dark header a[href*="sign-up"]:hover {
+  background: rgba(59, 130, 246, 0.3) !important;
+  border-color: rgba(59, 130, 246, 0.7) !important;
+}
+
+/* Light mode */
+[class*="TopbarCta"] a,
+header a[href*="sign-up"] {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border: 2px solid rgba(59, 130, 246, 0.4) !important;
+  color: #2563EB !important;
+  font-weight: 700 !important;
+  transition: all 0.2s ease !important;
+}
+
+[class*="TopbarCta"] a:hover,
+header a[href*="sign-up"]:hover {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+}

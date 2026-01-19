@@ -16,14 +16,14 @@ Establishes a Server-Sent Events (SSE) connection to receive real-time updates a
 
 <CodeGroup>
 ```bash cURL
-curl -N https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream \
+curl -N https://flowsmiths.vercel.app/api/v1/executions/{id}/stream \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: text/event-stream"
 ```
 
 ```javascript JavaScript
 const eventSource = new EventSource(
-  'https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream',
+  'https://flowsmiths.vercel.app/api/v1/executions/{id}/stream',
   {
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY'
@@ -47,7 +47,7 @@ import sseclient
 import requests
 
 response = requests.get(
-    'https://flowsmith-ys7.vercel.app/api/v1/executions/{id}/stream',
+    'https://flowsmiths.vercel.app/api/v1/executions/{id}/stream',
     headers={
         'Authorization': 'Bearer YOUR_API_KEY',
         'Accept': 'text/event-stream'
