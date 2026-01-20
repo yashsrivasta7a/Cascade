@@ -1718,7 +1718,7 @@ function WorkflowEditorContent() {
 
               {/* Run/Stop button - use all running states for reliability */}
               {(() => {
-                const isRunning = isWorkflowRunning || isRealtimeRunning || isSSERunning;
+                const isRunning = isWorkflowRunning || isRealtimeV2Running || isRealtimeV1Running || isSSERunning;
                 const isUploading = isAnyNodeUploading();
                 const isDisabled = isFinalizing || isUploading;
                 return (
