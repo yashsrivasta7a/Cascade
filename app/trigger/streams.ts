@@ -8,8 +8,8 @@ import { streams } from "@trigger.dev/sdk/v3";
 // React hooks via WebSocket.
 //
 // Usage:
-// - Task: nodeStatusStream.write({ nodeId, status, ... })
-// - React: useRealtimeStream(nodeStatusStream, runId, { accessToken })
+// - Task: nodeStatusStream.append({ nodeId, status, ... })
+// - React: useRealtimeRunWithStreams(runId, { accessToken })
 // =============================================================================
 
 export type NodeStatus = "queued" | "started" | "completed" | "failed";

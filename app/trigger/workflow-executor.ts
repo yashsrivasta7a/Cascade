@@ -564,7 +564,7 @@ export const executeWorkflow = task({
     });
     
     // Write workflow started to stream
-    await workflowStatusStream.write({
+    await workflowStatusStream.append({
       status: "started",
       timestamp: Date.now(),
     });
@@ -835,7 +835,7 @@ export const executeWorkflow = task({
       } satisfies NodeStatus);
       
       // Write to stream (Streams v2 - should propagate to React hooks)
-      await nodeStatusStream.write({
+      await nodeStatusStream.append({
         nodeId: node.id,
         status: "started",
         nodeType,
@@ -958,7 +958,7 @@ export const executeWorkflow = task({
             } satisfies NodeStatus);
             
             // Write to stream (Streams v2 - should propagate to React hooks)
-            await nodeStatusStream.write({
+            await nodeStatusStream.append({
               nodeId,
               status: "completed",
               nodeType,
@@ -1016,7 +1016,7 @@ export const executeWorkflow = task({
             } satisfies NodeStatus);
             
             // Write to stream (Streams v2 - should propagate to React hooks)
-            await nodeStatusStream.write({
+            await nodeStatusStream.append({
               nodeId,
               status: "failed",
               nodeType,
@@ -1120,7 +1120,7 @@ export const executeWorkflow = task({
     });
     
     // Write to stream (Streams v2 - should propagate to React hooks)
-    await workflowStatusStream.write({
+    await workflowStatusStream.append({
       status: "completed",
       successCount: completedNodes.size,
       failCount: failedNodes.size,

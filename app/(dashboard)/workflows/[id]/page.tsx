@@ -38,7 +38,7 @@ import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
-import { useWorkflowStream, useRealtimeWorkflow, useRealtimeWorkflowV2, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
+import { useWorkflowStream, useRealtimeWorkflow, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
 import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 import { cn } from "@/lib/utils";
@@ -896,37 +896,18 @@ function WorkflowEditorContent() {
     },
   }), [nodes, setNodes, refetchCredits, setWorkflowRunning, setIsFinalizing]);
 
-  // Realtime workflow hook V2 - uses Trigger.dev Streams v2 for direct WebSocket streaming
-  // This bypasses Vercel's SSE buffering by having the client connect directly to Trigger.dev
-  const { 
-    runWorkflow: runWorkflowRealtimeV2, 
-    isRunning: isRealtimeV2Running, 
-    cancelWorkflow: cancelWorkflowV2,
-    StreamSubscriber: RealtimeStreamSubscriber,
-  } = useRealtimeWorkflowV2(
+  // Realtime workflow hook - fast polling (500ms) for responsive UI updates
+  // This is the proven reliable approach that works on Vercel
+  const { runWorkflow: runWorkflowRealtime, isRunning: isRealtimeRunning, cancelWorkflow } = useRealtimeWorkflow(
     dbWorkflowId ?? workflowId,
     realtimeCallbacks
   );
   
-  // Fallback: V1 realtime hook (polling-based) - used if V2 streams fail
-  const { runWorkflow: runWorkflowRealtimeV1, isRunning: isRealtimeV1Running, cancelWorkflow: cancelWorkflowV1 } = useRealtimeWorkflow(
-    dbWorkflowId ?? workflowId,
-    realtimeCallbacks
-  );
-  
-  // Keep SSE as last resort fallback
+  // Keep SSE as fallback (will be used if realtime polling fails)
   const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning } = useWorkflowStream({
     workflowId: dbWorkflowId ?? workflowId,
     callbacks: realtimeCallbacks as WorkflowStreamCallbacks,
   });
-  
-  // Combined cancel function - cancels whichever approach is active
-  const cancelWorkflow = useCallback(async () => {
-    await Promise.all([
-      cancelWorkflowV2(),
-      cancelWorkflowV1(),
-    ]);
-  }, [cancelWorkflowV2, cancelWorkflowV1]);
   
   // Handle stop/cancel workflow
   const handleStopWorkflow = useCallback(async () => {
@@ -1031,35 +1012,23 @@ function WorkflowEditorContent() {
       }))
     );
 
-    // Try approaches in order: V2 Streams → V1 Polling → SSE
+    // Use fast polling as the primary approach (proven reliable on Vercel)
     try {
-      // V2: Direct WebSocket streaming via Trigger.dev Streams v2
-      console.log("[Workflow] Trying V2 (Trigger.dev Streams)...");
-      await runWorkflowRealtimeV2(
-        nodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
-        edges as Parameters<typeof runWorkflowRealtimeV2>[1],
+      await runWorkflowRealtime(
+        nodes as Parameters<typeof runWorkflowRealtime>[0], 
+        edges as Parameters<typeof runWorkflowRealtime>[1],
         effectiveWorkflowId ?? undefined
       );
-    } catch (v2Error) {
-      console.warn("[Workflow] V2 Streams failed, trying V1 polling:", v2Error);
-      try {
-        // V1: Fast polling fallback
-        await runWorkflowRealtimeV1(
-          nodes as Parameters<typeof runWorkflowRealtimeV1>[0], 
-          edges as Parameters<typeof runWorkflowRealtimeV1>[1],
-          effectiveWorkflowId ?? undefined
-        );
-      } catch (v1Error) {
-        console.warn("[Workflow] V1 polling failed, falling back to SSE:", v1Error);
-        // Last resort: SSE streaming
-        await runWorkflowSSE(
-          nodes as Parameters<typeof runWorkflowSSE>[0], 
-          edges as Parameters<typeof runWorkflowSSE>[1],
-          effectiveWorkflowId ?? undefined
-        );
-      }
+    } catch (realtimeError) {
+      console.warn("[Workflow] Realtime polling failed, falling back to SSE:", realtimeError);
+      // Fallback: SSE streaming
+      await runWorkflowSSE(
+        nodes as Parameters<typeof runWorkflowSSE>[0], 
+        edges as Parameters<typeof runWorkflowSSE>[1],
+        effectiveWorkflowId ?? undefined
+      );
     }
-  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowRealtimeV2, runWorkflowRealtimeV1, runWorkflowSSE]);
+  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowRealtime, runWorkflowSSE]);
 
   // Calculate dynamic button color based on selected node
   const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;
@@ -1147,9 +1116,6 @@ function WorkflowEditorContent() {
 
   return (
     <div className="h-full bg-gray-100 dark:bg-[#101010]">
-      {/* Render the stream subscriber component for V2 realtime updates */}
-      {/* This component returns null but activates Trigger.dev WebSocket subscription when running */}
-      {RealtimeStreamSubscriber}
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
         <FlowCanvas 
@@ -1718,7 +1684,7 @@ function WorkflowEditorContent() {
 
               {/* Run/Stop button - use all running states for reliability */}
               {(() => {
-                const isRunning = isWorkflowRunning || isRealtimeV2Running || isRealtimeV1Running || isSSERunning;
+                const isRunning = isWorkflowRunning || isRealtimeRunning || isSSERunning;
                 const isUploading = isAnyNodeUploading();
                 const isDisabled = isFinalizing || isUploading;
                 return (
