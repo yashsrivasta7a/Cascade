@@ -1,4 +1,4 @@
-import { task, wait, runs, metadata } from "@trigger.dev/sdk/v3";
+import { task, wait, runs, metadata } from "@trigger.dev/sdk";
 import { config } from "dotenv";
 import { db } from "@/lib/db";
 import { executeNode, type NodeExecutorPayload } from "./node-executor";

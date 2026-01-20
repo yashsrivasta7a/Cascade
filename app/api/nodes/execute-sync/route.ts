@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getUserIdForApi } from "@/lib/user";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { executeNode } from "@/app/trigger/node-executor";
-import { runs } from "@trigger.dev/sdk/v3";
+import { runs } from "@trigger.dev/sdk";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { estimateNodeCost, formatCredits } from "@/lib/credits";
 import { Prisma } from "@prisma/client";

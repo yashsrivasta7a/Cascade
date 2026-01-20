@@ -1,4 +1,4 @@
-import { streams } from "@trigger.dev/sdk/v3";
+import { streams } from "@trigger.dev/sdk";
 
 // =============================================================================
 // TRIGGER.DEV STREAMS V2 - Shared stream definitions

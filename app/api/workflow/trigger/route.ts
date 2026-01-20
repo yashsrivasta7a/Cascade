@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { auth as triggerAuth } from "@trigger.dev/sdk/v3";
+import { auth as triggerAuth } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { executeWorkflow } from "@/app/trigger/workflow-executor";
 import type { Edge, Node } from "reactflow";

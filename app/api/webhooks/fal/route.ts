@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { wait } from "@trigger.dev/sdk/v3";
+import { wait } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { falProvider } from "@/lib/providers";
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { auth as triggerAuth } from "@trigger.dev/sdk/v3";
+import { auth as triggerAuth } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { estimateNodeCost } from "@/lib/credits";
 import { uploadFromBase64, isTransloaditConfigured } from "@/lib/providers/transloadit";
