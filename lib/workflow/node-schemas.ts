@@ -210,6 +210,11 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
     .merge(ExtractAudioConfigSchema.partial()),
 
   // I/O nodes - these are passthrough nodes that don't need execution
+  "input": z.object({
+    value: z.string().optional(),
+    result: z.string().optional(),
+    mediaType: z.enum(["text", "image", "video", "audio"]).optional(),
+  }),
   "image-input": z.object({
     value: z.string().optional(),
     result: z.string().optional(),
@@ -246,6 +251,7 @@ export const NodeOutputSchemas: Record<AINodeType, z.ZodTypeAny> = {
   "merge-videos": VideoOutSchema,
   "extract-audio": AudioOutSchema,
   // I/O nodes - passthrough output types
+  "input": AnyOutSchema,
   "image-input": ImageOutSchema,
   "video-input": VideoOutSchema,
   "audio-input": AudioOutSchema,
@@ -266,6 +272,7 @@ export const NodePrimaryOutputType: Record<AINodeType, DataType> = {
   "merge-videos": "video",
   "extract-audio": "audio",
   // I/O nodes
+  "input": "any",
   "image-input": "image",
   "video-input": "video",
   "audio-input": "audio",
@@ -297,9 +304,7 @@ export const NodeProviders: Record<AINodeType, ProviderId[]> = {
   "merge-videos": ["internal", "mock"],
   "extract-audio": ["internal", "mock"],
   // I/O nodes - passthrough, no provider needed
-  "image-input": ["internal"],
-  "video-input": ["internal"],
-  "audio-input": ["internal"],
+  "input": ["internal"],
   "output": ["internal"],
   // Annotation node
   "comment": ["internal"],

@@ -261,44 +261,17 @@ function FieldWithHandle({
         </div>
       </div>
       
-      {/* For media file fields, show connection status indicator */}
-      {isMediaField ? (
-        <div 
-          className={cn(
-            "allow-color flex items-center gap-2 py-2 px-3 rounded-lg border transition-colors",
-            isConnected 
-              ? "bg-emerald-500/10 border-emerald-500/30" 
-              : "bg-red-500/10 border-red-500/30"
-          )}
-        >
-          <div 
-            className={cn(
-              "w-2 h-2 rounded-full",
-              isConnected ? "bg-emerald-500" : "bg-red-500"
-            )}
-          />
-          <span 
-            className={cn(
-              "text-[11px] font-medium",
-              isConnected ? "text-emerald-400" : "text-red-400"
-            )}
-          >
-            {field.label} {isConnected ? "connected" : "not connected"}
-          </span>
-        </div>
-      ) : (
-        /* Full field content for non-media fields */
-        <FieldRenderer
-          field={field}
-          value={value}
-          onChange={onChange}
-          isConnected={isConnected}
-          connectedValue={connectedValue}
-          disabled={disabled}
-          onUploadingChange={onUploadingChange}
-          cropOverlay={cropOverlay}
-        />
-      )}
+      {/* Full field content - file upload for media, other renderers for rest */}
+      <FieldRenderer
+        field={field}
+        value={value}
+        onChange={onChange}
+        isConnected={isConnected}
+        connectedValue={connectedValue}
+        disabled={disabled}
+        onUploadingChange={onUploadingChange}
+        cropOverlay={cropOverlay}
+      />
     </div>
   );
 }
@@ -1109,9 +1082,16 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
         </div>
       }
       right={
-        // Output display removed from system nodes per new architecture
-        // Results are shown in the OUTPUT node instead
-        undefined
+        // Always show output section with preview or placeholder
+        <OutputDisplay 
+          config={{
+            id: "output",
+            type: nodeConfig.ui.outputs[0]?.type || "any",
+            label: nodeConfig.ui.outputs[0]?.label || "Output",
+          }}
+          value={data.result && typeof data.result === "string" && data.result.length > 0 ? data.result : null}
+          isLoading={isProcessing}
+        />
       }
     />
   );

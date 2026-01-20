@@ -565,7 +565,18 @@ function getHandleDataType(
   handleId: string | null | undefined
 ): DataType | undefined {
   if (!node?.type) return undefined;
-  // Use the centralized config-driven function
+  
+  // Special handling for unified input node - use mediaType from data
+  if (node.type === "input" && direction === "outputs") {
+    const mediaType = node.data?.mediaType as string | undefined;
+    if (mediaType && ["text", "image", "video", "audio"].includes(mediaType)) {
+      return mediaType as DataType;
+    }
+    // If no mediaType selected yet, return "any" to allow any connection
+    return "any";
+  }
+  
+  // Use the centralized config-driven function for other nodes
   return getHandleDataTypeFn(node.type as AINodeType, direction, handleId);
 }
 

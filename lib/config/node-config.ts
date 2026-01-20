@@ -844,6 +844,44 @@ export const NODE_CONFIG: NodeConfigRegistry = {
   // I/O NODES - Input and Output nodes for workflow connections
   // ===========================================================================
 
+  "input": {
+    type: "input",
+    version: "1.0.0",
+    category: "io",
+    label: "Input",
+    description: "Add input (text, image, video, or audio) to use in your workflow",
+    color: "zinc",
+    
+    providers: [],  // No execution - just holds data
+    
+    inputSchema: z.object({
+      value: z.string().optional(),
+      mediaType: z.enum(["text", "image", "video", "audio"]).optional(),
+    }),
+    
+    outputSchema: z.object({
+      value: z.string(),
+      type: z.enum(["text", "image", "video", "audio"]),
+    }),
+    
+    execution: {
+      timeout: "0s",
+      retryPerProvider: 0,
+      maxRetries: 0,
+    },
+    
+    ui: {
+      inputs: [],  // Input is handled by the component directly
+      outputs: [
+        { id: "output", type: "any", label: "Output" },
+      ],
+    },
+    
+    estimatedCost: 0,
+    estimatedTime: "instant",
+    features: ["Text Input", "Upload", "Drag & Drop", "Preview", "Type Selection"],
+  },
+
   "image-input": {
     type: "image-input",
     version: "1.0.0",
@@ -852,7 +890,7 @@ export const NODE_CONFIG: NodeConfigRegistry = {
     description: "Upload an image to use as input for your workflow",
     color: "emerald",
     
-    providers: [],  // No execution - just holds data
+    providers: [],
     
     inputSchema: z.object({
       value: z.string().optional(),
@@ -867,7 +905,7 @@ export const NODE_CONFIG: NodeConfigRegistry = {
     },
     
     ui: {
-      inputs: [],  // File upload is handled by the component directly
+      inputs: [],
       outputs: [
         { id: "output", type: "image", label: "Image" },
       ],

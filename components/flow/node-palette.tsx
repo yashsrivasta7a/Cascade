@@ -82,17 +82,9 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
     priceLabel: "Free",
     priceNote: "Annotation only, no processing",
   },
-  "image-input": {
+  "input": {
     priceLabel: "Free",
-    priceNote: "Workflow input node",
-  },
-  "video-input": {
-    priceLabel: "Free",
-    priceNote: "Workflow input node",
-  },
-  "audio-input": {
-    priceLabel: "Free",
-    priceNote: "Workflow input node",
+    priceNote: "Workflow input node (text, image, video, or audio)",
   },
   "output": {
     priceLabel: "Free",
@@ -237,7 +229,13 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
     }
   }, [showColorHelp]);
 
+  // Hide old separate input nodes and comment node from palette
+  const hiddenNodeTypes = ["image-input", "video-input", "audio-input", "comment"];
+  
   const filteredNodes = Object.values(NODE_DEFINITIONS).filter((node) => {
+    // Hide old separate input nodes
+    if (hiddenNodeTypes.includes(node.type)) return false;
+    
     const matchesSearch = !search || 
       node.label.toLowerCase().includes(search.toLowerCase()) ||
       node.provider.toLowerCase().includes(search.toLowerCase());

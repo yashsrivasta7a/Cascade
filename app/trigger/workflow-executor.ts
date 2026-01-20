@@ -149,10 +149,15 @@ const NODE_DATA_TO_SCHEMA: Record<string, string> = {
 };
 
 // Infer output type from node type
-function inferOutputType(nodeType: string): "video" | "audio" | "image" | "text" {
-  const videoNodes = ["seedance", "lipsync", "merge-videos", "merge-audio-video", "video-input"];
-  const audioNodes = ["elevenlabs", "extract-audio", "audio-input"];
-  const imageNodes = ["seedream", "seedvr", "crop-image", "image-input"];
+function inferOutputType(nodeType: string, nodeData?: Record<string, unknown>): "video" | "audio" | "image" | "text" {
+  const videoNodes = ["seedance", "lipsync", "merge-videos", "merge-audio-video"];
+  const audioNodes = ["elevenlabs", "extract-audio"];
+  const imageNodes = ["seedream", "seedvr", "crop-image"];
+  
+  // Handle unified input node
+  if (nodeType === "input" && nodeData?.mediaType) {
+    return nodeData.mediaType as "video" | "audio" | "image";
+  }
   
   if (videoNodes.includes(nodeType)) return "video";
   if (audioNodes.includes(nodeType)) return "audio";
@@ -738,7 +743,7 @@ export const executeWorkflow = task({
 
     // Helper: Start a node (non-blocking) - or skip if skip=true and has output
     // I/O node types that are passthrough (don't need execution)
-    const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "output", "comment"];
+    const IO_NODE_TYPES = ["input", "output", "comment"];
     
     const startNode = async (node: Node) => {
       const nodeType = node.type as AINodeType;
@@ -753,17 +758,20 @@ export const executeWorkflow = task({
         console.log(`[WorkflowExecutor] I/O node data keys:`, Object.keys(nodeData));
         
         // Input nodes: use their result/value as output
-        if (nodeType === "image-input" || nodeType === "video-input" || nodeType === "audio-input") {
+        if (nodeType === "input") {
           const result = (nodeData.result || nodeData.value || nodeData.url || nodeData.file) as string | undefined;
-          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined');
+          const mediaType = nodeData.mediaType as string | undefined;
+          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined', `mediaType: ${mediaType}`);
           
-          if (result && typeof result === "string" && result.length > 0) {
-            const outputType = nodeType === "image-input" ? "image" : nodeType === "video-input" ? "video" : "audio";
+          if (result && typeof result === "string" && result.length > 0 && mediaType) {
+            const outputType = mediaType;
             const passOutput: Record<string, unknown> = outputType === "image" 
               ? { type: "image", image: { url: result } }
               : outputType === "video"
               ? { type: "video", video: { url: result } }
-              : { type: "audio", audio: { url: result } };
+              : outputType === "audio"
+              ? { type: "audio", audio: { url: result } }
+              : { type: "text", text: result };
             
             outputs.set(node.id, passOutput);
             completedNodes.add(node.id);

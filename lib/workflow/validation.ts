@@ -19,15 +19,19 @@ export interface ValidationResult {
 }
 
 // I/O node types
-const INPUT_NODE_TYPES = ["image-input", "video-input", "audio-input"] as const;
+const INPUT_NODE_TYPES = ["input"] as const;
 const OUTPUT_NODE_TYPES = ["output"] as const;
 
-// Map input node types to their output data types
-const INPUT_NODE_OUTPUT_TYPES: Record<string, DataType> = {
-  "image-input": "image",
-  "video-input": "video",
-  "audio-input": "audio",
-};
+/**
+ * Get the output type for an input node based on its mediaType
+ */
+function getInputNodeOutputType(nodeData: Record<string, unknown> | undefined): DataType {
+  const mediaType = nodeData?.mediaType as string | undefined;
+  if (mediaType && ["text", "image", "video", "audio"].includes(mediaType)) {
+    return mediaType as DataType;
+  }
+  return "any"; // No type selected yet
+}
 
 // =============================================================================
 // VALIDATION FUNCTIONS
@@ -132,7 +136,8 @@ export function validateWorkflow(
     const sourceNodeType = sourceNode.type as AINodeType;
     
     if (INPUT_NODE_TYPES.includes(sourceNodeType as any)) {
-      sourceType = INPUT_NODE_OUTPUT_TYPES[sourceNodeType];
+      // Use the dynamic mediaType from node data
+      sourceType = getInputNodeOutputType(sourceNode.data as Record<string, unknown>);
     } else {
       const sourceDef = NODE_DEFINITIONS[sourceNodeType];
       if (sourceDef && sourceDef.outputs.length > 0) {

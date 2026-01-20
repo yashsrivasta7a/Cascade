@@ -101,11 +101,13 @@ export type { CommentNodeData } from "./nodes/comment-node";
 // I/O NODES (Input and Output nodes for workflow connections)
 // ============================================================================
 
+import { InputNode } from "./nodes/input-node";
 import { ImageInputNode } from "./nodes/image-input-node";
 import { VideoInputNode } from "./nodes/video-input-node";
 import { AudioInputNode } from "./nodes/audio-input-node";
 import { OutputNode } from "./nodes/output-node";
-export { ImageInputNode, VideoInputNode, AudioInputNode, OutputNode };
+export { InputNode, ImageInputNode, VideoInputNode, AudioInputNode, OutputNode };
+export type { InputNodeData } from "./nodes/input-node";
 export type { ImageInputNodeData } from "./nodes/image-input-node";
 export type { VideoInputNodeData } from "./nodes/video-input-node";
 export type { AudioInputNodeData } from "./nodes/audio-input-node";
@@ -120,6 +122,7 @@ export const nodeTypes = {
   // Special annotation nodes (not config-driven)
   comment: CommentNode,
   // I/O nodes (custom components, not config-driven)
+  "input": InputNode,
   "image-input": ImageInputNode,
   "video-input": VideoInputNode,
   "audio-input": AudioInputNode,

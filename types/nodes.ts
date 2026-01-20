@@ -27,6 +27,7 @@ export type AINodeType =
   // Annotation
   | "comment"
   // I/O Nodes
+  | "input"
   | "image-input"
   | "video-input"
   | "audio-input"
@@ -366,6 +367,19 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     color: "zinc",
   },
   // I/O Nodes
+  "input": {
+    type: "input",
+    category: "io",
+    label: "Input",
+    description: "Add input (text, image, video, or audio) to use in your workflow",
+    provider: "local",
+    action: "Input",
+    inputs: [],
+    outputs: [{ type: "any", label: "Output" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "zinc",
+  },
   "image-input": {
     type: "image-input",
     category: "io",
@@ -647,6 +661,12 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     mediaInputs: [],
   },
   // I/O Nodes
+  "input": {
+    primaryOutputType: "any",
+    primaryOutputId: "output",
+    settings: [],
+    mediaInputs: [],
+  },
   "image-input": {
     primaryOutputType: "image",
     primaryOutputId: "output",

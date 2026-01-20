@@ -601,7 +601,7 @@ export const useFlowStore = create<FlowState>()(
         const changedKeys = Object.keys(data).filter(key => (data as Record<string, unknown>)[key] !== oldData[key]);
         
         // Output handles - these should ONLY propagate the "result" field, NOT input fields
-        // "output" is used by I/O input nodes (image-input, video-input, audio-input)
+        // "output" is used by I/O input nodes (input)
         const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response", "output"];
         // Settings that should be shared in real-time (NOT media inputs)
         // Including boolean settings like promptEnhancer, replaceAudio, truncatePrompt, syncMode
@@ -1295,13 +1295,15 @@ export const useFlowStore = create<FlowState>()(
           }
           
           // Determine the type of output based on source handle and source node type
-          // For I/O input nodes, the source handle is "output" but we need to check the source node type
+          // For I/O input nodes, the source handle is "output" but we need to check the source node data.mediaType
+          const sourceNodeData = sourceNode?.data as Record<string, unknown> | undefined;
+          const sourceMediaType = sourceNodeData?.mediaType as string | undefined;
           const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped" || 
-            (sourceHandle === "output" && sourceNodeType === "image-input");
+            (sourceHandle === "output" && sourceNodeType === "input" && sourceMediaType === "image");
           const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged" || 
-            (sourceHandle === "output" && sourceNodeType === "video-input");
+            (sourceHandle === "output" && sourceNodeType === "input" && sourceMediaType === "video");
           const isAudioOutput = sourceHandle === "audio" || 
-            (sourceHandle === "output" && sourceNodeType === "audio-input");
+            (sourceHandle === "output" && sourceNodeType === "input" && sourceMediaType === "audio");
           const isTextResponse = sourceHandle === "response"; // LLM text response
           
           // Map to appropriate field based on target handle and output type
