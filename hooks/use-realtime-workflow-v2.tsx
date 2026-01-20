@@ -7,15 +7,6 @@ import type { Node, Edge } from "reactflow";
 // =============================================================================
 // REALTIME WORKFLOW HOOK V2 - Using Trigger.dev Realtime API with metadata
 // =============================================================================
-// This hook uses Trigger.dev's Realtime API to subscribe to run updates.
-// The task uses metadata.set() to update node statuses, and this hook
-// reads from run.metadata to get real-time updates.
-//
-// Key features:
-// - Direct WebSocket connection from browser to Trigger.dev
-// - No polling, no serverless buffering issues
-// - Bypasses Vercel entirely for realtime updates
-// =============================================================================
 
 export type NodeStatus = "queued" | "running" | "completed" | "failed";
 
@@ -58,7 +49,6 @@ interface WorkflowMetadata {
 }
 
 // Inner component that handles the realtime subscription
-// This is needed because useRealtimeRun requires accessToken immediately
 function RealtimeSubscriber({
   triggerRunId,
   publicToken,
@@ -85,15 +75,8 @@ function RealtimeSubscriber({
     if (!run) return;
 
     const metadata = run.metadata as Record<string, unknown> | undefined;
-    
-    console.log(`[RealtimeSubscriber] Run status: ${run.status}, metadata keys: ${metadata ? Object.keys(metadata).length : 0}`);
-    
-    if (metadata) {
-      console.log(`[RealtimeSubscriber] Metadata:`, JSON.stringify(metadata, null, 2));
-    }
 
     // Process node status updates from metadata
-    // Metadata keys are like "node:abc123" with value { status, nodeType, output, error, timestamp }
     if (metadata) {
       for (const [key, value] of Object.entries(metadata)) {
         if (key.startsWith("node:") && value && typeof value === "object") {
@@ -104,8 +87,6 @@ function RealtimeSubscriber({
           const previousStatus = processedStatuses.current.get(nodeId);
           if (previousStatus === nodeStatus.status) continue;
           processedStatuses.current.set(nodeId, nodeStatus.status);
-
-          console.log(`[RealtimeSubscriber] Node ${nodeId}: ${previousStatus} -> ${nodeStatus.status}`);
 
           if (nodeStatus.status === "started") {
             callbacks.current?.onNodeStarted?.(nodeId, nodeStatus.nodeType);
@@ -183,7 +164,6 @@ function RealtimeSubscriber({
   // Handle connection errors
   useEffect(() => {
     if (error) {
-      console.error("[RealtimeSubscriber] Error:", error);
       callbacks.current?.onError?.(error.message);
     }
   }, [error, callbacks]);
@@ -207,9 +187,7 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
 
   // Trigger the workflow
   const runWorkflow = useCallback(async (nodes: Node[], edges: Edge[], overrideWorkflowId?: string) => {
-    if (isRunning) {
-      return;
-    }
+    if (isRunning) return;
 
     const effectiveWorkflowId = overrideWorkflowId || workflowId;
 
@@ -252,11 +230,6 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
       setTriggerRunId(data.triggerRunId);
       setPublicToken(data.publicToken);
 
-      console.log("[useRealtimeWorkflowV2] Workflow triggered, subscribing to realtime...", {
-        triggerRunId: data.triggerRunId,
-        hasPublicToken: !!data.publicToken,
-      });
-
       // Notify that workflow started
       callbacksRef.current?.onWorkflowStarted?.({
         workflowExecutionId: data.workflowExecutionId!,
@@ -265,7 +238,6 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
       });
 
     } catch (error) {
-      console.error("[useRealtimeWorkflowV2] Error:", error);
       callbacksRef.current?.onError?.(error instanceof Error ? error.message : "Unknown error");
       setIsRunning(false);
     }
@@ -310,7 +282,6 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
     isRunning,
     workflowExecutionId,
     triggerRunId,
-    // The caller should render this component to enable realtime subscription
     RealtimeSubscriber: RealtimeSubscriberComponent,
   };
 }

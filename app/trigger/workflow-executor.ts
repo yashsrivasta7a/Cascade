@@ -64,17 +64,17 @@ function buildDependencyGraph(nodes: Node[], edges: Edge[]) {
   }
 
   // Build dependency relationships from edges
-  console.log(`[DependencyGraph] Building from ${edges.length} edges:`);
+  
   for (const edge of edges) {
-    console.log(`[DependencyGraph]   Edge: ${edge.source} → ${edge.target} (sourceHandle: ${edge.sourceHandle || "none"}, targetHandle: ${edge.targetHandle || "none"})`);
+    
     
     // Validate that both source and target exist in nodes
     if (!nodeIds.has(edge.source)) {
-      console.warn(`[DependencyGraph] WARNING: Edge source "${edge.source}" not found in nodes!`);
+      
       continue;
     }
     if (!nodeIds.has(edge.target)) {
-      console.warn(`[DependencyGraph] WARNING: Edge target "${edge.target}" not found in nodes!`);
+      
       continue;
     }
     
@@ -82,7 +82,7 @@ function buildDependencyGraph(nodes: Node[], edges: Edge[]) {
     const targetDeps = dependencies.get(edge.target);
     if (targetDeps) {
       targetDeps.add(edge.source);
-      console.log(`[DependencyGraph]   Added dependency: ${edge.target} depends on ${edge.source}`);
+      
     }
   }
 
@@ -292,23 +292,23 @@ function buildNodeInput(
   const incomingEdges = edges.filter((e) => e.target === node.id);
   const input: Record<string, unknown> = { ...nodeData };
 
-  console.log(`[BuildInput] === Building input for ${node.id} (${nodeType}) ===`);
-  console.log(`[BuildInput] Incoming edges: ${incomingEdges.length}`);
-  console.log(`[BuildInput] Outputs map keys: ${[...outputs.keys()].join(", ")}`);
+  
+  
+  
   
   // Log all node data fields for media-related nodes
   const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync", "seedance", "seedvr"];
   if (mediaNodeTypes.includes(nodeType)) {
-    console.log(`[BuildInput] Node data keys: ${Object.keys(nodeData).join(", ")}`);
+    
     for (const key of Object.keys(nodeData)) {
       const val = nodeData[key];
       if (val && typeof val === "string" && val.length > 100) {
         const preview = val.startsWith("data:") ? `[base64:${val.length}]` : val.slice(0, 80) + "...";
-        console.log(`[BuildInput]   ${key}: ${preview}`);
+        
       } else if (val && typeof val === "object" && "url" in (val as object)) {
         const url = (val as { url: string }).url;
         const preview = url.startsWith("data:") ? `[base64:${url.length}]` : url.slice(0, 80) + "...";
-        console.log(`[BuildInput]   ${key}.url: ${preview}`);
+        
       }
     }
   }
@@ -322,10 +322,10 @@ function buildNodeInput(
       const normalized = normalizeAsset(value);
       if (normalized) {
         input[schemaField] = normalized;
-        console.log(`[BuildInput] Normalized ${dataField} → ${schemaField}:`, { url: normalized.url?.slice(0, 60) });
+        
       }
     } else if (mediaNodeTypes.includes(nodeType) && ["inputVideo", "inputAudio", "inputImage", "video", "audio", "image"].includes(dataField)) {
-      console.log(`[BuildInput] WARNING: ${dataField} is missing or empty for ${nodeType} node`);
+      
     }
   }
 
@@ -336,7 +336,7 @@ function buildNodeInput(
     const normalized = normalizeAsset(data);
     if (normalized?.url) {
       input[fieldName] = normalized;
-      console.log(`[BuildInput] Normalized ${fieldName} field:`, { url: normalized.url?.slice(0, 60) });
+      
     }
   };
   
@@ -358,7 +358,7 @@ function buildNodeInput(
     const sourceHandle = edge.sourceHandle || "";
     const targetHandle = edge.targetHandle || "";
     
-    console.log(`[BuildInput] Edge: ${edge.source} (${sourceNodeType}) → ${edge.target}, sourceHandle: "${sourceHandle}", targetHandle: "${targetHandle}"`);
+    
     
     // =========================================================================
     // Handle SETTINGS connections - these transfer node data values, not outputs
@@ -373,19 +373,19 @@ function buildNodeInput(
       if (settingsValue !== undefined) {
         // Set the target field to the settings value from source node
         input[targetHandle] = settingsValue;
-        console.log(`[BuildInput] Set ${targetHandle} (settings connection) from ${edge.source}.${settingsField}: ${settingsValue}`);
+        
       } else {
-        console.warn(`[BuildInput] Settings field ${settingsField} not found in source node ${edge.source}`);
+        
       }
       continue; // Skip the media output handling below
     }
     
     if (!upstreamOutput) {
-      console.warn(`[BuildInput] No output found for upstream node ${edge.source}`);
+      
       continue;
     }
     
-    console.log(`[BuildInput] Upstream output type: ${upstreamOutput.type}`);
+    
     
     // Get the handle name and map to schema field
     // If targetHandle is empty, infer from source node type
@@ -410,7 +410,7 @@ function buildNodeInput(
       } else {
         schemaField = inferredType;
       }
-      console.log(`[BuildInput] Inferred schemaField: ${schemaField} (from source type: ${sourceNodeType})`);
+      
     }
     
     // Handle different output types
@@ -424,15 +424,15 @@ function buildNodeInput(
       
       if (isLLMSource && targetHandle && canFieldAcceptLLMInput(nodeType, targetHandle)) {
         // Parse LLM text output to the appropriate type for the target field
-        console.log(`[BuildInput] Parsing LLM output for ${nodeType}.${targetHandle}: "${textOutput.slice(0, 50)}..."`);
+        
         const parseResult = parseLLMToFieldValue(textOutput, nodeType, targetHandle);
         
         if (parseResult.success && parseResult.value !== undefined) {
           input[targetHandle] = parseResult.value;
-          console.log(`[BuildInput] LLM parse SUCCESS: ${targetHandle} = ${JSON.stringify(parseResult.value)}`);
+          
           outputSet = true;
         } else {
-          console.warn(`[BuildInput] LLM parse FAILED for ${targetHandle}: ${parseResult.error}`);
+          
           // Fall through to default text handling
         }
       }
@@ -443,7 +443,7 @@ function buildNodeInput(
         if (rawHandle === "prompt" || rawHandle === "Prompt" || schemaField === "prompt") {
           input.prompt = textOutput;
         }
-        console.log(`[BuildInput] Set text context from ${edge.source}`);
+        
         outputSet = true;
       }
     }
@@ -457,10 +457,10 @@ function buildNodeInput(
           input.imageUrl = imageAsset.url;
           input.inputImage = imageAsset.url;
         }
-        console.log(`[BuildInput] Set ${schemaField} (image) from ${edge.source}:`, { url: imageAsset.url?.slice(0, 50) });
+        
         outputSet = true;
       } else {
-        console.warn(`[BuildInput] Skipped ${schemaField} from ${edge.source} - no valid URL in image asset`);
+        
       }
     }
     
@@ -477,10 +477,10 @@ function buildNodeInput(
           input.videoUrl = videoAsset.url;
         }
         
-        console.log(`[BuildInput] Set ${schemaField} (video) from ${edge.source}:`, { url: videoAsset.url?.slice(0, 50) });
+        
         outputSet = true;
       } else {
-        console.warn(`[BuildInput] Skipped ${schemaField} from ${edge.source} - no valid URL in video asset`);
+        
       }
     }
     
@@ -491,17 +491,17 @@ function buildNodeInput(
         input[schemaField] = upstreamOutput.audio;
         input.audioUrl = audioAsset.url;
         
-        console.log(`[BuildInput] Set ${schemaField} (audio) from ${edge.source}:`, { url: audioAsset.url?.slice(0, 50) });
+        
         outputSet = true;
       } else {
-        console.warn(`[BuildInput] Skipped ${schemaField} from ${edge.source} - no valid URL in audio asset`);
+        
       }
     }
     
     // Fallback: If output type wasn't matched, try to infer from source node type and set directly
     if (!outputSet) {
       const inferredType = inferOutputType(sourceNodeType);
-      console.log(`[BuildInput] Output type "${upstreamOutput.type}" not matched, inferring from source node type: ${inferredType}`);
+      
       
       // Try to extract the asset from the output based on inferred type
       const assetKey = inferredType === "text" ? "text" : inferredType;
@@ -518,10 +518,10 @@ function buildNodeInput(
         } else if (asset.url) {
           // Media output
           input[schemaField] = asset;
-          console.log(`[BuildInput] Set ${schemaField} (inferred ${inferredType}) from ${edge.source}:`, { url: asset.url?.slice(0, 50) });
+          
         }
       } else {
-        console.warn(`[BuildInput] Could not extract asset from upstream output for ${edge.source}`);
+        
       }
     }
   }
@@ -530,19 +530,19 @@ function buildNodeInput(
   // STEP 3: Final validation - log what we have
   // =========================================================================
   const definedKeys = Object.keys(input).filter(k => input[k] !== undefined && input[k] !== null && input[k] !== "");
-  console.log(`[BuildInput] Node ${node.id} (${nodeType}) final input keys:`, definedKeys);
+  
   
   // Log warnings for potentially missing required fields based on node type
   if (nodeType === "merge-videos") {
-    if (!input.video1) console.warn(`[BuildInput] WARNING: merge-videos missing video1`);
-    if (!input.video2) console.warn(`[BuildInput] WARNING: merge-videos missing video2`);
+    if (!input.video1) 
+    if (!input.video2) 
   }
   if (nodeType === "extract-audio") {
-    if (!input.video) console.warn(`[BuildInput] WARNING: extract-audio missing video`);
+    if (!input.video) 
   }
   if (nodeType === "merge-audio-video" || nodeType === "lipsync") {
-    if (!input.video) console.warn(`[BuildInput] WARNING: ${nodeType} missing video`);
-    if (!input.audio) console.warn(`[BuildInput] WARNING: ${nodeType} missing audio`);
+    if (!input.video) 
+    if (!input.audio) 
   }
   
   return input;
@@ -578,7 +578,7 @@ export const executeWorkflow = task({
     });
     
     if (allNodesSkipped && nodes.length > 0) {
-      console.log("[DAG] All nodes are skipped - completing workflow immediately");
+      
       
       // Create node execution records and mark as completed/failed based on output
       for (const node of nodes) {
@@ -616,14 +616,14 @@ export const executeWorkflow = task({
     const { dependencies } = buildDependencyGraph(nodes, edges);
     
     // Log dependencies for debugging
-    console.log(`[DAG] Dependency graph for ${nodes.length} nodes:`);
+    
     for (const [nodeId, deps] of dependencies.entries()) {
       const node = nodes.find(n => n.id === nodeId);
       const depsList = [...deps].map(d => {
         const depNode = nodes.find(n => n.id === d);
         return `${d} (${depNode?.type || "unknown"})`;
       });
-      console.log(`[DAG]   ${nodeId} (${node?.type || "unknown"}) depends on: [${depsList.join(", ")}]`);
+      
     }
 
     // Track state for DAG execution
@@ -635,7 +635,7 @@ export const executeWorkflow = task({
     const failedNodes = new Set<string>(); // Nodes that failed or have failed dependencies
 
     // Create all node execution records upfront
-    console.log(`[DAG] Creating ${nodes.length} node execution records for workflow ${workflowExecutionId}`);
+    
     for (const node of nodes) {
       const nodeType = node.type as AINodeType;
       const nodeLabel = (node.data as Record<string, unknown>)?.label as string | undefined;
@@ -651,13 +651,13 @@ export const executeWorkflow = task({
           },
         });
         nodeExecutionIds.set(node.id, nodeExecution.id);
-        console.log(`[DAG] Created node execution ${nodeExecution.id} for node ${node.id} (${nodeType})`);
+        
       } catch (err) {
         console.error(`[DAG] FAILED to create node execution for ${node.id}:`, err);
         throw err; // Re-throw to fail the task
       }
     }
-    console.log(`[DAG] Successfully created ${nodeExecutionIds.size} node execution records`);
+    
 
     // Helper: Check if a node can start (all its dependencies are completed, none failed)
     const canStart = (nodeId: string): boolean => {
@@ -715,7 +715,7 @@ export const executeWorkflow = task({
                 completedAt: new Date(),
               },
             });
-            console.log(`[DAG] Updated DB: ${nodeId} -> FAILED (${errorMessage})`);
+            
           } catch (err) {
             console.error(`[DAG] Failed to update node ${nodeId} status in DB:`, err);
           }
@@ -729,7 +729,7 @@ export const executeWorkflow = task({
         }
       }
       
-      console.log(`[DAG] Marked ${marked.size} nodes as failed (including dependents): ${[...marked].join(", ")}`);
+      
     };
 
     // Helper: Start a node (non-blocking) - or skip if skip=true and has output
@@ -746,7 +746,7 @@ export const executeWorkflow = task({
         const nodeName = (nodeData.label as string) || nodeType;
         
         if (existingResult && typeof existingResult === "string" && existingResult.trim().length > 0) {
-          console.log(`[DAG] Node ${node.id} (${nodeType}) SKIPPED - using existing output`);
+          
           
           // Determine output type based on node type
           const outputType = inferOutputType(nodeType);
@@ -779,11 +779,11 @@ export const executeWorkflow = task({
             },
           });
           
-          console.log(`[DAG] Node ${node.id} skipped successfully, output:`, { url: existingResult?.slice(0, 60) });
+          
           return; // Don't actually execute the node
         } else {
           // Skip enabled but no output - mark as failed
-          console.log(`[DAG] Node ${node.id} (${nodeType}) SKIP FAILED - no existing output`);
+          
           await db.nodeExecution.update({
             where: { id: nodeExecutionId },
             data: {
@@ -799,7 +799,7 @@ export const executeWorkflow = task({
         }
       }
 
-      console.log(`[DAG] Starting ${node.id} (${nodeType})...`);
+      
       const input = buildNodeInput(node, edges, outputs, nodes);
 
       // Update DB: mark as RUNNING and store input
@@ -823,7 +823,7 @@ export const executeWorkflow = task({
 
       runningNodes.set(node.id, { runId: handle.id, node });
       pendingNodes.delete(node.id);
-      console.log(`[DAG] Node ${node.id} triggered with runId: ${handle.id}`);
+      
       
       // Update metadata with node status (legacy - may not propagate to React hooks)
       const nodeLabel = (nodeData.label as string) || nodeType;
@@ -845,7 +845,7 @@ export const executeWorkflow = task({
     };
 
     // Start all nodes that have no dependencies
-    console.log(`[DAG] ===== Starting DAG execution for ${nodes.length} nodes =====`);
+    
     
     // Keep starting nodes until no more can be started
     // This handles the case where skipped nodes complete instantly and unblock dependents
@@ -897,7 +897,7 @@ export const executeWorkflow = task({
       // First, check pending nodes that have failed dependencies and mark them
       for (const pendingNodeId of Array.from(pendingNodes)) {
         if (hasDependencyFailed(pendingNodeId)) {
-          console.log(`[DAG] Node ${pendingNodeId} has failed dependency, marking as failed`);
+          
           await markNodeAndDependentsFailed(pendingNodeId, "Dependency failed");
         }
       }
@@ -907,7 +907,7 @@ export const executeWorkflow = task({
         if (canStart(pendingNodeId)) {
           const pendingNode = nodes.find(n => n.id === pendingNodeId);
           if (pendingNode) {
-            console.log(`[DAG] Poll start: Dependencies satisfied for ${pendingNodeId}, starting...`);
+            
             await startNode(pendingNode);
           }
         }
@@ -922,11 +922,11 @@ export const executeWorkflow = task({
           const nodeType = node.type as AINodeType;
           const status = run.status;
 
-          console.log(`[DAG] Checking ${nodeId}: status=${status}`);
+          
 
           // Check for completion
           if (status === "COMPLETED") {
-            console.log(`[DAG] Node ${nodeId} (${nodeType}) COMPLETED`);
+            
             
             // Extract and store output
             const taskOutput = run.output as { output?: Record<string, unknown> } | undefined;
@@ -939,7 +939,7 @@ export const executeWorkflow = task({
                 hasImage: "image" in taskOutput.output,
               });
             } else {
-              console.warn(`[DAG] Node ${nodeId} completed but no output found`);
+              
               outputs.set(nodeId, {});
             }
 
@@ -982,7 +982,7 @@ export const executeWorkflow = task({
                     outputJson: taskOutput.output as object,
                   },
                 });
-                console.log(`[DAG] Updated nodeExecution ${nodeExecutionId} with output (fallback save)`);
+                
               } catch (err) {
                 console.error(`[DAG] Failed to update nodeExecution ${nodeExecutionId}:`, err);
               }
@@ -993,7 +993,7 @@ export const executeWorkflow = task({
               if (canStart(pendingNodeId)) {
                 const pendingNode = nodes.find(n => n.id === pendingNodeId);
                 if (pendingNode) {
-                  console.log(`[DAG] Dependencies satisfied for ${pendingNodeId}, starting...`);
+                  
                   await startNode(pendingNode);
                 }
               }
@@ -1030,7 +1030,7 @@ export const executeWorkflow = task({
           } else if (!ACTIVE_STATES.has(status)) {
             // Unknown status - log warning but treat as still running for safety
             // This prevents infinite loops if Trigger.dev adds new statuses
-            console.warn(`[DAG] Node ${nodeId} has unknown status: ${status} - treating as active`);
+            
           }
           // If PENDING, QUEUED, EXECUTING, WAITING, etc. - continue polling
         } catch (err) {
@@ -1050,14 +1050,14 @@ export const executeWorkflow = task({
       if (runningNodes.size > 0 || pendingNodes.size > 0) {
         const runningNodesList = [...runningNodes.keys()].join(", ");
         const pendingNodesList = [...pendingNodes].join(", ");
-        console.log(`[DAG] Poll #${iteration}: Running=[${runningNodesList}], Pending=[${pendingNodesList}], Completed=${completedNodes.size}, Failed=${failedNodes.size}`);
+        
         await wait.for({ seconds: POLL_INTERVAL_SECONDS });
       }
     }
 
     // Final debug log before exiting the loop
-    console.log(`[DAG] Exiting poll loop after ${iteration} iterations`);
-    console.log(`[DAG] Final state: Running=${runningNodes.size}, Pending=${pendingNodes.size}, Completed=${completedNodes.size}, Failed=${failedNodes.size}`);
+    
+    
 
     // Check if we timed out
     if (iteration >= MAX_ITERATIONS) {
@@ -1089,16 +1089,16 @@ export const executeWorkflow = task({
       // Some succeeded, some failed - partial success
       finalStatus = "COMPLETED"; // Mark as completed but with errors noted
       errorMessage = `Partial completion: ${completedNodes.size} succeeded, ${failedNodes.size} failed`;
-      console.log(`[DAG] ===== Workflow PARTIALLY completed: ${completedNodes.size} succeeded, ${failedNodes.size} failed =====`);
+      
     } else if (hasFailures && !hasSuccesses) {
       // All failed
       finalStatus = "FAILED";
       errorMessage = `All ${failedNodes.size} nodes failed`;
-      console.log(`[DAG] ===== Workflow FAILED: all ${failedNodes.size} nodes failed =====`);
+      
     } else {
       // All succeeded
       finalStatus = "COMPLETED";
-      console.log(`[DAG] ===== Workflow COMPLETED successfully with ${completedNodes.size} nodes =====`);
+      
     }
 
     await db.workflowExecution.update({

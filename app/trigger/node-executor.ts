@@ -40,7 +40,7 @@ function normalizeMediaInputs(input: Record<string, unknown>): Record<string, un
     if (typeof value === "string" && value.length > 0) {
       if (value.startsWith("http://") || value.startsWith("https://") || 
           value.startsWith("data:") || value.startsWith("blob:")) {
-        console.log(`[NodeExecutor] Normalizing ${field}: string → { url: "..." }`);
+        
         normalized[field] = { url: value };
       }
     }
@@ -84,7 +84,7 @@ async function safeUpdateNodeExecution(
       where: { id: nodeExecutionId },
       data,
     });
-    console.log(`[NodeExecutor] Updated nodeExecution ${nodeExecutionId}:`, Object.keys(data));
+    
     return true;
   } catch (error) {
     // Log the actual error for debugging
@@ -111,8 +111,8 @@ export const executeNode = task({
 
     // Debug: Log raw input for crop-image to diagnose the issue
     if (nodeType === "crop-image") {
-      console.log(`[NodeExecutor:crop-image] RAW PAYLOAD INPUT:`, JSON.stringify(input, null, 2));
-      console.log(`[NodeExecutor:crop-image] xPercent: ${(input as any)?.xPercent} (${typeof (input as any)?.xPercent})`);
+      
+      
     }
 
     // Dynamic import of engine module - only loads on Trigger.dev workers
@@ -138,7 +138,7 @@ export const executeNode = task({
 
       // If already failed, don't retry (return early to avoid re-running)
       if (currentExec?.status === "FAILED") {
-        console.log(`[NodeExecutor] ${nodeType} already FAILED, skipping retry`);
+        
         throw new Error("Node already failed - not retrying");
       }
 
@@ -155,7 +155,7 @@ export const executeNode = task({
         cacheHash = cacheCheck.hash;
 
         if (cacheCheck.hit && cacheCheck.result) {
-          console.log(`[NodeExecutor] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+          
           
           // Mark as completed with cached result (no execution needed)
           await safeUpdateNodeExecution(nodeExecutionId, workflowExecutionId, {
@@ -176,12 +176,12 @@ export const executeNode = task({
           };
         }
 
-        console.log(`[NodeExecutor] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+        
       } catch (cacheError) {
         console.warn("[NodeExecutor] Cache check failed, proceeding with execution:", cacheError);
       }
     } else {
-      console.log(`[NodeExecutor] Cache DISABLED for ${nodeType} - executing fresh`);
+      
     }
 
     // Check if user has enough credits before execution (use dynamic estimate)
@@ -223,28 +223,28 @@ export const executeNode = task({
     const mediaNodeTypes = ["merge-audio-video", "merge-videos", "extract-audio", "lipsync"];
     if (mediaNodeTypes.includes(nodeType)) {
       const inputKeys = Object.keys(input);
-      console.log(`[NodeExecutor] ${nodeType} RAW input keys: ${inputKeys.join(", ")}`);
+      
       
       // Check each media field
       for (const field of ["video", "audio", "video1", "video2"]) {
         const val = input[field];
         if (val === undefined) {
-          console.log(`[NodeExecutor] ${field}: UNDEFINED (missing from payload!)`);
+          
         } else if (val === null) {
-          console.log(`[NodeExecutor] ${field}: NULL`);
+          
         } else if (typeof val === "string") {
           const preview = val.startsWith("data:") 
             ? `[base64:${val.length} bytes]` 
             : val.slice(0, 100);
-          console.log(`[NodeExecutor] ${field}: STRING "${preview}"`);
+          
         } else if (typeof val === "object" && val !== null && "url" in val) {
           const url = (val as { url: string }).url;
           const preview = url?.startsWith("data:") 
             ? `[base64:${url.length} bytes]` 
             : url?.slice(0, 100);
-          console.log(`[NodeExecutor] ${field}: OBJECT { url: "${preview}" }`);
+          
         } else {
-          console.log(`[NodeExecutor] ${field}: ${typeof val}`);
+          
         }
       }
     }
@@ -255,17 +255,17 @@ export const executeNode = task({
     
     // Log AFTER normalization
     if (mediaNodeTypes.includes(nodeType)) {
-      console.log(`[NodeExecutor] ${nodeType} AFTER normalization:`);
+      
       for (const field of ["video", "audio", "video1", "video2"]) {
         const val = normalizedInput[field];
         if (val === undefined) {
-          console.log(`[NodeExecutor] ${field}: STILL UNDEFINED`);
+          
         } else if (typeof val === "object" && val !== null && "url" in val) {
           const url = (val as { url: string }).url;
           const preview = url?.startsWith("data:") 
             ? `[base64:${url.length} bytes]` 
             : url?.slice(0, 100);
-          console.log(`[NodeExecutor] ${field}: OK { url: "${preview}" }`);
+          
         }
       }
     }
@@ -355,7 +355,7 @@ export const executeNode = task({
       if (isTransloaditConfigured()) {
         try {
           persistedOutput = await persistNodeOutput(outputValidation.data);
-          console.log(`[NodeExecutor] Persisted webhook output to CDN for ${nodeType}`);
+          
         } catch (persistError) {
           console.warn(`[NodeExecutor] Failed to persist output to CDN:`, persistError);
           // Continue with original output - fallback will handle it
@@ -378,7 +378,7 @@ export const executeNode = task({
       if (useCache && cacheHash && persistedOutput) {
         try {
           await cacheResult(cacheHash, nodeType, persistedOutput as Record<string, unknown>);
-          console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+          
         } catch (cacheWriteError) {
           console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
         }
@@ -416,11 +416,11 @@ export const executeNode = task({
         
         // Only persist if output contains base64 data
         if (mediaUrl.startsWith("data:")) {
-          console.log(`[NodeExecutor] Uploading ${nodeType} base64 output to CDN...`);
+          
           persistedOutput = await persistNodeOutput(outputValidation.data);
           const persistedData = persistedOutput as { image?: { url?: string }; video?: { url?: string }; audio?: { url?: string } };
           const newUrl = persistedData?.image?.url || persistedData?.video?.url || persistedData?.audio?.url || "";
-          console.log(`[NodeExecutor] Uploaded to CDN: ${newUrl.slice(0, 80)}...`);
+          
         }
       } catch (persistError) {
         console.warn(`[NodeExecutor] Failed to persist output to CDN:`, persistError);
@@ -443,7 +443,7 @@ export const executeNode = task({
       providerUsed: result.providerUsed,
       actualCost: result.actualCost ?? 0,
     });
-    console.log(`[NodeExecutor] safeUpdateNodeExecution result: ${updateResult}`);
+    
 
     // Deduct credits after successful execution
     // Use result.actualCost if provided (> 0), otherwise calculate
@@ -457,7 +457,7 @@ export const executeNode = task({
     if (useCache && cacheHash && persistedOutput) {
       try {
         await cacheResult(cacheHash, nodeType, persistedOutput as Record<string, unknown>);
-        console.log(`[NodeExecutor] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+        
       } catch (cacheWriteError) {
         console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
       }
@@ -569,7 +569,7 @@ async function deductCreditsForNode(
       userId = quickExec?.userId ?? null;
       
       if (!userId) {
-        console.log(`[NodeExecutor] No user found for QuickExecution ${nodeExecutionId}, skipping credit deduction`);
+        
         return;
       }
     } else {
@@ -581,7 +581,7 @@ async function deductCreditsForNode(
       userId = workflowExec?.userId ?? null;
 
       if (!userId) {
-        console.log(`[NodeExecutor] No user found for workflow ${workflowExecutionId}, skipping credit deduction`);
+        
         return;
       }
     }
@@ -594,11 +594,11 @@ async function deductCreditsForNode(
 
     // Skip if no cost (truly free nodes only)
     if (cost <= 0) {
-      console.log(`[NodeExecutor] Node ${nodeType} has no cost, skipping credit deduction`);
+      
       return;
     }
     
-    console.log(`[NodeExecutor] Node ${nodeType} cost: ${cost} credits (sync: ${isSyncExecution})`);
+    
 
     // Deduct credits in a transaction
     // Use longer timeout (30s) since node execution can take a while and 
@@ -612,7 +612,7 @@ async function deductCreditsForNode(
         });
 
         if (!user) {
-          console.log(`[NodeExecutor] User ${userId} not found, skipping credit deduction`);
+          
           return;
         }
 
@@ -668,7 +668,7 @@ async function deductCreditsForNode(
           });
         }
 
-        console.log(`[NodeExecutor] Deducted ${cost} credits from user ${userId}, new balance: ${newBalance}`);
+        
       },
       {
         timeout: 30000, // 30 second timeout (default is 5s)
@@ -682,11 +682,11 @@ async function deductCreditsForNode(
 }
 
 async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: string, error: string): Promise<void> {
-  console.log(`[NodeExecutor] Marking node ${nodeExecutionId} as FAILED: ${error}`);
+  
   
   // Skip DB update for sync executions (utility nodes run individually)
   if (workflowExecutionId.startsWith("sync-")) {
-    console.log(`[NodeExecutor] Sync execution - skipping nodeExecution DB update`);
+    
     // Update QuickExecution instead
     try {
       await db.quickExecution.update({
@@ -697,9 +697,9 @@ async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: stri
           error,
         },
       });
-      console.log(`[NodeExecutor] QuickExecution ${nodeExecutionId} marked FAILED`);
+      
     } catch {
-      console.log(`[NodeExecutor] QuickExecution ${nodeExecutionId} not found`);
+      
     }
     return;
   }
@@ -715,7 +715,7 @@ async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: stri
       select: { workflowExecutionId: true, nodeId: true, nodeType: true },
     });
 
-    console.log(`[NodeExecutor] Node ${nodeExec.nodeId} (${nodeExec.nodeType}) marked FAILED in DB`);
+    
 
     // NOTE: We do NOT mark the workflow as FAILED here!
     // The workflow executor is responsible for determining the final workflow status
@@ -723,7 +723,7 @@ async function markNodeFailed(nodeExecutionId: string, workflowExecutionId: stri
     // (some chains succeed, some fail) without blocking other chains.
   } catch (dbError) {
     // Record doesn't exist - this is OK for single node runs
-    console.log(`[NodeExecutor] nodeExecution ${nodeExecutionId} not found (single node run?)`);
+    
   }
 }
 

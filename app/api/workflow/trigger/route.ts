@@ -32,7 +32,7 @@ interface TriggerWorkflowRequest {
 async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
   const transloaditConfigured = isTransloaditConfigured();
   if (!transloaditConfigured) {
-    console.log("[WorkflowTrigger] Transloadit not configured - skipping CDN upload");
+    
     return nodes;
   }
 
@@ -58,7 +58,7 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
           uploadFromBase64(value).then(result => {
             if (result.url !== value) {
               nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType };
-              console.log(`[WorkflowTrigger] Uploaded ${nodeCopy.id}.${fieldCopy}`);
+              
             }
           }).catch(err => {
             console.error(`[WorkflowTrigger] Failed to upload ${nodeCopy.id}.${fieldCopy}:`, err);
@@ -76,7 +76,7 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
             uploadFromBase64(obj.url).then(result => {
               if (result.url !== obj.url) {
                 nodeData[fieldCopy] = { url: result.url, mimeType: result.mimeType || obj.mimeType };
-                console.log(`[WorkflowTrigger] Uploaded ${nodeCopy.id}.${fieldCopy}.url`);
+                
               }
             }).catch(err => {
               console.error(`[WorkflowTrigger] Failed to upload ${nodeCopy.id}.${fieldCopy}.url:`, err);
@@ -90,7 +90,7 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
   }
 
   if (uploadPromises.length > 0) {
-    console.log(`[WorkflowTrigger] Waiting for ${uploadPromises.length} uploads...`);
+    
     await Promise.all(uploadPromises);
   }
 
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No nodes to execute" }, { status: 400 });
     }
 
-    console.log(`[WorkflowTrigger] Starting workflow with ${nodes.length} nodes`);
+    
 
     // Get or create user
     let user = await db.user.findUnique({
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     const processedNodes = await preprocessNodesForTrigger(nodes);
 
     // Trigger the workflow executor task
-    console.log(`[WorkflowTrigger] Triggering executeWorkflow task...`);
+    
     const handle = await executeWorkflow.trigger({
       workflowExecutionId: workflowExecution.id,
       workflowId: workflow.id,
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       edges,
     });
 
-    console.log(`[WorkflowTrigger] Workflow task started with run ID: ${handle.id}`);
+    
 
     // Store the Trigger.dev run ID
     await db.workflowExecution.update({
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
         },
         expirationTime: "30m", // 30 minutes
       });
-      console.log(`[WorkflowTrigger] Created public token for client subscription`);
+      
     } catch (tokenError) {
       console.warn(`[WorkflowTrigger] Failed to create public token:`, tokenError);
       // Continue without token - client will fall back to polling
