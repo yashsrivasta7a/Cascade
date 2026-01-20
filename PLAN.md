@@ -404,7 +404,7 @@ const { submit } = useRealtimeTaskTrigger("executeWorkflow", {
 - Would need separate WebSocket server (Pusher, Ably, etc.) adding complexity and cost
 - Trigger.dev's realtime already uses WebSockets under the hood - if that doesn't work, custom WS won't help
 
-### Summary
+### Summary of Previous Approaches
 
 | Approach | Works Locally | Works on Vercel | Why |
 |----------|---------------|-----------------|-----|
@@ -412,16 +412,97 @@ const { submit } = useRealtimeTaskTrigger("executeWorkflow", {
 | `useRealtimeRun` | ❌ | ❌ | Metadata updates don't propagate |
 | `useRealtimeTaskTrigger` | ❌ | ❌ | Can't handle dynamic tokens |
 | WebSocket | N/A | ❌ | Serverless timeout limits |
-| **Polling (500ms)** | ✅ | ✅ | Database is always consistent |
+| Polling (500ms) | ✅ | ✅ | Database is always consistent |
+
+---
+
+### 🆕 Trigger.dev Streams v2 (Experimental)
+
+We're testing a new approach using **Trigger.dev Streams v2**, which provides a dedicated streaming API that should work properly with React hooks.
+
+#### Why This Might Work
+
+Unlike `metadata.set()` which doesn't propagate to React hooks, Streams v2:
+- Has its own dedicated WebSocket channel for stream data
+- Uses `useRealtimeRunWithStreams` hook specifically designed for streams
+- Client connects directly to Trigger.dev, completely bypassing Vercel
+
+#### Architecture (Streams v2)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  workflow-executor.ts (Trigger.dev Worker)                      │
+│                                                                 │
+│  Writes to streams:                                             │
+│  - nodeStatusStream.write({ nodeId, status, output, ... })     │
+│  - workflowStatusStream.write({ status, successCount, ... })   │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                              │ WebSocket (Trigger.dev internal)
+                              │ Bypasses Vercel entirely
+                              ▼
+┌────────────────────────────────────────────────────────────────┐
+│  Frontend (useRealtimeWorkflowV2 hook)                          │
+│                                                                 │
+│  Direct WebSocket to Trigger.dev:                               │
+│                                                                 │
+│    - useRealtimeRunWithStreams(runId, { accessToken })         │
+│    - Receives stream data: streams["node-status"]              │
+│    - Triggers callbacks on status changes                       │
+│    - No polling, no Vercel buffering                           │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### Implementation Files
+
+| File | Purpose |
+|------|---------|
+| `app/trigger/streams.ts` | Stream definitions (`nodeStatusStream`, `workflowStatusStream`) |
+| `app/trigger/workflow-executor.ts` | Writes to streams during execution |
+| `hooks/use-realtime-workflow-v2.tsx` | React hook using `useRealtimeRunWithStreams` |
+| `app/api/workflow/trigger/route.ts` | Returns `publicToken` for client subscription |
+
+#### Usage
+
+```tsx
+// The V2 hook returns a StreamSubscriber component that must be rendered
+const { 
+  runWorkflow, 
+  isRunning, 
+  cancelWorkflow,
+  StreamSubscriber,  // Must render this!
+} = useRealtimeWorkflowV2(workflowId, callbacks);
+
+// In JSX:
+return (
+  <div>
+    {StreamSubscriber}  {/* Activates WebSocket when running */}
+    {/* ... rest of UI ... */}
+  </div>
+);
+```
+
+#### Fallback Chain
+
+The workflow page uses a progressive fallback approach:
+
+1. **V2 Streams** (Trigger.dev WebSocket) - Preferred
+2. **V1 Polling** (500ms database polling) - Reliable fallback
+3. **SSE** (Server-Sent Events) - Last resort
+
+---
 
 ### Current Solution
 
-**Fast polling (500ms)** provides:
-- ✅ Responsive updates (indistinguishable from realtime for humans)
-- ✅ Reliable on Vercel
-- ✅ Shows parallel execution correctly
-- ✅ Node glow animations work
-- ✅ Simple, debuggable code
+**Hybrid approach** with automatic fallback:
+- Tries V2 Streams first (true realtime via WebSocket)
+- Falls back to V1 polling (500ms) if streams fail
+- V1 polling provides:
+  - ✅ Responsive updates (indistinguishable from realtime for humans)
+  - ✅ Reliable on Vercel
+  - ✅ Shows parallel execution correctly
+  - ✅ Node glow animations work
+  - ✅ Simple, debuggable code
 
 ### Polling Flow
 

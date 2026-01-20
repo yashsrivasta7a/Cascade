@@ -199,7 +199,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Create a public access token for client-side realtime subscription
-    // This allows the client to subscribe directly to Trigger.dev
+    // This allows the client to subscribe directly to Trigger.dev via WebSocket
+    // The token grants read access to this run, which includes:
+    // - Run status updates (EXECUTING, COMPLETED, FAILED, etc.)
+    // - Streams v2 data (node-status, workflow-status streams)
+    // - Run metadata (legacy, may not propagate)
     let publicToken: string | null = null;
     try {
       publicToken = await triggerAuth.createPublicToken({

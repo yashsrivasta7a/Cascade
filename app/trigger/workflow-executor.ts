@@ -5,9 +5,10 @@ import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
 import { NODE_CONFIG } from "@/lib/config";
+import { nodeStatusStream, workflowStatusStream, type NodeStatusEvent } from "./streams";
 
 // =============================================================================
-// NODE STATUS TYPES FOR METADATA
+// NODE STATUS TYPES FOR METADATA (legacy - keeping for compatibility)
 // =============================================================================
 interface NodeStatus {
   status: "queued" | "started" | "completed" | "failed";
@@ -561,6 +562,12 @@ export const executeWorkflow = task({
       where: { id: workflowExecutionId },
       data: { status: "RUNNING", startedAt: new Date() },
     });
+    
+    // Write workflow started to stream
+    await workflowStatusStream.write({
+      status: "started",
+      timestamp: Date.now(),
+    });
 
     // ==========================================================================
     // ALL NODES SKIPPED CHECK - Complete early if all nodes are skipped
@@ -818,7 +825,7 @@ export const executeWorkflow = task({
       pendingNodes.delete(node.id);
       console.log(`[DAG] Node ${node.id} triggered with runId: ${handle.id}`);
       
-      // Update metadata with node status (triggers realtime subscription)
+      // Update metadata with node status (legacy - may not propagate to React hooks)
       const nodeLabel = (nodeData.label as string) || nodeType;
       await metadata.set(`node:${node.id}`, {
         status: "started",
@@ -826,6 +833,15 @@ export const executeWorkflow = task({
         nodeLabel,
         timestamp: Date.now(),
       } satisfies NodeStatus);
+      
+      // Write to stream (Streams v2 - should propagate to React hooks)
+      await nodeStatusStream.write({
+        nodeId: node.id,
+        status: "started",
+        nodeType,
+        nodeLabel,
+        timestamp: Date.now(),
+      });
     };
 
     // Start all nodes that have no dependencies
@@ -930,7 +946,7 @@ export const executeWorkflow = task({
             completedNodes.add(nodeId);
             runningNodes.delete(nodeId);
             
-            // Update metadata with node completion (triggers realtime subscription)
+            // Update metadata with node completion (legacy - may not propagate to React hooks)
             const nodeData = (node.data ?? {}) as Record<string, unknown>;
             const nodeLabel = (nodeData.label as string) || nodeType;
             await metadata.set(`node:${nodeId}`, {
@@ -940,6 +956,16 @@ export const executeWorkflow = task({
               output: taskOutput?.output,
               timestamp: Date.now(),
             } satisfies NodeStatus);
+            
+            // Write to stream (Streams v2 - should propagate to React hooks)
+            await nodeStatusStream.write({
+              nodeId,
+              status: "completed",
+              nodeType,
+              nodeLabel,
+              output: taskOutput?.output,
+              timestamp: Date.now(),
+            });
             
             // Update nodeExecution as a FALLBACK
             // The node executor should have already saved the output, but DB connection
@@ -978,7 +1004,7 @@ export const executeWorkflow = task({
             
             runningNodes.delete(nodeId);
             
-            // Update metadata with node failure (triggers realtime subscription)
+            // Update metadata with node failure (legacy - may not propagate to React hooks)
             const nodeData = (node.data ?? {}) as Record<string, unknown>;
             const nodeLabel = (nodeData.label as string) || nodeType;
             await metadata.set(`node:${nodeId}`, {
@@ -988,6 +1014,16 @@ export const executeWorkflow = task({
               error: `Failed with status: ${status}`,
               timestamp: Date.now(),
             } satisfies NodeStatus);
+            
+            // Write to stream (Streams v2 - should propagate to React hooks)
+            await nodeStatusStream.write({
+              nodeId,
+              status: "failed",
+              nodeType,
+              nodeLabel,
+              error: `Failed with status: ${status}`,
+              timestamp: Date.now(),
+            });
             
             // Mark this node and all its dependents as failed (updates DB for all)
             await markNodeAndDependentsFailed(nodeId, `Failed with status: ${status}`);
@@ -1074,8 +1110,17 @@ export const executeWorkflow = task({
       },
     });
 
-    // Update metadata with workflow completion (triggers realtime subscription)
+    // Update metadata with workflow completion (legacy - may not propagate to React hooks)
     await metadata.set("workflow", {
+      status: "completed",
+      successCount: completedNodes.size,
+      failCount: failedNodes.size,
+      finalStatus,
+      timestamp: Date.now(),
+    });
+    
+    // Write to stream (Streams v2 - should propagate to React hooks)
+    await workflowStatusStream.write({
       status: "completed",
       successCount: completedNodes.size,
       failCount: failedNodes.size,
