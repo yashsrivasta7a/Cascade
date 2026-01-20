@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
-import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
 import type { Node, Edge } from "reactflow";
-import type { NodeStatusEvent, WorkflowStatusEvent } from "@/app/trigger/streams";
 
 // =============================================================================
-// REALTIME WORKFLOW HOOK V2 - Using Trigger.dev Streams v2
+// REALTIME WORKFLOW HOOK V2 - Using Trigger.dev Realtime API with metadata
 // =============================================================================
-// This hook uses Trigger.dev's Streams v2 API which should properly propagate
-// real-time updates to React hooks via direct WebSocket connection.
+// This hook uses Trigger.dev's Realtime API to subscribe to run updates.
+// The task uses metadata.set() to update node statuses, and this hook
+// reads from run.metadata to get real-time updates.
 //
-// Key differences from v1 (polling):
+// Key features:
 // - Direct WebSocket connection from browser to Trigger.dev
 // - No polling, no serverless buffering issues
 // - Bypasses Vercel entirely for realtime updates
@@ -39,15 +39,27 @@ interface TriggerResponse {
   error?: string;
 }
 
-// Define the stream types for useRealtimeRunWithStreams
-type WorkflowStreams = {
-  "node-status": NodeStatusEvent;
-  "workflow-status": WorkflowStatusEvent;
-};
+// Metadata structure from the workflow executor
+interface NodeStatusMetadata {
+  status: "queued" | "started" | "completed" | "failed";
+  nodeType: string;
+  nodeLabel?: string;
+  output?: unknown;
+  error?: string;
+  timestamp: number;
+}
 
-// Inner component that handles the stream subscription
-// This is needed because useRealtimeRunWithStreams requires accessToken immediately
-function StreamSubscriber({
+interface WorkflowMetadata {
+  status?: string;
+  successCount?: number;
+  failCount?: number;
+  finalStatus?: string;
+  timestamp?: number;
+}
+
+// Inner component that handles the realtime subscription
+// This is needed because useRealtimeRun requires accessToken immediately
+function RealtimeSubscriber({
   triggerRunId,
   publicToken,
   workflowExecutionId,
@@ -60,91 +72,118 @@ function StreamSubscriber({
   callbacks: React.MutableRefObject<RealtimeWorkflowCallbacks | undefined>;
   onComplete: () => void;
 }) {
-  const processedEvents = useRef<Set<string>>(new Set());
+  const processedStatuses = useRef<Map<string, string>>(new Map());
   const hasCompleted = useRef(false);
 
-  // Subscribe to the run with streams
-  const { run, streams, error } = useRealtimeRunWithStreams<unknown, WorkflowStreams>(
-    triggerRunId,
-    {
-      accessToken: publicToken,
-      enabled: true,
-    }
-  );
+  // Subscribe to the run using useRealtimeRun
+  const { run, error } = useRealtimeRun(triggerRunId, {
+    accessToken: publicToken,
+  });
 
-  // Process stream events
+  // Process metadata updates
   useEffect(() => {
     if (!run) return;
 
-    const nodeEvents = streams?.["node-status"] ?? [];
-    const workflowEvents = streams?.["workflow-status"] ?? [];
-
-    console.log(`[StreamSubscriber] Run status: ${run.status}, nodeEvents: ${nodeEvents.length}, workflowEvents: ${workflowEvents.length}`);
-
-    // Process node status events
-    for (const event of nodeEvents) {
-      const eventKey = `node:${event.nodeId}:${event.status}:${event.timestamp}`;
-      if (processedEvents.current.has(eventKey)) continue;
-      processedEvents.current.add(eventKey);
-
-      console.log(`[StreamSubscriber] Node event: ${event.nodeId} -> ${event.status}`);
-
-      if (event.status === "started") {
-        callbacks.current?.onNodeStarted?.(event.nodeId, event.nodeType);
-      } else if (event.status === "completed") {
-        callbacks.current?.onNodeCompleted?.(event.nodeId, event.nodeType, event.output);
-      } else if (event.status === "failed") {
-        callbacks.current?.onNodeFailed?.(event.nodeId, event.nodeType, event.error ?? "Unknown error");
-      }
+    const metadata = run.metadata as Record<string, unknown> | undefined;
+    
+    console.log(`[RealtimeSubscriber] Run status: ${run.status}, metadata keys: ${metadata ? Object.keys(metadata).length : 0}`);
+    
+    if (metadata) {
+      console.log(`[RealtimeSubscriber] Metadata:`, JSON.stringify(metadata, null, 2));
     }
 
-    // Process workflow status events
-    for (const event of workflowEvents) {
-      const eventKey = `workflow:${event.status}:${event.timestamp}`;
-      if (processedEvents.current.has(eventKey)) continue;
-      processedEvents.current.add(eventKey);
+    // Process node status updates from metadata
+    // Metadata keys are like "node:abc123" with value { status, nodeType, output, error, timestamp }
+    if (metadata) {
+      for (const [key, value] of Object.entries(metadata)) {
+        if (key.startsWith("node:") && value && typeof value === "object") {
+          const nodeId = key.replace("node:", "");
+          const nodeStatus = value as NodeStatusMetadata;
+          
+          // Check if status changed
+          const previousStatus = processedStatuses.current.get(nodeId);
+          if (previousStatus === nodeStatus.status) continue;
+          processedStatuses.current.set(nodeId, nodeStatus.status);
 
-      console.log(`[StreamSubscriber] Workflow event: ${event.status}`);
+          console.log(`[RealtimeSubscriber] Node ${nodeId}: ${previousStatus} -> ${nodeStatus.status}`);
 
-      if (event.status === "completed" && !hasCompleted.current) {
+          if (nodeStatus.status === "started") {
+            callbacks.current?.onNodeStarted?.(nodeId, nodeStatus.nodeType);
+          } else if (nodeStatus.status === "completed") {
+            callbacks.current?.onNodeCompleted?.(nodeId, nodeStatus.nodeType, nodeStatus.output);
+          } else if (nodeStatus.status === "failed") {
+            callbacks.current?.onNodeFailed?.(nodeId, nodeStatus.nodeType, nodeStatus.error ?? "Unknown error");
+          }
+        }
+      }
+
+      // Check workflow-level metadata
+      const workflowMeta = metadata.workflow as WorkflowMetadata | undefined;
+      if (workflowMeta?.status === "completed" && !hasCompleted.current) {
         hasCompleted.current = true;
         callbacks.current?.onWorkflowCompleted?.({
-          successCount: event.successCount ?? 0,
-          failCount: event.failCount ?? 0,
-          status: event.finalStatus ?? "COMPLETED",
+          successCount: workflowMeta.successCount ?? 0,
+          failCount: workflowMeta.failCount ?? 0,
+          status: workflowMeta.finalStatus ?? "COMPLETED",
           workflowExecutionId,
         });
         onComplete();
       }
     }
 
-    // Also check run-level completion (fallback)
+    // Also check run-level completion status
     if (run.status === "COMPLETED" && !hasCompleted.current) {
       hasCompleted.current = true;
-      const lastWorkflowEvent = workflowEvents[workflowEvents.length - 1];
+      
+      // Count successes and failures from metadata
+      let successCount = 0;
+      let failCount = 0;
+      if (metadata) {
+        for (const [key, value] of Object.entries(metadata)) {
+          if (key.startsWith("node:") && value && typeof value === "object") {
+            const nodeStatus = value as NodeStatusMetadata;
+            if (nodeStatus.status === "completed") successCount++;
+            if (nodeStatus.status === "failed") failCount++;
+          }
+        }
+      }
+      
       callbacks.current?.onWorkflowCompleted?.({
-        successCount: lastWorkflowEvent?.successCount ?? nodeEvents.filter(e => e.status === "completed").length,
-        failCount: lastWorkflowEvent?.failCount ?? nodeEvents.filter(e => e.status === "failed").length,
+        successCount,
+        failCount,
         status: "COMPLETED",
         workflowExecutionId,
       });
       onComplete();
     } else if (run.status === "FAILED" && !hasCompleted.current) {
       hasCompleted.current = true;
+      
+      let successCount = 0;
+      let failCount = 0;
+      if (metadata) {
+        for (const [key, value] of Object.entries(metadata)) {
+          if (key.startsWith("node:") && value && typeof value === "object") {
+            const nodeStatus = value as NodeStatusMetadata;
+            if (nodeStatus.status === "completed") successCount++;
+            if (nodeStatus.status === "failed") failCount++;
+          }
+        }
+      }
+      
       callbacks.current?.onWorkflowCompleted?.({
-        successCount: nodeEvents.filter(e => e.status === "completed").length,
-        failCount: nodeEvents.filter(e => e.status === "failed").length,
+        successCount,
+        failCount,
         status: "FAILED",
         workflowExecutionId,
       });
       onComplete();
     }
-  }, [run, streams, workflowExecutionId, callbacks, onComplete]);
+  }, [run, workflowExecutionId, callbacks, onComplete]);
 
   // Handle connection errors
   useEffect(() => {
     if (error) {
-      console.error("[StreamSubscriber] Error:", error);
+      console.error("[RealtimeSubscriber] Error:", error);
       callbacks.current?.onError?.(error.message);
     }
   }, [error, callbacks]);
@@ -213,7 +252,7 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
       setTriggerRunId(data.triggerRunId);
       setPublicToken(data.publicToken);
 
-      console.log("[useRealtimeWorkflowV2] Workflow triggered, subscribing to streams...", {
+      console.log("[useRealtimeWorkflowV2] Workflow triggered, subscribing to realtime...", {
         triggerRunId: data.triggerRunId,
         hasPublicToken: !!data.publicToken,
       });
@@ -249,13 +288,13 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
     setPublicToken(null);
   }, [workflowExecutionId]);
 
-  // Memoize the StreamSubscriber component
-  const StreamSubscriberComponent = useMemo(() => {
+  // Memoize the RealtimeSubscriber component
+  const RealtimeSubscriberComponent = useMemo(() => {
     if (!isRunning || !triggerRunId || !publicToken || !workflowExecutionId) {
       return null;
     }
     return (
-      <StreamSubscriber
+      <RealtimeSubscriber
         triggerRunId={triggerRunId}
         publicToken={publicToken}
         workflowExecutionId={workflowExecutionId}
@@ -271,7 +310,7 @@ export function useRealtimeWorkflowV2(workflowId: string, callbacks?: RealtimeWo
     isRunning,
     workflowExecutionId,
     triggerRunId,
-    // The caller should render this component to enable stream subscription
-    StreamSubscriber: StreamSubscriberComponent,
+    // The caller should render this component to enable realtime subscription
+    RealtimeSubscriber: RealtimeSubscriberComponent,
   };
 }
