@@ -42,7 +42,7 @@ model ApiKey {
   // Key identification
   name        String    // User-friendly name (e.g., "Production", "Development")
   prefix      String    // First 8 chars of key for display (e.g., "sk_live_a1b2")
-  hashedKey   String    @unique // SHA-256 hash of the full key
+  hashedKey   String    @unique // SHA-256 hash of the full key (unique index provides lookup)
   
   // Permissions & limits
   scopes      String[]  @default(["*"]) // Future: granular permissions
@@ -62,8 +62,7 @@ model ApiKey {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([hashedKey])
-  @@index([prefix])
+  // Note: hashedKey and prefix indexes removed - unique constraint on hashedKey is sufficient
   @@map("api_keys")
 }
 
@@ -148,7 +147,7 @@ model WorkflowExecution {
   userId       String
   
   // Trigger.dev run ID for durability
-  triggerRunId String?         @unique
+  triggerRunId String?         @unique // Unique constraint provides index
   
   status       ExecutionStatus @default(PENDING)
   
@@ -175,7 +174,8 @@ model WorkflowExecution {
 
   @@index([workflowId])
   @@index([userId])
-  @@index([triggerRunId])
+  @@index([status]) // For filtering by execution status
+  @@index([status, createdAt(sort: Desc)]) // For MCP: listing executions by status with recent first
   @@map("workflow_executions")
 }
 
@@ -240,6 +240,8 @@ model NodeExecution {
   @@index([nodeId])
   @@index([waitToken])
   @@index([providerJobId])
+  @@index([status]) // For filtering nodes by status
+  @@index([workflowExecutionId, status]) // For MCP: get all nodes for an execution filtered by status
   @@map("node_executions")
 }
 
@@ -308,9 +310,9 @@ model QuickExecution {
   createdAt     DateTime @default(now())
 
   @@index([userId])
-  @@index([nodeType])
   @@index([startedAt])
   @@index([workflowId])
+  // Note: nodeType index removed - was never used in queries
   @@map("quick_executions")
 }
 
@@ -363,7 +365,7 @@ model NodeResultCache {
   id        String   @id @default(cuid())
   
   // Hash of nodeType + inputs for cache lookup
-  hash      String   @unique
+  hash      String   @unique // Unique constraint provides index for lookups
   
   // What node type this is for
   nodeType  String
@@ -375,7 +377,6 @@ model NodeResultCache {
   createdAt DateTime @default(now())
   expiresAt DateTime
   
-  @@index([hash])
-  @@index([expiresAt])
+  @@index([expiresAt]) // For cleanup of expired cache entries
   @@map("node_result_cache")
 }

@@ -141,8 +141,10 @@
     "raiseIssue": true
   },
   "api": {
+    "baseUrl": "https://flowsmiths.vercel.app/api/v1",
     "auth": {
-      "method": "bearer"
+      "method": "bearer",
+      "name": "Authorization"
     },
     "playground": {
       "mode": "show"
