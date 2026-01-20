@@ -76,17 +76,32 @@ export async function authenticateWithApiKey(): Promise<AuthResult> {
     const authHeader = headersList.get("authorization");
     console.log("[authenticateWithApiKey] Auth header:", authHeader ? `${authHeader.substring(0, 30)}...` : "none");
     
+    return authenticateWithApiKeyDirect(authHeader);
+  } catch (error) {
+    console.error("[authenticateWithApiKey] Error:", error);
+    return { user: null, authMethod: null };
+  }
+}
+
+/**
+ * Authenticates a user via API key from a provided Authorization header string.
+ * This version doesn't use Next.js headers() - useful for trpc-to-openapi context.
+ */
+export async function authenticateWithApiKeyDirect(authHeader: string | null): Promise<AuthResult> {
+  try {
+    console.log("[authenticateWithApiKeyDirect] Auth header:", authHeader ? `${authHeader.substring(0, 40)}...` : "none");
+    
     const token = extractBearerToken(authHeader);
-    console.log("[authenticateWithApiKey] Token extracted:", token ? `${token.substring(0, 20)}...` : "none");
+    console.log("[authenticateWithApiKeyDirect] Token extracted:", token ? `${token.substring(0, 20)}...` : "none");
 
     if (!token) {
-      console.log("[authenticateWithApiKey] No token found");
+      console.log("[authenticateWithApiKeyDirect] No token found");
       return { user: null, authMethod: null };
     }
 
     // Validate the API key
     const keyData = await validateApiKey(token);
-    console.log("[authenticateWithApiKey] Key validation result:", keyData ? "valid" : "invalid");
+    console.log("[authenticateWithApiKeyDirect] Key validation result:", keyData ? "valid" : "invalid");
     if (!keyData) {
       return { user: null, authMethod: null };
     }
@@ -107,7 +122,7 @@ export async function authenticateWithApiKey(): Promise<AuthResult> {
       apiKeyId: keyData.apiKeyId,
     };
   } catch (error) {
-    console.error("[authenticateWithApiKey] Error:", error);
+    console.error("[authenticateWithApiKeyDirect] Error:", error);
     return { user: null, authMethod: null };
   }
 }

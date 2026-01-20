@@ -38,17 +38,19 @@ function withCors(response: Response): Response {
 
 // Handler for App Router using fetch handler
 async function handleRequest(req: NextRequest) {
-  // Debug: Log incoming request
+  // Debug: Log incoming request with all headers
   const authHeader = req.headers.get("authorization");
   console.log("[REST API] Incoming request:", req.method, req.url);
-  console.log("[REST API] Auth header:", authHeader ? `${authHeader.substring(0, 30)}...` : "none");
+  console.log("[REST API] Auth header:", authHeader ? `${authHeader.substring(0, 50)}...` : "none");
+  console.log("[REST API] Origin:", req.headers.get("origin") || "none");
   
   // Use the fetch handler from trpc-to-openapi
   // It expects the full request with the endpoint path
   const response = await createOpenApiFetchHandler({
     req,
     router: appRouter,
-    createContext,
+    // Pass request to createContext so it can access headers directly
+    createContext: () => createContext({ req }),
     endpoint: "/api/v1",
     onError: ({ error, path }) => {
       console.error(`[REST API] Error on ${path}:`, error.message);
