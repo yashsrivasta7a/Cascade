@@ -1,8 +1,7 @@
 import "server-only";
 import { initTRPC, TRPCError } from "@trpc/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { ensureCurrentUser, type EnsuredUser } from "@/lib/user";
+import { authenticateUser, type EnsuredUser } from "@/lib/user";
 import { OpenApiMeta } from "trpc-to-openapi";
 
 // =============================================================================
@@ -13,18 +12,23 @@ export interface Context {
   db: typeof db;
   user: EnsuredUser | null;
   userId: string | null;
+  authMethod: "clerk" | "api_key" | null;
+  apiKeyId?: string;
 }
 
 /**
  * Creates the context for each tRPC request
+ * Supports both Clerk session and API key authentication
  */
 export async function createContext(): Promise<Context> {
-  const user = await ensureCurrentUser();
+  const authResult = await authenticateUser();
   
   return {
     db,
-    user,
-    userId: user?.id ?? null,
+    user: authResult.user,
+    userId: authResult.user?.id ?? null,
+    authMethod: authResult.authMethod,
+    apiKeyId: authResult.apiKeyId,
   };
 }
 

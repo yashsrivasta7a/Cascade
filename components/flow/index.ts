@@ -98,6 +98,20 @@ export { CommentNode };
 export type { CommentNodeData } from "./nodes/comment-node";
 
 // ============================================================================
+// I/O NODES (Input and Output nodes for workflow connections)
+// ============================================================================
+
+import { ImageInputNode } from "./nodes/image-input-node";
+import { VideoInputNode } from "./nodes/video-input-node";
+import { AudioInputNode } from "./nodes/audio-input-node";
+import { OutputNode } from "./nodes/output-node";
+export { ImageInputNode, VideoInputNode, AudioInputNode, OutputNode };
+export type { ImageInputNodeData } from "./nodes/image-input-node";
+export type { VideoInputNodeData } from "./nodes/video-input-node";
+export type { AudioInputNodeData } from "./nodes/audio-input-node";
+export type { OutputNodeData } from "./nodes/output-node";
+
+// ============================================================================
 // NODE TYPE REGISTRY FOR REACTFLOW
 // ============================================================================
 
@@ -105,4 +119,9 @@ export const nodeTypes = {
   ...createAllNodeComponents(),
   // Special annotation nodes (not config-driven)
   comment: CommentNode,
+  // I/O nodes (custom components, not config-driven)
+  "image-input": ImageInputNode,
+  "video-input": VideoInputNode,
+  "audio-input": AudioInputNode,
+  "output": OutputNode,
 } as const;

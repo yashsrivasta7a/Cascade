@@ -7,6 +7,9 @@ import type { Node, Edge } from "reactflow";
 // =============================================================================
 // REALTIME WORKFLOW HOOK V2 - Using Trigger.dev Realtime API with metadata
 // =============================================================================
+// Uses useRealtimeRun to receive metadata updates from the workflow executor.
+// The executor uses metadata.set() to send real-time node status updates.
+// =============================================================================
 
 export type NodeStatus = "queued" | "running" | "completed" | "failed";
 
@@ -48,7 +51,7 @@ interface WorkflowMetadata {
   timestamp?: number;
 }
 
-// Inner component that handles the realtime subscription
+// Inner component that handles the realtime subscription using metadata
 function RealtimeSubscriber({
   triggerRunId,
   publicToken,

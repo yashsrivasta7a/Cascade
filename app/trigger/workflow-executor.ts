@@ -5,10 +5,9 @@ import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
 import { NODE_CONFIG } from "@/lib/config";
-import { nodeStatusStream, workflowStatusStream, type NodeStatusEvent } from "./streams";
 
 // =============================================================================
-// NODE STATUS TYPES FOR METADATA (legacy - keeping for compatibility)
+// NODE STATUS TYPES FOR METADATA
 // =============================================================================
 interface NodeStatus {
   status: "queued" | "started" | "completed" | "failed";
@@ -151,9 +150,9 @@ const NODE_DATA_TO_SCHEMA: Record<string, string> = {
 
 // Infer output type from node type
 function inferOutputType(nodeType: string): "video" | "audio" | "image" | "text" {
-  const videoNodes = ["seedance", "lipsync", "merge-videos", "merge-audio-video"];
-  const audioNodes = ["elevenlabs", "extract-audio"];
-  const imageNodes = ["seedream", "seedvr", "crop-image"];
+  const videoNodes = ["seedance", "lipsync", "merge-videos", "merge-audio-video", "video-input"];
+  const audioNodes = ["elevenlabs", "extract-audio", "audio-input"];
+  const imageNodes = ["seedream", "seedvr", "crop-image", "image-input"];
   
   if (videoNodes.includes(nodeType)) return "video";
   if (audioNodes.includes(nodeType)) return "audio";
@@ -358,6 +357,12 @@ function buildNodeInput(
     const sourceHandle = edge.sourceHandle || "";
     const targetHandle = edge.targetHandle || "";
     
+    // Debug: Log I/O node output handling
+    if (sourceNodeType.includes("input") || sourceNodeType === "output") {
+      console.log(`[buildNodeInput] Processing edge from I/O node ${edge.source} (${sourceNodeType}) to ${nodeType}`);
+      console.log(`[buildNodeInput] I/O upstream output:`, upstreamOutput ? JSON.stringify(upstreamOutput).slice(0, 200) : 'undefined');
+    }
+    
     
     
     // =========================================================================
@@ -543,14 +548,27 @@ export const executeWorkflow = task({
   run: async (payload: WorkflowExecutorPayload) => {
     const { workflowExecutionId, nodes, edges } = payload;
 
+    // Debug: Log I/O node data at the start
+    console.log(`[WorkflowExecutor] Starting workflow ${workflowExecutionId} with ${nodes.length} nodes`);
+    for (const node of nodes) {
+      if (node.type?.includes("input") || node.type === "output") {
+        const nodeData = (node.data ?? {}) as Record<string, unknown>;
+        console.log(`[WorkflowExecutor] I/O node ${node.id} (${node.type}) data:`, JSON.stringify({
+          result: nodeData.result ? `${String(nodeData.result).slice(0, 100)}...` : undefined,
+          value: nodeData.value ? `${String(nodeData.value).slice(0, 100)}...` : undefined,
+          dataKeys: Object.keys(nodeData),
+        }));
+      }
+    }
+
     // Update workflow status
     await db.workflowExecution.update({
       where: { id: workflowExecutionId },
       data: { status: "RUNNING", startedAt: new Date() },
     });
     
-    // Write workflow started to stream
-    await workflowStatusStream.append({
+    // Update metadata for workflow started
+    await metadata.set("workflow", {
       status: "started",
       timestamp: Date.now(),
     });
@@ -719,10 +737,172 @@ export const executeWorkflow = task({
     };
 
     // Helper: Start a node (non-blocking) - or skip if skip=true and has output
+    // I/O node types that are passthrough (don't need execution)
+    const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "output", "comment"];
+    
     const startNode = async (node: Node) => {
       const nodeType = node.type as AINodeType;
       const nodeExecutionId = nodeExecutionIds.get(node.id)!;
       const nodeData = (node.data ?? {}) as Record<string, unknown>;
+      
+      // =======================================================================
+      // I/O NODE HANDLING - These are passthrough nodes
+      // =======================================================================
+      if (IO_NODE_TYPES.includes(nodeType)) {
+        console.log(`[WorkflowExecutor] I/O node ${node.id} (${nodeType}) - passthrough handling`);
+        console.log(`[WorkflowExecutor] I/O node data keys:`, Object.keys(nodeData));
+        
+        // Input nodes: use their result/value as output
+        if (nodeType === "image-input" || nodeType === "video-input" || nodeType === "audio-input") {
+          const result = (nodeData.result || nodeData.value || nodeData.url || nodeData.file) as string | undefined;
+          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined');
+          
+          if (result && typeof result === "string" && result.length > 0) {
+            const outputType = nodeType === "image-input" ? "image" : nodeType === "video-input" ? "video" : "audio";
+            const passOutput: Record<string, unknown> = outputType === "image" 
+              ? { type: "image", image: { url: result } }
+              : outputType === "video"
+              ? { type: "video", video: { url: result } }
+              : { type: "audio", audio: { url: result } };
+            
+            outputs.set(node.id, passOutput);
+            completedNodes.add(node.id);
+            pendingNodes.delete(node.id);
+            
+            // Update database
+            await db.nodeExecution.update({
+              where: { id: nodeExecutionId },
+              data: {
+                status: "COMPLETED",
+                startedAt: new Date(),
+                completedAt: new Date(),
+                outputJson: passOutput as object,
+              },
+            });
+            
+            // Update metadata for realtime
+            await metadata.set(`node:${node.id}`, {
+              status: "completed",
+              nodeType,
+              nodeLabel: (nodeData.label as string) || nodeType,
+              output: passOutput,
+              timestamp: Date.now(),
+            });
+            
+            console.log(`[WorkflowExecutor] Input node ${node.id} completed with result`);
+            return;
+          } else {
+            // No input file uploaded
+            const errorMsg = `No file uploaded to ${nodeType.replace('-input', '')} input node`;
+            console.error(`[WorkflowExecutor] Input node ${node.id} failed: ${errorMsg}`);
+            
+            await db.nodeExecution.update({
+              where: { id: nodeExecutionId },
+              data: {
+                status: "FAILED",
+                startedAt: new Date(),
+                completedAt: new Date(),
+                error: errorMsg,
+              },
+            });
+            
+            await metadata.set(`node:${node.id}`, {
+              status: "failed",
+              nodeType,
+              nodeLabel: (nodeData.label as string) || nodeType,
+              error: errorMsg,
+              timestamp: Date.now(),
+            });
+            
+            await markNodeAndDependentsFailed(node.id, errorMsg);
+            return;
+          }
+        }
+        
+        // Output node: get value from connected upstream node
+        if (nodeType === "output") {
+          const incomingEdge = edges.find(e => e.target === node.id);
+          if (incomingEdge) {
+            const sourceOutput = outputs.get(incomingEdge.source);
+            if (sourceOutput) {
+              outputs.set(node.id, sourceOutput);
+              completedNodes.add(node.id);
+              pendingNodes.delete(node.id);
+              
+              // Get result text
+              const resultText = sourceOutput.type === "text" 
+                ? (sourceOutput.text as string)
+                : sourceOutput.type === "image" 
+                ? ((sourceOutput.image as { url: string })?.url)
+                : sourceOutput.type === "video"
+                ? ((sourceOutput.video as { url: string })?.url)
+                : ((sourceOutput.audio as { url: string })?.url);
+              
+              await db.nodeExecution.update({
+                where: { id: nodeExecutionId },
+                data: {
+                  status: "COMPLETED",
+                  startedAt: new Date(),
+                  completedAt: new Date(),
+                  outputJson: sourceOutput as object,
+                },
+              });
+              
+              await metadata.set(`node:${node.id}`, {
+                status: "completed",
+                nodeType,
+                nodeLabel: (nodeData.label as string) || "Output",
+                output: sourceOutput,
+                timestamp: Date.now(),
+              });
+              
+              console.log(`[WorkflowExecutor] Output node ${node.id} completed with result: ${resultText?.slice(0, 50)}...`);
+              return;
+            }
+          }
+          
+          // No input connected - just mark as completed
+          completedNodes.add(node.id);
+          pendingNodes.delete(node.id);
+          
+          await db.nodeExecution.update({
+            where: { id: nodeExecutionId },
+            data: {
+              status: "COMPLETED",
+              startedAt: new Date(),
+              completedAt: new Date(),
+            },
+          });
+          
+          await metadata.set(`node:${node.id}`, {
+            status: "completed",
+            nodeType,
+            nodeLabel: (nodeData.label as string) || "Output",
+            timestamp: Date.now(),
+          });
+          
+          console.log(`[WorkflowExecutor] Output node ${node.id} completed (no input connected)`);
+          return;
+        }
+        
+        // Comment node: just mark as completed
+        if (nodeType === "comment") {
+          completedNodes.add(node.id);
+          pendingNodes.delete(node.id);
+          
+          await db.nodeExecution.update({
+            where: { id: nodeExecutionId },
+            data: {
+              status: "COMPLETED",
+              startedAt: new Date(),
+              completedAt: new Date(),
+            },
+          });
+          
+          console.log(`[WorkflowExecutor] Comment node ${node.id} completed`);
+          return;
+        }
+      }
       
       // =======================================================================
       // SKIP CHECK - If skip=true and node has existing output, use it
@@ -819,15 +999,6 @@ export const executeWorkflow = task({
         nodeLabel,
         timestamp: Date.now(),
       } satisfies NodeStatus);
-      
-      // Write to stream (Streams v2 - should propagate to React hooks)
-      await nodeStatusStream.append({
-        nodeId: node.id,
-        status: "started",
-        nodeType,
-        nodeLabel,
-        timestamp: Date.now(),
-      });
     };
 
     // Start all nodes that have no dependencies
@@ -943,16 +1114,6 @@ export const executeWorkflow = task({
               timestamp: Date.now(),
             } satisfies NodeStatus);
             
-            // Write to stream (Streams v2 - should propagate to React hooks)
-            await nodeStatusStream.append({
-              nodeId,
-              status: "completed",
-              nodeType,
-              nodeLabel,
-              output: taskOutput?.output,
-              timestamp: Date.now(),
-            });
-            
             // Update nodeExecution as a FALLBACK
             // The node executor should have already saved the output, but DB connection
             // issues on Trigger.dev workers can cause silent failures.
@@ -1000,16 +1161,6 @@ export const executeWorkflow = task({
               error: `Failed with status: ${status}`,
               timestamp: Date.now(),
             } satisfies NodeStatus);
-            
-            // Write to stream (Streams v2 - should propagate to React hooks)
-            await nodeStatusStream.append({
-              nodeId,
-              status: "failed",
-              nodeType,
-              nodeLabel,
-              error: `Failed with status: ${status}`,
-              timestamp: Date.now(),
-            });
             
             // Mark this node and all its dependents as failed (updates DB for all)
             await markNodeAndDependentsFailed(nodeId, `Failed with status: ${status}`);
@@ -1098,15 +1249,6 @@ export const executeWorkflow = task({
 
     // Update metadata with workflow completion (legacy - may not propagate to React hooks)
     await metadata.set("workflow", {
-      status: "completed",
-      successCount: completedNodes.size,
-      failCount: failedNodes.size,
-      finalStatus,
-      timestamp: Date.now(),
-    });
-    
-    // Write to stream (Streams v2 - should propagate to React hooks)
-    await workflowStatusStream.append({
       status: "completed",
       successCount: completedNodes.size,
       failCount: failedNodes.size,

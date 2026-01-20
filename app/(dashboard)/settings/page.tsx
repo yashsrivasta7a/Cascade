@@ -27,6 +27,9 @@ import {
   Monitor,
   Camera,
   Loader2,
+  Code,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
 import { Button, Badge, Input, DotPattern, PageBackground } from "@/components/ui";
 import { UserMenu } from "@/components/layout";
@@ -57,6 +60,7 @@ const providers: Provider[] = [
 
 const tabs = [
   { id: "profile", label: "Profile", icon: User },
+  { id: "api-keys", label: "API Keys", icon: Code },
   { id: "providers", label: "Providers", icon: Key },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
@@ -76,6 +80,24 @@ function SettingsContent() {
   const [mounted, setMounted] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<Array<{
+    id: string;
+    name: string;
+    prefix: string;
+    lastUsedAt: string | null;
+    usageCount: number;
+    expiresAt: string | null;
+    createdAt: string;
+  }>>([]);
+  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
+  const [isCreatingApiKey, setIsCreatingApiKey] = useState(false);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyExpiry, setNewKeyExpiry] = useState<"never" | "30d" | "90d" | "1y">("never");
+  const [showCreateKeyModal, setShowCreateKeyModal] = useState(false);
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -86,6 +108,112 @@ function SettingsContent() {
       setActiveTab(tabParam as SettingsTab);
     }
   }, [tabParam]);
+
+  // Fetch API keys when tab changes to api-keys
+  useEffect(() => {
+    if (activeTab === "api-keys") {
+      fetchApiKeys();
+    }
+  }, [activeTab]);
+
+  const fetchApiKeys = async () => {
+    setIsLoadingApiKeys(true);
+    try {
+      const response = await fetch("/api/api-keys");
+      if (response.ok) {
+        const data = await response.json();
+        setApiKeys(data.apiKeys);
+      } else {
+        toast.error("Failed to fetch API keys");
+      }
+    } catch (error) {
+      console.error("Failed to fetch API keys:", error);
+      toast.error("Failed to fetch API keys");
+    } finally {
+      setIsLoadingApiKeys(false);
+    }
+  };
+
+  const createApiKey = async () => {
+    if (!newKeyName.trim()) {
+      toast.error("Please enter a name for the API key");
+      return;
+    }
+
+    setIsCreatingApiKey(true);
+    try {
+      const response = await fetch("/api/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newKeyName, expiresIn: newKeyExpiry }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNewlyCreatedKey(data.apiKey.key);
+        setApiKeys((prev) => [{
+          id: data.apiKey.id,
+          name: data.apiKey.name,
+          prefix: data.apiKey.prefix,
+          lastUsedAt: null,
+          usageCount: 0,
+          expiresAt: data.apiKey.expiresAt,
+          createdAt: data.apiKey.createdAt,
+        }, ...prev]);
+        setNewKeyName("");
+        setNewKeyExpiry("never");
+        toast.success("API key created successfully");
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to create API key");
+      }
+    } catch (error) {
+      console.error("Failed to create API key:", error);
+      toast.error("Failed to create API key");
+    } finally {
+      setIsCreatingApiKey(false);
+    }
+  };
+
+  const revokeApiKey = async (keyId: string) => {
+    try {
+      const response = await fetch(`/api/api-keys/${keyId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setApiKeys((prev) => prev.filter((key) => key.id !== keyId));
+        toast.success("API key revoked");
+      } else {
+        toast.error("Failed to revoke API key");
+      }
+    } catch (error) {
+      console.error("Failed to revoke API key:", error);
+      toast.error("Failed to revoke API key");
+    }
+  };
+
+  const copyToClipboard = async (text: string, keyId?: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (keyId) {
+        setCopiedKeyId(keyId);
+        setTimeout(() => setCopiedKeyId(null), 2000);
+      }
+      toast.success("Copied to clipboard");
+    } catch (error) {
+      toast.error("Failed to copy");
+    }
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Never";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   const toggleShowApiKey = (providerId: string) => {
     setShowApiKeys((prev) => ({ ...prev, [providerId]: !prev[providerId] }));
@@ -277,6 +405,245 @@ function SettingsContent() {
                   </div>
                   <div className="flex justify-end mt-6 pt-4 border-t border-[#6b6b6b] dark:border-zinc-800">
                     <Button>Save Changes</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* API Keys Tab */}
+              {activeTab === "api-keys" && (
+                <div className="space-y-4">
+                  {/* Header Card */}
+                  <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
+                    <DotPattern className="text-blue-500/5" />
+                    <div className="relative flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-violet-200 dark:bg-violet-500/10 border border-violet-300 dark:border-violet-500/20 flex items-center justify-center">
+                          <Code className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-gray-900 dark:text-white">API Keys</h3>
+                          <p className="text-xs text-gray-500 dark:text-zinc-500">
+                            {apiKeys.length} active key{apiKeys.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <Button 
+                        leftIcon={<Plus className="w-4 h-4" />}
+                        onClick={() => setShowCreateKeyModal(true)}
+                      >
+                        Create Key
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Create Key Modal */}
+                  {showCreateKeyModal && (
+                    <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-4">Create New API Key</h4>
+                      
+                      {newlyCreatedKey ? (
+                        <div className="space-y-4">
+                          <div className="p-4 rounded-lg bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                              <p className="text-sm font-medium text-green-700 dark:text-green-300">API Key Created</p>
+                            </div>
+                            <p className="text-xs text-green-600 dark:text-green-400 mb-3">
+                              Copy this key now. You won&apos;t be able to see it again!
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 border border-green-200 dark:border-zinc-700 text-sm font-mono text-gray-900 dark:text-white break-all">
+                                {newlyCreatedKey}
+                              </code>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => copyToClipboard(newlyCreatedKey)}
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button 
+                              variant="outline"
+                              onClick={() => {
+                                setShowCreateKeyModal(false);
+                                setNewlyCreatedKey(null);
+                              }}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 dark:text-zinc-400 mb-2 block">Key Name</label>
+                            <Input 
+                              value={newKeyName}
+                              onChange={(e) => setNewKeyName(e.target.value)}
+                              placeholder="e.g., Production, Development, CI/CD"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 dark:text-zinc-400 mb-2 block">Expiration</label>
+                            <div className="grid grid-cols-4 gap-2">
+                              {[
+                                { value: "never", label: "Never" },
+                                { value: "30d", label: "30 days" },
+                                { value: "90d", label: "90 days" },
+                                { value: "1y", label: "1 year" },
+                              ].map((option) => (
+                                <button
+                                  key={option.value}
+                                  onClick={() => setNewKeyExpiry(option.value as typeof newKeyExpiry)}
+                                  className={cn(
+                                    "px-3 py-2 rounded-lg text-sm transition-all border",
+                                    newKeyExpiry === option.value
+                                      ? "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300"
+                                      : "bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-400 hover:border-gray-300 dark:hover:border-zinc-600"
+                                  )}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-2">
+                            <Button 
+                              variant="ghost"
+                              onClick={() => {
+                                setShowCreateKeyModal(false);
+                                setNewKeyName("");
+                                setNewKeyExpiry("never");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button 
+                              onClick={createApiKey}
+                              disabled={isCreatingApiKey || !newKeyName.trim()}
+                            >
+                              {isCreatingApiKey ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Creating...
+                                </>
+                              ) : (
+                                "Create Key"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* API Keys List */}
+                  {isLoadingApiKeys ? (
+                    <div className="p-8 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                    </div>
+                  ) : apiKeys.length === 0 ? (
+                    <div className="p-8 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl text-center">
+                      <Code className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-zinc-600" />
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">No API Keys</h4>
+                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-4">
+                        Create an API key to authenticate with the Flowsmith API.
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        leftIcon={<Plus className="w-4 h-4" />}
+                        onClick={() => setShowCreateKeyModal(true)}
+                      >
+                        Create Your First Key
+                      </Button>
+                    </div>
+                  ) : (
+                    apiKeys.map((key, i) => (
+                      <motion.div
+                        key={key.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                      >
+                        <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-4">
+                              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center">
+                                <Key className="w-5 h-5 text-gray-500 dark:text-zinc-400" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-medium text-gray-900 dark:text-white">{key.name}</h4>
+                                  <Badge variant="success">Active</Badge>
+                                </div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <code className="px-2 py-1 rounded bg-gray-100 dark:bg-zinc-800 text-xs font-mono text-gray-600 dark:text-zinc-400">
+                                    {key.prefix}••••••••••••
+                                  </code>
+                                  <button
+                                    onClick={() => copyToClipboard(key.prefix + "••••••••••••", key.id)}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                                  >
+                                    {copiedKeyId === key.id ? (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-500" />
+                                    )}
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-zinc-500">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    Created {formatDate(key.createdAt)}
+                                  </span>
+                                  {key.lastUsedAt && (
+                                    <span>Last used {formatDate(key.lastUsedAt)}</span>
+                                  )}
+                                  {key.usageCount > 0 && (
+                                    <span>{key.usageCount.toLocaleString()} requests</span>
+                                  )}
+                                  {key.expiresAt && (
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                      Expires {formatDate(key.expiresAt)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                              onClick={() => revokeApiKey(key.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+
+                  {/* API Documentation Link */}
+                  <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-900 dark:text-white">Need help with the API?</p>
+                        <p className="text-xs text-gray-500 dark:text-zinc-500">Check out our API documentation for examples and guides.</p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        rightIcon={<ExternalLink className="w-3 h-3" />}
+                        onClick={() => window.open("/docs", "_blank")}
+                      >
+                        View Docs
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

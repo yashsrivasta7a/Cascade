@@ -26,8 +26,45 @@ model User {
   workflows          Workflow[]
   executions         WorkflowExecution[]
   creditTransactions CreditTransaction[]
+  apiKeys            ApiKey[]
 
   @@map("users")
+}
+
+// =============================================================================
+// API KEYS (for external API access)
+// =============================================================================
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  // Key identification
+  name        String    // User-friendly name (e.g., "Production", "Development")
+  prefix      String    // First 8 chars of key for display (e.g., "sk_live_a1b2")
+  hashedKey   String    @unique // SHA-256 hash of the full key
+  
+  // Permissions & limits
+  scopes      String[]  @default(["*"]) // Future: granular permissions
+  rateLimit   Int       @default(100) // Requests per minute
+  
+  // Usage tracking
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+  
+  // Lifecycle
+  expiresAt   DateTime? // Optional expiration
+  revokedAt   DateTime? // Soft delete - when key was revoked
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([hashedKey])
+  @@index([prefix])
+  @@map("api_keys")
 }
 
 // =============================================================================

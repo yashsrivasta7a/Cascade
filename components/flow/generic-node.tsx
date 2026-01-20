@@ -41,6 +41,7 @@ import {
   Volume2,
   Brain,
   Wrench,
+  ArrowRightLeft,
 } from "lucide-react";
 
 const categoryIcons = {
@@ -49,6 +50,7 @@ const categoryIcons = {
   audio: Volume2,
   llm: Brain,
   utility: Wrench,
+  io: ArrowRightLeft,
 };
 
 // Node types that use async (Trigger.dev/fal.ai) execution
@@ -190,6 +192,9 @@ function FieldWithHandle({
   const isIncompatible = isDragging && draggedType && !isCompatible;
   
   const tooltipText = field.label + (field.required ? " (required)" : "");
+  
+  // For file fields (media inputs), show connection status indicator instead of file uploader
+  const isMediaField = field.type === "file" && ["image", "video", "audio"].includes(handleType);
 
   return (
     <div className="relative">
@@ -201,7 +206,7 @@ function FieldWithHandle({
         )}
         style={{ 
           left: -35,
-          top: 8,
+          top: 10,
           transform: "translateX(-50%)",
         }}
         data-handletype={handleType}
@@ -256,17 +261,44 @@ function FieldWithHandle({
         </div>
       </div>
       
-      {/* Field content */}
-      <FieldRenderer
-        field={field}
-        value={value}
-        onChange={onChange}
-        isConnected={isConnected}
-        connectedValue={connectedValue}
-        disabled={disabled}
-        onUploadingChange={onUploadingChange}
-        cropOverlay={cropOverlay}
-      />
+      {/* For media file fields, show connection status indicator */}
+      {isMediaField ? (
+        <div 
+          className={cn(
+            "allow-color flex items-center gap-2 py-2 px-3 rounded-lg border transition-colors",
+            isConnected 
+              ? "bg-emerald-500/10 border-emerald-500/30" 
+              : "bg-red-500/10 border-red-500/30"
+          )}
+        >
+          <div 
+            className={cn(
+              "w-2 h-2 rounded-full",
+              isConnected ? "bg-emerald-500" : "bg-red-500"
+            )}
+          />
+          <span 
+            className={cn(
+              "text-[11px] font-medium",
+              isConnected ? "text-emerald-400" : "text-red-400"
+            )}
+          >
+            {field.label} {isConnected ? "connected" : "not connected"}
+          </span>
+        </div>
+      ) : (
+        /* Full field content for non-media fields */
+        <FieldRenderer
+          field={field}
+          value={value}
+          onChange={onChange}
+          isConnected={isConnected}
+          connectedValue={connectedValue}
+          disabled={disabled}
+          onUploadingChange={onUploadingChange}
+          cropOverlay={cropOverlay}
+        />
+      )}
     </div>
   );
 }
@@ -370,6 +402,10 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       if (sourceData.result && typeof sourceData.result === "string") {
         return sourceData.result;
       }
+      // For I/O input nodes, also check the value field
+      if (sourceData.value && typeof sourceData.value === "string") {
+        return sourceData.value;
+      }
       if (sourceData.outputVideo && typeof sourceData.outputVideo === "string") {
         return sourceData.outputVideo;
       }
@@ -411,7 +447,8 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       return null;
     }
     
-    const parentResult = parentNode.data?.result || parentNode.data?.response;
+    // Check for parent output - for I/O input nodes, also check the value field
+    const parentResult = parentNode.data?.result || parentNode.data?.response || parentNode.data?.value;
     
     if (parentResult) {
       // Parent already has output
@@ -425,7 +462,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       // Get updated result after parent ran
       const updatedNodes = useFlowStore.getState().nodes;
       const updatedParent = updatedNodes.find(n => n.id === source.sourceNodeId);
-      return updatedParent?.data?.result || updatedParent?.data?.response || null;
+      return updatedParent?.data?.result || updatedParent?.data?.response || updatedParent?.data?.value || null;
     } catch (err) {
       console.error(`[GenericNode] Failed to run parent node:`, err);
       return null;
@@ -1072,18 +1109,9 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
         </div>
       }
       right={
-        nodeConfig.ui.outputs.length > 0 ? (
-          <div className="space-y-2">
-            {nodeConfig.ui.outputs.map((output) => (
-              <OutputDisplay
-                key={output.id}
-                config={output}
-                value={data.result}
-                isLoading={isProcessing}
-              />
-            ))}
-          </div>
-        ) : undefined
+        // Output display removed from system nodes per new architecture
+        // Results are shown in the OUTPUT node instead
+        undefined
       }
     />
   );

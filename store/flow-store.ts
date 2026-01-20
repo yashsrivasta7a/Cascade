@@ -15,6 +15,7 @@ import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workf
 import { showCancelled, showNodeError, showError, showTimeoutError, showProviderError, showInsufficientCredits, showNetworkError, showLLMParseError } from "@/lib/toast";
 import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "@/lib/workflow/llm-type-parser";
 import { type AINodeType } from "@/types/nodes";
+import { validateWorkflow as validateWorkflowFn, type ValidationResult } from "@/lib/workflow/validation";
 
 // =============================================================================
 // Setting Value Clamping - ensures values stay within valid ranges
@@ -205,6 +206,9 @@ export interface FlowState {
 
   // Run a single node (for debugging)
   runNode: (nodeId: string) => Promise<void>;
+  
+  // Validate workflow before running
+  validateWorkflow: () => import("@/lib/workflow/validation").ValidationResult;
 }
 
 export const useFlowStore = create<FlowState>()(
@@ -518,12 +522,14 @@ export const useFlowStore = create<FlowState>()(
           ),
         });
 
-        // AUTO-PROPAGATE if source has result
+        // AUTO-PROPAGATE if source has result (or value for I/O input nodes)
         const sourceNode = get().nodes.find(n => n.id === connection.source);
-        if (sourceNode && sourceNode.data.result && typeof sourceNode.data.result === "string") {
+        const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
+        const outputValue = sourceData?.result || sourceData?.value;
+        if (sourceNode && outputValue && typeof outputValue === "string") {
            // Small delay to ensure edge is registered
            setTimeout(() => {
-             get().propagateOutput(sourceNode.id, sourceNode.data.result as string);
+             get().propagateOutput(sourceNode.id, outputValue);
            }, 10);
         }
       },
@@ -595,7 +601,8 @@ export const useFlowStore = create<FlowState>()(
         const changedKeys = Object.keys(data).filter(key => (data as Record<string, unknown>)[key] !== oldData[key]);
         
         // Output handles - these should ONLY propagate the "result" field, NOT input fields
-        const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response"];
+        // "output" is used by I/O input nodes (image-input, video-input, audio-input)
+        const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response", "output"];
         // Settings that should be shared in real-time (NOT media inputs)
         // Including boolean settings like promptEnhancer, replaceAudio, truncatePrompt, syncMode
         const realtimeSettings = [
@@ -716,11 +723,14 @@ export const useFlowStore = create<FlowState>()(
         
         set({ nodes: updatedNodes });
 
-        // Also handle result propagation for completed outputs (for backwards compatibility)
+        // Also handle result/value propagation for completed outputs (for backwards compatibility)
+        // For I/O input nodes, value is set alongside result
         const resultChanged = data.result !== undefined && data.result !== oldData.result;
-        if (resultChanged && data.result) {
+        const valueChanged = data.value !== undefined && data.value !== oldData.value;
+        const outputValue = (data.result || data.value) as string | undefined;
+        if ((resultChanged || valueChanged) && outputValue && typeof outputValue === "string") {
           setTimeout(() => {
-            get().propagateOutput(id, data.result as string);
+            get().propagateOutput(id, outputValue);
           }, 50);
         }
       },
@@ -1284,10 +1294,14 @@ export const useFlowStore = create<FlowState>()(
             continue;
           }
           
-          // Determine the type of output based on source handle
-          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped";
-          const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged";
-          const isAudioOutput = sourceHandle === "audio";
+          // Determine the type of output based on source handle and source node type
+          // For I/O input nodes, the source handle is "output" but we need to check the source node type
+          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped" || 
+            (sourceHandle === "output" && sourceNodeType === "image-input");
+          const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged" || 
+            (sourceHandle === "output" && sourceNodeType === "video-input");
+          const isAudioOutput = sourceHandle === "audio" || 
+            (sourceHandle === "output" && sourceNodeType === "audio-input");
           const isTextResponse = sourceHandle === "response"; // LLM text response
           
           // Map to appropriate field based on target handle and output type
@@ -1564,6 +1578,11 @@ export const useFlowStore = create<FlowState>()(
           cleanedMap.delete(nodeId);
           set({ nodeAbortControllers: cleanedMap });
         }
+      },
+      
+      validateWorkflow: (): ValidationResult => {
+        const state = get();
+        return validateWorkflowFn(state.nodes, state.edges);
       },
       }),
       {

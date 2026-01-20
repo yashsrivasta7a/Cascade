@@ -45,6 +45,7 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
       "video", "audio", "image", "frame",
       "video1", "video2",
       "inputVideo", "inputAudio", "inputImage",
+      "result", "value", // For I/O input nodes
     ];
 
     for (const field of fieldsToCheck) {
@@ -109,6 +110,18 @@ export async function POST(request: NextRequest) {
 
     if (!nodes?.length) {
       return NextResponse.json({ success: false, error: "No nodes to execute" }, { status: 400 });
+    }
+
+    // Debug: Log I/O node data
+    for (const node of nodes) {
+      if (node.type?.includes("input") || node.type === "output") {
+        const nodeData = (node.data ?? {}) as Record<string, unknown>;
+        console.log(`[WorkflowTrigger] I/O node ${node.id} (${node.type}) data:`, {
+          result: nodeData.result ? `${String(nodeData.result).slice(0, 80)}...` : 'undefined',
+          value: nodeData.value ? `${String(nodeData.value).slice(0, 80)}...` : 'undefined',
+          keys: Object.keys(nodeData),
+        });
+      }
     }
 
     

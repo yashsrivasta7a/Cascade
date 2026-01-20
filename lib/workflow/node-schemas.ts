@@ -208,6 +208,26 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
       context: z.string().optional(),
     })
     .merge(ExtractAudioConfigSchema.partial()),
+
+  // I/O nodes - these are passthrough nodes that don't need execution
+  "image-input": z.object({
+    value: z.string().optional(),
+    result: z.string().optional(),
+  }),
+  "video-input": z.object({
+    value: z.string().optional(),
+    result: z.string().optional(),
+  }),
+  "audio-input": z.object({
+    value: z.string().optional(),
+    result: z.string().optional(),
+  }),
+  "output": z.object({
+    result: z.string().optional(),
+  }),
+  
+  // Annotation node - doesn't need execution
+  "comment": z.object({}),
 };
 
 // -----------------------------------------------------------------------------
@@ -225,6 +245,13 @@ export const NodeOutputSchemas: Record<AINodeType, z.ZodTypeAny> = {
   "merge-audio-video": VideoOutSchema,
   "merge-videos": VideoOutSchema,
   "extract-audio": AudioOutSchema,
+  // I/O nodes - passthrough output types
+  "image-input": ImageOutSchema,
+  "video-input": VideoOutSchema,
+  "audio-input": AudioOutSchema,
+  "output": AnyOutSchema,
+  // Annotation node
+  "comment": z.object({}),
 };
 
 export const NodePrimaryOutputType: Record<AINodeType, DataType> = {
@@ -238,6 +265,13 @@ export const NodePrimaryOutputType: Record<AINodeType, DataType> = {
   "merge-audio-video": "video",
   "merge-videos": "video",
   "extract-audio": "audio",
+  // I/O nodes
+  "image-input": "image",
+  "video-input": "video",
+  "audio-input": "audio",
+  "output": "any",
+  // Annotation node
+  "comment": "any",
 };
 
 // -----------------------------------------------------------------------------
@@ -262,6 +296,13 @@ export const NodeProviders: Record<AINodeType, ProviderId[]> = {
   "merge-audio-video": ["internal", "mock"],
   "merge-videos": ["internal", "mock"],
   "extract-audio": ["internal", "mock"],
+  // I/O nodes - passthrough, no provider needed
+  "image-input": ["internal"],
+  "video-input": ["internal"],
+  "audio-input": ["internal"],
+  "output": ["internal"],
+  // Annotation node
+  "comment": ["internal"],
 };
 
 

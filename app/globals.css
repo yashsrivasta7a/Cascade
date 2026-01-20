@@ -251,6 +251,33 @@ html.dark .react-flow__container {
   to { stroke-dashoffset: -10; }
 }
 
+/* Node wrapper - transparent background to let custom node styling show */
+.react-flow__node {
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ReactFlow node wrapper - transparent wrapper only */
+.react-flow__node {
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Ensure focus/selection states don't add backgrounds to wrapper */
+.react-flow__node:focus,
+.react-flow__node:focus-visible,
+.react-flow__node.selected {
+  outline: none !important;
+  background: transparent !important;
+}
+
 /* Connection handles - prominent and always visible */
 .react-flow__handle {
   width: 14px !important;

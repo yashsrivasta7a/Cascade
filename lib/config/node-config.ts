@@ -839,6 +839,149 @@ export const NODE_CONFIG: NodeConfigRegistry = {
       },
     }),
   },
+
+  // ===========================================================================
+  // I/O NODES - Input and Output nodes for workflow connections
+  // ===========================================================================
+
+  "image-input": {
+    type: "image-input",
+    version: "1.0.0",
+    category: "io",
+    label: "Image Input",
+    description: "Upload an image to use as input for your workflow",
+    color: "emerald",
+    
+    providers: [],  // No execution - just holds data
+    
+    inputSchema: z.object({
+      value: z.string().optional(),
+    }),
+    
+    outputSchema: ImageOutSchema,
+    
+    execution: {
+      timeout: "0s",
+      retryPerProvider: 0,
+      maxRetries: 0,
+    },
+    
+    ui: {
+      inputs: [],  // File upload is handled by the component directly
+      outputs: [
+        { id: "output", type: "image", label: "Image" },
+      ],
+    },
+    
+    estimatedCost: 0,
+    estimatedTime: "instant",
+    features: ["Upload", "Drag & Drop", "Preview"],
+  },
+
+  "video-input": {
+    type: "video-input",
+    version: "1.0.0",
+    category: "io",
+    label: "Video Input",
+    description: "Upload a video to use as input for your workflow",
+    color: "violet",
+    
+    providers: [],
+    
+    inputSchema: z.object({
+      value: z.string().optional(),
+    }),
+    
+    outputSchema: VideoOutSchema,
+    
+    execution: {
+      timeout: "0s",
+      retryPerProvider: 0,
+      maxRetries: 0,
+    },
+    
+    ui: {
+      inputs: [],
+      outputs: [
+        { id: "output", type: "video", label: "Video" },
+      ],
+    },
+    
+    estimatedCost: 0,
+    estimatedTime: "instant",
+    features: ["Upload", "Drag & Drop", "Preview"],
+  },
+
+  "audio-input": {
+    type: "audio-input",
+    version: "1.0.0",
+    category: "io",
+    label: "Audio Input",
+    description: "Upload audio to use as input for your workflow",
+    color: "teal",
+    
+    providers: [],
+    
+    inputSchema: z.object({
+      value: z.string().optional(),
+    }),
+    
+    outputSchema: AudioOutSchema,
+    
+    execution: {
+      timeout: "0s",
+      retryPerProvider: 0,
+      maxRetries: 0,
+    },
+    
+    ui: {
+      inputs: [],
+      outputs: [
+        { id: "output", type: "audio", label: "Audio" },
+      ],
+    },
+    
+    estimatedCost: 0,
+    estimatedTime: "instant",
+    features: ["Upload", "Drag & Drop", "Playback"],
+  },
+
+  "output": {
+    type: "output",
+    version: "1.0.0",
+    category: "io",
+    label: "Output",
+    description: "Display and download workflow output",
+    color: "zinc",
+    
+    providers: [],
+    
+    inputSchema: z.object({
+      result: z.string().optional(),
+    }),
+    
+    outputSchema: z.object({
+      type: z.enum(["image", "video", "audio", "text"]),
+      value: z.string(),
+    }),
+    
+    execution: {
+      timeout: "0s",
+      retryPerProvider: 0,
+      maxRetries: 0,
+    },
+    
+    ui: {
+      inputs: [
+        { id: "input", type: "hidden", label: "Input" },
+      ],
+      outputs: [],  // No outputs - it's a sink node
+    },
+    
+    estimatedCost: 0,
+    estimatedTime: "instant",
+    features: ["Auto-detect Type", "Preview", "Download"],
+  },
 };
 
 // =============================================================================

@@ -4,7 +4,7 @@ import { z } from "zod";
 // NODE CATEGORIES & COLORS
 // =============================================================================
 
-export type NodeCategory = "image" | "video" | "audio" | "llm" | "utility";
+export type NodeCategory = "image" | "video" | "audio" | "llm" | "utility" | "io";
 
 export type NodeColor = "emerald" | "violet" | "amber" | "blue" | "zinc" | "teal";
 
@@ -15,6 +15,7 @@ export const CATEGORY_COLORS: Record<NodeCategory, NodeColor> = {
   audio: "teal",
   llm: "blue",
   utility: "amber",
+  io: "zinc",
 };
 
 // =============================================================================
