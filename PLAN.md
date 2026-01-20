@@ -290,244 +290,153 @@ export const NODE_CONFIG: NodeConfigRegistry = {
 
 ---
 
-## 📡 Realtime Data Flow
+## 📡 Realtime Architecture
 
-The execution engine uses **fast polling** (500ms) for responsive UI updates. This approach was chosen after testing various alternatives.
+The execution engine uses **Trigger.dev's WebSocket-based Realtime API** for instant UI updates. The browser connects directly to Trigger.dev's servers via WebSocket, completely bypassing Vercel.
 
 ### Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│  workflow-executor.ts (Trigger.dev Worker)                      │
-│                                                                 │
-│  Orchestrates DAG execution:                                    │
-│  - Builds dependency graph from edges                           │
-│  - Starts nodes with no dependencies in parallel                │
-│  - Polls for node completion, starts dependent nodes            │
-│  - Updates database with node statuses                          │
-│                                                                 │
-│  Uses metadata.set() for realtime (currently not working        │
-│  with React hooks, but DB updates are reliable)                 │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser                                                         │
+│                                                                  │
+│  1. User clicks "Run"                                            │
+│  2. POST /api/workflow/trigger → returns { runId, publicToken }  │
+│  3. useRealtimeRun(runId, { accessToken: publicToken })          │
+│     └── Opens WebSocket to Trigger.dev cloud                     │
+└─────────────────────────────────────────────────────────────────┘
                               │
-                              │ Database writes
-                              │ (node execution status)
+                              │ WebSocket (wss://...)
+                              │ Direct to Trigger.dev
+                              │ (Bypasses Vercel entirely)
                               ▼
-┌────────────────────────────────────────────────────────────────┐
-│  PostgreSQL (Prisma)                                            │
-│                                                                 │
-│  WorkflowExecution: status, startedAt, completedAt              │
-│  NodeExecution: nodeId, status, outputJson, error               │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Trigger.dev Cloud                                               │
+│                                                                  │
+│  - Manages WebSocket connections from browsers                   │
+│  - Broadcasts run updates when metadata.set() is called          │
+│  - Sends: { run.id, run.status, run.metadata, ... }             │
+└─────────────────────────────────────────────────────────────────┘
                               │
-                              │ REST API
-                              │ GET /api/workflow-executions/{id}
+                              │ Internal communication
                               ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Frontend (useRealtimeWorkflow hook)                            │
-│                                                                 │
-│  Fast polling (500ms) for responsive updates:                   │
-│                                                                 │
-│    - Polls /api/workflow-executions/{id}                        │
-│    - Compares node statuses with previous state                 │
-│    - Triggers callbacks on status changes                       │
-│    - Stops polling when workflow completes                      │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  workflow-executor.ts (Trigger.dev Worker)                       │
+│                                                                  │
+│  DAG Execution:                                                  │
+│  1. Build dependency graph from edges                            │
+│  2. Start nodes with no dependencies (parallel)                  │
+│  3. When node completes: metadata.set("node:{id}", { status })   │
+│  4. Start dependent nodes, repeat until done                     │
+│  5. Final: metadata.set("workflow", { status: "completed" })     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Polling Instead of Realtime?
+### Data Flow
 
-We tested multiple realtime approaches before settling on polling. Here's why each failed:
+```
+┌─────────────┐    POST /api/workflow/trigger    ┌─────────────────┐
+│   Browser   │ ─────────────────────────────────▶│  Next.js API    │
+│             │◀───── { runId, publicToken } ─────│  (Vercel)       │
+└─────────────┘                                   └─────────────────┘
+      │                                                   │
+      │ useRealtimeRun(runId, token)                      │ tasks.trigger()
+      │ WebSocket connection                              │
+      ▼                                                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Trigger.dev Cloud                             │
+│                                                                  │
+│   Browser ◀══WebSocket══▶ Realtime API ◀────▶ Worker Execution  │
+│                                                                  │
+│   run.metadata updates propagate instantly via WebSocket         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-#### 1. Server-Sent Events (SSE) via Vercel
+### Implementation
 
-**Attempted:** Created `/api/workflow/stream` endpoint that subscribes to Trigger.dev runs and forwards events as SSE.
-
-**Why it failed:**
-- Vercel's serverless functions buffer responses before sending to client
-- Even with `X-Accel-Buffering: no` and `Content-Encoding: none` headers, events get batched
-- User sees all nodes as "queued", then suddenly all complete at once
-- Works locally (Node.js streams properly) but fails in production
-- Vercel's Edge Runtime doesn't help - still buffers SSE responses
+#### 1. API Route (`/api/workflow/trigger`)
 
 ```typescript
-// This doesn't work on Vercel - events get buffered
-return new Response(stream, {
-  headers: {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    "X-Accel-Buffering": "no",  // Ignored by Vercel
-  },
+// Trigger workflow and create public access token for WebSocket subscription
+const handle = await executeWorkflow.trigger({ workflowExecutionId, nodes, edges });
+
+const publicToken = await auth.createPublicToken({
+  scopes: { read: { runs: [handle.id] } },
+  expirationTime: "30m",
+});
+
+return { triggerRunId: handle.id, publicToken };
+```
+
+#### 2. React Hook (`useRealtimeWorkflowV2`)
+
+```typescript
+// Inner component subscribes to Trigger.dev WebSocket
+function RealtimeSubscriber({ triggerRunId, publicToken, callbacks }) {
+  const { run } = useRealtimeRun(triggerRunId, { accessToken: publicToken });
+
+  useEffect(() => {
+    if (!run?.metadata) return;
+    
+    // Process node status updates from metadata
+    for (const [key, value] of Object.entries(run.metadata)) {
+      if (key.startsWith("node:")) {
+        const nodeId = key.replace("node:", "");
+        const { status, output, error } = value;
+        
+        if (status === "started") callbacks.onNodeStarted(nodeId);
+        if (status === "completed") callbacks.onNodeCompleted(nodeId, output);
+        if (status === "failed") callbacks.onNodeFailed(nodeId, error);
+      }
+    }
+  }, [run]);
+  
+  return null; // Invisible component, just subscribes
+}
+```
+
+#### 3. Workflow Executor (`workflow-executor.ts`)
+
+```typescript
+// Called when starting a node
+await metadata.set(`node:${nodeId}`, {
+  status: "started",
+  nodeType,
+  timestamp: Date.now(),
+});
+
+// Called when node completes
+await metadata.set(`node:${nodeId}`, {
+  status: "completed",
+  nodeType,
+  output: taskOutput,
+  timestamp: Date.now(),
+});
+
+// Called when workflow finishes
+await metadata.set("workflow", {
+  status: "completed",
+  successCount,
+  failCount,
 });
 ```
 
-#### 2. Trigger.dev `useRealtimeRun` Hook
-
-**Attempted:** Use `@trigger.dev/react-hooks` to subscribe directly from frontend.
-
-**Why it failed:**
-- The hook successfully connects to Trigger.dev's WebSocket
-- Receives run-level status updates (`EXECUTING`, `COMPLETED`, etc.)
-- **BUT `run.metadata` is always empty** - never receives `metadata.set()` updates
-- This is a Trigger.dev SDK limitation - metadata updates don't propagate to React hooks
-- Confirmed with logs: `metadata keys=0` even while workflow executor calls `metadata.set()`
-
-```typescript
-// Hook connects but metadata is empty
-const { run } = useRealtimeRun(triggerRunId, { accessToken: publicToken });
-console.log(run.metadata);  // Always {} - never receives node status updates
-```
-
-#### 3. Trigger.dev `useRealtimeTaskTrigger` Hook
-
-**Attempted:** Trigger workflow directly from frontend using one-time trigger tokens.
-
-**Why it failed:**
-- Hook requires `accessToken` (trigger token) to be available immediately on mount
-- Our flow: user clicks "Run" → fetch token from API → use in hook
-- **But hook throws "Missing accessToken" error** when token is initially `null`
-- No `enabled` option to defer hook activation (unlike `useRealtimeRun`)
-- Can't conditionally call hooks in React (rules of hooks)
-
-```typescript
-// This throws error because triggerToken is null initially
-const { submit } = useRealtimeTaskTrigger("executeWorkflow", {
-  accessToken: triggerToken,  // Error: "Missing accessToken in TriggerAuthContext"
-});
-```
-
-#### 4. WebSockets
-
-**Why not attempted:**
-- Vercel serverless functions have 10-second timeout (free) / 60-second (pro)
-- WebSocket connections require persistent server process
-- Would need separate WebSocket server (Pusher, Ably, etc.) adding complexity and cost
-- Trigger.dev's realtime already uses WebSockets under the hood - if that doesn't work, custom WS won't help
-
-### Summary of Previous Approaches
-
-| Approach | Works Locally | Works on Vercel | Why |
-|----------|---------------|-----------------|-----|
-| SSE | ✅ | ❌ | Vercel buffers SSE responses |
-| `useRealtimeRun` | ❌ | ❌ | Metadata updates don't propagate |
-| `useRealtimeTaskTrigger` | ❌ | ❌ | Can't handle dynamic tokens |
-| WebSocket | N/A | ❌ | Serverless timeout limits |
-| Polling (500ms) | ✅ | ✅ | Database is always consistent |
-
----
-
-### 🆕 Trigger.dev Streams v2 (Experimental)
-
-We're testing a new approach using **Trigger.dev Streams v2**, which provides a dedicated streaming API that should work properly with React hooks.
-
-#### Why This Might Work
-
-Unlike `metadata.set()` which doesn't propagate to React hooks, Streams v2:
-- Has its own dedicated WebSocket channel for stream data
-- Uses `useRealtimeRunWithStreams` hook specifically designed for streams
-- Client connects directly to Trigger.dev, completely bypassing Vercel
-
-#### Architecture (Streams v2)
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│  workflow-executor.ts (Trigger.dev Worker)                      │
-│                                                                 │
-│  Writes to streams:                                             │
-│  - nodeStatusStream.write({ nodeId, status, output, ... })     │
-│  - workflowStatusStream.write({ status, successCount, ... })   │
-└────────────────────────────────────────────────────────────────┘
-                              │
-                              │ WebSocket (Trigger.dev internal)
-                              │ Bypasses Vercel entirely
-                              ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Frontend (useRealtimeWorkflowV2 hook)                          │
-│                                                                 │
-│  Direct WebSocket to Trigger.dev:                               │
-│                                                                 │
-│    - useRealtimeRunWithStreams(runId, { accessToken })         │
-│    - Receives stream data: streams["node-status"]              │
-│    - Triggers callbacks on status changes                       │
-│    - No polling, no Vercel buffering                           │
-└────────────────────────────────────────────────────────────────┘
-```
-
-#### Implementation Files
+### Key Files
 
 | File | Purpose |
 |------|---------|
-| `app/trigger/streams.ts` | Stream definitions (`nodeStatusStream`, `workflowStatusStream`) |
-| `app/trigger/workflow-executor.ts` | Writes to streams during execution |
-| `hooks/use-realtime-workflow-v2.tsx` | React hook using `useRealtimeRunWithStreams` |
-| `app/api/workflow/trigger/route.ts` | Returns `publicToken` for client subscription |
+| `hooks/use-realtime-workflow-v2.tsx` | React hook with `useRealtimeRun` subscription |
+| `app/api/workflow/trigger/route.ts` | Creates run + public token for WebSocket auth |
+| `app/trigger/workflow-executor.ts` | Calls `metadata.set()` during execution |
 
-#### Usage
+### Why This Works
 
-```tsx
-// The V2 hook returns a StreamSubscriber component that must be rendered
-const { 
-  runWorkflow, 
-  isRunning, 
-  cancelWorkflow,
-  StreamSubscriber,  // Must render this!
-} = useRealtimeWorkflowV2(workflowId, callbacks);
-
-// In JSX:
-return (
-  <div>
-    {StreamSubscriber}  {/* Activates WebSocket when running */}
-    {/* ... rest of UI ... */}
-  </div>
-);
-```
-
-#### Fallback Chain
-
-The workflow page uses a progressive fallback approach:
-
-1. **V2 Streams** (Trigger.dev WebSocket) - Preferred
-2. **V1 Polling** (500ms database polling) - Reliable fallback
-3. **SSE** (Server-Sent Events) - Last resort
-
----
-
-### Current Solution
-
-**Hybrid approach** with automatic fallback:
-- Tries V2 Streams first (true realtime via WebSocket)
-- Falls back to V1 polling (500ms) if streams fail
-- V1 polling provides:
-  - ✅ Responsive updates (indistinguishable from realtime for humans)
-  - ✅ Reliable on Vercel
-  - ✅ Shows parallel execution correctly
-  - ✅ Node glow animations work
-  - ✅ Simple, debuggable code
-
-### Polling Flow
-
-```typescript
-// useRealtimeWorkflow hook
-useEffect(() => {
-  const pollNodeStatuses = async () => {
-    const response = await fetch(`/api/workflow-executions/${id}`);
-    const { execution } = await response.json();
-    
-    for (const node of execution.nodeExecutions) {
-      const previousStatus = processedNodeStatuses.get(node.nodeId);
-      if (previousStatus !== node.status) {
-        // Status changed - trigger callback
-        if (node.status === "RUNNING") onNodeStarted(node.nodeId);
-        if (node.status === "COMPLETED") onNodeCompleted(node.nodeId, output);
-        if (node.status === "FAILED") onNodeFailed(node.nodeId, error);
-      }
-    }
-    
-    if (!workflowCompleted) setTimeout(pollNodeStatuses, 500);
-  };
-  
-  pollNodeStatuses();
-}, [workflowExecutionId]);
+| Aspect | Solution |
+|--------|----------|
+| **No Vercel buffering** | WebSocket connects directly to Trigger.dev, not through Vercel |
+| **Instant updates** | `metadata.set()` broadcasts immediately via WebSocket |
+| **Secure** | Public token is scoped to specific run ID, expires in 30min |
+| **Simple** | Single `useRealtimeRun` hook handles all subscription logic |
 
 ---
 
