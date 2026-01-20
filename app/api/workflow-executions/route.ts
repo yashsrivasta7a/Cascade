@@ -73,7 +73,6 @@ export async function GET(request: NextRequest) {
 
     // Transform to match expected format
     const transformed = executions.map((exec) => {
-      console.log(`[GET /api/workflow-executions] Execution ${exec.id}: status=${exec.status}, nodeExecutions=${exec.nodeExecutions.length}`);
       return {
         id: exec.id,
         workflowId: exec.workflowId,
@@ -103,7 +102,6 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    console.log(`[GET /api/workflow-executions] Returning ${transformed.length} executions`);
     return NextResponse.json({ executions: transformed });
   } catch (error) {
     console.error("[GET /api/workflow-executions] Error:", error);
@@ -208,7 +206,6 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      console.log(`[DELETE /api/workflow-executions] Deleted ${result.count} executions for user ${user.id}`);
       return NextResponse.json({ deleted: result.count });
     }
 
