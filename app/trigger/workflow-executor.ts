@@ -531,20 +531,6 @@ function buildNodeInput(
   // =========================================================================
   const definedKeys = Object.keys(input).filter(k => input[k] !== undefined && input[k] !== null && input[k] !== "");
   
-  
-  // Log warnings for potentially missing required fields based on node type
-  if (nodeType === "merge-videos") {
-    if (!input.video1) 
-    if (!input.video2) 
-  }
-  if (nodeType === "extract-audio") {
-    if (!input.video) 
-  }
-  if (nodeType === "merge-audio-video" || nodeType === "lipsync") {
-    if (!input.video) 
-    if (!input.audio) 
-  }
-  
   return input;
 }
 
