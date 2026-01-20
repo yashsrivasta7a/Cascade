@@ -309,7 +309,6 @@ export function ActivityPanel({
     { workflowId: workflowId || "" },
     { 
       enabled: isOpen && activeTab === "versions" && !!workflowId && workflowId !== "new",
-      refetchInterval: isOpen && activeTab === "versions" ? 3000 : false,
     }
   );
 
@@ -517,24 +516,11 @@ export function ActivityPanel({
     }
   }, [isOpen, workflowId, activeTab]);
 
-  const hasRunningExecution = useMemo(() => 
-    executions.some(e => 
-      e.status === "RUNNING" || 
-      e.status === "PENDING" || 
-      e.nodeExecutions.some(n => 
-        n.status === "RUNNING" || n.status === "WAITING" || n.status === "QUEUED"
-      )
-    ),
-    [executions]
-  );
-
   useEffect(() => {
     if (isOpen && activeTab === "runs") {
       fetchExecutions();
-      const interval = setInterval(fetchExecutions, hasRunningExecution ? 1500 : 5000);
-      return () => clearInterval(interval);
     }
-  }, [isOpen, fetchExecutions, hasRunningExecution, activeTab]);
+  }, [isOpen, fetchExecutions, activeTab]);
 
   const toggleWorkflow = (id: string) => {
     setExpandedWorkflows(prev => {
@@ -1211,12 +1197,6 @@ export function ActivityPanel({
                   <span>Auto-saved on every change</span>
                 )}
               </p>
-              {activeTab === "runs" && (
-                <p className="text-[10px] text-gray-400 dark:text-zinc-600 flex items-center gap-1.5">
-                  {hasRunningExecution && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-500 dark:text-blue-400" />}
-                  Auto-refresh: {hasRunningExecution ? "1.5s" : "5s"}
-                </p>
-              )}
             </div>
           </div>
         </motion.div>
