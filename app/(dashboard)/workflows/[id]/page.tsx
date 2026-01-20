@@ -38,7 +38,7 @@ import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
-import { useWorkflowStream, useRealtimeWorkflow, useRealtimeWorkflowV2, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
+import { useWorkflowStream, useRealtimeWorkflowV2, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
 import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 import { cn } from "@/lib/utils";
@@ -103,12 +103,10 @@ async function persistMediaToCDN(nodes: unknown[]): Promise<unknown[]> {
           // This is base64 data - upload to CDN
           const mediaType = getMediaTypeFromDataUrl(value);
           if (mediaType) {
-            console.log(`[persistMediaToCDN] Uploading ${field} (${mediaType}) for node ${n.id}`);
             const httpUrl = await uploadMediaToCDN(value, mediaType);
             if (httpUrl) {
               updatedData[field] = httpUrl;
               hasChanges = true;
-              console.log(`[persistMediaToCDN] Uploaded ${field} -> ${httpUrl.slice(0, 50)}...`);
             }
           }
         }
@@ -456,12 +454,11 @@ function WorkflowEditorContent() {
   // The useRealtimeWorkflow hook connects directly to Trigger.dev for real-time updates
   // This avoids Vercel's SSE buffering issues entirely
 
-  // Fetch errors from database for this workflow
+  // Fetch errors from database for this workflow (no polling - relies on realtime updates)
   const { data: dbErrorsData } = trpc.execution.getErrors.useQuery(
     { workflowId: dbWorkflowId ?? "", limit: 50 },
     {
       enabled: Boolean(dbWorkflowId) && activityOpen,
-      refetchInterval: activityOpen ? 5000 : false, // Poll every 5s when panel is open
     }
   );
 
@@ -500,7 +497,6 @@ function WorkflowEditorContent() {
 
     try {
       // First, upload any base64 media to CDN (Transloadit)
-      console.log("[handleSave] Persisting media to CDN...");
       const persistedNodes = await persistMediaToCDN(nodes as unknown[]);
       
       // Update nodes in store with persisted URLs so they show after save
@@ -605,11 +601,10 @@ function WorkflowEditorContent() {
 
   // Realtime workflow callbacks (using Trigger.dev React hooks - bypasses Vercel SSE buffering)
   const realtimeCallbacks: RealtimeWorkflowCallbacks = useMemo(() => ({
-    onWorkflowStarted: ({ workflowExecutionId: id, triggerRunId, estimatedCost }) => {
-      console.log(`[Realtime] Workflow started: ${id}, triggerRunId: ${triggerRunId}, estimated cost: ${estimatedCost}`);
+    onWorkflowStarted: () => {
+      // Workflow started - V2 realtime subscription active
     },
-    onNodeQueued: (nodeId, nodeType) => {
-      console.log(`[Realtime] Node queued: ${nodeId} (${nodeType})`);
+    onNodeQueued: (nodeId) => {
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId
@@ -618,8 +613,7 @@ function WorkflowEditorContent() {
         )
       );
     },
-    onNodeStarted: (nodeId, nodeType) => {
-      console.log(`[Realtime] Node started: ${nodeId} (${nodeType})`);
+    onNodeStarted: (nodeId) => {
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId
@@ -637,9 +631,7 @@ function WorkflowEditorContent() {
         )
       );
     },
-    onNodeCompleted: (nodeId, nodeType, output) => {
-      console.log(`[Realtime] Node completed: ${nodeId} (${nodeType})`, output);
-      
+    onNodeCompleted: (nodeId, _nodeType, output) => {
       // Update node status and store output preview
       const outputData = output as { 
         type?: string; 
@@ -701,9 +693,7 @@ function WorkflowEditorContent() {
       // Refetch credits after each node completes
       void refetchCredits();
     },
-    onNodeFailed: (nodeId, nodeType, error) => {
-      console.log(`[Realtime] Node failed: ${nodeId} (${nodeType}): ${error}`);
-      
+    onNodeFailed: (nodeId, _nodeType, error) => {
       // Update node status
       setNodes((prev) =>
         prev.map((n) =>
@@ -733,18 +723,14 @@ function WorkflowEditorContent() {
       setWorkflowErrors(prev => [newError, ...prev]);
       setActivityOpen(true);
     },
-    onWorkflowCompleted: async ({ successCount, failCount, status, workflowExecutionId }) => {
-      console.log(`[Realtime] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}, execId: ${workflowExecutionId}`);
-      
+    onWorkflowCompleted: async ({ workflowExecutionId }) => {
       // Set finalizing state - keeps the UI showing "running" until outputs are displayed
       setIsFinalizing(true);
-      console.log(`[Realtime] Entering finalizing state - fetching outputs...`);
       
-      // FALLBACK: Fetch outputs from database for any nodes that didn't receive SSE events
+      // FALLBACK: Fetch outputs from database for any nodes that didn't receive realtime events
       // This handles cases where SSE connection was interrupted (e.g., Fast Refresh, network issues)
       if (workflowExecutionId) {
         try {
-          console.log(`[Realtime] Fetching node outputs from database as fallback...`);
           const response = await fetch(`/api/workflow-executions/${workflowExecutionId}`);
           if (response.ok) {
             const data = await response.json();
@@ -784,7 +770,6 @@ function WorkflowEditorContent() {
                 }
                 
                 if (mediaUrl || resultPreview) {
-                  console.log(`[Realtime] Fallback: Applying output to node ${ne.nodeId}`);
                   const updateData: Record<string, unknown> = {
                     status: "completed",
                     progress: 100,
@@ -811,9 +796,6 @@ function WorkflowEditorContent() {
               }
             }
             
-            if (outputsApplied > 0) {
-              console.log(`[Realtime] Fallback: Applied ${outputsApplied} outputs from database`);
-            }
             
             // Finalize ALL node statuses based on database - ensure no nodes stuck in queued/running
             const { setNodes: finalSetNodes } = useFlowStore.getState();
@@ -831,8 +813,7 @@ function WorkflowEditorContent() {
                 if ((nodeData.status === "queued" || nodeData.status === "running") && dbStatus) {
                   const finalStatus = dbStatus === "COMPLETED" ? "completed" 
                     : dbStatus === "FAILED" ? "failed" 
-                    : "completed"; // Default to completed if unknown status
-                  console.log(`[Realtime] Finalizing node ${n.id} status: ${nodeData.status} -> ${finalStatus}`);
+                    : "completed";
                   return { ...n, data: { ...nodeData, status: finalStatus, progress: 100 } };
                 }
                 return n;
@@ -849,7 +830,6 @@ function WorkflowEditorContent() {
         prevNodes.map((n) => {
           const nodeData = n.data as Record<string, unknown>;
           if (nodeData.status === "queued" || nodeData.status === "running") {
-            console.log(`[Realtime] Final cleanup: marking ${n.id} as completed`);
             return { ...n, data: { ...nodeData, status: "completed", progress: 100 } };
           }
           return n;
@@ -859,14 +839,11 @@ function WorkflowEditorContent() {
       // Small delay to ensure React has time to render the outputs
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log(`[Realtime] Finalizing complete - workflow done`);
       setIsFinalizing(false);
       setWorkflowRunning(false);
       void refetchCredits();
     },
     onError: (message) => {
-      console.error(`[Realtime] Error: ${message}`);
-      
       // Check if it's an insufficient credits error and show toast
       if (message.toLowerCase().includes("insufficient credits")) {
         // Parse credits from message if available (format: "Required: X, Available: Y")
@@ -908,23 +885,13 @@ function WorkflowEditorContent() {
     realtimeCallbacks
   );
   
-  // Fallback: V1 polling (500ms) - used if V2 realtime fails
-  const { runWorkflow: runWorkflowRealtimeV1, isRunning: isRealtimeV1Running, cancelWorkflow: cancelWorkflowV1 } = useRealtimeWorkflow(
-    dbWorkflowId ?? workflowId,
-    realtimeCallbacks
-  );
-  
-  // Combined cancel function
+  // Cancel function (V2 only - no polling fallback)
   const cancelWorkflow = useCallback(async () => {
-    await Promise.all([
-      cancelWorkflowV2(),
-      cancelWorkflowV1(),
-    ]);
-  }, [cancelWorkflowV2, cancelWorkflowV1]);
+    await cancelWorkflowV2();
+  }, [cancelWorkflowV2]);
   
   // Handle stop/cancel workflow
   const handleStopWorkflow = useCallback(async () => {
-    console.log("[Workflow] Stopping workflow execution");
     await cancelWorkflow();
     setWorkflowRunning(false);
 
@@ -1025,25 +992,13 @@ function WorkflowEditorContent() {
       }))
     );
 
-    // Use Trigger.dev Realtime (V2) as primary - direct WebSocket to Trigger.dev
-    // Falls back to polling (V1) if V2 fails
-    try {
-      console.log("[Workflow] Using Trigger.dev Realtime (V2)...");
-      await runWorkflowRealtimeV2(
-        nodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
-        edges as Parameters<typeof runWorkflowRealtimeV2>[1],
-        effectiveWorkflowId ?? undefined
-      );
-    } catch (v2Error) {
-      console.warn("[Workflow] V2 Realtime failed, falling back to V1 polling:", v2Error);
-      // Fallback: V1 polling
-      await runWorkflowRealtimeV1(
-        nodes as Parameters<typeof runWorkflowRealtimeV1>[0], 
-        edges as Parameters<typeof runWorkflowRealtimeV1>[1],
-        effectiveWorkflowId ?? undefined
-      );
-    }
-  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowRealtimeV2, runWorkflowRealtimeV1]);
+    // Use Trigger.dev Realtime (V2) - direct WebSocket to Trigger.dev
+    await runWorkflowRealtimeV2(
+      nodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
+      edges as Parameters<typeof runWorkflowRealtimeV2>[1],
+      effectiveWorkflowId ?? undefined
+    );
+  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowRealtimeV2]);
 
   // Calculate dynamic button color based on selected node
   const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;
@@ -1701,7 +1656,7 @@ function WorkflowEditorContent() {
 
               {/* Run/Stop button - use all running states for reliability */}
               {(() => {
-                const isRunning = isWorkflowRunning || isRealtimeV2Running || isRealtimeV1Running;
+                const isRunning = isWorkflowRunning || isRealtimeV2Running;
                 const isUploading = isAnyNodeUploading();
                 const isDisabled = isFinalizing || isUploading;
                 return (
