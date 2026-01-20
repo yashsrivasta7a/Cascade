@@ -718,15 +718,15 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
       if (result && typeof result === "string" && result.length > 0) {
         // Check if the result looks like it could be the right media type
         const sourceType = sourceNode.type;
-        if (mediaType === "video" && (sourceType?.includes("video") || sourceType === "merge-audio-video" || sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos")) {
+        if (mediaType === "video" && (sourceType?.includes("video") || sourceType === "merge-audio-video" || sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos" || sourceType === "video-input")) {
           console.log(`[getMediaFromParentResults] Found video from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
           return result;
         }
-        if (mediaType === "audio" && (sourceType?.includes("audio") || sourceType === "elevenlabs" || sourceType === "extract-audio")) {
+        if (mediaType === "audio" && (sourceType?.includes("audio") || sourceType === "elevenlabs" || sourceType === "extract-audio" || sourceType === "audio-input")) {
           console.log(`[getMediaFromParentResults] Found audio from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
           return result;
         }
-        if (mediaType === "image" && (sourceType?.includes("image") || sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image")) {
+        if (mediaType === "image" && (sourceType?.includes("image") || sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image" || sourceType === "image-input")) {
           console.log(`[getMediaFromParentResults] Found image from parent ${sourceNode.id}: ${result.slice(0, 50)}...`);
           return result;
         }
@@ -790,13 +790,13 @@ function buildNodeInput(node: Node, edges: Edge[], outputs: OutputByNode, nodes:
       const result = sourceData?.result as string | undefined;
       if (result && typeof result === "string") {
         const sourceType = sourceNode?.type;
-        if (mediaType === "video" && (sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos" || sourceType === "merge-audio-video" || e.targetHandle === "video" || e.sourceHandle === "video")) {
+        if (mediaType === "video" && (sourceType === "seedance" || sourceType === "lipsync" || sourceType === "merge-videos" || sourceType === "merge-audio-video" || sourceType === "video-input" || e.targetHandle === "video" || e.sourceHandle === "video")) {
           return result;
         }
-        if (mediaType === "audio" && (sourceType === "elevenlabs" || sourceType === "extract-audio" || e.targetHandle === "audio" || e.sourceHandle === "audio")) {
+        if (mediaType === "audio" && (sourceType === "elevenlabs" || sourceType === "extract-audio" || sourceType === "audio-input" || e.targetHandle === "audio" || e.sourceHandle === "audio")) {
           return result;
         }
-        if (mediaType === "image" && (sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image" || e.targetHandle?.includes("image") || e.sourceHandle?.includes("image"))) {
+        if (mediaType === "image" && (sourceType === "seedream" || sourceType === "seedvr" || sourceType === "crop-image" || sourceType === "image-input" || e.targetHandle?.includes("image") || e.sourceHandle?.includes("image"))) {
           return result;
         }
       }
@@ -1386,6 +1386,9 @@ export async function runWorkflow(
   };
   
   // Execute a single node
+  // I/O node types that are passthrough (don't need execution)
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "output", "comment"];
+  
   const executeNode = async (node: Node): Promise<void> => {
     const type = node.type as AINodeType;
     const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny;
@@ -1396,6 +1399,78 @@ export async function runWorkflow(
       callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
       failed.add(node.id);
       return;
+    }
+
+    // ==========================================================================
+    // I/O NODE HANDLING - These are passthrough nodes
+    // ==========================================================================
+    if (IO_NODE_TYPES.includes(type)) {
+      console.log(`[RunWorkflow] I/O node ${node.id} (${type}) - passthrough handling`);
+      console.log(`[RunWorkflow] I/O node data:`, JSON.stringify(data).slice(0, 500));
+      
+      // Input nodes: use their result/value as output
+      if (type === "image-input" || type === "video-input" || type === "audio-input") {
+        // Try multiple possible property names for the uploaded file
+        const result = data.result || data.value || data.url || data.file;
+        console.log(`[RunWorkflow] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined');
+        
+        if (result && typeof result === "string" && result.length > 0) {
+          const outputType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
+          const passOutput: AnyOut = outputType === "image" 
+            ? { type: "image", image: { url: result } }
+            : outputType === "video"
+            ? { type: "video", video: { url: result } }
+            : { type: "audio", audio: { url: result } };
+          
+          outputs.set(node.id, passOutput);
+          completed.add(node.id);
+          callbacks.onNodeResult?.(node.id, result, passOutput);
+          callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+          console.log(`[RunWorkflow] Input node ${node.id} completed with result`);
+          return;
+        } else {
+          // No input file uploaded - provide more helpful error
+          const dataKeys = Object.keys(data);
+          console.error(`[RunWorkflow] Input node ${node.id} has no file. Data keys:`, dataKeys);
+          callbacks.onNodeStatus?.(node.id, "failed", { 
+            error: `No file uploaded to ${type.replace('-input', '')} input node`,
+            details: `Please upload a file to the input node before running the workflow`
+          });
+          failed.add(node.id);
+          return;
+        }
+      }
+      
+      // Output node: get value from connected upstream node
+      if (type === "output") {
+        // Find incoming edge and get the output from the source node
+        const incomingEdge = edges.find(e => e.target === node.id);
+        if (incomingEdge) {
+          const sourceOutput = outputs.get(incomingEdge.source);
+          if (sourceOutput) {
+            outputs.set(node.id, sourceOutput);
+            completed.add(node.id);
+            const resultText = sourceOutput.type === "text" ? sourceOutput.text 
+              : sourceOutput.type === "image" ? sourceOutput.image.url
+              : sourceOutput.type === "video" ? sourceOutput.video.url
+              : sourceOutput.audio.url;
+            callbacks.onNodeResult?.(node.id, resultText, sourceOutput);
+            callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+            return;
+          }
+        }
+        // No input connected or source didn't produce output
+        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+        completed.add(node.id);
+        return;
+      }
+      
+      // Comment node: just mark as completed
+      if (type === "comment") {
+        completed.add(node.id);
+        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+        return;
+      }
     }
 
     // ==========================================================================
@@ -1765,11 +1840,11 @@ export async function runNodeWithDependencies(
         
         // Determine output type based on node type
         let outputEntry: AnyOut;
-        if (nodeType === "seedream" || nodeType === "seedvr" || nodeType === "crop-image") {
+        if (nodeType === "seedream" || nodeType === "seedvr" || nodeType === "crop-image" || nodeType === "image-input") {
           outputEntry = { type: "image", image: { url: result } };
-        } else if (nodeType === "seedance" || nodeType === "lipsync" || nodeType === "merge-videos" || nodeType === "merge-audio-video") {
+        } else if (nodeType === "seedance" || nodeType === "lipsync" || nodeType === "merge-videos" || nodeType === "merge-audio-video" || nodeType === "video-input") {
           outputEntry = { type: "video", video: { url: result } };
-        } else if (nodeType === "elevenlabs" || nodeType === "extract-audio") {
+        } else if (nodeType === "elevenlabs" || nodeType === "extract-audio" || nodeType === "audio-input") {
           outputEntry = { type: "audio", audio: { url: result } };
         } else {
           outputEntry = { type: "text", text: result };
@@ -1919,6 +1994,9 @@ async function runWorkflowSubset(
     return ready;
   };
   
+  // I/O node types that are passthrough (don't need execution)
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "output", "comment"];
+  
   const executeNode = async (node: Node): Promise<void> => {
     const type = node.type as AINodeType;
     const inputSchema = NodeInputSchemas[type] as z.ZodTypeAny;
@@ -1929,6 +2007,78 @@ async function runWorkflowSubset(
       callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
       failed.add(node.id);
       return;
+    }
+
+    // ==========================================================================
+    // I/O NODE HANDLING - These are passthrough nodes
+    // ==========================================================================
+    if (IO_NODE_TYPES.includes(type)) {
+      console.log(`[runWorkflowSubset] I/O node ${node.id} (${type}) - passthrough handling`);
+      console.log(`[runWorkflowSubset] I/O node data:`, JSON.stringify(data).slice(0, 500));
+      
+      // Input nodes: use their result/value as output
+      if (type === "image-input" || type === "video-input" || type === "audio-input") {
+        // Try multiple possible property names for the uploaded file
+        const result = data.result || data.value || data.url || data.file;
+        console.log(`[runWorkflowSubset] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined');
+        
+        if (result && typeof result === "string" && result.length > 0) {
+          const outputType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
+          const passOutput: AnyOut = outputType === "image" 
+            ? { type: "image", image: { url: result } }
+            : outputType === "video"
+            ? { type: "video", video: { url: result } }
+            : { type: "audio", audio: { url: result } };
+          
+          outputs.set(node.id, passOutput);
+          completed.add(node.id);
+          callbacks.onNodeResult?.(node.id, result, passOutput);
+          callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+          console.log(`[runWorkflowSubset] Input node ${node.id} completed with result`);
+          return;
+        } else {
+          // No input file uploaded - provide more helpful error
+          const dataKeys = Object.keys(data);
+          console.error(`[runWorkflowSubset] Input node ${node.id} has no file. Data keys:`, dataKeys);
+          callbacks.onNodeStatus?.(node.id, "failed", { 
+            error: `No file uploaded to ${type.replace('-input', '')} input node`,
+            details: `Please upload a file to the input node before running the workflow`
+          });
+          failed.add(node.id);
+          return;
+        }
+      }
+      
+      // Output node: get value from connected upstream node
+      if (type === "output") {
+        // Find incoming edge and get the output from the source node
+        const incomingEdge = edges.find(e => e.target === node.id);
+        if (incomingEdge) {
+          const sourceOutput = outputs.get(incomingEdge.source);
+          if (sourceOutput) {
+            outputs.set(node.id, sourceOutput);
+            completed.add(node.id);
+            const resultText = sourceOutput.type === "text" ? sourceOutput.text 
+              : sourceOutput.type === "image" ? sourceOutput.image.url
+              : sourceOutput.type === "video" ? sourceOutput.video.url
+              : sourceOutput.audio.url;
+            callbacks.onNodeResult?.(node.id, resultText, sourceOutput);
+            callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+            return;
+          }
+        }
+        // No input connected or source didn't produce output
+        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+        completed.add(node.id);
+        return;
+      }
+      
+      // Comment node: just mark as completed
+      if (type === "comment") {
+        completed.add(node.id);
+        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+        return;
+      }
     }
 
     // ==========================================================================
@@ -2197,6 +2347,50 @@ export async function runSingleNode(
 
   if (!inputSchema || !outputSchema) {
     callbacks.onNodeStatus?.(node.id, "failed", { error: `Missing schemas for node type: ${type}` });
+    return;
+  }
+
+  // ==========================================================================
+  // I/O NODE HANDLING - These are passthrough nodes
+  // ==========================================================================
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "output", "comment"];
+  
+  if (IO_NODE_TYPES.includes(type)) {
+    console.log(`[runSingleNode] I/O node ${node.id} (${type}) - passthrough handling`);
+    console.log(`[runSingleNode] I/O node data:`, JSON.stringify(data).slice(0, 500));
+    
+    // Input nodes: use their result/value as output
+    if (type === "image-input" || type === "video-input" || type === "audio-input") {
+      // Try multiple possible property names for the uploaded file
+      const result = (data.result || data.value || data.url || data.file) as string | undefined;
+      console.log(`[runSingleNode] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined');
+      
+      if (result && typeof result === "string" && result.length > 0) {
+        const outputType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
+        const passOutput: AnyOut = outputType === "image" 
+          ? { type: "image", image: { url: result } }
+          : outputType === "video"
+          ? { type: "video", video: { url: result } }
+          : { type: "audio", audio: { url: result } };
+        
+        callbacks.onNodeResult?.(node.id, result, passOutput);
+        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
+        console.log(`[runSingleNode] Input node ${node.id} completed with result`);
+        return;
+      } else {
+        // No input file uploaded - provide more helpful error
+        const dataKeys = Object.keys(data);
+        console.error(`[runSingleNode] Input node ${node.id} has no file. Data keys:`, dataKeys);
+        callbacks.onNodeStatus?.(node.id, "failed", { 
+          error: `No file uploaded to ${type.replace('-input', '')} input node`,
+          details: `Please upload a file to the input node before running the workflow`
+        });
+        return;
+      }
+    }
+    
+    // Output and comment nodes - just mark as completed
+    callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
     return;
   }
 

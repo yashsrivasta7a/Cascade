@@ -6,7 +6,7 @@ import { getUserIdForApi } from "@/lib/user";
 import { getNodeCost } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { executeNode } from "@/app/trigger/node-executor";
-import { runs } from "@trigger.dev/sdk/v3";
+import { runs } from "@trigger.dev/sdk";
 
 // =============================================================================
 // LLM API ENDPOINT - Runs on Trigger.dev

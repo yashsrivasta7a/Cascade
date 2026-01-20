@@ -38,10 +38,11 @@ import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
-import { useWorkflowStream, type WorkflowStreamCallbacks } from "@/hooks";
+import { useWorkflowStream, useRealtimeWorkflowV2, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
 import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 import { cn } from "@/lib/utils";
+import { showInsufficientCredits } from "@/lib/toast";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
@@ -102,12 +103,10 @@ async function persistMediaToCDN(nodes: unknown[]): Promise<unknown[]> {
           // This is base64 data - upload to CDN
           const mediaType = getMediaTypeFromDataUrl(value);
           if (mediaType) {
-            console.log(`[persistMediaToCDN] Uploading ${field} (${mediaType}) for node ${n.id}`);
             const httpUrl = await uploadMediaToCDN(value, mediaType);
             if (httpUrl) {
               updatedData[field] = httpUrl;
               hasChanges = true;
-              console.log(`[persistMediaToCDN] Uploaded ${field} -> ${httpUrl.slice(0, 50)}...`);
             }
           }
         }
@@ -220,15 +219,6 @@ function WorkflowEditorContent() {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [workflowErrors, setWorkflowErrors] = useState<WorkflowError[]>([]);
   
-  // Keep refs to current state for polling (avoids stale closures)
-  const nodesRef = useRef(nodes);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  
-  const workflowErrorsRef = useRef(workflowErrors);
-  useEffect(() => { workflowErrorsRef.current = workflowErrors; }, [workflowErrors]);
-  
-  const dbWorkflowIdRef = useRef(dbWorkflowId);
-  useEffect(() => { dbWorkflowIdRef.current = dbWorkflowId; }, [dbWorkflowId]);
   
   // Ref for stop workflow function (used in keyboard handler)
   const stopWorkflowRef = useRef<(() => void) | null>(null);
@@ -460,202 +450,15 @@ function WorkflowEditorContent() {
     });
   }, [nodes, workflowErrors]);
 
-  // Poll for latest execution status using the same API as execution history
-  useEffect(() => {
-    if (!isWorkflowRunning) return;
+  // NOTE: Polling removed - using Trigger.dev realtime hooks instead
+  // The useRealtimeWorkflow hook connects directly to Trigger.dev for real-time updates
+  // This avoids Vercel's SSE buffering issues entirely
 
-    const pollStatus = async () => {
-      try {
-        // Use ref to get current nodes (avoids stale closures)
-        const currentNodes = nodesRef.current;
-        const currentNodeIds = new Set(currentNodes.map((n) => n.id));
-        
-        console.log("[Polling] Current flow nodeIds:", Array.from(currentNodeIds));
-        
-        // Also track node types for matching by type if ID doesn't match
-        const nodesByType = new Map<string, string[]>();
-        currentNodes.forEach((n) => {
-          const type = n.type ?? "";
-          if (!nodesByType.has(type)) nodesByType.set(type, []);
-          nodesByType.get(type)!.push(n.id);
-        });
-        
-        // Filter by workflowId to only show executions for this workflow
-        const pollParams = new URLSearchParams();
-        pollParams.set("limit", "10");
-        if (dbWorkflowIdRef.current) {
-          pollParams.set("workflowId", dbWorkflowIdRef.current);
-        }
-        const response = await fetch(`/api/trigger-runs?${pollParams.toString()}`);
-        if (!response.ok) {
-          console.log("[Polling] API response not ok:", response.status);
-          return;
-        }
-
-        const data = await response.json();
-        const executions = data.executions || [];
-        
-        console.log("[Polling] Got", executions.length, "executions");
-        executions.slice(0, 3).forEach((exec: { nodeExecutions?: Array<{ nodeId: string; status: string }> }) => {
-          const nes = exec.nodeExecutions || [];
-          console.log("[Polling] Execution nodeIds:", nes.map(ne => `${ne.nodeId}:${ne.status}`));
-        });
-
-        // Find recent executions (within last 5 minutes) and try to match
-        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-        
-        for (const exec of executions) {
-          const execTime = new Date(exec.startedAt || exec.createdAt).getTime();
-          if (execTime < fiveMinutesAgo) continue; // Skip old executions
-          
-          const nodeExecutions = exec.nodeExecutions || [];
-          if (nodeExecutions.length === 0) continue;
-          
-          // Try to match by nodeId first, then by nodeType
-          const matchedUpdates: Array<{ flowNodeId: string; dbStatus: { status: string; error?: string; providerUsed?: string } }> = [];
-          
-          for (const ne of nodeExecutions as Array<{ nodeId: string; nodeType: string; status: string; error?: string; providerUsed?: string }>) {
-            // Direct match by nodeId
-            if (currentNodeIds.has(ne.nodeId)) {
-              matchedUpdates.push({ flowNodeId: ne.nodeId, dbStatus: ne });
-            } 
-            // Match by nodeType if no direct match (for older executions)
-            else if (nodesByType.has(ne.nodeType)) {
-              const possibleNodes = nodesByType.get(ne.nodeType)!;
-              // Use the first node of this type that's still "running"
-              for (const flowNodeId of possibleNodes) {
-                const flowNode = currentNodes.find((n) => n.id === flowNodeId);
-                const flowStatus = (flowNode?.data as Record<string, unknown>)?.status;
-                if (flowStatus === "running" || flowStatus === "queued") {
-                  matchedUpdates.push({ flowNodeId, dbStatus: ne });
-                  break;
-                }
-              }
-            }
-          }
-
-          if (matchedUpdates.length > 0) {
-            console.log("[Polling] Found matching executions:", matchedUpdates.map(m => `${m.flowNodeId}: ${m.dbStatus.status}`));
-            
-            setNodes((prev) =>
-              prev.map((n) => {
-                const match = matchedUpdates.find((m) => m.flowNodeId === n.id);
-                if (!match) return n;
-                
-                const dbStatus = match.dbStatus;
-                const currentData = n.data as Record<string, unknown>;
-                const currentStatus = currentData.status as string | undefined;
-
-                // Map database status to local status format
-                const rawStatus = dbStatus.status?.toUpperCase?.() ?? "PENDING";
-                let newStatus: string;
-                switch (rawStatus) {
-                  case "COMPLETED":
-                    newStatus = "completed";
-                    break;
-                  case "FAILED":
-                    newStatus = "failed";
-                    break;
-                  case "RUNNING":
-                  case "WAITING":
-                    newStatus = "running";
-                    break;
-                  case "QUEUED":
-                  case "PENDING":
-                    newStatus = "queued";
-                    break;
-                  default:
-                    newStatus = currentStatus ?? "queued";
-                }
-
-                // Only update if status or error changed
-                if (currentStatus === newStatus && currentData.error === dbStatus.error) return n;
-
-                console.log(`[Polling] Updating node ${n.id}: ${currentStatus} → ${newStatus}`);
-                
-                return {
-                  ...n,
-                  data: {
-                    ...currentData,
-                    status: newStatus,
-                    error: dbStatus.error ?? currentData.error,
-                    providerUsed: dbStatus.providerUsed ?? currentData.providerUsed,
-                  },
-                };
-              })
-            );
-
-            // Check if all matched nodes are complete
-            const allDone = matchedUpdates.every(
-              (m) => {
-                const s = m.dbStatus.status?.toUpperCase?.();
-                return s === "COMPLETED" || s === "FAILED";
-              }
-            );
-            
-            // Check if any node just completed (for real-time balance update)
-            const anyCompleted = matchedUpdates.some(
-              (m) => m.dbStatus.status?.toUpperCase?.() === "COMPLETED"
-            );
-            if (anyCompleted) {
-              // Refetch credits after each node completes
-              void refetchCredits();
-            }
-            
-            if (allDone) {
-              console.log("[Polling] All matched nodes done, stopping polling");
-              setWorkflowRunning(false);
-            }
-
-            // Collect errors
-            matchedUpdates
-              .filter((m) => m.dbStatus.status?.toUpperCase?.() === "FAILED" && m.dbStatus.error)
-              .forEach((m) => {
-                const ne = m.dbStatus as { status: string; error: string; providerUsed?: string };
-                const flowNode = currentNodes.find((n) => n.id === m.flowNodeId);
-                const exists = workflowErrorsRef.current.some(
-                  (e) => e.nodeId === m.flowNodeId && e.message === ne.error
-                );
-                if (!exists) {
-                  const newError: WorkflowError = {
-                    id: `api-${m.flowNodeId}-${Date.now()}`,
-                    nodeId: m.flowNodeId,
-                    nodeName: (flowNode?.data as Record<string, unknown>)?.label as string ?? flowNode?.type ?? "Node",
-                    nodeType: flowNode?.type ?? "unknown",
-                    severity: "critical",
-                    message: ne.error,
-                    details: ne.providerUsed ? `Provider: ${ne.providerUsed}` : undefined,
-                    timestamp: new Date(),
-                    canRetry: true,
-                  };
-                  setWorkflowErrors((prev) => [newError, ...prev]);
-                  setActivityOpen(true);
-                }
-              });
-
-            break; // Found matching execution, stop looking
-          }
-        }
-      } catch (error) {
-        console.error("Failed to poll execution status:", error);
-      }
-    };
-
-    // Poll immediately and then every 2 seconds
-    pollStatus();
-    const interval = setInterval(pollStatus, 2000);
-
-    return () => clearInterval(interval);
-    // Only re-create interval when isWorkflowRunning changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWorkflowRunning]);
-
-  // Fetch errors from database for this workflow
+  // Fetch errors from database for this workflow (no polling - relies on realtime updates)
   const { data: dbErrorsData } = trpc.execution.getErrors.useQuery(
     { workflowId: dbWorkflowId ?? "", limit: 50 },
     {
       enabled: Boolean(dbWorkflowId) && activityOpen,
-      refetchInterval: activityOpen ? 5000 : false, // Poll every 5s when panel is open
     }
   );
 
@@ -694,7 +497,6 @@ function WorkflowEditorContent() {
 
     try {
       // First, upload any base64 media to CDN (Transloadit)
-      console.log("[handleSave] Persisting media to CDN...");
       const persistedNodes = await persistMediaToCDN(nodes as unknown[]);
       
       // Update nodes in store with persisted URLs so they show after save
@@ -797,13 +599,12 @@ function WorkflowEditorContent() {
     });
   }, [nodes, edges]);
 
-  // SSE workflow stream callbacks
-  const streamCallbacks: WorkflowStreamCallbacks = useMemo(() => ({
-    onWorkflowStarted: ({ workflowExecutionId: id, estimatedCost }) => {
-      console.log(`[SSE] Workflow started: ${id}, estimated cost: ${estimatedCost}`);
+  // Realtime workflow callbacks (using Trigger.dev React hooks - bypasses Vercel SSE buffering)
+  const realtimeCallbacks: RealtimeWorkflowCallbacks = useMemo(() => ({
+    onWorkflowStarted: () => {
+      // Workflow started - V2 realtime subscription active
     },
-    onNodeQueued: (nodeId, nodeType) => {
-      console.log(`[SSE] Node queued: ${nodeId} (${nodeType})`);
+    onNodeQueued: (nodeId) => {
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId
@@ -812,8 +613,7 @@ function WorkflowEditorContent() {
         )
       );
     },
-    onNodeStarted: (nodeId, nodeType) => {
-      console.log(`[SSE] Node started: ${nodeId} (${nodeType})`);
+    onNodeStarted: (nodeId) => {
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId
@@ -831,9 +631,7 @@ function WorkflowEditorContent() {
         )
       );
     },
-    onNodeCompleted: (nodeId, nodeType, output) => {
-      console.log(`[SSE] Node completed: ${nodeId} (${nodeType})`, output);
-      
+    onNodeCompleted: (nodeId, _nodeType, output) => {
       // Update node status and store output preview
       const outputData = output as { 
         type?: string; 
@@ -895,9 +693,7 @@ function WorkflowEditorContent() {
       // Refetch credits after each node completes
       void refetchCredits();
     },
-    onNodeFailed: (nodeId, nodeType, error) => {
-      console.log(`[SSE] Node failed: ${nodeId} (${nodeType}): ${error}`);
-      
+    onNodeFailed: (nodeId, _nodeType, error) => {
       // Update node status
       setNodes((prev) =>
         prev.map((n) =>
@@ -927,18 +723,14 @@ function WorkflowEditorContent() {
       setWorkflowErrors(prev => [newError, ...prev]);
       setActivityOpen(true);
     },
-    onWorkflowCompleted: async ({ successCount, failCount, status, workflowExecutionId }) => {
-      console.log(`[SSE] Workflow completed: ${successCount} succeeded, ${failCount} failed, status: ${status}, execId: ${workflowExecutionId}`);
-      
+    onWorkflowCompleted: async ({ workflowExecutionId }) => {
       // Set finalizing state - keeps the UI showing "running" until outputs are displayed
       setIsFinalizing(true);
-      console.log(`[SSE] Entering finalizing state - fetching outputs...`);
       
-      // FALLBACK: Fetch outputs from database for any nodes that didn't receive SSE events
+      // FALLBACK: Fetch outputs from database for any nodes that didn't receive realtime events
       // This handles cases where SSE connection was interrupted (e.g., Fast Refresh, network issues)
       if (workflowExecutionId) {
         try {
-          console.log(`[SSE] Fetching node outputs from database as fallback...`);
           const response = await fetch(`/api/workflow-executions/${workflowExecutionId}`);
           if (response.ok) {
             const data = await response.json();
@@ -978,7 +770,6 @@ function WorkflowEditorContent() {
                 }
                 
                 if (mediaUrl || resultPreview) {
-                  console.log(`[SSE] Fallback: Applying output to node ${ne.nodeId}`);
                   const updateData: Record<string, unknown> = {
                     status: "completed",
                     progress: 100,
@@ -1005,9 +796,6 @@ function WorkflowEditorContent() {
               }
             }
             
-            if (outputsApplied > 0) {
-              console.log(`[SSE] Fallback: Applied ${outputsApplied} outputs from database`);
-            }
             
             // Finalize ALL node statuses based on database - ensure no nodes stuck in queued/running
             const { setNodes: finalSetNodes } = useFlowStore.getState();
@@ -1025,8 +813,7 @@ function WorkflowEditorContent() {
                 if ((nodeData.status === "queued" || nodeData.status === "running") && dbStatus) {
                   const finalStatus = dbStatus === "COMPLETED" ? "completed" 
                     : dbStatus === "FAILED" ? "failed" 
-                    : "completed"; // Default to completed if unknown status
-                  console.log(`[SSE] Finalizing node ${n.id} status: ${nodeData.status} -> ${finalStatus}`);
+                    : "completed";
                   return { ...n, data: { ...nodeData, status: finalStatus, progress: 100 } };
                 }
                 return n;
@@ -1034,7 +821,7 @@ function WorkflowEditorContent() {
             );
           }
         } catch (err) {
-          console.error(`[SSE] Failed to fetch outputs from database:`, err);
+          console.error(`[Realtime] Failed to fetch outputs from database:`, err);
         }
       }
       
@@ -1043,7 +830,6 @@ function WorkflowEditorContent() {
         prevNodes.map((n) => {
           const nodeData = n.data as Record<string, unknown>;
           if (nodeData.status === "queued" || nodeData.status === "running") {
-            console.log(`[SSE] Final cleanup: marking ${n.id} as completed`);
             return { ...n, data: { ...nodeData, status: "completed", progress: 100 } };
           }
           return n;
@@ -1053,13 +839,23 @@ function WorkflowEditorContent() {
       // Small delay to ensure React has time to render the outputs
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log(`[SSE] Finalizing complete - workflow done`);
       setIsFinalizing(false);
       setWorkflowRunning(false);
       void refetchCredits();
     },
     onError: (message) => {
-      console.error(`[SSE] Error: ${message}`);
+      // Check if it's an insufficient credits error and show toast
+      if (message.toLowerCase().includes("insufficient credits")) {
+        // Parse credits from message if available (format: "Required: X, Available: Y")
+        const match = message.match(/Required:\s*([\d,]+).*Available:\s*([\d,]+)/i);
+        if (match) {
+          const required = parseInt(match[1].replace(/,/g, ""), 10);
+          const available = parseInt(match[2].replace(/,/g, ""), 10);
+          showInsufficientCredits(required, available);
+        } else {
+          showInsufficientCredits();
+        }
+      }
       
       const newError: WorkflowError = {
         id: `workflow-${Date.now()}`,
@@ -1077,15 +873,25 @@ function WorkflowEditorContent() {
     },
   }), [nodes, setNodes, refetchCredits, setWorkflowRunning, setIsFinalizing]);
 
-  // SSE workflow stream hook
-  const { runWorkflow: runWorkflowSSE, isRunning: isSSERunning, cancelWorkflow } = useWorkflowStream({
-    workflowId: dbWorkflowId ?? workflowId,
-    callbacks: streamCallbacks,
-  });
+  // Realtime workflow hook V2 - uses Trigger.dev Realtime API with metadata
+  // Direct WebSocket connection to Trigger.dev, bypasses Vercel entirely
+  const { 
+    runWorkflow: runWorkflowRealtimeV2, 
+    isRunning: isRealtimeV2Running, 
+    cancelWorkflow: cancelWorkflowV2,
+    RealtimeSubscriber,
+  } = useRealtimeWorkflowV2(
+    dbWorkflowId ?? workflowId,
+    realtimeCallbacks
+  );
+  
+  // Cancel function (V2 only - no polling fallback)
+  const cancelWorkflow = useCallback(async () => {
+    await cancelWorkflowV2();
+  }, [cancelWorkflowV2]);
   
   // Handle stop/cancel workflow
   const handleStopWorkflow = useCallback(async () => {
-    console.log("[Workflow] Stopping workflow execution");
     await cancelWorkflow();
     setWorkflowRunning(false);
 
@@ -1129,6 +935,9 @@ function WorkflowEditorContent() {
 
     // Check if user has enough credits
     if (creditBalance < estimatedCost) {
+      // Show toast notification for insufficient credits
+      showInsufficientCredits(estimatedCost, creditBalance);
+      
       const newError: WorkflowError = {
         id: `credits-${Date.now()}`,
         nodeId: "workflow",
@@ -1183,14 +992,13 @@ function WorkflowEditorContent() {
       }))
     );
 
-    // Use SSE streaming for real-time updates
-    // Pass the effective workflow ID to ensure proper tracking
-    await runWorkflowSSE(
-      nodes as Parameters<typeof runWorkflowSSE>[0], 
-      edges as Parameters<typeof runWorkflowSSE>[1],
+    // Use Trigger.dev Realtime (V2) - direct WebSocket to Trigger.dev
+    await runWorkflowRealtimeV2(
+      nodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
+      edges as Parameters<typeof runWorkflowRealtimeV2>[1],
       effectiveWorkflowId ?? undefined
     );
-  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowSSE]);
+  }, [edges, nodes, setNodes, setWorkflowRunning, dbWorkflowId, handleSave, creditBalance, runWorkflowRealtimeV2]);
 
   // Calculate dynamic button color based on selected node
   const selectedNodeDef = selectedNode ? NODE_DEFINITIONS[selectedNode.type as AINodeType] : null;
@@ -1278,6 +1086,8 @@ function WorkflowEditorContent() {
 
   return (
     <div className="h-full bg-gray-100 dark:bg-[#101010]">
+      {/* Trigger.dev Realtime subscriber - renders null but activates WebSocket subscription */}
+      {RealtimeSubscriber}
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
         <FlowCanvas 
@@ -1844,9 +1654,9 @@ function WorkflowEditorContent() {
               {/* Divider */}
               <div className="w-px h-6 bg-gradient-to-b from-transparent via-gray-300 dark:via-zinc-600/50 to-transparent mx-1" />
 
-              {/* Run/Stop button - use both isWorkflowRunning and isSSERunning for reliability */}
+              {/* Run/Stop button - use all running states for reliability */}
               {(() => {
-                const isRunning = isWorkflowRunning || isSSERunning;
+                const isRunning = isWorkflowRunning || isRealtimeV2Running;
                 const isUploading = isAnyNodeUploading();
                 const isDisabled = isFinalizing || isUploading;
                 return (

@@ -1,8 +1,7 @@
 import "server-only";
 import { initTRPC, TRPCError } from "@trpc/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { ensureCurrentUser, type EnsuredUser } from "@/lib/user";
+import { authenticateUser, authenticateWithApiKeyDirect, type EnsuredUser } from "@/lib/user";
 import { OpenApiMeta } from "trpc-to-openapi";
 
 // =============================================================================
@@ -13,18 +12,48 @@ export interface Context {
   db: typeof db;
   user: EnsuredUser | null;
   userId: string | null;
+  authMethod: "clerk" | "api_key" | null;
+  apiKeyId?: string;
+}
+
+export interface CreateContextOptions {
+  req?: Request; // Use generic Request type for compatibility with both tRPC and OpenAPI handlers
 }
 
 /**
  * Creates the context for each tRPC request
+ * Supports both Clerk session and API key authentication
  */
-export async function createContext(): Promise<Context> {
-  const user = await ensureCurrentUser();
+export async function createContext(opts?: CreateContextOptions): Promise<Context> {
+  // If we have a request with Authorization header, try API key auth first
+  if (opts?.req) {
+    const authHeader = opts.req.headers.get("authorization");
+    console.log("[createContext] Request provided, auth header:", authHeader ? `${authHeader.substring(0, 40)}...` : "none");
+    
+    if (authHeader?.toLowerCase().startsWith("bearer ")) {
+      const authResult = await authenticateWithApiKeyDirect(authHeader);
+      if (authResult.user) {
+        console.log("[createContext] API key auth successful for user:", authResult.user.id);
+        return {
+          db,
+          user: authResult.user,
+          userId: authResult.user.id,
+          authMethod: authResult.authMethod,
+          apiKeyId: authResult.apiKeyId,
+        };
+      }
+    }
+  }
+  
+  // Fall back to standard auth (Clerk + headers())
+  const authResult = await authenticateUser();
   
   return {
     db,
-    user,
-    userId: user?.id ?? null,
+    user: authResult.user,
+    userId: authResult.user?.id ?? null,
+    authMethod: authResult.authMethod,
+    apiKeyId: authResult.apiKeyId,
   };
 }
 

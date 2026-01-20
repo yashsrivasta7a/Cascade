@@ -20,6 +20,7 @@ import {
   Monitor,
   HelpCircle,
   Palette,
+  ArrowRightLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -81,6 +82,22 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
     priceLabel: "Free",
     priceNote: "Annotation only, no processing",
   },
+  "image-input": {
+    priceLabel: "Free",
+    priceNote: "Workflow input node",
+  },
+  "video-input": {
+    priceLabel: "Free",
+    priceNote: "Workflow input node",
+  },
+  "audio-input": {
+    priceLabel: "Free",
+    priceNote: "Workflow input node",
+  },
+  "output": {
+    priceLabel: "Free",
+    priceNote: "Workflow output node",
+  },
 };
 
 // =============================================================================
@@ -93,6 +110,7 @@ const categoryIcons: Record<NodeCategory, React.ReactNode> = {
   audio: <Volume2 className="w-4 h-4" />,
   llm: <Brain className="w-4 h-4" />,
   utility: <Wrench className="w-4 h-4" />,
+  io: <ArrowRightLeft className="w-4 h-4" />,
 };
 
 // Vibrant category colors matching main UI
@@ -144,9 +162,17 @@ const categoryColors: Record<NodeCategory, {
     solid: "#f59e0b",
     gradient: "from-amber-500 to-yellow-500",
   },
+  io: { 
+    bg: "bg-zinc-500/15", 
+    border: "border-zinc-500/30", 
+    text: "text-zinc-400", 
+    accent: "from-zinc-500/20",
+    solid: "#71717a",
+    gradient: "from-zinc-500 to-gray-500",
+  },
 };
 
-const categoryOrder: NodeCategory[] = ["llm", "image", "video", "audio", "utility"];
+const categoryOrder: NodeCategory[] = ["io", "llm", "image", "video", "audio", "utility"];
 
 // Output type badge colors - includes all data types (media + settings)
 const outputTypeBadge: Record<DataType, { bg: string; text: string }> = {

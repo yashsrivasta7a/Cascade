@@ -1,5 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { db } from "./db";
+import { extractBearerToken, validateApiKey } from "./api-keys";
 
 // =============================================================================
 // USER HELPER FUNCTIONS
@@ -10,6 +12,12 @@ export interface EnsuredUser {
   id: string;
   email: string;
   credits: number;
+}
+
+export interface AuthResult {
+  user: EnsuredUser | null;
+  authMethod: "clerk" | "api_key" | null;
+  apiKeyId?: string;
 }
 
 /**
@@ -55,6 +63,84 @@ export async function ensureCurrentUser(): Promise<EnsuredUser | null> {
     console.error("[ensureCurrentUser] Error:", error);
     return null;
   }
+}
+
+/**
+ * Authenticates a user via API key from the Authorization header.
+ * Used for /api/v1/* routes that accept Bearer token authentication.
+ * Returns the user if authenticated, null otherwise.
+ */
+export async function authenticateWithApiKey(): Promise<AuthResult> {
+  try {
+    const headersList = await headers();
+    const authHeader = headersList.get("authorization");
+    console.log("[authenticateWithApiKey] Auth header:", authHeader ? `${authHeader.substring(0, 30)}...` : "none");
+    
+    return authenticateWithApiKeyDirect(authHeader);
+  } catch (error) {
+    console.error("[authenticateWithApiKey] Error:", error);
+    return { user: null, authMethod: null };
+  }
+}
+
+/**
+ * Authenticates a user via API key from a provided Authorization header string.
+ * This version doesn't use Next.js headers() - useful for trpc-to-openapi context.
+ */
+export async function authenticateWithApiKeyDirect(authHeader: string | null): Promise<AuthResult> {
+  try {
+    console.log("[authenticateWithApiKeyDirect] Auth header:", authHeader ? `${authHeader.substring(0, 40)}...` : "none");
+    
+    const token = extractBearerToken(authHeader);
+    console.log("[authenticateWithApiKeyDirect] Token extracted:", token ? `${token.substring(0, 20)}...` : "none");
+
+    if (!token) {
+      console.log("[authenticateWithApiKeyDirect] No token found");
+      return { user: null, authMethod: null };
+    }
+
+    // Validate the API key
+    const keyData = await validateApiKey(token);
+    console.log("[authenticateWithApiKeyDirect] Key validation result:", keyData ? "valid" : "invalid");
+    if (!keyData) {
+      return { user: null, authMethod: null };
+    }
+
+    // Get the user associated with this API key
+    const user = await db.user.findUnique({
+      where: { id: keyData.userId },
+      select: { id: true, email: true, credits: true },
+    });
+
+    if (!user) {
+      return { user: null, authMethod: null };
+    }
+
+    return {
+      user,
+      authMethod: "api_key",
+      apiKeyId: keyData.apiKeyId,
+    };
+  } catch (error) {
+    console.error("[authenticateWithApiKeyDirect] Error:", error);
+    return { user: null, authMethod: null };
+  }
+}
+
+/**
+ * Authenticates a user via either Clerk session or API key.
+ * Tries Clerk first, then falls back to API key.
+ * Used for routes that accept both authentication methods.
+ */
+export async function authenticateUser(): Promise<AuthResult> {
+  // Try Clerk authentication first
+  const clerkUser = await ensureCurrentUser();
+  if (clerkUser) {
+    return { user: clerkUser, authMethod: "clerk" };
+  }
+
+  // Fall back to API key authentication
+  return authenticateWithApiKey();
 }
 
 /**

@@ -74,23 +74,16 @@ export type { ExtractAudioNodeData } from "./nodes-legacy/extract-audio-node";
 // FLOW COMPONENTS
 // ============================================================================
 
-export { DemoFlow } from "./demo-flow";
-export { HeroFlow } from "./hero-flow";
 export { NodePalette } from "./node-palette";
 export { FlowCanvas } from "./flow-canvas";
 export { NodeInspector } from "./node-inspector";
 export { NodeContextMenu } from "./node-context-menu";
 export { ExecutionPanel } from "./execution-panel";
-export { ExecutionHistoryPanel } from "./execution-history-panel";
-export { VersionHistoryPanel } from "./version-history-panel";
-export { ErrorInspectorPanel } from "./error-inspector-panel";
-export type { WorkflowError, ErrorSeverity } from "./error-inspector-panel";
 export { ActivityPanel } from "./activity-panel";
-export type { ActivityPanelError } from "./activity-panel";
+export type { ActivityPanelError, WorkflowError, ErrorSeverity } from "./activity-panel";
 export { AssetManagerPanel } from "./asset-manager-panel";
 export { CreditsPanel } from "./credits-panel";
 export { WorkflowSidebar } from "./workflow-sidebar";
-export { EditorSidebar } from "./editor-sidebar";
 export { RunModal, demoNodes } from "./run-modal";
 export { NodeTypeModal } from "./node-type-modal";
 export { NodeSettingsModal, SliderInput, SelectInput, ToggleInput } from "./node-settings-modal";
@@ -105,6 +98,20 @@ export { CommentNode };
 export type { CommentNodeData } from "./nodes/comment-node";
 
 // ============================================================================
+// I/O NODES (Input and Output nodes for workflow connections)
+// ============================================================================
+
+import { ImageInputNode } from "./nodes/image-input-node";
+import { VideoInputNode } from "./nodes/video-input-node";
+import { AudioInputNode } from "./nodes/audio-input-node";
+import { OutputNode } from "./nodes/output-node";
+export { ImageInputNode, VideoInputNode, AudioInputNode, OutputNode };
+export type { ImageInputNodeData } from "./nodes/image-input-node";
+export type { VideoInputNodeData } from "./nodes/video-input-node";
+export type { AudioInputNodeData } from "./nodes/audio-input-node";
+export type { OutputNodeData } from "./nodes/output-node";
+
+// ============================================================================
 // NODE TYPE REGISTRY FOR REACTFLOW
 // ============================================================================
 
@@ -112,4 +119,9 @@ export const nodeTypes = {
   ...createAllNodeComponents(),
   // Special annotation nodes (not config-driven)
   comment: CommentNode,
+  // I/O nodes (custom components, not config-driven)
+  "image-input": ImageInputNode,
+  "video-input": VideoInputNode,
+  "audio-input": AudioInputNode,
+  "output": OutputNode,
 } as const;

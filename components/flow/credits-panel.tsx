@@ -133,7 +133,7 @@ export function CreditsPanel({
         params.set("workflowId", workflowId);
       }
       
-      const response = await fetch(`/api/trigger-runs?${params.toString()}`);
+      const response = await fetch(`/api/workflow-executions?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();

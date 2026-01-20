@@ -309,7 +309,6 @@ export function ActivityPanel({
     { workflowId: workflowId || "" },
     { 
       enabled: isOpen && activeTab === "versions" && !!workflowId && workflowId !== "new",
-      refetchInterval: isOpen && activeTab === "versions" ? 3000 : false,
     }
   );
 
@@ -448,7 +447,7 @@ export function ActivityPanel({
       if (workflowId) params.set("workflowId", workflowId);
       params.set("_t", Date.now().toString());
       
-      const response = await fetch(`/api/trigger-runs?${params.toString()}`, {
+      const response = await fetch(`/api/workflow-executions?${params.toString()}`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
@@ -510,31 +509,18 @@ export function ActivityPanel({
         
         setExecutions(sorted);
       }
-    } catch (err) {
-      console.error("Failed to fetch executions:", err);
+    } catch {
+      // Failed to fetch executions - silently ignore
     } finally {
       setIsLoading(false);
     }
   }, [isOpen, workflowId, activeTab]);
 
-  const hasRunningExecution = useMemo(() => 
-    executions.some(e => 
-      e.status === "RUNNING" || 
-      e.status === "PENDING" || 
-      e.nodeExecutions.some(n => 
-        n.status === "RUNNING" || n.status === "WAITING" || n.status === "QUEUED"
-      )
-    ),
-    [executions]
-  );
-
   useEffect(() => {
     if (isOpen && activeTab === "runs") {
       fetchExecutions();
-      const interval = setInterval(fetchExecutions, hasRunningExecution ? 1500 : 5000);
-      return () => clearInterval(interval);
     }
-  }, [isOpen, fetchExecutions, hasRunningExecution, activeTab]);
+  }, [isOpen, fetchExecutions, activeTab]);
 
   const toggleWorkflow = (id: string) => {
     setExpandedWorkflows(prev => {
@@ -588,8 +574,8 @@ export function ActivityPanel({
         setExecutions([]);
         setExpandedWorkflows(new Set());
       }
-    } catch (error) {
-      console.error("[ActivityPanel] Error deleting executions:", error);
+    } catch {
+      // Failed to delete executions - silently ignore
     } finally {
       setIsDeleting(false);
     }
@@ -963,17 +949,81 @@ export function ActivityPanel({
                             <AnimatePresence>
                               {isExpanded && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-gray-200 dark:border-white/[0.04]">
-                                  <div className="p-2 space-y-1">
-                                    {exec.nodeExecutions.map((node, i) => renderNodeWithError(node, exec.id, i))}
+                                  <div className="p-2 space-y-2">
+                                    {(() => {
+                                      // Group nodes by chain (connected components)
+                                      const nodeIds = exec.nodeExecutions.map(n => n.nodeId);
+                                      const chains = findConnectedPipelines(nodeIds);
+                                      
+                                      // If only one chain or no edges, show flat list
+                                      if (chains.length <= 1) {
+                                        return (
+                                          <div className="space-y-1">
+                                            {exec.nodeExecutions.map((node, i) => renderNodeWithError(node, exec.id, i))}
+                                          </div>
+                                        );
+                                      }
+                                      
+                                      // Multiple chains - group them
+                                      return chains.map((chainNodeIds, chainIdx) => {
+                                        const chainNodes = chainNodeIds
+                                          .map(nodeId => exec.nodeExecutions.find(n => n.nodeId === nodeId))
+                                          .filter(Boolean) as NodeExecutionRecord[];
+                                        
+                                        if (chainNodes.length === 0) return null;
+                                        
+                                        const chainStatus = chainNodes.every(n => n.status === "COMPLETED") ? "completed"
+                                          : chainNodes.some(n => n.status === "FAILED") ? "failed"
+                                          : chainNodes.some(n => n.status === "RUNNING" || n.status === "WAITING") ? "running"
+                                          : "queued";
+                                        
+                                        const statusColors = {
+                                          completed: "border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5",
+                                          failed: "border-red-200 dark:border-red-500/20 bg-red-50/50 dark:bg-red-500/5",
+                                          running: "border-blue-200 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-500/5",
+                                          queued: "border-gray-200 dark:border-white/[0.06] bg-gray-50/50 dark:bg-white/[0.02]",
+                                        };
+                                        
+                                        return (
+                                          <div 
+                                            key={`chain-${chainIdx}`} 
+                                            className={cn(
+                                              "rounded-lg border p-1.5",
+                                              statusColors[chainStatus]
+                                            )}
+                                          >
+                                            <div className="flex items-center gap-1.5 px-1.5 pb-1 mb-1 border-b border-gray-200/50 dark:border-white/[0.04]">
+                                              <GitBranch className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
+                                              <span className="text-[9px] font-medium text-gray-500 dark:text-zinc-500">
+                                                Chain {chainIdx + 1}
+                                              </span>
+                                              <span className="text-[9px] text-gray-400 dark:text-zinc-600">
+                                                ({chainNodes.length} node{chainNodes.length > 1 ? "s" : ""})
+                                              </span>
+                                            </div>
+                                            <div className="space-y-0.5">
+                                              {chainNodes.map((node, i) => renderNodeWithError(node, exec.id, i))}
+                                            </div>
+                                          </div>
+                                        );
+                                      });
+                                    })()}
                                   </div>
                                 </motion.div>
                               )}
                             </AnimatePresence>
                           </>
                         ) : (
-                          // Single node execution
+                          // Single node execution or no nodes
                           <div className="p-3 pl-4">
-                            {singleNode && renderNodeWithError(singleNode, exec.id, 0)}
+                            {singleNode ? (
+                              renderNodeWithError(singleNode, exec.id, 0)
+                            ) : (
+                              <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-zinc-600">
+                                <Clock className="w-3 h-3" />
+                                <span>No node data available</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </motion.div>
@@ -1147,12 +1197,6 @@ export function ActivityPanel({
                   <span>Auto-saved on every change</span>
                 )}
               </p>
-              {activeTab === "runs" && (
-                <p className="text-[10px] text-gray-400 dark:text-zinc-600 flex items-center gap-1.5">
-                  {hasRunningExecution && <Loader2 className="w-2.5 h-2.5 animate-spin text-blue-500 dark:text-blue-400" />}
-                  Auto-refresh: {hasRunningExecution ? "1.5s" : "5s"}
-                </p>
-              )}
             </div>
           </div>
         </motion.div>

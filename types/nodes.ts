@@ -5,7 +5,7 @@ import { NODE_CONFIG } from "@/lib/config";
 // NODE CATEGORIES & TYPES
 // ============================================================================
 
-export type NodeCategory = "image" | "video" | "audio" | "llm" | "utility";
+export type NodeCategory = "image" | "video" | "audio" | "llm" | "utility" | "io";
 
 export type AINodeType =
   // Image
@@ -25,7 +25,12 @@ export type AINodeType =
   | "merge-videos"
   | "extract-audio"
   // Annotation
-  | "comment";
+  | "comment"
+  // I/O Nodes
+  | "image-input"
+  | "video-input"
+  | "audio-input"
+  | "output";
 
 // ============================================================================
 // DATA TYPES (What flows between nodes)
@@ -360,6 +365,59 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     isUtility: true,
     color: "zinc",
   },
+  // I/O Nodes
+  "image-input": {
+    type: "image-input",
+    category: "io",
+    label: "Image Input",
+    description: "Upload an image to use as workflow input",
+    provider: "local",
+    action: "Input",
+    inputs: [],
+    outputs: [{ type: "image", label: "Image" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "emerald",
+  },
+  "video-input": {
+    type: "video-input",
+    category: "io",
+    label: "Video Input",
+    description: "Upload a video to use as workflow input",
+    provider: "local",
+    action: "Input",
+    inputs: [],
+    outputs: [{ type: "video", label: "Video" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "violet",
+  },
+  "audio-input": {
+    type: "audio-input",
+    category: "io",
+    label: "Audio Input",
+    description: "Upload audio to use as workflow input",
+    provider: "local",
+    action: "Input",
+    inputs: [],
+    outputs: [{ type: "audio", label: "Audio" }],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "teal",
+  },
+  "output": {
+    type: "output",
+    category: "io",
+    label: "Output",
+    description: "Display and download workflow output",
+    provider: "local",
+    action: "Output",
+    inputs: [{ type: "any", label: "Input" }],
+    outputs: [],
+    estimatedCost: 0,
+    isUtility: true,
+    color: "zinc",
+  },
 };
 
 // ============================================================================
@@ -372,6 +430,7 @@ export const CATEGORY_META: Record<NodeCategory, { label: string; icon: string; 
   audio: { label: "Audio", icon: "Volume2", color: "teal" },
   llm: { label: "LLM / Vision", icon: "Brain", color: "blue" },
   utility: { label: "Utility", icon: "Wrench", color: "amber" },
+  io: { label: "I/O", icon: "ArrowRightLeft", color: "zinc" },
 };
 
 // ============================================================================
@@ -586,6 +645,31 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     primaryOutputId: "",
     settings: [],
     mediaInputs: [],
+  },
+  // I/O Nodes
+  "image-input": {
+    primaryOutputType: "image",
+    primaryOutputId: "output",
+    settings: [],
+    mediaInputs: [],
+  },
+  "video-input": {
+    primaryOutputType: "video",
+    primaryOutputId: "output",
+    settings: [],
+    mediaInputs: [],
+  },
+  "audio-input": {
+    primaryOutputType: "audio",
+    primaryOutputId: "output",
+    settings: [],
+    mediaInputs: [],
+  },
+  "output": {
+    primaryOutputType: "any",
+    primaryOutputId: "",
+    settings: [],
+    mediaInputs: [{ id: "input", type: "any", label: "Input" }],
   },
 };
 

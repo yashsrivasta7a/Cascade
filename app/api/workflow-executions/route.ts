@@ -51,10 +51,58 @@ export async function GET(request: NextRequest) {
             name: true,
           },
         },
+        nodeExecutions: {
+          select: {
+            id: true,
+            nodeId: true,
+            nodeType: true,
+            nodeLabel: true,
+            status: true,
+            providerUsed: true,
+            actualCost: true,
+            error: true,
+            outputJson: true, // Include output for polling updates
+            startedAt: true,
+            completedAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
-    return NextResponse.json({ executions });
+    // Transform to match expected format
+    const transformed = executions.map((exec) => {
+      return {
+        id: exec.id,
+        workflowId: exec.workflowId,
+        workflowName: exec.workflow?.name || "Workflow Run",
+        status: exec.status,
+        estimatedCost: exec.estimatedCost,
+        actualCost: exec.actualCost,
+        totalCost: exec.actualCost,
+        startedAt: exec.startedAt?.toISOString(),
+        completedAt: exec.completedAt?.toISOString(),
+        error: exec.error,
+        createdAt: exec.createdAt.toISOString(),
+        nodeExecutions: exec.nodeExecutions.map((ne) => ({
+          id: ne.id,
+          nodeId: ne.nodeId,
+          nodeType: ne.nodeType,
+          nodeLabel: ne.nodeLabel || ne.nodeType,
+          status: ne.status,
+          providerUsed: ne.providerUsed,
+          provider: ne.providerUsed,
+          actualCost: ne.actualCost,
+          error: ne.error,
+          outputJson: ne.outputJson, // Include output for polling
+          startedAt: ne.startedAt?.toISOString(),
+          completedAt: ne.completedAt?.toISOString(),
+        })),
+      };
+    });
+
+    return NextResponse.json({ executions: transformed });
   } catch (error) {
     console.error("[GET /api/workflow-executions] Error:", error);
     return NextResponse.json(
@@ -158,7 +206,6 @@ export async function DELETE(request: NextRequest) {
         },
       });
 
-      console.log(`[DELETE /api/workflow-executions] Deleted ${result.count} executions for user ${user.id}`);
       return NextResponse.json({ deleted: result.count });
     }
 

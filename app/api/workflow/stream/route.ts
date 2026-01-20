@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { executeWorkflow } from "@/app/trigger/workflow-executor";
+import { runs } from "@trigger.dev/sdk";
 import type { Edge, Node } from "reactflow";
 import { NODE_DEFINITIONS } from "@/types/nodes";
 import { estimateNodeCost } from "@/lib/credits";
@@ -203,18 +204,39 @@ async function preprocessNodesForTrigger(nodes: Node[]): Promise<Node[]> {
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   
+  // Track last flush time for heartbeat mechanism
+  let lastFlushTime = Date.now();
+  const HEARTBEAT_INTERVAL = 3000; // Send heartbeat every 3 seconds to prevent buffering
+  
   const sendEvent = (controller: ReadableStreamDefaultController, event: string, data: unknown) => {
     try {
       const sanitized = sanitizeForSSE(data);
       const message = `event: ${event}\ndata: ${JSON.stringify(sanitized)}\n\n`;
       controller.enqueue(encoder.encode(message));
+      lastFlushTime = Date.now();
     } catch (e) {
       console.error("[SSE] Failed to send event:", e);
+    }
+  };
+  
+  // Send SSE comment to flush the buffer (keeps connection alive on Vercel)
+  const sendHeartbeat = (controller: ReadableStreamDefaultController) => {
+    try {
+      // SSE comment (starts with :) - doesn't trigger event handlers but flushes buffer
+      controller.enqueue(encoder.encode(": heartbeat\n\n"));
+      lastFlushTime = Date.now();
+    } catch (e) {
+      // Ignore errors during heartbeat
     }
   };
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Send initial comment immediately to kick the stream on Vercel
+      // This forces the response to start streaming right away
+      controller.enqueue(encoder.encode(": stream started\n\n"));
+      lastFlushTime = Date.now();
+      
       try {
         const { userId: clerkUserId } = await auth();
         if (!clerkUserId) {
@@ -330,6 +352,12 @@ export async function POST(request: NextRequest) {
             edges,
           });
           console.log(`[WorkflowStream] Workflow task started with run ID: ${handle.id}`);
+          
+          // Store the Trigger.dev run ID for realtime subscriptions
+          await db.workflowExecution.update({
+            where: { id: workflowExecution.id },
+            data: { triggerRunId: handle.id },
+          });
         } catch (triggerError) {
           console.error(`[WorkflowStream] Failed to trigger workflow task:`, triggerError);
           sendEvent(controller, "error", { 
@@ -346,99 +374,179 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        // Track which nodes we've already sent events for
+        // =======================================================================
+        // REALTIME METADATA SUBSCRIPTION - No polling!
+        // =======================================================================
+        // The workflow-executor updates metadata when nodes change status.
+        // We subscribe to the run and receive instant updates via metadata.
+        // Falls back to DB polling if subscription fails.
+        // =======================================================================
+        
+        console.log(`[WorkflowStream] Starting realtime subscription for run ${handle.id}`);
+        
+        let workflowDone = false;
+        const maxTime = 10 * 60 * 1000; // 10 minutes max
+        const startTime = Date.now();
+        
+        // Track sent events to avoid duplicates
         const sentStarted = new Set<string>();
         const sentCompleted = new Set<string>();
         const sentFailed = new Set<string>();
-
-        // Poll database for node execution updates and stream them
-        // This runs while the workflow task executes
-        let workflowDone = false;
-        const maxPollTime = 10 * 60 * 1000; // 10 minutes max
-        const pollStartTime = Date.now();
-
-        while (!workflowDone) {
-          // Timeout check
-          if (Date.now() - pollStartTime > maxPollTime) {
-            console.log(`[WorkflowStream] Polling timeout reached`);
-            sendEvent(controller, "error", { message: "Workflow execution timeout" });
-            break;
+        
+        // Terminal states for the Trigger.dev run
+        const TERMINAL_STATES = new Set([
+          "COMPLETED", "FAILED", "CRASHED", "SYSTEM_FAILURE",
+          "CANCELED", "TIMED_OUT", "EXPIRED", "INTERRUPTED",
+        ]);
+        
+        // Interface for node status in metadata
+        interface NodeStatus {
+          status: "queued" | "started" | "completed" | "failed";
+          nodeType: string;
+          nodeLabel?: string;
+          output?: unknown;
+          error?: string;
+          timestamp: number;
+        }
+        
+        // Start heartbeat interval to prevent Vercel buffering
+        // Declared with let so it can be accessed in catch block
+        let heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+        heartbeatInterval = setInterval(() => {
+          if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+            sendHeartbeat(controller);
           }
-          // Check workflow status
-          const currentWorkflow = await db.workflowExecution.findUnique({
-            where: { id: workflowExecution.id },
-            select: { status: true },
-          });
-
-          if (currentWorkflow?.status === "COMPLETED" || currentWorkflow?.status === "FAILED") {
-            workflowDone = true;
+        }, HEARTBEAT_INTERVAL);
+        
+        try {
+          // Subscribe to the run - receives updates on status AND metadata changes
+          for await (const run of runs.subscribeToRun(handle.id)) {
+            // Timeout check
+            if (Date.now() - startTime > maxTime) {
+              console.log(`[WorkflowStream] Subscription timeout reached`);
+              sendEvent(controller, "error", { message: "Workflow execution timeout" });
+              break;
+            }
+            
+            // Send heartbeat if no events for a while (forces Vercel buffer flush)
+            if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+              sendHeartbeat(controller);
+            }
+            
+            console.log(`[WorkflowStream] Run update: status=${run.status}, metadata keys=${Object.keys(run.metadata || {}).join(",")}`);
+            
+            // Process metadata for node updates
+            const meta = run.metadata as Record<string, unknown> | undefined;
+            if (meta) {
+              for (const [key, value] of Object.entries(meta)) {
+                // Node status keys are like "node:nodeId"
+                if (key.startsWith("node:")) {
+                  const nodeId = key.replace("node:", "");
+                  const nodeStatus = value as NodeStatus;
+                  
+                  if (nodeStatus.status === "started" && !sentStarted.has(nodeId)) {
+                    sendEvent(controller, "node-started", {
+                      nodeId,
+                      nodeType: nodeStatus.nodeType,
+                    });
+                    sentStarted.add(nodeId);
+                  } else if (nodeStatus.status === "completed" && !sentCompleted.has(nodeId)) {
+                    console.log(`[WorkflowStream] Node ${nodeId} completed via metadata`);
+                    sendEvent(controller, "node-completed", {
+                      nodeId,
+                      nodeType: nodeStatus.nodeType,
+                      output: nodeStatus.output,
+                    });
+                    sentCompleted.add(nodeId);
+                  } else if (nodeStatus.status === "failed" && !sentFailed.has(nodeId)) {
+                    sendEvent(controller, "node-failed", {
+                      nodeId,
+                      nodeType: nodeStatus.nodeType,
+                      error: nodeStatus.error || "Unknown error",
+                    });
+                    sentFailed.add(nodeId);
+                  }
+                }
+                
+                // Workflow completion status
+                if (key === "workflow") {
+                  const workflowStatus = value as { status: string; successCount: number; failCount: number };
+                  if (workflowStatus.status === "completed") {
+                    console.log(`[WorkflowStream] Workflow completed via metadata: ${workflowStatus.successCount} succeeded, ${workflowStatus.failCount} failed`);
+                    workflowDone = true;
+                  }
+                }
+              }
+            }
+            
+            // Check if run reached terminal state
+            if (TERMINAL_STATES.has(run.status)) {
+              console.log(`[WorkflowStream] Run reached terminal state: ${run.status}`);
+              workflowDone = true;
+              break;
+            }
           }
-
-          // Get all node executions that have been updated
-          const nodeExecutions = await db.nodeExecution.findMany({
-            where: { workflowExecutionId: workflowExecution.id },
-            select: {
-              nodeId: true,
-              nodeType: true,
-              nodeLabel: true,
-              status: true,
-              outputJson: true,
-              error: true,
-              updatedAt: true,
-            },
-          });
-
-          // Send events for status changes
-          for (const nodeExec of nodeExecutions) {
-            // Send started event
-            if ((nodeExec.status === "RUNNING" || nodeExec.status === "WAITING") && !sentStarted.has(nodeExec.nodeId)) {
-              sendEvent(controller, "node-started", { 
-                nodeId: nodeExec.nodeId, 
-                nodeType: nodeExec.nodeType 
-              });
-              sentStarted.add(nodeExec.nodeId);
+          
+          console.log(`[WorkflowStream] Subscription ended, workflowDone=${workflowDone}`);
+          
+        } catch (subscriptionError) {
+          console.warn(`[WorkflowStream] Subscription error, falling back to DB polling:`, subscriptionError);
+          
+          // Fallback to DB polling if subscription fails
+          while (!workflowDone) {
+            // Send heartbeat during polling to prevent buffering
+            if (Date.now() - lastFlushTime > HEARTBEAT_INTERVAL) {
+              sendHeartbeat(controller);
+            }
+            if (Date.now() - startTime > maxTime) {
+              console.log(`[WorkflowStream] Polling timeout reached`);
+              sendEvent(controller, "error", { message: "Workflow execution timeout" });
+              break;
             }
 
-            // Send completed event - ONLY if outputJson is available
-            // This prevents sending empty output due to timing issues where
-            // status is COMPLETED but outputJson hasn't been saved yet
-            if (nodeExec.status === "COMPLETED" && !sentCompleted.has(nodeExec.nodeId)) {
-              const outputJson = nodeExec.outputJson as object | null;
-              const hasOutput = outputJson && Object.keys(outputJson).length > 0;
-              console.log(`[WorkflowStream] Node ${nodeExec.nodeId} COMPLETED check:`, {
-                hasOutput,
-                outputJsonType: typeof nodeExec.outputJson,
-                outputJsonKeys: outputJson ? Object.keys(outputJson) : [],
-              });
-              if (hasOutput) {
-                console.log(`[WorkflowStream] Sending node-completed for ${nodeExec.nodeId} with output:`, 
-                  JSON.stringify(nodeExec.outputJson).slice(0, 200));
-                sendEvent(controller, "node-completed", {
-                  nodeId: nodeExec.nodeId,
-                  nodeType: nodeExec.nodeType,
-                  output: nodeExec.outputJson,
-                });
-                sentCompleted.add(nodeExec.nodeId);
-              } else {
-                // Output not available yet - will retry in next poll
-                console.log(`[WorkflowStream] Node ${nodeExec.nodeId} COMPLETED but outputJson empty/null, waiting...`);
+            // Check workflow status
+            const currentWorkflow = await db.workflowExecution.findUnique({
+              where: { id: workflowExecution.id },
+              select: { status: true },
+            });
+
+            if (currentWorkflow?.status === "COMPLETED" || currentWorkflow?.status === "FAILED") {
+              workflowDone = true;
+            }
+
+            // Get node updates from DB
+            const nodeExecutions = await db.nodeExecution.findMany({
+              where: { workflowExecutionId: workflowExecution.id },
+              select: {
+                nodeId: true,
+                nodeType: true,
+                status: true,
+                outputJson: true,
+                error: true,
+              },
+            });
+
+            for (const nodeExec of nodeExecutions) {
+              if ((nodeExec.status === "RUNNING" || nodeExec.status === "WAITING") && !sentStarted.has(nodeExec.nodeId)) {
+                sendEvent(controller, "node-started", { nodeId: nodeExec.nodeId, nodeType: nodeExec.nodeType });
+                sentStarted.add(nodeExec.nodeId);
+              }
+              if (nodeExec.status === "COMPLETED" && !sentCompleted.has(nodeExec.nodeId)) {
+                const outputJson = nodeExec.outputJson as object | null;
+                if (outputJson && Object.keys(outputJson).length > 0) {
+                  sendEvent(controller, "node-completed", { nodeId: nodeExec.nodeId, nodeType: nodeExec.nodeType, output: nodeExec.outputJson });
+                  sentCompleted.add(nodeExec.nodeId);
+                }
+              }
+              if (nodeExec.status === "FAILED" && !sentFailed.has(nodeExec.nodeId)) {
+                sendEvent(controller, "node-failed", { nodeId: nodeExec.nodeId, nodeType: nodeExec.nodeType, error: nodeExec.error || "Unknown error" });
+                sentFailed.add(nodeExec.nodeId);
               }
             }
 
-            // Send failed event
-            if (nodeExec.status === "FAILED" && !sentFailed.has(nodeExec.nodeId)) {
-              sendEvent(controller, "node-failed", {
-                nodeId: nodeExec.nodeId,
-                nodeType: nodeExec.nodeType,
-                error: nodeExec.error || "Unknown error",
-              });
-              sentFailed.add(nodeExec.nodeId);
+            if (!workflowDone) {
+              await sleep(500);
             }
-          }
-
-          // Wait before next poll (only if workflow not done)
-          if (!workflowDone) {
-            await sleep(500);
           }
         }
 
@@ -528,10 +636,16 @@ export async function POST(request: NextRequest) {
           status: finalWorkflow?.status || "UNKNOWN",
         });
 
+        // Clean up heartbeat interval
+        clearInterval(heartbeatInterval);
         controller.close();
 
       } catch (error) {
         console.error("[WorkflowStream] Error:", error);
+        // Clean up heartbeat interval on error (if it was created)
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+        }
         sendEvent(controller, "error", { 
           message: error instanceof Error ? error.message : "Unknown error" 
         });
@@ -543,8 +657,12 @@ export async function POST(request: NextRequest) {
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
+      // Critical for Vercel/nginx proxy - disable response buffering
+      "X-Accel-Buffering": "no",
+      // Ensure no compression which can cause buffering
+      "Content-Encoding": "none",
     },
   });
 }

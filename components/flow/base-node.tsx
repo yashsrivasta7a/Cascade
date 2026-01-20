@@ -122,23 +122,28 @@ const statusConfig: Record<NodeStatus, {
 };
 
 // ============================================================================
-// Settings Handles Component - Always shows all settings handles
+// Settings Handles Component - Only visible when dragging compatible edge
 // ============================================================================
 interface SettingsHandlesProps {
   nodeId: string;
   nodeSettings: Array<{ id: string; type: string; label: string }>;
+  isDragging: boolean;
+  draggedType: DataType | null | undefined;
 }
 
-function SettingsHandles({ nodeId, nodeSettings }: SettingsHandlesProps) {
+function SettingsHandles({ nodeId, nodeSettings, isDragging, draggedType }: SettingsHandlesProps) {
   return (
     <>
-      {/* Settings handles - always visible with 3% gap */}
+      {/* Settings handles - only visible when dragging compatible edge */}
       {nodeSettings.map((setting, settingIndex) => {
         const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
         const total = nodeSettings.length;
         const spacing = 3; // 3% gap between handles
         const startPercent = 80 - ((total - 1) * spacing) / 2;
         const handlePercent = startPercent + (settingIndex * spacing);
+        
+        // Check if dragging a compatible type (for input handles looking for this output)
+        const isCompatible = isDragging && draggedType && isTypeCompatible(setting.type as DataType, draggedType);
         
         return (
           <div
@@ -158,34 +163,38 @@ function SettingsHandles({ nodeId, nodeSettings }: SettingsHandlesProps) {
                 right: 0,
                 top: 0,
                 transform: "none",
-                width: 10,
-                height: 10,
+                width: isCompatible ? 12 : 8,
+                height: isCompatible ? 12 : 8,
                 borderWidth: 0,
                 backgroundColor: settingColor.solid,
+                opacity: isCompatible ? 1 : 0,
+                pointerEvents: "all",
+                boxShadow: isCompatible ? `0 0 10px ${settingColor.solid}` : undefined,
+                transition: "all 0.2s ease",
               }}
               className="!relative !right-0 !top-0 !transform-none"
             />
             
-            {/* Hover tooltip */}
-            <div 
-              data-settings-label="true"
-              className={cn(
-                "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                "px-2.5 py-1 rounded-md",
-                "text-[10px] whitespace-nowrap",
-                "pointer-events-none",
-                "shadow-lg shadow-black/20 dark:shadow-black/30",
-                "opacity-0 group-hover/handle:opacity-100",
-                "transition-opacity duration-150",
-                "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10"
-              )}
-              style={{ 
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ color: settingColor.solid }}>{setting.label}</span>
-            </div>
+            {/* Tooltip - only show when compatible and dragging */}
+            {isCompatible && (
+              <div 
+                data-settings-label="true"
+                className={cn(
+                  "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                  "px-2.5 py-1 rounded-md",
+                  "text-[10px] whitespace-nowrap",
+                  "pointer-events-none",
+                  "shadow-lg shadow-black/20 dark:shadow-black/30",
+                  "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10"
+                )}
+                style={{ 
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontWeight: 600,
+                }}
+              >
+                <span style={{ color: settingColor.solid }}>{setting.label}</span>
+              </div>
+            )}
           </div>
         );
       })}
@@ -570,7 +579,7 @@ function BaseNodeComponent({
           </div>
         </div>
 
-        {/* Content Area - Input fields first, Output at bottom */}
+        {/* Content Area - Input fields, and Output section only if provided */}
         <div className="px-4 pb-3 space-y-3">
           {/* Input Fields with darker background */}
           <div className={cn("rounded-lg p-3 space-y-2 border", isDarkMode ? "bg-[#0f0f0f] border-zinc-800/30" : "bg-gray-50 border-gray-200")}>
@@ -581,19 +590,17 @@ function BaseNodeComponent({
             )}
           </div>
           
-          {/* Output Section - label outside, content in box */}
-          <div>
-            <div className="text-[10px] text-gray-600 dark:text-zinc-500 mb-1.5" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-              Output
+          {/* Output Section - only shown if right prop is provided */}
+          {right && (
+            <div>
+              <div className="text-[10px] text-gray-600 dark:text-zinc-500 mb-1.5" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                Output
+              </div>
+              <div className={cn("rounded-lg p-3 border", isDarkMode ? "bg-[#0f0f0f] border-zinc-800/30" : "bg-gray-50 border-gray-400")}>
+                {right}
+              </div>
             </div>
-            <div className={cn("rounded-lg p-3 border", isDarkMode ? "bg-[#0f0f0f] border-zinc-800/30" : "bg-gray-50 border-gray-400")}>
-              {right || (
-                <div className="text-[11px] text-gray-500 dark:text-zinc-600 text-center py-4" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-                  Results will be shown here
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Error Display */}
@@ -770,11 +777,13 @@ function BaseNodeComponent({
         );
       })}
 
-      {/* Settings handles - always visible */}
+      {/* Settings handles - only visible when dragging compatible edge */}
       {hasSettings && (
         <SettingsHandles
           nodeId={id}
           nodeSettings={nodeSettings}
+          isDragging={isDragging}
+          draggedType={draggedType}
         />
       )}
 

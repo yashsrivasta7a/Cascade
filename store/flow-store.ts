@@ -15,6 +15,7 @@ import { runSingleNode, runNodeWithDependencies } from "@/lib/workflow/run-workf
 import { showCancelled, showNodeError, showError, showTimeoutError, showProviderError, showInsufficientCredits, showNetworkError, showLLMParseError } from "@/lib/toast";
 import { parseLLMToFieldValue, canFieldAcceptLLMInput } from "@/lib/workflow/llm-type-parser";
 import { type AINodeType } from "@/types/nodes";
+import { validateWorkflow as validateWorkflowFn, type ValidationResult } from "@/lib/workflow/validation";
 
 // =============================================================================
 // Setting Value Clamping - ensures values stay within valid ranges
@@ -71,7 +72,6 @@ function clampSettingValue(key: string, value: unknown): unknown {
       return numValue;
     } else {
       // Non-numeric value for numeric setting - return undefined to skip
-      console.warn(`[clampSettingValue] Non-numeric value for ${key}:`, typeof value, value);
       return undefined;
     }
   }
@@ -206,6 +206,9 @@ export interface FlowState {
 
   // Run a single node (for debugging)
   runNode: (nodeId: string) => Promise<void>;
+  
+  // Validate workflow before running
+  validateWorkflow: () => import("@/lib/workflow/validation").ValidationResult;
 }
 
 export const useFlowStore = create<FlowState>()(
@@ -288,7 +291,6 @@ export const useFlowStore = create<FlowState>()(
         const { currentWorkflowExecutionId, currentTriggerRunId } = state;
         
         if (!currentWorkflowExecutionId) {
-          console.log("[cancelWorkflow] No active workflow execution");
           return false;
         }
         
@@ -323,7 +325,6 @@ export const useFlowStore = create<FlowState>()(
             }),
           }));
           
-          console.log("[cancelWorkflow] Workflow cancelled successfully");
           showCancelled("Workflow");
           return true;
         } catch (error) {
@@ -339,7 +340,6 @@ export const useFlowStore = create<FlowState>()(
         // First, try to abort via AbortController (for in-progress fetch requests)
         const abortController = state.nodeAbortControllers.get(nodeId);
         if (abortController) {
-          console.log("[cancelNode] Aborting fetch requests for node", nodeId);
           abortController.abort();
           
           // Remove from abort controllers map
@@ -361,11 +361,8 @@ export const useFlowStore = create<FlowState>()(
               }),
             });
 
-            if (!response.ok) {
-              console.warn("[cancelNode] API cancel failed, but local abort succeeded");
-            }
-          } catch (error) {
-            console.warn("[cancelNode] API cancel error:", error);
+          } catch {
+            // API cancel error - local abort succeeded
           }
           
           // Remove from running nodes map
@@ -386,7 +383,6 @@ export const useFlowStore = create<FlowState>()(
           ),
         }));
 
-        console.log("[cancelNode] Node cancelled successfully");
         showCancelled(nodeName);
         return true;
       },
@@ -450,7 +446,6 @@ export const useFlowStore = create<FlowState>()(
                   if (nodeData[field] !== undefined) {
                     nodeData[field] = undefined;
                     hasChanges = true;
-                    console.log(`[onEdgesChange] Cleared ${field} from ${n.id} due to edge removal`);
                   }
                 }
               }
@@ -461,7 +456,6 @@ export const useFlowStore = create<FlowState>()(
               nodeData.result = undefined;
               nodeData.status = undefined;
               nodeData.error = undefined;
-              console.log(`[onEdgesChange] Cleared result from ${n.id} due to edge removal`);
             }
             
             // Handle inheritance metadata cleanup
@@ -528,12 +522,14 @@ export const useFlowStore = create<FlowState>()(
           ),
         });
 
-        // AUTO-PROPAGATE if source has result
+        // AUTO-PROPAGATE if source has result (or value for I/O input nodes)
         const sourceNode = get().nodes.find(n => n.id === connection.source);
-        if (sourceNode && sourceNode.data.result && typeof sourceNode.data.result === "string") {
+        const sourceData = sourceNode?.data as Record<string, unknown> | undefined;
+        const outputValue = sourceData?.result || sourceData?.value;
+        if (sourceNode && outputValue && typeof outputValue === "string") {
            // Small delay to ensure edge is registered
            setTimeout(() => {
-             get().propagateOutput(sourceNode.id, sourceNode.data.result as string);
+             get().propagateOutput(sourceNode.id, outputValue);
            }, 10);
         }
       },
@@ -550,34 +546,11 @@ export const useFlowStore = create<FlowState>()(
         const state = get();
         const node = state.nodes.find((n) => n.id === id);
         if (!node) {
-          console.warn(`[updateNode] Node ${id} NOT FOUND in store!`);
           return;
-        }
-        
-        // DEBUG: Log crop-related updates
-        const cropFields = ["xPercent", "yPercent", "widthPercent", "heightPercent"];
-        const hasCropUpdate = cropFields.some(f => f in data);
-        if (hasCropUpdate) {
-          console.log(`[updateNode:${id}] Crop update RECEIVED:`, {
-            xPercent: (data as Record<string, unknown>).xPercent,
-            yPercent: (data as Record<string, unknown>).yPercent,
-            widthPercent: (data as Record<string, unknown>).widthPercent,
-            heightPercent: (data as Record<string, unknown>).heightPercent,
-          });
         }
 
         const oldData = node.data as Record<string, unknown>;
         let newData = { ...oldData, ...data };
-        
-        // DEBUG: Log merged data for crop fields
-        if (hasCropUpdate) {
-          console.log(`[updateNode:${id}] Crop MERGED data:`, {
-            xPercent: newData.xPercent,
-            yPercent: newData.yPercent,
-            widthPercent: newData.widthPercent,
-            heightPercent: newData.heightPercent,
-          });
-        }
 
         // Auto-clear result when input media changes OR is removed
         const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages", "video", "audio", "image", "video1", "video2"];
@@ -601,7 +574,6 @@ export const useFlowStore = create<FlowState>()(
         if ((mediaInputChanged || mediaInputRemoved) && oldData.result !== undefined) {
           // Clear the result when input media changes or is removed
           newData = { ...newData, result: undefined, status: undefined, error: undefined };
-          console.log(`[updateNode] Cleared result for ${id} due to input media ${mediaInputRemoved ? "removal" : "change"}`);
         }
 
         // Find all outgoing edges from this node for real-time propagation
@@ -629,7 +601,8 @@ export const useFlowStore = create<FlowState>()(
         const changedKeys = Object.keys(data).filter(key => (data as Record<string, unknown>)[key] !== oldData[key]);
         
         // Output handles - these should ONLY propagate the "result" field, NOT input fields
-        const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response"];
+        // "output" is used by I/O input nodes (image-input, video-input, audio-input)
+        const outputHandles = ["merged", "combined", "extracted", "cropped", "video", "image", "audio", "upscaled", "synced", "response", "output"];
         // Settings that should be shared in real-time (NOT media inputs)
         // Including boolean settings like promptEnhancer, replaceAudio, truncatePrompt, syncMode
         const realtimeSettings = [
@@ -699,7 +672,6 @@ export const useFlowStore = create<FlowState>()(
             
             // Skip if clampSettingValue returned undefined (invalid value type)
             if (clampedValue === undefined) {
-              console.warn(`[updateNode] Skipping invalid value for ${targetHandle}`);
               continue;
             }
             
@@ -751,11 +723,14 @@ export const useFlowStore = create<FlowState>()(
         
         set({ nodes: updatedNodes });
 
-        // Also handle result propagation for completed outputs (for backwards compatibility)
+        // Also handle result/value propagation for completed outputs (for backwards compatibility)
+        // For I/O input nodes, value is set alongside result
         const resultChanged = data.result !== undefined && data.result !== oldData.result;
-        if (resultChanged && data.result) {
+        const valueChanged = data.value !== undefined && data.value !== oldData.value;
+        const outputValue = (data.result || data.value) as string | undefined;
+        if ((resultChanged || valueChanged) && outputValue && typeof outputValue === "string") {
           setTimeout(() => {
-            get().propagateOutput(id, data.result as string);
+            get().propagateOutput(id, outputValue);
           }, 50);
         }
       },
@@ -872,10 +847,7 @@ export const useFlowStore = create<FlowState>()(
         }
         
         if (node) {
-          console.log(`[focusNode] Found node: ${node.id} (type: ${node.type})`);
           set({ focusNodeId: node.id, selectedNode: node });
-        } else {
-          console.warn(`[focusNode] Could not find node matching: ${nodeId}`);
         }
       },
 
@@ -888,12 +860,10 @@ export const useFlowStore = create<FlowState>()(
         );
         
         if (matchingNodes.length === 0) {
-          console.warn(`[highlightPipeline] No nodes found matching: ${nodeIds.join(", ")}`);
           return;
         }
         
         const matchedIds = matchingNodes.map(n => n.id);
-        console.log(`[highlightPipeline] Highlighting ${matchedIds.length} nodes`);
         
         // Set the first node as focus (for centering the view)
         set({ 
@@ -1006,7 +976,6 @@ export const useFlowStore = create<FlowState>()(
           },
         });
         
-        console.log(`[Copy] Copied ${nodesToCopy.length} nodes and ${edgesToCopy.length} edges`);
       },
       
       pasteNodes: (position) => {
@@ -1079,7 +1048,6 @@ export const useFlowStore = create<FlowState>()(
           selectedNode: newNodes.length > 0 ? newNodes[0] : null,
         });
         
-        console.log(`[Paste] Pasted ${newNodes.length} nodes and ${newEdges.length} edges`);
       },
       
       // =============================================================================
@@ -1179,13 +1147,10 @@ export const useFlowStore = create<FlowState>()(
 
       propagateOutput: (sourceNodeId, output) => {
         const state = get();
-        
-        console.log(`[propagateOutput] Called with sourceNodeId=${sourceNodeId}, output="${output?.slice?.(0, 50) || output}..."`);
 
         // Find the source node to get its data
         const sourceNode = state.nodes.find((n) => n.id === sourceNodeId);
         if (!sourceNode) {
-          console.log(`[propagateOutput] Source node not found`);
           return;
         }
 
@@ -1198,14 +1163,6 @@ export const useFlowStore = create<FlowState>()(
 
         // Find all edges that start from this source node
         const outgoingEdges = state.edges.filter((e) => e.source === sourceNodeId);
-        
-        console.log(`[propagateOutput] Found ${outgoingEdges.length} outgoing edges from ${sourceNode.type} (isLLM=${isLLMSource})`);
-        console.log(`[propagateOutput] Edges:`, outgoingEdges.map(e => ({
-          id: e.id,
-          sourceHandle: e.sourceHandle,
-          target: e.target,
-          targetHandle: e.targetHandle,
-        })));
 
         if (outgoingEdges.length === 0) return;
 
@@ -1269,13 +1226,11 @@ export const useFlowStore = create<FlowState>()(
             // IMPORTANT: Keep settings connections from LLM nodes
             // These need to go through LLM parsing logic
             if (isSettingsConnection && sourceNodeType === "openrouter") {
-              console.log(`[propagateOutput] Keeping LLM->settings edge ${sourceHandle} -> ${edge.targetHandle} for parsing`);
               return true;
             }
             
             // Skip other settings edges (they are synced separately)
             if (isSettingsConnection) {
-              console.log(`[propagateOutput] Skipping settings edge ${sourceHandle} -> ${edge.targetHandle}`);
               return false;
             }
             return true;
@@ -1291,8 +1246,6 @@ export const useFlowStore = create<FlowState>()(
             const sourceHandle = edge.sourceHandle;
             const edgeData = edge.data as Record<string, unknown> | undefined;
             const isFullInheritance = edgeData?.isFullInheritance === true;
-          
-            console.log(`[propagateOutput] Processing edge to ${node.id} (${node.type}): sourceHandle=${sourceHandle}, targetHandle=${targetHandle}, isFull=${isFullInheritance}`);
           
             // Handle FULL inheritance: pass ALL settings to target node
             if (isFullInheritance) {
@@ -1341,10 +1294,14 @@ export const useFlowStore = create<FlowState>()(
             continue;
           }
           
-          // Determine the type of output based on source handle
-          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped";
-          const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged";
-          const isAudioOutput = sourceHandle === "audio";
+          // Determine the type of output based on source handle and source node type
+          // For I/O input nodes, the source handle is "output" but we need to check the source node type
+          const isImageOutput = sourceHandle === "image" || sourceHandle === "upscaled" || sourceHandle === "cropped" || 
+            (sourceHandle === "output" && sourceNodeType === "image-input");
+          const isVideoOutput = sourceHandle === "video" || sourceHandle === "synced" || sourceHandle === "combined" || sourceHandle === "merged" || 
+            (sourceHandle === "output" && sourceNodeType === "video-input");
+          const isAudioOutput = sourceHandle === "audio" || 
+            (sourceHandle === "output" && sourceNodeType === "audio-input");
           const isTextResponse = sourceHandle === "response"; // LLM text response
           
           // Map to appropriate field based on target handle and output type
@@ -1374,7 +1331,6 @@ export const useFlowStore = create<FlowState>()(
             nodeData.inputAudio = output;
           } else if (targetHandle === "prompt") {
             // response → prompt: use ONLY the LLM response as the new prompt
-            console.log(`[propagateOutput] Setting prompt on ${node.id} to: "${output?.slice?.(0, 100) || output}..."`);
             nodeData.prompt = output;
           } else if (targetHandle === "context") {
             // response → context: include BOTH prompt and response (conversation history)
@@ -1391,30 +1347,18 @@ export const useFlowStore = create<FlowState>()(
             // For other handles, check if we need to parse LLM output
             const targetNodeType = node.type as AINodeType | undefined;
             
-            // DEBUG: Log what we're checking
-            console.log(`[propagateOutput] Checking handle ${targetHandle}:`, {
-              isLLMSource,
-              targetNodeType,
-              sourceHandle,
-              output: output?.slice?.(0, 50) || output,
-            });
-            
             // Check if this is an LLM source and the field can accept parsed input
             const shouldParseLLM = isLLMSource && targetNodeType && canFieldAcceptLLMInput(targetNodeType, targetHandle);
-            console.log(`[propagateOutput] shouldParseLLM=${shouldParseLLM} (isLLMSource=${isLLMSource}, targetNodeType=${targetNodeType}, canAccept=${targetNodeType ? canFieldAcceptLLMInput(targetNodeType, targetHandle) : 'N/A'})`);
             
             if (shouldParseLLM && targetNodeType) {
               // Use universal parser that handles ALL field types (select, slider, number, toggle, text)
-              console.log(`[propagateOutput] Parsing LLM output for ${node.id}.${targetHandle}`);
               const parseResult = parseLLMToFieldValue(output, targetNodeType, targetHandle);
               
               if (parseResult.success) {
-                console.log(`[propagateOutput] Parse success: "${output?.slice(0, 30)}..." -> ${JSON.stringify(parseResult.value)}`);
                 nodeData[targetHandle] = parseResult.value;
               } else {
                 // Parsing failed - track for error reporting
                 const errorMsg = parseResult.error;
-                console.log(`[propagateOutput] Parse FAILED: ${errorMsg}`);
                 const nodeName = (node.data as Record<string, unknown>)?.label as string || node.type || node.id;
                 failedNodes.push({
                   nodeId: node.id,
@@ -1436,7 +1380,6 @@ export const useFlowStore = create<FlowState>()(
           return { ...node, data: nodeData };
         });
         
-        console.log(`[propagateOutput] Setting ${updatedNodes.length} updated nodes`);
         set({ nodes: updatedNodes });
         
         // Show toast notifications for any parsing failures
@@ -1635,6 +1578,11 @@ export const useFlowStore = create<FlowState>()(
           cleanedMap.delete(nodeId);
           set({ nodeAbortControllers: cleanedMap });
         }
+      },
+      
+      validateWorkflow: (): ValidationResult => {
+        const state = get();
+        return validateWorkflowFn(state.nodes, state.edges);
       },
       }),
       {

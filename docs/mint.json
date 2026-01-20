@@ -140,15 +140,13 @@
     "suggestEdit": true,
     "raiseIssue": true
   },
-  "openapi": "https://flowsmiths.vercel.app/api/openapi",
   "api": {
     "baseUrl": "https://flowsmiths.vercel.app/api/v1",
     "auth": {
-      "method": "bearer",
-      "name": "Authorization"
+      "method": "bearer"
     },
     "playground": {
-      "mode": "simple"
+      "mode": "show"
     }
   }
 }

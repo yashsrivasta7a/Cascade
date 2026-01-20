@@ -60,6 +60,14 @@
 - [x] Error panel with retry options
 - [x] Connected input previews (shows upstream output)
 
+### API & Authentication
+- [x] API key management system (Settings → API Keys)
+- [x] Dual authentication (Clerk sessions + Bearer token API keys)
+- [x] Secure key storage (SHA-256 hashed, never stored in plain text)
+- [x] Key expiration options (30d, 90d, 1 year, or never)
+- [x] Usage tracking (request count, last used timestamp)
+- [x] Public REST API with OpenAPI documentation
+
 ### Recent Fixes
 - [x] Dark mode dropdown styling
 - [x] Video merge transitions in production (FFmpeg)
@@ -290,6 +298,156 @@ export const NODE_CONFIG: NodeConfigRegistry = {
 
 ---
 
+## 📡 Realtime Architecture
+
+The execution engine uses **Trigger.dev's WebSocket-based Realtime API** for instant UI updates. The browser connects directly to Trigger.dev's servers via WebSocket, completely bypassing Vercel.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser                                                         │
+│                                                                  │
+│  1. User clicks "Run"                                            │
+│  2. POST /api/workflow/trigger → returns { runId, publicToken }  │
+│  3. useRealtimeRun(runId, { accessToken: publicToken })          │
+│     └── Opens WebSocket to Trigger.dev cloud                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ WebSocket (wss://...)
+                              │ Direct to Trigger.dev
+                              │ (Bypasses Vercel entirely)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Trigger.dev Cloud                                               │
+│                                                                  │
+│  - Manages WebSocket connections from browsers                   │
+│  - Broadcasts run updates when metadata.set() is called          │
+│  - Sends: { run.id, run.status, run.metadata, ... }             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Internal communication
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  workflow-executor.ts (Trigger.dev Worker)                       │
+│                                                                  │
+│  DAG Execution:                                                  │
+│  1. Build dependency graph from edges                            │
+│  2. Start nodes with no dependencies (parallel)                  │
+│  3. When node completes: metadata.set("node:{id}", { status })   │
+│  4. Start dependent nodes, repeat until done                     │
+│  5. Final: metadata.set("workflow", { status: "completed" })     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```
+┌─────────────┐    POST /api/workflow/trigger    ┌─────────────────┐
+│   Browser   │ ─────────────────────────────────▶│  Next.js API    │
+│             │◀───── { runId, publicToken } ─────│  (Vercel)       │
+└─────────────┘                                   └─────────────────┘
+      │                                                   │
+      │ useRealtimeRun(runId, token)                      │ tasks.trigger()
+      │ WebSocket connection                              │
+      ▼                                                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Trigger.dev Cloud                             │
+│                                                                  │
+│   Browser ◀══WebSocket══▶ Realtime API ◀────▶ Worker Execution  │
+│                                                                  │
+│   run.metadata updates propagate instantly via WebSocket         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+#### 1. API Route (`/api/workflow/trigger`)
+
+```typescript
+// Trigger workflow and create public access token for WebSocket subscription
+const handle = await executeWorkflow.trigger({ workflowExecutionId, nodes, edges });
+
+const publicToken = await auth.createPublicToken({
+  scopes: { read: { runs: [handle.id] } },
+  expirationTime: "30m",
+});
+
+return { triggerRunId: handle.id, publicToken };
+```
+
+#### 2. React Hook (`useRealtimeWorkflowV2`)
+
+```typescript
+// Inner component subscribes to Trigger.dev WebSocket
+function RealtimeSubscriber({ triggerRunId, publicToken, callbacks }) {
+  const { run } = useRealtimeRun(triggerRunId, { accessToken: publicToken });
+
+  useEffect(() => {
+    if (!run?.metadata) return;
+    
+    // Process node status updates from metadata
+    for (const [key, value] of Object.entries(run.metadata)) {
+      if (key.startsWith("node:")) {
+        const nodeId = key.replace("node:", "");
+        const { status, output, error } = value;
+        
+        if (status === "started") callbacks.onNodeStarted(nodeId);
+        if (status === "completed") callbacks.onNodeCompleted(nodeId, output);
+        if (status === "failed") callbacks.onNodeFailed(nodeId, error);
+      }
+    }
+  }, [run]);
+  
+  return null; // Invisible component, just subscribes
+}
+```
+
+#### 3. Workflow Executor (`workflow-executor.ts`)
+
+```typescript
+// Called when starting a node
+await metadata.set(`node:${nodeId}`, {
+  status: "started",
+  nodeType,
+  timestamp: Date.now(),
+});
+
+// Called when node completes
+await metadata.set(`node:${nodeId}`, {
+  status: "completed",
+  nodeType,
+  output: taskOutput,
+  timestamp: Date.now(),
+});
+
+// Called when workflow finishes
+await metadata.set("workflow", {
+  status: "completed",
+  successCount,
+  failCount,
+});
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `hooks/use-realtime-workflow-v2.tsx` | React hook with `useRealtimeRun` subscription |
+| `app/api/workflow/trigger/route.ts` | Creates run + public token for WebSocket auth |
+| `app/trigger/workflow-executor.ts` | Calls `metadata.set()` during execution |
+
+### Why This Works
+
+| Aspect | Solution |
+|--------|----------|
+| **No Vercel buffering** | WebSocket connects directly to Trigger.dev, not through Vercel |
+| **Instant updates** | `metadata.set()` broadcasts immediately via WebSocket |
+| **Secure** | Public token is scoped to specific run ID, expires in 30min |
+| **Simple** | Single `useRealtimeRun` hook handles all subscription logic |
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -395,12 +553,164 @@ REST Routes  ──► Manual MDX files ─────────────�
 
 ---
 
+## 🔑 API Key System
+
+Flowsmith supports programmatic API access via API keys, allowing external applications to integrate with workflows, executions, and credits.
+
+### Overview
+
+| Feature | Description |
+|---------|-------------|
+| **Dual Authentication** | API routes accept both Clerk sessions (browser) and Bearer token API keys (programmatic) |
+| **Secure Storage** | Keys are hashed with SHA-256 before storage - plain text keys are never stored |
+| **One-Time Display** | Full API key is shown only once at creation - users must copy immediately |
+| **Expiration Options** | Keys can expire after 30 days, 90 days, 1 year, or never |
+| **Usage Tracking** | Request count and last-used timestamp tracked per key |
+| **Revocation** | Keys can be revoked instantly from the Settings UI |
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  User Flow                                                       │
+│                                                                  │
+│  1. Go to Settings → API Keys                                    │
+│  2. Click "Create Key" → Enter name + expiration                 │
+│  3. Copy the key immediately (sk_live_xxxxxxxx...)               │
+│  4. Key is hashed (SHA-256) and stored in database              │
+│  5. Use key in Authorization header for API requests             │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  API Request Flow                                                │
+│                                                                  │
+│  Request:                                                        │
+│  GET /api/v1/workflows                                           │
+│  Authorization: Bearer sk_live_abc123...                         │
+│                                                                  │
+│  Server:                                                         │
+│  1. Extract Bearer token from header                             │
+│  2. Hash the token with SHA-256                                  │
+│  3. Look up hashed key in database                               │
+│  4. Verify key is not expired or revoked                         │
+│  5. Update lastUsedAt and usageCount                             │
+│  6. Return user context for the request                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Format
+
+```
+sk_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+└─────┘ └────────────────────────────────┘
+ prefix       32 random hex characters
+```
+
+- **Prefix**: `sk_live_` - indicates it's a Flowsmith API key
+- **Random part**: 32 hex characters (16 bytes of entropy)
+- **Display in UI**: Only prefix shown after creation (e.g., `sk_live_a1b2••••••••`)
+
+### Database Schema
+
+```prisma
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  
+  name        String    // User-friendly name
+  prefix      String    // First 12 chars for display
+  hashedKey   String    @unique // SHA-256 hash
+  
+  scopes      String[]  @default(["*"]) // Future: granular permissions
+  rateLimit   Int       @default(100)   // Requests per minute
+  
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+  
+  expiresAt   DateTime? // Optional expiration
+  revokedAt   DateTime? // Soft delete
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(...)
+}
+```
+
+### API Endpoints (Internal)
+
+| Endpoint | Method | Description | Auth Required |
+|----------|--------|-------------|---------------|
+| `/api/api-keys` | GET | List all active API keys | Clerk session |
+| `/api/api-keys` | POST | Create new API key | Clerk session |
+| `/api/api-keys/{id}` | DELETE | Revoke an API key | Clerk session |
+
+**Note**: API key management requires Clerk authentication (browser session). You cannot create/revoke API keys using an API key.
+
+### Authentication Priority
+
+When a request comes in, the authentication system checks in this order:
+
+```
+1. Clerk Session (cookies)
+   └── If valid → Use Clerk user context
+   
+2. Bearer Token (Authorization header)
+   └── If valid API key → Use API key's user context
+   
+3. Neither
+   └── Return 401 Unauthorized
+```
+
+### Security Considerations
+
+| Aspect | Implementation |
+|--------|----------------|
+| **Storage** | SHA-256 hash only - keys cannot be recovered |
+| **Transport** | HTTPS required - keys never sent in plain text |
+| **Exposure** | Full key shown once - UI only shows prefix after creation |
+| **Revocation** | Instant - revoked keys rejected immediately |
+| **Expiration** | Checked on every request |
+| **Rotation** | Create new key, update clients, revoke old key |
+
+### Usage Example
+
+```bash
+# Create workflow via API
+curl -X POST "https://flowsmiths.vercel.app/api/v1/workflows" \
+  -H "Authorization: Bearer sk_live_abc123def456..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Workflow", "nodesJson": [], "edgesJson": []}'
+
+# Get credit balance
+curl "https://flowsmiths.vercel.app/api/v1/credits/balance" \
+  -H "Authorization: Bearer sk_live_abc123def456..."
+
+# Execute a workflow
+curl -X POST "https://flowsmiths.vercel.app/api/v1/workflows/{id}/execute" \
+  -H "Authorization: Bearer sk_live_abc123def456..." \
+  -H "Content-Type: application/json" \
+  -d '{"inputs": {}}'
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `lib/api-keys.ts` | Key generation, hashing, validation utilities |
+| `lib/user.ts` | `authenticateUser()` - dual auth (Clerk + API key) |
+| `lib/trpc/server.ts` | tRPC context with API key support |
+| `app/api/api-keys/route.ts` | REST endpoints for key management |
+| `app/(dashboard)/settings/page.tsx` | Settings UI with API Keys tab |
+| `prisma/schema.prisma` | ApiKey model definition |
+
+---
+
 ## 📋 Backlog / Future Ideas
 
 - [ ] Node templates (save & reuse node groups)
 - [ ] Workflow marketplace
 - [ ] Team collaboration
-- [ ] API key management UI
 - [ ] Webhook triggers (run workflow via API)
 - [ ] Scheduled workflows (cron)
 - [ ] More AI providers (Replicate, Stability AI)

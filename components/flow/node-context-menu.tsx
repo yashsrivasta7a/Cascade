@@ -18,7 +18,7 @@ import { useFlowStore } from "@/store";
 import { NODE_DEFINITIONS, type AINodeType, type NodeCategory } from "@/types/nodes";
 
 const categoryIcons: Record<NodeCategory, React.ReactNode> = {
-  input: <Upload className="w-3.5 h-3.5" />,
+  io: <Upload className="w-3.5 h-3.5" />,
   image: <Image className="w-3.5 h-3.5" />,
   video: <Film className="w-3.5 h-3.5" />,
   audio: <Volume2 className="w-3.5 h-3.5" />,
