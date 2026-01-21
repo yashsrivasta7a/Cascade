@@ -3,6 +3,15 @@ import { buildWorkflow } from "../utils/workflow-builder.js";
 import { isValidNodeType, getNodeInfoList } from "../data/nodes.js";
 import { logger } from "../utils/logger.js";
 import type { NodeSpec } from "../schemas/index.js";
+import {
+  findWorkflowByQuery,
+  findPreseededTemplate,
+  findSemanticMatch,
+  patternToNodeSpecs,
+  getOrBuildWorkflow,
+  getCacheStats,
+  PRESEEDED_TEMPLATES,
+} from "../utils/template-cache.js";
 
 // =============================================================================
 // BUILDER TOOL DEFINITIONS
@@ -13,6 +22,7 @@ export const builderToolDefinitions: Tool[] = [
     name: "build_workflow",
     description: `Build a custom workflow by specifying the nodes in sequence. 
 Automatically positions nodes horizontally and creates edges based on type compatibility.
+Uses template caching to speed up repeated workflow patterns.
 
 Input: An array of node specs with type and optional configuration.
 Output: Complete workflow data with positioned nodes and proper edges.
@@ -64,6 +74,48 @@ Common node types:
       required: ["name", "nodes"],
     },
   },
+  {
+    name: "find_workflow_template",
+    description: `Find a pre-built workflow template by natural language query.
+Searches preseeded templates and semantic patterns to find matching workflows.
+Use this BEFORE build_workflow to check if a template already exists.
+
+Examples:
+- "merge two videos" → Video Merge template
+- "add audio to video" → Audio Video Merge template  
+- "lipsync" → Lipsync template
+- "generate image from text" → Text to Image template`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Natural language description of the workflow you want",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "list_workflow_templates",
+    description: `List all available pre-built workflow templates.
+Returns templates that can be used directly without building from scratch.`,
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_cache_stats",
+    description: `Get statistics about the workflow template cache.
+Shows memory cache hits, preseeded template count, and popular templates.`,
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // =============================================================================
@@ -75,10 +127,15 @@ interface BuildWorkflowArgs {
   nodes: NodeSpec[];
 }
 
+interface FindTemplateArgs {
+  query: string;
+}
+
 /**
  * Register builder tool handlers
  */
 export function registerBuilderTools(handlers: Map<string, (args: unknown) => Promise<unknown>>): void {
+  // build_workflow - with caching support
   handlers.set("build_workflow", async (args: unknown) => {
     const { name, nodes } = args as BuildWorkflowArgs;
 
@@ -112,10 +169,11 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
     }
 
     try {
-      const workflow = buildWorkflow(name, nodes);
+      // Use caching system
+      const cached = await getOrBuildWorkflow(name, nodes, buildWorkflow);
 
       // Identify required inputs from Input nodes
-      const requiredInputs = workflow.nodes
+      const requiredInputs = cached.nodes
         .filter((n) => n.type === "input" || n.type?.includes("-input"))
         .map((n) => ({
           nodeId: n.id,
@@ -124,12 +182,16 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
         }));
 
       return {
-        name: workflow.name,
-        nodes: workflow.nodes,
-        edges: workflow.edges,
-        nodeCount: workflow.nodes.length,
-        edgeCount: workflow.edges.length,
-        summary: workflow.nodes.map((n) => n.type).join(" → "),
+        name: cached.name,
+        nodes: cached.nodes,
+        edges: cached.edges,
+        nodeCount: cached.nodes.length,
+        edgeCount: cached.edges.length,
+        summary: cached.nodes.map((n) => n.type).join(" → "),
+        // Cache info
+        fromCache: cached.fromCache,
+        structureHash: cached.structureHash.slice(0, 16),
+        usageCount: cached.usageCount,
         // Tell AI what inputs are needed
         requiredInputs,
         nextStep: requiredInputs.length > 0
@@ -141,5 +203,119 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
       logger.error(`Failed to build workflow: ${message}`);
       throw new Error(`Failed to build workflow: ${message}`);
     }
+  });
+
+  // find_workflow_template - semantic search for templates
+  handlers.set("find_workflow_template", async (args: unknown) => {
+    const { query } = args as FindTemplateArgs;
+
+    if (!query) {
+      throw new Error("Missing required parameter: query");
+    }
+
+    logger.info(`Searching for workflow template: "${query}"`);
+
+    // 1. Check preseeded templates first
+    const preseeded = findPreseededTemplate(query);
+    if (preseeded) {
+      const requiredInputs = preseeded.nodes
+        .filter((n) => n.type === "input")
+        .map((n) => ({
+          nodeId: n.id,
+          type: n.data?.mediaType || "text",
+          label: n.data?.label || "Input",
+        }));
+
+      return {
+        found: true,
+        source: "preseeded",
+        template: {
+          name: preseeded.name,
+          description: preseeded.description,
+          nodes: preseeded.nodes,
+          edges: preseeded.edges,
+          nodeCount: preseeded.nodes.length,
+        },
+        requiredInputs,
+        message: `Found preseeded template: "${preseeded.name}"`,
+        nextStep: `This template is ready to use. Call create_workflow with these nodes and edges, then ask user for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`,
+      };
+    }
+
+    // 2. Check semantic patterns
+    const pattern = findSemanticMatch(query);
+    if (pattern) {
+      const nodeSpecs = patternToNodeSpecs(pattern);
+      const workflow = buildWorkflow(pattern.description, nodeSpecs);
+
+      const requiredInputs = workflow.nodes
+        .filter((n) => n.type === "input")
+        .map((n) => ({
+          nodeId: n.id,
+          type: n.data?.mediaType || "text",
+          label: n.data?.label || "Input",
+        }));
+
+      return {
+        found: true,
+        source: "semantic",
+        template: {
+          name: pattern.description,
+          description: pattern.description,
+          nodes: workflow.nodes,
+          edges: workflow.edges,
+          nodeCount: workflow.nodes.length,
+        },
+        requiredInputs,
+        message: `Found semantic match: "${pattern.description}"`,
+        nextStep: `This template is ready to use. Call create_workflow with these nodes and edges, then ask user for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`,
+      };
+    }
+
+    // 3. No match found
+    return {
+      found: false,
+      message: `No template found for "${query}". Use build_workflow to create a custom workflow.`,
+      suggestions: PRESEEDED_TEMPLATES.slice(0, 5).map(t => ({
+        name: t.name,
+        description: t.description,
+        keywords: t.keywords.slice(0, 3),
+      })),
+    };
+  });
+
+  // list_workflow_templates - list all preseeded templates
+  handlers.set("list_workflow_templates", async () => {
+    logger.info("Listing all workflow templates");
+
+    return {
+      templates: PRESEEDED_TEMPLATES.map(t => ({
+        name: t.name,
+        description: t.description,
+        keywords: t.keywords,
+        nodeCount: t.nodes.length,
+        nodeTypes: t.nodes.map(n => n.type).filter((t, i, arr) => arr.indexOf(t) === i),
+      })),
+      count: PRESEEDED_TEMPLATES.length,
+      message: `Found ${PRESEEDED_TEMPLATES.length} pre-built templates. Use find_workflow_template with a query to get a specific template.`,
+    };
+  });
+
+  // get_cache_stats - cache statistics
+  handlers.set("get_cache_stats", async () => {
+    logger.info("Getting cache statistics");
+
+    const stats = getCacheStats();
+
+    return {
+      memoryCache: {
+        size: stats.memoryCache.size,
+        totalHits: stats.memoryCache.totalHits,
+        topEntries: stats.memoryCache.entries,
+      },
+      preseededTemplates: stats.preseededCount,
+      semanticPatterns: stats.semanticPatterns,
+      message: `Cache has ${stats.memoryCache.size} entries with ${stats.memoryCache.totalHits} total hits`,
+    };
   });
 }

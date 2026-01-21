@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
 const isApiKeyRoute = createRouteMatcher([
   "/api/v1(.*)", // REST API endpoints - use API key auth, not Clerk
   "/api/executions(.*)", // Execution endpoints - support API key auth
+  "/api/workflow-templates(.*)", // Template caching - global, no auth needed
 ]);
 
 export default async function middleware(req: NextRequest) {

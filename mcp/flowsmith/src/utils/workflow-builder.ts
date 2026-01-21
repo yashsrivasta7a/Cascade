@@ -39,10 +39,17 @@ const INPUT_HANDLES: Record<string, Record<string, string>> = {
   "openrouter": { text: "prompt", prompt: "prompt", any: "prompt" },
   "lipsync": { video: "video", audio: "audio" },
   "merge-audio-video": { video: "video", audio: "audio" },
-  "merge-videos": { video: "video1" },
+  "merge-videos": { video: "video1", video2: "video2" },
   "extract-audio": { video: "video", any: "video" },
   "crop-image": { image: "image", any: "image" },
   "output": { any: "input", text: "input", image: "input", video: "input", audio: "input" },
+};
+
+// Nodes that require multiple inputs of the same type
+const MULTI_INPUT_NODES: Record<string, { inputs: string[]; types: string[] }> = {
+  "merge-videos": { inputs: ["video1", "video2"], types: ["video", "video"] },
+  "merge-audio-video": { inputs: ["video", "audio"], types: ["video", "audio"] },
+  "lipsync": { inputs: ["video", "audio"], types: ["video", "audio"] },
 };
 
 // Note: getNodeOutputType imported from nodes.ts for O(1) lookups
@@ -107,37 +114,145 @@ function findInputHandle(targetType: string, sourceOutputType: string): string |
 
 /**
  * Generate edges between nodes based on type compatibility
- * Connects output of node[i] to first compatible input of node[i+1]
+ * Handles both sequential connections and multi-input nodes
  */
 export function generateEdges(nodes: Node[]): Edge[] {
   const edges: Edge[] = [];
+  const usedInputHandles = new Map<string, Set<string>>(); // Track which handles are already connected
+  
+  // Initialize tracking for all nodes
+  for (const node of nodes) {
+    usedInputHandles.set(node.id, new Set());
+  }
 
+  // First pass: identify multi-input nodes and collect their source nodes
+  const multiInputTargets = new Map<string, { node: Node; sourceNodes: Node[] }>();
+  
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const nodeType = node.type || "";
+    
+    if (MULTI_INPUT_NODES[nodeType]) {
+      multiInputTargets.set(node.id, { node, sourceNodes: [] });
+    }
+  }
+
+  // Helper to get actual output type (handles input nodes with mediaType)
+  const getActualOutputType = (node: Node): string => {
+    const nodeType = node.type || "";
+    // For input nodes, use mediaType directly
+    if (nodeType === "input" && node.data?.mediaType) {
+      return node.data.mediaType as string;
+    }
+    // For other nodes, use the definition's output type
+    const defOutput = getNodeOutputType(nodeType);
+    return defOutput !== "any" ? defOutput : "any";
+  };
+
+  // Second pass: match input nodes to multi-input targets
+  for (let i = 0; i < nodes.length; i++) {
+    const sourceNode = nodes[i];
+    const sourceOutputType = getActualOutputType(sourceNode);
+    
+    // Look ahead for multi-input nodes
+    for (let j = i + 1; j < nodes.length; j++) {
+      const targetNode = nodes[j];
+      const targetType = targetNode.type || "";
+      const multiInputConfig = MULTI_INPUT_NODES[targetType];
+      
+      if (multiInputConfig) {
+        const targetInfo = multiInputTargets.get(targetNode.id);
+        if (targetInfo) {
+          // Check if this source type matches any required input
+          const typeIndex = multiInputConfig.types.indexOf(sourceOutputType);
+          if (typeIndex !== -1) {
+            targetInfo.sourceNodes.push(sourceNode);
+            break; // Each source can only feed one target
+          }
+        }
+      }
+    }
+  }
+
+  // Third pass: create edges for multi-input nodes
+  for (const [targetId, { node: targetNode, sourceNodes }] of multiInputTargets) {
+    const targetType = targetNode.type || "";
+    const multiInputConfig = MULTI_INPUT_NODES[targetType];
+    
+    if (!multiInputConfig) continue;
+    
+    // Match source nodes to input handles based on their output types
+    const usedHandles = usedInputHandles.get(targetId)!;
+    
+    for (const sourceNode of sourceNodes) {
+      const sourceType = sourceNode.type || "";
+      const sourceOutputType = getActualOutputType(sourceNode);
+      const sourceHandle = OUTPUT_HANDLES[sourceType] || "output";
+      
+      // Find an unused handle that matches this type
+      for (let i = 0; i < multiInputConfig.types.length; i++) {
+        const requiredType = multiInputConfig.types[i];
+        const handleName = multiInputConfig.inputs[i];
+        
+        if (sourceOutputType === requiredType && !usedHandles.has(handleName)) {
+          edges.push({
+            id: `e${edges.length + 1}`,
+            source: sourceNode.id,
+            target: targetId,
+            sourceHandle,
+            targetHandle: handleName,
+          });
+          usedHandles.add(handleName);
+          logger.debug(`Created multi-input edge: ${sourceNode.id}:${sourceHandle} -> ${targetId}:${handleName}`);
+          break;
+        }
+      }
+    }
+  }
+
+  // Fourth pass: create sequential edges for non-multi-input connections
   for (let i = 0; i < nodes.length - 1; i++) {
     const sourceNode = nodes[i];
     const targetNode = nodes[i + 1];
-
+    
     const sourceType = sourceNode.type || "";
     const targetType = targetNode.type || "";
+    
+    // Skip if target is a multi-input node (already handled)
+    if (MULTI_INPUT_NODES[targetType]) {
+      continue;
+    }
+    
+    // Skip if source is an input node that feeds a multi-input node
+    let skipSource = false;
+    for (const [, { sourceNodes }] of multiInputTargets) {
+      if (sourceNodes.includes(sourceNode)) {
+        skipSource = true;
+        break;
+      }
+    }
+    if (skipSource) continue;
 
-    // Get source output handle
+    // Get actual output type and handle
+    const sourceOutputType = getActualOutputType(sourceNode);
     const sourceHandle = OUTPUT_HANDLES[sourceType] || "output";
     
-    // Get source output type
-    const sourceOutputType = getNodeOutputType(sourceType);
-
     // Find target input handle
     const targetHandle = findInputHandle(targetType, sourceOutputType);
 
     if (targetHandle) {
-      edges.push({
-        id: `e${i + 1}`,
-        source: sourceNode.id,
-        target: targetNode.id,
-        sourceHandle,
-        targetHandle,
-      });
-
-      logger.debug(`Created edge: ${sourceNode.id}:${sourceHandle} -> ${targetNode.id}:${targetHandle}`);
+      const usedHandles = usedInputHandles.get(targetNode.id)!;
+      if (!usedHandles.has(targetHandle)) {
+        edges.push({
+          id: `e${edges.length + 1}`,
+          source: sourceNode.id,
+          target: targetNode.id,
+          sourceHandle,
+          targetHandle,
+        });
+        usedHandles.add(targetHandle);
+        logger.debug(`Created edge: ${sourceNode.id}:${sourceHandle} -> ${targetNode.id}:${targetHandle}`);
+      }
     } else {
       logger.warn(`Could not find compatible connection: ${sourceType} -> ${targetType}`);
     }

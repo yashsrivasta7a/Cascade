@@ -380,3 +380,30 @@ model NodeResultCache {
   @@index([expiresAt]) // For cleanup of expired cache entries
   @@map("node_result_cache")
 }
+
+// =============================================================================
+// WORKFLOW TEMPLATES (for caching workflow structures by hash)
+// =============================================================================
+
+model WorkflowTemplate {
+  id            String   @id @default(cuid())
+  
+  // SHA-256 hash of canonical structure (node types + edges)
+  structureHash String   @unique
+  
+  // Template metadata
+  name          String            // Suggested name for this pattern
+  description   String?           // Auto-generated description
+  
+  // Serialized template structure (without user-specific data)
+  nodesJson     Json              // Node[] template
+  edgesJson     Json              // Edge[] template
+  
+  // Usage tracking
+  usageCount    Int      @default(1)  // How many times this template was cloned
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("workflow_templates")
+}

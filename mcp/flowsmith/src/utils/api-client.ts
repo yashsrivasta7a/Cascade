@@ -468,3 +468,49 @@ export async function getCreditBalance(): Promise<CreditBalance> {
 export async function getCreditStats(): Promise<CreditStats> {
   return restCall<CreditStats>("/api/v1/credits/stats", "GET");
 }
+
+// =============================================================================
+// WORKFLOW TEMPLATE API CALLS (for caching)
+// =============================================================================
+
+export interface WorkflowTemplate {
+  id: string;
+  structureHash: string;
+  name: string;
+  description: string | null;
+  nodes: unknown[];
+  edges: unknown[];
+  usageCount: number;
+  createdAt?: string;
+}
+
+export interface TemplateCheckResult {
+  found: boolean;
+  template?: WorkflowTemplate;
+}
+
+export interface TemplateCreateResult {
+  created: boolean;
+  cached: boolean;
+  template: WorkflowTemplate;
+}
+
+/**
+ * Check if a workflow template exists by structure hash
+ */
+export async function checkWorkflowTemplate(structureHash: string): Promise<TemplateCheckResult> {
+  return restCall<TemplateCheckResult>(`/api/workflow-templates?hash=${structureHash}`, "GET");
+}
+
+/**
+ * Create or get a workflow template (increments usage if exists)
+ */
+export async function createOrGetWorkflowTemplate(data: {
+  structureHash: string;
+  name: string;
+  description?: string;
+  nodesJson: unknown[];
+  edgesJson: unknown[];
+}): Promise<TemplateCreateResult> {
+  return restCall<TemplateCreateResult>("/api/workflow-templates", "POST", data);
+}

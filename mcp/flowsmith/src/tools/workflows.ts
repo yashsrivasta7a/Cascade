@@ -6,8 +6,11 @@ import {
   updateWorkflow,
   deleteWorkflow,
   duplicateWorkflow,
+  checkWorkflowTemplate,
+  createOrGetWorkflowTemplate,
 } from "../utils/api-client.js";
 import { logger } from "../utils/logger.js";
+import { hashWorkflowStructure, describeWorkflowStructure } from "../utils/workflow-hash.js";
 
 // =============================================================================
 // WORKFLOW TOOL DEFINITIONS
@@ -242,6 +245,59 @@ export function registerWorkflowTools(handlers: Map<string, (args: unknown) => P
     logger.debug(`Creating workflow: ${name}`);
     
     try {
+      // Type the nodes for hashing
+      type NodeData = { id: string; type?: string; data?: { mediaType?: string; label?: string } };
+      type EdgeData = { source: string; target: string; sourceHandle?: string; targetHandle?: string };
+      const typedNodes = nodes as NodeData[];
+      const typedEdges = edges as EdgeData[];
+      
+      // Compute structure hash for template caching
+      const structureHash = hashWorkflowStructure(
+        typedNodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          position: { x: 0, y: 0 },
+          data: n.data,
+        })),
+        typedEdges
+      );
+      
+      logger.debug(`Workflow structure hash: ${structureHash.slice(0, 16)}...`);
+      
+      // Check if this structure is already cached
+      let templateInfo: { cached: boolean; usageCount?: number } = { cached: false };
+      try {
+        const templateResult = await createOrGetWorkflowTemplate({
+          structureHash,
+          name,
+          description: description || describeWorkflowStructure(
+            typedNodes.map(n => ({
+              id: n.id,
+              type: n.type,
+              position: { x: 0, y: 0 },
+              data: n.data,
+            }))
+          ),
+          nodesJson: nodes,
+          edgesJson: edges,
+        });
+        
+        templateInfo = {
+          cached: templateResult.cached,
+          usageCount: templateResult.template.usageCount,
+        };
+        
+        if (templateResult.cached) {
+          logger.info(`Template cache HIT for structure ${structureHash.slice(0, 16)}... (usage: ${templateResult.template.usageCount})`);
+        } else {
+          logger.info(`Template cache MISS - created new template ${structureHash.slice(0, 16)}...`);
+        }
+      } catch (templateError) {
+        // Template caching is non-critical, continue with workflow creation
+        logger.warn(`Template caching failed (non-critical):`, templateError);
+      }
+      
+      // Create the actual workflow for the user
       const result = await createWorkflow({
         name,
         description,
@@ -251,8 +307,6 @@ export function registerWorkflowTools(handlers: Map<string, (args: unknown) => P
       });
 
       // Identify required inputs from Input nodes
-      type NodeData = { id: string; type?: string; data?: { mediaType?: string; label?: string } };
-      const typedNodes = nodes as NodeData[];
       const requiredInputs = typedNodes
         .filter((n) => n.type === "input" || n.type?.includes("-input"))
         .map((n) => ({
@@ -267,6 +321,10 @@ export function registerWorkflowTools(handlers: Map<string, (args: unknown) => P
         name: result.workflow.name,
         version: result.workflow.version,
         message: `Workflow "${name}" created successfully`,
+        // Template cache info
+        templateCached: templateInfo.cached,
+        templateUsageCount: templateInfo.usageCount,
+        structureHash: structureHash.slice(0, 16), // Show first 16 chars
         requiredInputs,
         nextStep: requiredInputs.length > 0
           ? `ASK THE USER: Before executing, ask what input they want to provide for: ${requiredInputs.map((i: { label: string; type: string }) => `${i.label} (${i.type})`).join(", ")}`
