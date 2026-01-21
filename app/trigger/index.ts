@@ -1,9 +1,9 @@
 // =============================================================================
-// TRIGGER.DEV TASKS - Export all tasks from this directory
+// TRIGGER.DEV - Shared exports (types and streams only)
 // =============================================================================
-
-export { executeNode } from "./node-executor";
-export { executeWorkflow } from "./workflow-executor";
+// NOTE: Tasks (executeNode, executeWorkflow) are discovered automatically
+// by Trigger.dev from their source files. Do NOT re-export them here
+// or it will cause "duplicate output files" build errors.
 
 // Stream definitions for realtime updates (Streams v2)
 export { 

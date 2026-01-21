@@ -6,6 +6,7 @@
  */
 
 import type { AINodeType } from "@/types/nodes";
+import { creditsLogger as log } from "./logger";
 
 // =============================================================================
 // CONSTANTS
@@ -252,7 +253,7 @@ export function estimateNodeCost(
 
   // Final safety check - never return NaN or Infinity
   if (Number.isNaN(cost) || !Number.isFinite(cost)) {
-    console.warn(`[estimateNodeCost] Invalid cost for ${type}, using base cost:`, cost);
+    log.warn(`Invalid cost for ${type}, using base cost`, { cost, baseCost });
     return baseCost;
   }
 
@@ -367,4 +368,63 @@ export interface CreditTransactionInput {
   workflowExecutionId?: string;
   nodeExecutionId?: string;
   metadata?: Record<string, unknown>;
+}
+
+// =============================================================================
+// CREDIT CHECK HELPER (for API routes)
+// =============================================================================
+
+import { db } from "./db";
+import { insufficientCredits } from "./api/responses";
+import type { NextResponse } from "next/server";
+
+export type RequireCreditsResult = 
+  | { ok: true; estimatedCost: number; balance: number }
+  | { ok: false; response: NextResponse };
+
+/**
+ * Check if a user has sufficient credits for a node execution.
+ * Returns { ok: true, estimatedCost, balance } if sufficient.
+ * Returns { ok: false, response } with a 402 response if insufficient.
+ * 
+ * @example
+ * ```ts
+ * const credits = await requireCredits(userId, nodeType, input);
+ * if (!credits.ok) {
+ *   return credits.response; // Returns 402 Payment Required
+ * }
+ * // Proceed with execution, cost is credits.estimatedCost
+ * ```
+ */
+export async function requireCredits(
+  userId: string,
+  nodeType: string,
+  input?: Record<string, unknown>
+): Promise<RequireCreditsResult> {
+  const estimatedCost = estimateNodeCost(nodeType, input);
+  
+  try {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { credits: true },
+    });
+
+    const balance = user?.credits ?? 0;
+
+    if (balance < estimatedCost) {
+      log.info("Insufficient credits", { userId, balance, required: estimatedCost, nodeType });
+      return {
+        ok: false,
+        response: insufficientCredits(balance, estimatedCost),
+      };
+    }
+
+    return { ok: true, estimatedCost, balance };
+  } catch (error) {
+    log.error("Credit check failed", error, { userId, nodeType });
+    return {
+      ok: false,
+      response: insufficientCredits(0, estimatedCost),
+    };
+  }
 }

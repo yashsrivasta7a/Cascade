@@ -7,6 +7,7 @@ import { runs } from "@trigger.dev/sdk";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { estimateNodeCost, formatCredits } from "@/lib/credits";
 import { Prisma } from "@prisma/client";
+import { apiLogger as log } from "@/lib/logger";
 
 // NOTE: We do NOT register node executors here - they run on Trigger.dev only
 // This prevents FFmpeg and other heavy dependencies from being bundled for Vercel
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       const rawBody = await request.text();
       body = JSON.parse(rawBody);
     } catch (parseError) {
-      console.error("[Sync Execute] JSON parse error:", parseError);
+      log.error("JSON parse error", parseError);
       return NextResponse.json(
         { 
           success: false,
@@ -53,11 +54,12 @@ export async function POST(request: NextRequest) {
 
     // Debug logging for crop-image
     if (nodeType === "crop-image") {
-      console.log(`[Sync Execute:crop-image] Received input:`, JSON.stringify(input, null, 2));
-      console.log(`[Sync Execute:crop-image] xPercent: ${input?.xPercent} (${typeof input?.xPercent})`);
-      console.log(`[Sync Execute:crop-image] yPercent: ${input?.yPercent} (${typeof input?.yPercent})`);
-      console.log(`[Sync Execute:crop-image] widthPercent: ${input?.widthPercent} (${typeof input?.widthPercent})`);
-      console.log(`[Sync Execute:crop-image] heightPercent: ${input?.heightPercent} (${typeof input?.heightPercent})`);
+      log.debug("crop-image input received", {
+        xPercent: input?.xPercent,
+        yPercent: input?.yPercent,
+        widthPercent: input?.widthPercent,
+        heightPercent: input?.heightPercent,
+      });
     }
 
     if (!nodeType || typeof nodeType !== "string") {
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (user && user.credits < estimatedCost) {
-        console.log(`[Sync Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
+        log.info("Insufficient credits", { nodeType, balance: user.credits, required: estimatedCost });
         return NextResponse.json(
           {
             success: false,
@@ -118,9 +120,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      console.log(`[Sync Execute] Credit check passed. Balance: ${user?.credits ?? 0}, Required: ${estimatedCost}`);
+      log.debug("Credit check passed", { balance: user?.credits ?? 0, required: estimatedCost });
     } catch (creditError) {
-      console.warn("[Sync Execute] Credit check failed, proceeding:", creditError);
+      log.warn("Credit check failed, proceeding", { error: creditError });
     }
 
     // =========================================================================
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
     // Check if caching is enabled (default false)
     const validatedInput = input as Record<string, unknown>;
     const useCache = validatedInput.useCache === true;
-    console.log(`[Sync Execute] Node ${nodeType} - useCache flag:`, useCache, "raw value:", validatedInput.useCache);
+    log.debug("Cache config", { nodeType, useCache });
     
     let cacheHash: string | undefined;
     if (useCache) {
@@ -139,7 +141,7 @@ export async function POST(request: NextRequest) {
 
         if (cacheCheck.hit && cacheCheck.result) {
           const durationMs = Date.now() - startTime;
-          console.log(`[Sync Execute] CACHE HIT for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - returning cached result`);
+          log.debug("Cache HIT", { nodeType, hash: cacheHash.slice(0, 12) });
           
           return NextResponse.json({
             success: true,
@@ -152,12 +154,12 @@ export async function POST(request: NextRequest) {
           });
         }
         
-        console.log(`[Sync Execute] Cache MISS for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...) - executing`);
+        log.debug("Cache MISS", { nodeType, hash: cacheHash.slice(0, 12) });
       } catch (cacheError) {
-        console.warn("[Sync Execute] Cache check failed, proceeding with execution:", cacheError);
+        log.warn("Cache check failed, proceeding", { error: cacheError });
       }
     } else {
-      console.log(`[Sync Execute] Cache DISABLED for ${nodeType} - executing fresh`);
+      log.debug("Cache disabled, executing fresh", { nodeType });
     }
 
     // Get node definition for label
@@ -180,13 +182,12 @@ export async function POST(request: NextRequest) {
         },
       });
       executionId = execution.id;
-      console.log(`[Sync Execute] Created execution record ${executionId} for ${nodeType}`);
+      log.debug("Created execution record", { executionId, nodeType });
     } catch (dbError) {
-      console.warn("[Sync Execute] Failed to create execution record:", dbError);
+      log.warn("Failed to create execution record", { error: dbError });
     }
 
-    console.log(`[Sync Execute] Starting ${nodeType} execution via Trigger.dev`);
-    console.log(`[Sync Execute] TRIGGER_SECRET_KEY present: ${!!process.env.TRIGGER_SECRET_KEY}`);
+    log.info("Starting execution via Trigger.dev", { nodeType });
 
     // Execute via Trigger.dev
     const payload = {
@@ -199,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     // Debug: Log payload before triggering for crop-image
     if (nodeType === "crop-image") {
-      console.log(`[Sync Execute] Payload to Trigger.dev:`, JSON.stringify(payload, null, 2));
+      log.debug("Payload to Trigger.dev", payload);
     }
 
     let result: { success: boolean; output?: unknown; error?: string; providerUsed?: string; actualCost?: number };
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
     try {
       // Start the Trigger.dev task
       const handle = await executeNode.trigger(payload);
-      console.log(`[Sync Execute] Trigger.dev task started: ${handle.id}`);
+      log.debug("Trigger.dev task started", { handleId: handle.id });
 
       // Poll for completion instead of using subscribeToRun
       const maxWaitTime = 5 * 60 * 1000; // 5 minutes
@@ -220,7 +221,7 @@ export async function POST(request: NextRequest) {
       while (Date.now() - pollStartTime < maxWaitTime) {
         try {
           const run = await runs.retrieve(handle.id);
-          console.log(`[Sync Execute] Run ${handle.id} status: ${run.status}`);
+          log.debug("Run status", { handleId: handle.id, status: run.status });
           
           if (run.status === "COMPLETED" || run.status === "FAILED" || run.status === "CANCELED") {
             finalRun = run;
@@ -230,7 +231,7 @@ export async function POST(request: NextRequest) {
           // Wait before next poll
           await new Promise(resolve => setTimeout(resolve, pollInterval));
         } catch (pollError) {
-          console.error(`[Sync Execute] Poll error:`, pollError);
+          log.error("Poll error", pollError);
           // Continue polling
           await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
@@ -257,7 +258,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (triggerError) {
-      console.error(`[Sync Execute] Trigger.dev error:`, triggerError);
+      log.error("Trigger.dev error", triggerError);
       result = {
         success: false,
         error: triggerError instanceof Error ? triggerError.message : "Failed to execute on Trigger.dev",
@@ -266,7 +267,7 @@ export async function POST(request: NextRequest) {
 
     const durationMs = Date.now() - startTime;
 
-    console.log(`[Sync Execute] ${nodeType} completed:`, result.success ? "success" : "failed", `(${durationMs}ms)`);
+    log.info("Execution completed", { nodeType, success: result.success, durationMs });
 
     // Update execution record with result
     if (executionId) {
@@ -282,9 +283,9 @@ export async function POST(request: NextRequest) {
             error: result.success ? null : (result.error || "Execution failed"),
           },
         });
-        console.log(`[Sync Execute] Updated execution ${executionId} as ${result.success ? "COMPLETED" : "FAILED"}`);
+        log.debug("Updated execution status", { executionId, status: result.success ? "COMPLETED" : "FAILED" });
       } catch (dbError) {
-        console.warn("[Sync Execute] Failed to update execution record:", dbError);
+        log.warn("Failed to update execution record", { error: dbError });
       }
     }
 
@@ -293,9 +294,9 @@ export async function POST(request: NextRequest) {
       if (useCache && cacheHash && result.output) {
         try {
           await cacheResult(cacheHash, nodeType, result.output as Record<string, unknown>);
-          console.log(`[Sync Execute] Cached result for ${nodeType} (hash: ${cacheHash.slice(0, 12)}...)`);
+          log.debug("Cached result", { nodeType, hash: cacheHash.slice(0, 12) });
         } catch (cacheWriteError) {
-          console.warn("[Sync Execute] Failed to cache result:", cacheWriteError);
+          log.warn("Failed to cache result", { error: cacheWriteError });
         }
       }
 
@@ -316,7 +317,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     const durationMs = Date.now() - startTime;
-    console.error("[Sync Execute] Error:", error);
+    log.error("Sync execute failed", error);
 
     // Update execution as failed if we have one
     if (executionId) {
@@ -331,7 +332,7 @@ export async function POST(request: NextRequest) {
           },
         });
       } catch (dbError) {
-        console.warn("[Sync Execute] Failed to update execution as failed:", dbError);
+        log.warn("Failed to update execution as failed", { error: dbError });
       }
     }
 

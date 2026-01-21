@@ -134,9 +134,11 @@ export async function POST(request: NextRequest) {
     if (imageUrl) input.imageUrl = imageUrl;
 
     // Execute via Trigger.dev
+    // Use "sync-" prefix to tell node executor to skip database updates
+    // (this is a direct LLM call, not part of a tracked workflow execution)
     const payload = {
-      nodeExecutionId: executionId || `llm-${Date.now()}`,
-      workflowExecutionId: `llm-workflow-${Date.now()}`,
+      nodeExecutionId: executionId || `sync-llm-${Date.now()}`,
+      workflowExecutionId: `sync-llm-workflow-${Date.now()}`,
       nodeId: nodeId || `llm-node-${Date.now()}`,
       nodeType: "openrouter" as const,
       input,

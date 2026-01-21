@@ -26,51 +26,6 @@ export {
 } from "./field-renderers";
 
 // ============================================================================
-// LEGACY AI PIPELINE NODES (10 Total)
-// These are kept for backward compatibility - new nodes should use GenericNode
-// ============================================================================
-
-// Image Nodes
-import { SeedreamNode } from "./nodes-legacy/seedream-node";
-import { SeedVRNode } from "./nodes-legacy/seedvr-node";
-export { SeedreamNode };
-export { SeedVRNode };
-export type { SeedreamNodeData } from "./nodes-legacy/seedream-node";
-export type { SeedVRNodeData } from "./nodes-legacy/seedvr-node";
-
-// Video Nodes
-import { SeedanceNode } from "./nodes-legacy/seedance-node";
-import { LipsyncNode } from "./nodes-legacy/lipsync-node";
-export { SeedanceNode };
-export { LipsyncNode };
-export type { SeedanceNodeData } from "./nodes-legacy/seedance-node";
-export type { LipsyncNodeData } from "./nodes-legacy/lipsync-node";
-
-// Audio Nodes
-import { ElevenLabsNode } from "./nodes-legacy/elevenlabs-node";
-export { ElevenLabsNode };
-export type { ElevenLabsNodeData } from "./nodes-legacy/elevenlabs-node";
-
-// LLM / Vision Nodes
-import { OpenRouterNode } from "./nodes-legacy/openrouter-node";
-export { OpenRouterNode };
-export type { OpenRouterNodeData } from "./nodes-legacy/openrouter-node";
-
-// Utility Nodes
-import { CropImageNode } from "./nodes-legacy/crop-image-node";
-import { MergeAudioVideoNode } from "./nodes-legacy/merge-audio-video-node";
-import { MergeVideosNode } from "./nodes-legacy/merge-videos-node";
-import { ExtractAudioNode } from "./nodes-legacy/extract-audio-node";
-export { CropImageNode };
-export { MergeAudioVideoNode };
-export { MergeVideosNode };
-export { ExtractAudioNode };
-export type { CropImageNodeData } from "./nodes-legacy/crop-image-node";
-export type { MergeAudioVideoNodeData } from "./nodes-legacy/merge-audio-video-node";
-export type { MergeVideosNodeData } from "./nodes-legacy/merge-videos-node";
-export type { ExtractAudioNodeData } from "./nodes-legacy/extract-audio-node";
-
-// ============================================================================
 // FLOW COMPONENTS
 // ============================================================================
 

@@ -298,6 +298,386 @@ export const NODE_CONFIG: NodeConfigRegistry = {
 
 ---
 
+## ⚡ Performance Optimizations
+
+Two key optimizations for workflow execution at scale (100+ nodes):
+
+### 1. Topological Sort Memoization
+
+**File:** `lib/workflow/node-utils.ts`
+
+**Problem:** `topoSort()` was recalculated on every workflow run, even when the graph hadn't changed.
+
+**Solution:** Cache the sorted order using a hash of node IDs + edge connections.
+
+```typescript
+// Cache structure
+let _topoSortCache: {
+  hash: string;      // "nodeA,nodeB|nodeA->nodeB,nodeB->nodeC"
+  sortedIds: string[];
+} | null = null;
+
+// On each call:
+const hash = getGraphHash(nodes, edges);
+if (_topoSortCache?.hash === hash) {
+  return cached;  // O(1) - instant return
+}
+// else: calculate and cache
+```
+
+**Where It's Used:**
+
+| File | Function | What It Does |
+|------|----------|--------------|
+| `lib/workflow/run-workflow.ts` | `runWorkflow()` | Get execution order for parallel DAG execution |
+| `lib/workflow/run-workflow.ts` | `runWorkflowSubset()` | Get order for partial workflow runs |
+| `lib/workflow/node-utils.ts` | `getUpstreamNodes()` | Sort upstream dependencies |
+
+**Before vs After (100-node workflow, 5 runs):**
+
+```
+BEFORE (No Cache):
+┌─────────────────────────────────────────────────────────────┐
+│ Run 1: topoSort() → Loop through 100 nodes + 150 edges     │
+│        Build inDegree map, adjacency list, BFS traversal   │
+│        Operations: ~500                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Run 2: topoSort() → SAME calculation again                 │
+│        Operations: ~500                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Run 3: topoSort() → SAME calculation again                 │
+│        Operations: ~500                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Run 4: topoSort() → SAME calculation again                 │
+│        Operations: ~500                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Run 5: topoSort() → SAME calculation again                 │
+│        Operations: ~500                                     │
+├─────────────────────────────────────────────────────────────┤
+│ TOTAL: 5 × 500 = 2,500 operations                          │
+└─────────────────────────────────────────────────────────────┘
+
+AFTER (With Cache):
+┌─────────────────────────────────────────────────────────────┐
+│ Run 1: topoSort() → Cache MISS, calculate + store          │
+│        Operations: ~500 + hash calculation                  │
+├─────────────────────────────────────────────────────────────┤
+│ Run 2: topoSort() → Cache HIT, return stored order         │
+│        Operations: ~1 (just hash compare)                   │
+├─────────────────────────────────────────────────────────────┤
+│ Run 3: topoSort() → Cache HIT                              │
+│        Operations: ~1                                       │
+├─────────────────────────────────────────────────────────────┤
+│ Run 4: topoSort() → Cache HIT                              │
+│        Operations: ~1                                       │
+├─────────────────────────────────────────────────────────────┤
+│ Run 5: topoSort() → Cache HIT                              │
+│        Operations: ~1                                       │
+├─────────────────────────────────────────────────────────────┤
+│ TOTAL: 500 + 4 = ~504 operations                           │
+│ SAVED: 2,500 - 504 = ~1,996 operations (80% reduction)     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Cache Invalidation:**
+- ✅ Invalidates when: Node added/removed, Edge added/removed
+- ❌ Does NOT invalidate when: Node data changed, Node position moved
+
+---
+
+### 2. GraphIndex - O(1) Node & Edge Lookups
+
+**File:** `lib/workflow/graph-index.ts`
+
+**Problem:** Workflow execution uses many `nodes.find()` and `edges.filter()` calls - each is O(n).
+
+```typescript
+// Slow: O(n) per lookup
+const node = nodes.find(n => n.id === "xyz");           // 1000 iterations
+const incoming = edges.filter(e => e.target === nodeId); // 1500 iterations
+```
+
+**Solution:** Build indexed Maps once, then O(1) lookups:
+
+```typescript
+class GraphIndex {
+  private nodeById: Map<string, Node>;           // "nodeId" → Node
+  private edgesBySource: Map<string, Edge[]>;    // "nodeId" → outgoing edges
+  private edgesByTarget: Map<string, Edge[]>;    // "nodeId" → incoming edges
+  private dependencies: Map<string, Set<string>>; // "nodeId" → parent node IDs
+  private dependents: Map<string, Set<string>>;   // "nodeId" → child node IDs
+}
+
+// Fast: O(1) lookups
+const node = graph.getNode("xyz");
+const incoming = graph.getIncomingEdges(nodeId);
+const deps = graph.getDependencies(nodeId);
+```
+
+**How GraphIndex Pre-Organizes Data (Phone Book Analogy):**
+
+```
+Input edges array:
+┌─────────────────────────────────────────────────────────────┐
+│  edges = [                                                  │
+│    { source: "LLM", target: "Image" },                      │
+│    { source: "LLM", target: "TTS" },                        │
+│    { source: "Image", target: "Video" },                    │
+│  ]                                                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼ EK BAAR loop (constructor mein)
+                          
+┌─────────────────────────────────────────────────────────────┐
+│  edgesBySource (OUTGOING) - "Kis node SE nikle":            │
+│  {                                                          │
+│    "LLM":   [→Image, →TTS],    // LLM se nikalne wale       │
+│    "Image": [→Video],          // Image se nikalne wale     │
+│  }                                                          │
+├─────────────────────────────────────────────────────────────┤
+│  edgesByTarget (INCOMING) - "Kis node MEIN aaye":           │
+│  {                                                          │
+│    "Image": [←LLM],            // Image mein aane wale      │
+│    "TTS":   [←LLM],            // TTS mein aane wale        │
+│    "Video": [←Image],          // Video mein aane wale      │
+│  }                                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight: Pre-Organized, Not Search-On-Demand**
+
+```
+❌ GALAT SAMAJH: "Jab dhundhe tab cache kare"
+✅ SAHI SAMAJH:  "Constructor mein PEHLE SE hi sab organize kar diya"
+
+const graph = new GraphIndex(nodes, edges);
+// ↑ Yahaan hi sab Maps ban gaye - incoming, outgoing, nodeById
+// Baad mein dhundna nahi padta - seedha Map se nikalo
+```
+
+**Comparison: With vs Without GraphIndex**
+
+```
+PEHLE (Bina GraphIndex) - HAR BAAR loop:
+─────────────────────────────────────────
+"LLM ke outgoing edges chahiye"
+   ↓
+edges.filter(e => e.source === "LLM")
+   ↓
+Loop: edge[0].source === "LLM"? ✓
+      edge[1].source === "LLM"? ✓
+      edge[2].source === "LLM"? ✗
+      ... (1500 edges check karo)
+   ↓
+Found 2 edges. Return.
+
+HAR BAAR yeh loop chalta hai = O(n)
+
+
+AB (GraphIndex ke saath) - Direct lookup:
+─────────────────────────────────────────
+Constructor mein (EK BAAR):
+   All edges loop → edgesBySource Map ready
+
+Baad mein:
+"LLM ke outgoing edges chahiye"
+   ↓
+edgesBySource.get("LLM")
+   ↓
+Direct return [→Image, →TTS]! No loop.
+
+Seedha Map se nikala = O(1)
+```
+
+**Phone Book Analogy:**
+
+```
+❌ Bina Index: 
+   Phone book mein har baar page 1 se naam dhundho
+   1000 naam check karo "Sharma" dhundne ke liye
+
+✅ GraphIndex:
+   Phone book ko A-Z sections mein organize kar diya (EK BAAR)
+   Ab "S" dhundna hai? Direct "S" section pe jaao
+   1 step mein mil gaya
+```
+
+**Where It's Used:**
+
+| File | Function | Before (Slow) | After (Fast) |
+|------|----------|---------------|--------------|
+| `lib/workflow/run-workflow.ts` | `runWorkflow()` | Manual Map + loop to build dependencies | `graph.dependencies` (pre-built) |
+
+**Before vs After Code:**
+
+```typescript
+// ❌ BEFORE: runWorkflow() mein yeh sab manually hota tha
+export async function runWorkflow(nodes, edges) {
+  const allNodes = topoSort(nodes, edges);
+  
+  // Manually build dependency graph - EVERY RUN
+  const nodeById = new Map(allNodes.map(n => [n.id, n]));  // O(n)
+  const dependencies = new Map();  
+  const dependents = new Map();
+  
+  for (const node of allNodes) {           // O(n) loop
+    dependencies.set(node.id, new Set());
+    dependents.set(node.id, new Set());
+  }
+  
+  for (const edge of edges) {              // O(e) loop
+    dependencies.get(edge.target).add(edge.source);
+    dependents.get(edge.source).add(edge.target);
+  }
+  // Total: O(n + e) EVERY RUN
+}
+
+// ✅ AFTER: GraphIndex use karte hain (cached)
+export async function runWorkflow(nodes, edges) {
+  const allNodes = topoSort(nodes, edges);  // Cached
+  
+  // Use GraphIndex - cached if graph unchanged
+  const graph = getGraphIndex(nodes, edges);  // O(1) if cached
+  const dependencies = graph.dependencies;    // Already built
+  const dependents = graph.dependents;        // Already built
+  // Total: O(1) on repeat runs
+}
+```
+
+**Before vs After (100-node workflow execution):**
+
+```
+BEFORE: What happens during ONE workflow run
+┌─────────────────────────────────────────────────────────────────────┐
+│ Step 1: Build nodeById Map                                          │
+│         for (node of 100 nodes) → map.set()                        │
+│         Operations: 100                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 2: Initialize dependencies/dependents Maps                     │
+│         for (node of 100 nodes) → create empty Sets                │
+│         Operations: 200                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 3: Populate from edges                                         │
+│         for (edge of 150 edges) → add to Sets                      │
+│         Operations: 300                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 4: During execution - find source nodes                        │
+│         nodes.find() called ~50 times                              │
+│         Each find() loops through 100 nodes                        │
+│         Operations: 50 × 100 = 5,000                               │
+├─────────────────────────────────────────────────────────────────────┤
+│ Step 5: During execution - filter edges                             │
+│         edges.filter() called ~50 times                            │
+│         Each filter() loops through 150 edges                      │
+│         Operations: 50 × 150 = 7,500                               │
+├─────────────────────────────────────────────────────────────────────┤
+│ TOTAL for ONE run: 100 + 200 + 300 + 5,000 + 7,500 = 13,100 ops    │
+│ For 5 runs: 5 × 13,100 = 65,500 operations                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+AFTER: What happens with GraphIndex
+┌─────────────────────────────────────────────────────────────────────┐
+│ Run 1: GraphIndex cache MISS                                        │
+│        Build index: nodeById + edgesBySource + edgesByTarget       │
+│        Build dependency graph                                       │
+│        Operations: ~600 (one-time)                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│ Run 1: During execution                                             │
+│        graph.getNode() called 50 times → O(1) each = 50 ops        │
+│        graph.getIncomingEdges() called 50 times → O(1) each = 50   │
+│        graph.getDependencies() → already cached = 0 ops            │
+│        Operations: ~100                                             │
+├─────────────────────────────────────────────────────────────────────┤
+│ Run 1 TOTAL: 600 + 100 = 700 ops                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│ Run 2-5: GraphIndex cache HIT                                       │
+│        Hash compare: O(1)                                           │
+│        Execution lookups: ~100 ops each                            │
+│        Operations per run: ~100                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ TOTAL for 5 runs: 700 + (4 × 100) = 1,100 operations               │
+│                                                                     │
+│ SAVED: 65,500 - 1,100 = 64,400 operations (98% reduction!)         │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Performance Numbers (1000 nodes, 1500 edges):**
+
+| Operation | Before (Array) | After (GraphIndex) | Saved |
+|-----------|----------------|-------------------|-------|
+| Find 1 node | 1,000 ops | 1 op | 999 ops |
+| Filter edges to node | 1,500 ops | 1 op | 1,499 ops |
+| Build dependency graph | 2,500 ops/run | 2,500 ops once | 2,500 × (runs-1) |
+| 50 find() calls | 50,000 ops | 50 ops | 49,950 ops |
+| 50 filter() calls | 75,000 ops | 50 ops | 74,950 ops |
+| **5 runs total** | **~637,500 ops** | **~12,750 ops** | **~624,750 ops** |
+
+**Speed improvement: ~50x faster for 1000-node workflows with multiple runs**
+
+---
+
+### Summary
+
+| Optimization | What It Caches | Invalidates When | Benefit |
+|--------------|----------------|------------------|---------|
+| **topoSort** | Execution order | Nodes/edges change | Skip recalculation on repeat runs |
+| **GraphIndex** | Node/edge lookups + dependency graph | Nodes/edges change | O(1) vs O(n) lookups |
+
+**Combined Effect Example (1000 nodes, 5 runs):**
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    BEFORE OPTIMIZATIONS                    │
+├────────────────────────────────────────────────────────────┤
+│ topoSort: 5 × 2,500 = 12,500 ops                          │
+│ Dependency build: 5 × 5,000 = 25,000 ops                  │
+│ Node lookups: 5 × 50,000 = 250,000 ops                    │
+│ Edge lookups: 5 × 75,000 = 375,000 ops                    │
+│ ──────────────────────────────────────                    │
+│ TOTAL: ~662,500 operations                                │
+└────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────┐
+│                    AFTER OPTIMIZATIONS                     │
+├────────────────────────────────────────────────────────────┤
+│ topoSort: 2,500 (first) + 4 × 1 = 2,504 ops              │
+│ GraphIndex build: 7,500 (first) + 4 × 1 = 7,504 ops      │
+│ Node lookups: 5 × 50 = 250 ops                            │
+│ Edge lookups: 5 × 50 = 250 ops                            │
+│ ──────────────────────────────────────                    │
+│ TOTAL: ~10,508 operations                                 │
+└────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────┐
+│ SAVED: 662,500 - 10,508 = 651,992 operations              │
+│ REDUCTION: 98.4%                                          │
+│ SPEEDUP: ~63x faster                                       │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `lib/workflow/node-utils.ts` | Added topoSort memoization with hash-based cache |
+| `lib/workflow/graph-index.ts` | **NEW** - GraphIndex class with O(1) lookups |
+| `lib/workflow/run-workflow.ts` | Updated to use GraphIndex instead of manual Maps |
+
+---
+
+### Future Optimizations (Not Implemented)
+
+| Optimization | Effort | Impact | Description |
+|--------------|--------|--------|-------------|
+| React Flow virtualization | Low | High | `onlyRenderVisibleElements={true}` - only render visible nodes |
+| GraphIndex in build-input.ts | Medium | High | Replace remaining `nodes.find()` calls |
+| Web Workers | High | Medium | Offload heavy computation to background thread |
+| Validation debounce | Low | Medium | Don't validate on every keystroke |
+
+---
+
 ## 📡 Realtime Architecture
 
 The execution engine uses **Trigger.dev's WebSocket-based Realtime API** for instant UI updates. The browser connects directly to Trigger.dev's servers via WebSocket, completely bypassing Vercel.

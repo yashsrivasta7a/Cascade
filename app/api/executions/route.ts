@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getUserIdForApi } from "@/lib/user";
+import { getUserIdForApi, authenticateWithApiKeyDirect } from "@/lib/user";
 import type { ExecutionStatus } from "@prisma/client";
+
+// Helper to get userId from API key or fallback to getUserIdForApi
+async function getUserId(request: NextRequest): Promise<string> {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.toLowerCase().startsWith("bearer sk_live_")) {
+    const authResult = await authenticateWithApiKeyDirect(authHeader);
+    if (authResult.user?.id) {
+      return authResult.user.id;
+    }
+  }
+  const { userId } = await getUserIdForApi();
+  return userId;
+}
 
 // =============================================================================
 // EXECUTIONS API
@@ -9,7 +22,7 @@ import type { ExecutionStatus } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await getUserIdForApi();
+    const userId = await getUserId(request);
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");

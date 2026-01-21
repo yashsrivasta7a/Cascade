@@ -10,11 +10,14 @@ const isPublicRoute = createRouteMatcher([
   "/api/trigger-test(.*)", // Trigger.dev test endpoint
   "/api/nodes(.*)", // All node execution endpoints
   "/api/openapi(.*)", // OpenAPI spec endpoint for Mintlify
+  "/api/workflow/trigger(.*)", // Workflow trigger - handles both Clerk and API key auth internally
 ]);
 
 // Routes that should completely bypass Clerk (use API key auth instead)
+// Note: /api/workflow/trigger is NOT here - it needs Clerk middleware to run for web UI auth
 const isApiKeyRoute = createRouteMatcher([
   "/api/v1(.*)", // REST API endpoints - use API key auth, not Clerk
+  "/api/executions(.*)", // Execution endpoints - support API key auth
 ]);
 
 export default async function middleware(req: NextRequest) {

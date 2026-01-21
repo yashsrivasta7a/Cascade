@@ -90,6 +90,18 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
     priceLabel: "Free",
     priceNote: "Workflow output node",
   },
+  "image-input": {
+    priceLabel: "Free",
+    priceNote: "Image input node",
+  },
+  "video-input": {
+    priceLabel: "Free",
+    priceNote: "Video input node",
+  },
+  "audio-input": {
+    priceLabel: "Free",
+    priceNote: "Audio input node",
+  },
 };
 
 // =============================================================================

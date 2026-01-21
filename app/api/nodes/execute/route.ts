@@ -4,6 +4,7 @@ import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { db } from "@/lib/db";
 import { executeNode } from "@/app/trigger/node-executor";
 import { estimateNodeCost, formatCredits } from "@/lib/credits";
+import { apiLogger as log } from "@/lib/logger";
 
 // =============================================================================
 // GENERIC NODE EXECUTION ENDPOINT - VIA TRIGGER.DEV
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Check if user has enough credits
     const estimatedCost = estimateNodeCost(nodeType, input);
     if (user.credits < estimatedCost) {
-      console.log(`[Execute] Insufficient credits for ${nodeType}. Balance: ${user.credits}, Required: ${estimatedCost}`);
+      log.info("Insufficient credits", { nodeType, balance: user.credits, required: estimatedCost });
       return NextResponse.json(
         {
           error: `Insufficient credits. You have ${formatCredits(user.credits)} but need ${formatCredits(estimatedCost)} to run this node.`,
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         { status: 402 } // Payment Required
       );
     }
-    console.log(`[Execute] Credit check passed. Balance: ${user.credits}, Required: ${estimatedCost}`);
+    log.debug("Credit check passed", { balance: user.credits, required: estimatedCost });
 
     // Get or create a workflow for this execution
     let workflow;
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
       ? input.nodeId 
       : `${nodeType}-${Date.now()}`;
 
-    console.log(`[Node Execute] Using nodeId: ${actualNodeId} (from input: ${input.nodeId})`);
+    log.debug("Using nodeId", { actualNodeId, inputNodeId: input.nodeId });
 
     // Create node execution record
     const nodeExecution = await db.nodeExecution.create({
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[Node Execute] Starting ${nodeType} execution ${nodeExecution.id}`);
+    log.info("Starting node execution", { nodeType, nodeExecutionId: nodeExecution.id });
 
     // Trigger the node execution via Trigger.dev
     const handle = await executeNode.trigger({
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
       data: { triggerRunId: handle.id },
     });
 
-    console.log(`[Node Execute] Triggered with handle ${handle.id}`);
+    log.debug("Triggered with handle", { handleId: handle.id });
 
     return NextResponse.json({
       status: "triggered",
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
       dashboardUrl: `https://cloud.trigger.dev/projects/v3/${process.env.TRIGGER_PROJECT_REF}/runs/${handle.id}`,
     });
   } catch (error) {
-    console.error("[Node Execute] Error:", error);
+    log.error("Node execute failed", error);
     return NextResponse.json(
       { 
         status: "error", 

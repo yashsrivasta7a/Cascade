@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useFlowStore } from "@/store";
 import { dataTypeColors } from "@/types/nodes";
+import { formatTime } from "@/lib/format";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
 // =============================================================================
 // TYPES
@@ -26,14 +28,6 @@ export interface OutputNodeData {
   result?: string | null;
   detectedType?: "image" | "video" | "audio" | "text" | null;
   [key: string]: unknown;
-}
-
-// Format time in mm:ss format
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Detect content type from URL or data
@@ -100,19 +94,7 @@ function OutputNodeComponent({ data, selected, id }: NodeProps<OutputNodeData>) 
   const [audioLoaded, setAudioLoaded] = useState(false);
 
   // Dark mode
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDarkMode(document.documentElement.classList.contains("dark"));
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
+  const isDarkMode = useDarkMode();
 
   // Detect type when value changes
   useEffect(() => {

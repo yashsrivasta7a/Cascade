@@ -76,6 +76,10 @@ const statusConfig: Record<NodeStatus, { icon: React.ReactNode; color: string; p
     icon: <XCircle className="w-3.5 h-3.5" />,
     color: "text-zinc-200",
   },
+  cancelled: {
+    icon: <XCircle className="w-3.5 h-3.5" />,
+    color: "text-zinc-400",
+  },
 };
 
 // Demo execution data

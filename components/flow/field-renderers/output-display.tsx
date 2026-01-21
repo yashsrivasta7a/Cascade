@@ -4,6 +4,7 @@ import { memo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2, Play, Pause, Volume2 } from "lucide-react";
 import type { OutputConfig, OutputType } from "@/lib/config/types";
+import { formatTime } from "@/lib/format";
 
 interface OutputDisplayProps {
   config: OutputConfig;
@@ -113,14 +114,6 @@ function VideoDisplay({ url, className }: { url: string; className?: string }) {
       />
     </div>
   );
-}
-
-// Format time in mm:ss format
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Audio display component with working controls

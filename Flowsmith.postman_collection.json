@@ -1,0 +1,533 @@
+{
+	"info": {
+		"_postman_id": "flowsmith-api-collection",
+		"name": "Flowsmith API",
+		"description": "Complete API collection for Flowsmith workflow automation platform.\n\n## Authentication\n\nMost endpoints require authentication via API key:\n- Header: `Authorization: Bearer sk_live_your_api_key_here`\n\nCreate an API key at Settings > API Keys in the Flowsmith dashboard.\n\n## Base URL\n\nSet the `{{baseUrl}}` variable to your Flowsmith instance URL (e.g., `http://localhost:3000` for local development).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{apiKey}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "sk_live_your_api_key_here",
+			"type": "string"
+		},
+		{
+			"key": "workflowId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "executionId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Workflows",
+			"description": "Workflow CRUD operations",
+			"item": [
+				{
+					"name": "List Workflows",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/workflows",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflows"]
+						},
+						"description": "Get all workflows for the authenticated user."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Workflow",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"My Workflow\",\n  \"description\": \"A sample workflow\",\n  \"nodesJson\": [\n    {\n      \"id\": \"input-1\",\n      \"type\": \"input\",\n      \"position\": { \"x\": 0, \"y\": 100 },\n      \"data\": { \"label\": \"Input\", \"nodeType\": \"input\", \"mediaType\": \"text\" }\n    },\n    {\n      \"id\": \"openrouter-2\",\n      \"type\": \"openrouter\",\n      \"position\": { \"x\": 350, \"y\": 100 },\n      \"data\": { \"label\": \"LLM\", \"nodeType\": \"openrouter\" }\n    },\n    {\n      \"id\": \"output-3\",\n      \"type\": \"output\",\n      \"position\": { \"x\": 700, \"y\": 100 },\n      \"data\": { \"label\": \"Output\", \"nodeType\": \"output\" }\n    }\n  ],\n  \"edgesJson\": [\n    { \"id\": \"e1\", \"source\": \"input-1\", \"target\": \"openrouter-2\", \"sourceHandle\": \"output\", \"targetHandle\": \"prompt\" },\n    { \"id\": \"e2\", \"source\": \"openrouter-2\", \"target\": \"output-3\", \"sourceHandle\": \"text\", \"targetHandle\": \"input\" }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/workflows",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflows"]
+						},
+						"description": "Create a new workflow."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workflow",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/workflows/{{workflowId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflows", "{{workflowId}}"]
+						},
+						"description": "Get a specific workflow by ID including recent executions."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Workflow",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Workflow Name\",\n  \"description\": \"Updated description\",\n  \"isPublished\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/workflows/{{workflowId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflows", "{{workflowId}}"]
+						},
+						"description": "Update an existing workflow. All fields are optional."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Workflow",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/workflows/{{workflowId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflows", "{{workflowId}}"]
+						},
+						"description": "Delete a workflow by ID."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Workflow Execution",
+			"description": "Trigger and manage workflow executions",
+			"item": [
+				{
+					"name": "Trigger Workflow",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workflowId\": \"{{workflowId}}\",\n  \"inputs\": {\n    \"input-1\": \"Your input text or URL here\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/workflow/trigger",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflow", "trigger"]
+						},
+						"description": "Trigger a workflow execution.\n\n**Request Body:**\n- `workflowId` (required): The workflow ID to execute\n- `inputs` (optional): Input values keyed by node ID\n  - For input nodes: provide a string (text) or URL (media)\n  - For config nodes: provide an object with settings\n\n**Example with crop settings:**\n```json\n{\n  \"workflowId\": \"abc123\",\n  \"inputs\": {\n    \"input-1\": \"https://example.com/image.png\",\n    \"crop-image-2\": {\n      \"xPercent\": 50,\n      \"yPercent\": 0,\n      \"widthPercent\": 50,\n      \"heightPercent\": 100\n    }\n  }\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Trigger Workflow (with nodes)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"workflowId\": \"temp-workflow\",\n  \"nodes\": [\n    {\n      \"id\": \"input-1\",\n      \"type\": \"input\",\n      \"position\": { \"x\": 0, \"y\": 100 },\n      \"data\": {\n        \"label\": \"Input\",\n        \"nodeType\": \"input\",\n        \"mediaType\": \"image\",\n        \"result\": { \"url\": \"https://example.com/image.png\" }\n      }\n    },\n    {\n      \"id\": \"crop-image-2\",\n      \"type\": \"crop-image\",\n      \"position\": { \"x\": 350, \"y\": 100 },\n      \"data\": {\n        \"label\": \"Crop Image\",\n        \"nodeType\": \"crop-image\",\n        \"xPercent\": 0,\n        \"yPercent\": 0,\n        \"widthPercent\": 50,\n        \"heightPercent\": 100\n      }\n    },\n    {\n      \"id\": \"output-3\",\n      \"type\": \"output\",\n      \"position\": { \"x\": 700, \"y\": 100 },\n      \"data\": { \"label\": \"Output\", \"nodeType\": \"output\" }\n    }\n  ],\n  \"edges\": [\n    { \"id\": \"e1\", \"source\": \"input-1\", \"target\": \"crop-image-2\", \"sourceHandle\": \"output\", \"targetHandle\": \"image\" },\n    { \"id\": \"e2\", \"source\": \"crop-image-2\", \"target\": \"output-3\", \"sourceHandle\": \"image\", \"targetHandle\": \"input\" }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/workflow/trigger",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflow", "trigger"]
+						},
+						"description": "Trigger a workflow execution with inline nodes and edges (without saving the workflow first)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Executions",
+			"description": "Execution history and status",
+			"item": [
+				{
+					"name": "List Executions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/executions?limit=20&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "executions"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Number of results (max 100)"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Pagination offset"
+								},
+								{
+									"key": "status",
+									"value": "all",
+									"description": "Filter by status: all, running, completed, failed, cancelled",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by workflow name",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List all executions for the authenticated user with pagination and filtering."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Execution",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/executions/{{executionId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "executions", "{{executionId}}"]
+						},
+						"description": "Get detailed execution status including all node executions."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Execution",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/executions/{{executionId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "executions", "{{executionId}}"]
+						},
+						"description": "Cancel a running or pending execution."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Execution (POST)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/executions/{{executionId}}/cancel",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "executions", "{{executionId}}", "cancel"]
+						},
+						"description": "Cancel a running or pending execution (alternative POST endpoint)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Nodes",
+			"description": "Direct node execution",
+			"item": [
+				{
+					"name": "Execute Sync Node (Utility)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nodeType\": \"crop-image\",\n  \"input\": {\n    \"image\": { \"url\": \"https://example.com/image.png\" },\n    \"xPercent\": 0,\n    \"yPercent\": 0,\n    \"widthPercent\": 50,\n    \"heightPercent\": 100\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/nodes/execute-sync",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nodes", "execute-sync"]
+						},
+						"description": "Execute utility nodes synchronously.\n\n**Supported node types:**\n- `crop-image` - Crop an image by percentage\n- `merge-audio-video` - Merge audio and video tracks\n- `merge-videos` - Concatenate multiple videos\n- `extract-audio` - Extract audio from video"
+					},
+					"response": []
+				},
+				{
+					"name": "Execute Sync Node - Crop Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nodeType\": \"crop-image\",\n  \"input\": {\n    \"image\": { \"url\": \"https://upload.wikimedia.org/wikipedia/en/2/21/Web_of_Spider-Man_Vol_1_129-1.png\" },\n    \"xPercent\": 50,\n    \"yPercent\": 0,\n    \"widthPercent\": 50,\n    \"heightPercent\": 100,\n    \"useCache\": false\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/nodes/execute-sync",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nodes", "execute-sync"]
+						},
+						"description": "Crop an image using percentage-based coordinates.\n\n**Input:**\n- `image.url` - Image URL to crop\n- `xPercent` (0-100) - Starting X position as percentage\n- `yPercent` (0-100) - Starting Y position as percentage\n- `widthPercent` (1-100) - Width as percentage\n- `heightPercent` (1-100) - Height as percentage\n- `useCache` (optional) - Cache results for identical inputs"
+					},
+					"response": []
+				},
+				{
+					"name": "Execute Sync Node - Merge Audio Video",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nodeType\": \"merge-audio-video\",\n  \"input\": {\n    \"video\": { \"url\": \"https://example.com/video.mp4\" },\n    \"audio\": { \"url\": \"https://example.com/audio.mp3\" }\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/nodes/execute-sync",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nodes", "execute-sync"]
+						},
+						"description": "Merge audio and video tracks into a single video file."
+					},
+					"response": []
+				},
+				{
+					"name": "Execute Sync Node - Extract Audio",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nodeType\": \"extract-audio\",\n  \"input\": {\n    \"video\": { \"url\": \"https://example.com/video.mp4\" }\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/nodes/execute-sync",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nodes", "execute-sync"]
+						},
+						"description": "Extract audio track from a video file."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sync Node Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/nodes/execute-sync",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "nodes", "execute-sync"]
+						},
+						"description": "Get information about supported synchronous node types."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API Keys",
+			"description": "API key management (requires Clerk auth, not API key auth)",
+			"item": [
+				{
+					"name": "List API Keys",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/api-keys",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "api-keys"]
+						},
+						"description": "List all API keys for the current user. Requires Clerk session authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Create API Key",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"My API Key\",\n  \"expiresIn\": \"never\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/api-keys",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "api-keys"]
+						},
+						"description": "Create a new API key.\n\n**Request Body:**\n- `name` (required) - Display name for the key\n- `expiresIn` (optional) - Expiration: `never`, `30d`, `90d`, `1y`\n\n**Important:** The full API key is only shown once in the response!"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete API Key",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/api-keys/:keyId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "api-keys", ":keyId"],
+							"variable": [
+								{
+									"key": "keyId",
+									"value": "",
+									"description": "API Key ID to delete"
+								}
+							]
+						},
+						"description": "Delete an API key by ID."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Media",
+			"description": "Media upload and management",
+			"item": [
+				{
+					"name": "Upload Media (Base64)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dataUrl\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"type\": \"image\",\n  \"filename\": \"example.png\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/media/upload",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "media", "upload"]
+						},
+						"description": "Upload base64-encoded media to CDN.\n\n**Request Body:**\n- `dataUrl` (required) - Base64 data URL or HTTP URL\n- `type` (optional) - Media type: `image`, `video`, `audio`\n- `filename` (optional) - Original filename\n\n**Note:** Max file size ~3MB due to base64 overhead."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"description": "Dashboard statistics",
+			"item": [
+				{
+					"name": "Get Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dashboard/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dashboard", "stats"]
+						},
+						"description": "Get dashboard statistics including:\n- Total workflows\n- Executions today\n- Average runtime\n- Success rate\n- Recent activity\n- Credit balance"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Workflow Executions (Legacy)",
+			"description": "Legacy workflow execution endpoints",
+			"item": [
+				{
+					"name": "List Workflow Executions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/workflow-executions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflow-executions"]
+						},
+						"description": "List workflow executions (legacy endpoint)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workflow Execution",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/workflow-executions/{{executionId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "workflow-executions", "{{executionId}}"]
+						},
+						"description": "Get a specific workflow execution (legacy endpoint)."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

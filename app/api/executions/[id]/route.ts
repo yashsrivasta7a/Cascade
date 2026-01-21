@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { authenticateWithApiKeyDirect } from "@/lib/user";
+
+// Helper to get userId from API key or Clerk
+async function getUserId(request: NextRequest): Promise<string | null> {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.toLowerCase().startsWith("bearer sk_live_")) {
+    const authResult = await authenticateWithApiKeyDirect(authHeader);
+    return authResult.user?.id ?? null;
+  }
+  try {
+    const { userId } = await auth();
+    return userId;
+  } catch {
+    return null;
+  }
+}
 
 // =============================================================================
 // EXECUTION STATUS API
@@ -10,11 +26,11 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 // GET /api/executions/[id] - Get execution status and details
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext
 ) {
   try {
-    const { userId } = await auth();
+    const userId = await getUserId(request);
     const { id: executionId } = await context.params;
 
     if (!userId) {
@@ -70,11 +86,11 @@ export async function GET(
 
 // DELETE /api/executions/[id] - Cancel an execution (if possible)
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext
 ) {
   try {
-    const { userId } = await auth();
+    const userId = await getUserId(request);
     const { id: executionId } = await context.params;
 
     if (!userId) {

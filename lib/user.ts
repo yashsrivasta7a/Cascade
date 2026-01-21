@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { db } from "./db";
 import { extractBearerToken, validateApiKey } from "./api-keys";
+import { authLogger as log } from "./logger";
 
 // =============================================================================
 // USER HELPER FUNCTIONS
@@ -55,12 +56,12 @@ export async function ensureCurrentUser(): Promise<EnsuredUser | null> {
         select: { id: true, email: true, credits: true },
       });
 
-      console.log(`[ensureCurrentUser] Created user ${userId} (${email})`);
+      log.info(`Created user ${userId}`, { email });
     }
 
     return user;
   } catch (error) {
-    console.error("[ensureCurrentUser] Error:", error);
+    log.error("ensureCurrentUser failed", error);
     return null;
   }
 }
@@ -74,11 +75,11 @@ export async function authenticateWithApiKey(): Promise<AuthResult> {
   try {
     const headersList = await headers();
     const authHeader = headersList.get("authorization");
-    console.log("[authenticateWithApiKey] Auth header:", authHeader ? `${authHeader.substring(0, 30)}...` : "none");
+    log.debug("Auth header received", { hasHeader: !!authHeader });
     
     return authenticateWithApiKeyDirect(authHeader);
   } catch (error) {
-    console.error("[authenticateWithApiKey] Error:", error);
+    log.error("authenticateWithApiKey failed", error);
     return { user: null, authMethod: null };
   }
 }
@@ -89,19 +90,18 @@ export async function authenticateWithApiKey(): Promise<AuthResult> {
  */
 export async function authenticateWithApiKeyDirect(authHeader: string | null): Promise<AuthResult> {
   try {
-    console.log("[authenticateWithApiKeyDirect] Auth header:", authHeader ? `${authHeader.substring(0, 40)}...` : "none");
+    log.debug("Authenticating with API key", { hasHeader: !!authHeader });
     
     const token = extractBearerToken(authHeader);
-    console.log("[authenticateWithApiKeyDirect] Token extracted:", token ? `${token.substring(0, 20)}...` : "none");
 
     if (!token) {
-      console.log("[authenticateWithApiKeyDirect] No token found");
+      log.debug("No token found in header");
       return { user: null, authMethod: null };
     }
 
     // Validate the API key
     const keyData = await validateApiKey(token);
-    console.log("[authenticateWithApiKeyDirect] Key validation result:", keyData ? "valid" : "invalid");
+    log.debug("Key validation result", { valid: !!keyData });
     if (!keyData) {
       return { user: null, authMethod: null };
     }
@@ -122,7 +122,7 @@ export async function authenticateWithApiKeyDirect(authHeader: string | null): P
       apiKeyId: keyData.apiKeyId,
     };
   } catch (error) {
-    console.error("[authenticateWithApiKeyDirect] Error:", error);
+    log.error("authenticateWithApiKeyDirect failed", error);
     return { user: null, authMethod: null };
   }
 }
@@ -196,7 +196,7 @@ export async function deductCredits(userId: string, amount: number): Promise<boo
 
     return true;
   } catch (error) {
-    console.error("[deductCredits] Error:", error);
+    log.error("deductCredits failed", error);
     return false;
   }
 }

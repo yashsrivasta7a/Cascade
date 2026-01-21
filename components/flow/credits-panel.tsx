@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/react";
+import { formatTimeAgo } from "@/lib/format";
 
 // =============================================================================
 // HELPERS
@@ -40,17 +41,6 @@ function formatCredits(credits?: number): string {
   if (credits >= 1000) return `${(credits / 1000).toFixed(1)}K`;
   if (credits < 1) return credits.toFixed(2);
   return credits.toLocaleString();
-}
-
-function formatTimeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const secs = Math.floor(diff / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function getNodeIcon(nodeType: string) {

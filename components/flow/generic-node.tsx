@@ -2,7 +2,7 @@
 
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { NodeProps, Handle, Position } from "reactflow";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Wrench } from "lucide-react";
 import { BaseNode, type BaseNodeData } from "./base-node";
 import { useFlowStore } from "@/store";
 import { getNodeConfig } from "@/lib/config";
@@ -31,33 +31,8 @@ export interface GenericNodeData extends BaseNodeData {
   [key: string]: unknown;
 }
 
-// =============================================================================
-// ICON MAPPING (based on category)
-// =============================================================================
-
-import {
-  Image as ImageIcon,
-  Film,
-  Volume2,
-  Brain,
-  Wrench,
-  ArrowRightLeft,
-} from "lucide-react";
-
-const categoryIcons = {
-  image: ImageIcon,
-  video: Film,
-  audio: Volume2,
-  llm: Brain,
-  utility: Wrench,
-  io: ArrowRightLeft,
-};
-
-// Node types that use async (Trigger.dev/fal.ai) execution
-const ASYNC_NODE_TYPES = ["seedream", "seedvr", "seedance", "elevenlabs", "lipsync"];
-
-// Node types that run locally/synchronously
-const LOCAL_NODE_TYPES = ["crop-image", "merge-audio-video", "merge-videos", "extract-audio"];
+// Import constants from extracted module
+import { categoryIcons, ASYNC_NODE_TYPES, LOCAL_NODE_TYPES } from "./generic-node/constants";
 
 // =============================================================================
 // FIELD RENDERER - Renders a single form field based on config
@@ -312,7 +287,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
   const isProcessing = data.status === "running" || data.status === "queued" || isGenerating;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Track uploading state per field and report to global store
+  // Track uploading state per field
   const handleUploadingChange = useCallback((fieldId: string, uploading: boolean) => {
     setUploadingFields((prev) => {
       const next = new Set(prev);
@@ -321,11 +296,14 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
       } else {
         next.delete(fieldId);
       }
-      // Report to global store: node is uploading if ANY field is uploading
-      setNodeUploading(id, next.size > 0);
       return next;
     });
-  }, [id, setNodeUploading]);
+  }, []);
+  
+  // Sync uploading state to global store via effect (avoids setState during render)
+  useEffect(() => {
+    setNodeUploading(id, uploadingFields.size > 0);
+  }, [id, uploadingFields.size, setNodeUploading]);
   
   // Clean up upload status when component unmounts
   useEffect(() => {

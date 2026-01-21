@@ -13,6 +13,7 @@ import {
 } from "@/lib/credits";
 import { checkCache, cacheResult } from "@/lib/cache";
 import { persistNodeOutput, isTransloaditConfigured } from "@/lib/providers";
+import { nodeLogger as log } from "@/lib/logger";
 
 // Load environment variables for Trigger.dev workers
 config({ path: ".env" });
@@ -80,16 +81,21 @@ async function safeUpdateNodeExecution(
   }
   
   try {
-    await db.nodeExecution.update({
+    // Use updateMany to avoid "record not found" errors
+    // This won't throw if the record doesn't exist
+    const result = await db.nodeExecution.updateMany({
       where: { id: nodeExecutionId },
       data,
     });
     
-    return true;
+    if (result.count === 0) {
+      log.warn(`NodeExecution ${nodeExecutionId} not found - record may not have been created yet`);
+    }
+    
+    return result.count > 0;
   } catch (error) {
     // Log the actual error for debugging
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[NodeExecutor] Failed to update nodeExecution ${nodeExecutionId}: ${errorMsg}`);
+    log.error(`Failed to update nodeExecution ${nodeExecutionId}`, error);
     return false;
   }
 }
@@ -178,7 +184,7 @@ export const executeNode = task({
 
         
       } catch (cacheError) {
-        console.warn("[NodeExecutor] Cache check failed, proceeding with execution:", cacheError);
+        log.warn("Cache check failed, proceeding with execution", { error: cacheError });
       }
     } else {
       
@@ -357,7 +363,7 @@ export const executeNode = task({
           persistedOutput = await persistNodeOutput(outputValidation.data);
           
         } catch (persistError) {
-          console.warn(`[NodeExecutor] Failed to persist output to CDN:`, persistError);
+          log.warn("Failed to persist output to CDN", { error: persistError });
           // Continue with original output - fallback will handle it
         }
       }
@@ -380,7 +386,7 @@ export const executeNode = task({
           await cacheResult(cacheHash, nodeType, persistedOutput as Record<string, unknown>);
           
         } catch (cacheWriteError) {
-          console.warn("[NodeExecutor] Failed to cache result:", cacheWriteError);
+          log.warn("Failed to cache result", { error: cacheWriteError });
         }
       }
 
@@ -450,7 +456,15 @@ export const executeNode = task({
     const syncCost = (result.actualCost && result.actualCost > 0) 
       ? result.actualCost 
       : calculateActualCost(nodeType, input);
-    await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, syncCost);
+    
+    // Wrap in try/catch so credit deduction errors don't prevent output from being returned
+    // The node executed successfully - we should return the output even if credit tracking fails
+    try {
+      await deductCreditsForNode(nodeExecutionId, workflowExecutionId, nodeType, input, syncCost);
+    } catch (creditError) {
+      log.warn(`Failed to deduct credits for node ${nodeExecutionId}`, creditError);
+      // Continue - don't let credit tracking fail the successful execution
+    }
 
     // Cache the successful result for future identical executions (only if caching enabled)
     // Use persistedOutput (with CDN URLs) so cache hits also get HTTP URLs
@@ -643,29 +657,34 @@ async function deductCreditsForNode(
           },
         });
 
-        // Update execution record with actual cost
+        // Update execution record with actual cost (use updateMany to avoid "record not found" errors)
         if (isSyncExecution) {
           // Update QuickExecution for sync (utility) nodes
-          await tx.quickExecution.update({
+          await tx.quickExecution.updateMany({
             where: { id: nodeExecutionId },
             data: { actualCost: cost },
           });
         } else {
-          // Update NodeExecution for workflow nodes
-          await tx.nodeExecution.update({
+          // Update NodeExecution for workflow nodes - use updateMany to avoid throwing if record missing
+          await tx.nodeExecution.updateMany({
             where: { id: nodeExecutionId },
             data: { actualCost: cost },
           });
         }
 
         // Update workflowExecution actualCost (only for real workflow executions)
+        // Note: Can't use updateMany with increment, so wrap in try/catch
         if (!isSyncExecution) {
-          await tx.workflowExecution.update({
-            where: { id: workflowExecutionId },
-            data: {
-              actualCost: { increment: cost },
-            },
-          });
+          try {
+            await tx.workflowExecution.update({
+              where: { id: workflowExecutionId },
+              data: {
+                actualCost: { increment: cost },
+              },
+            });
+          } catch {
+            // Workflow execution might not exist - ignore update errors
+          }
         }
 
         
@@ -677,7 +696,7 @@ async function deductCreditsForNode(
     );
   } catch (error) {
     // Log but don't fail the node execution if credit deduction fails
-    console.error(`[NodeExecutor] Failed to deduct credits:`, error);
+    log.error("Failed to deduct credits", error);
   }
 }
 

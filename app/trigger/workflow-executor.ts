@@ -5,6 +5,16 @@ import { executeNode, type NodeExecutorPayload } from "./node-executor";
 import type { AINodeType } from "@/types/nodes";
 import type { Node, Edge } from "reactflow";
 import { NODE_CONFIG } from "@/lib/config";
+import {
+  HANDLE_TO_SCHEMA_FIELD,
+  NODE_DATA_TO_SCHEMA,
+  normalizeAsset,
+  inferOutputType,
+} from "./helpers/handle-mapping";
+import {
+  canFieldAcceptLLMInput,
+  parseLLMToFieldValue,
+} from "./helpers/llm-parser";
 
 // =============================================================================
 // NODE STATUS TYPES FOR METADATA
@@ -88,201 +98,7 @@ function buildDependencyGraph(nodes: Node[], edges: Edge[]) {
   return { dependencies };
 }
 
-// Map handle IDs to schema field names
-const HANDLE_TO_SCHEMA_FIELD: Record<string, string> = {
-  // Merge Videos - explicit mappings for video1/video2 handles
-  "video1": "video1",
-  "video2": "video2",
-  "inputVideo1": "video1",
-  "inputVideo2": "video2",
-  "Video 1": "video1",
-  "Video 2": "video2",
-  // Common media inputs
-  "inputImage": "image",
-  "inputVideo": "video",
-  "inputAudio": "audio",
-  "inputFrame": "frame",
-  // Merge Audio + Video
-  "Video*": "video",
-  "Audio*": "audio",
-  // Extract Audio
-  "videoInput": "video",
-  "Video Input": "video",
-  // Lipsync
-  "audioInput": "audio",
-  // Generic
-  "video": "video",
-  "audio": "audio",
-  "image": "image",
-  "frame": "frame",
-  // Prompt/text inputs
-  "prompt": "prompt",
-  "text": "text",
-  "context": "context",
-};
-
-// Normalize URL string or object to AssetRef format { url: string, ... }
-function normalizeAsset(value: unknown): { url: string; mimeType?: string } | undefined {
-  if (!value) return undefined;
-  if (
-    typeof value === "string" &&
-    (value.startsWith("http://") ||
-      value.startsWith("https://") ||
-      value.startsWith("data:") ||
-      value.startsWith("blob:"))
-  ) {
-    return { url: value };
-  }
-  if (typeof value === "object" && value !== null && "url" in value) {
-    return value as { url: string; mimeType?: string };
-  }
-  return undefined;
-}
-
-// Map node data fields (like inputVideo1) to schema fields (like video1)
-const NODE_DATA_TO_SCHEMA: Record<string, string> = {
-  "inputVideo1": "video1",
-  "inputVideo2": "video2",
-  "inputVideo": "video",
-  "inputAudio": "audio",
-  "inputImage": "image",
-};
-
-// Infer output type from node type
-function inferOutputType(nodeType: string, nodeData?: Record<string, unknown>): "video" | "audio" | "image" | "text" {
-  const videoNodes = ["seedance", "lipsync", "merge-videos", "merge-audio-video"];
-  const audioNodes = ["elevenlabs", "extract-audio"];
-  const imageNodes = ["seedream", "seedvr", "crop-image"];
-  
-  // Handle unified input node
-  if (nodeType === "input" && nodeData?.mediaType) {
-    return nodeData.mediaType as "video" | "audio" | "image";
-  }
-  
-  if (videoNodes.includes(nodeType)) return "video";
-  if (audioNodes.includes(nodeType)) return "audio";
-  if (imageNodes.includes(nodeType)) return "image";
-  return "text";
-}
-
-// =============================================================================
-// LLM OUTPUT PARSING FOR SETTINGS
-// =============================================================================
-
-/**
- * Parse text to a number. Extracts first number from text.
- */
-function parseToNumber(text: string): number | null {
-  const cleaned = text.trim();
-  
-  // Try direct parse first
-  const direct = parseFloat(cleaned);
-  if (!isNaN(direct) && isFinite(direct)) {
-    return direct;
-  }
-  
-  // Extract first number from text (handles "90%", "set to 50", etc.)
-  const match = cleaned.match(/-?\d+\.?\d*/);
-  if (match) {
-    const num = parseFloat(match[0]);
-    if (!isNaN(num) && isFinite(num)) {
-      return num;
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Get field config from node config
- */
-function getFieldConfig(nodeType: string, handleId: string): { type: string; min?: number; max?: number; options?: unknown[] } | null {
-  const config = NODE_CONFIG[nodeType as AINodeType];
-  if (!config?.ui?.inputs) return null;
-  
-  const field = config.ui.inputs.find((f: { id: string }) => f.id === handleId);
-  if (!field) return null;
-  
-  return field as { type: string; min?: number; max?: number; options?: unknown[] };
-}
-
-/**
- * Check if a field can accept parsed LLM input
- */
-function canFieldAcceptLLMInput(nodeType: string, handleId: string): boolean {
-  const fieldConfig = getFieldConfig(nodeType, handleId);
-  if (!fieldConfig) return false;
-  
-  const parseableTypes = ["select", "slider", "number", "toggle", "textarea", "text"];
-  return parseableTypes.includes(fieldConfig.type);
-}
-
-/**
- * Parse LLM text to a value suitable for a specific field type
- */
-function parseLLMToFieldValue(text: string, nodeType: string, handleId: string): { success: boolean; value?: unknown; error?: string } {
-  if (!text || text.trim() === "") {
-    return { success: false, error: "Empty text" };
-  }
-  
-  const trimmedText = text.trim();
-  const fieldConfig = getFieldConfig(nodeType, handleId);
-  
-  if (!fieldConfig) {
-    return { success: true, value: trimmedText };
-  }
-  
-  switch (fieldConfig.type) {
-    case "slider":
-    case "number": {
-      const num = parseToNumber(trimmedText);
-      if (num === null) {
-        return { success: false, error: `Could not parse "${trimmedText.slice(0, 30)}" as a number` };
-      }
-      
-      // Validate against min/max
-      if (fieldConfig.min !== undefined && num < fieldConfig.min) {
-        return { success: false, error: `Value ${num} is below minimum ${fieldConfig.min}` };
-      }
-      if (fieldConfig.max !== undefined && num > fieldConfig.max) {
-        return { success: false, error: `Value ${num} exceeds maximum ${fieldConfig.max}` };
-      }
-      
-      return { success: true, value: num };
-    }
-    
-    case "select": {
-      // Try to match against allowed options
-      const options = fieldConfig.options as Array<string | { value: string }> | undefined;
-      if (!options) return { success: true, value: trimmedText };
-      
-      const allowedValues = options.map(opt => typeof opt === "string" ? opt : opt.value);
-      const lowerText = trimmedText.toLowerCase();
-      
-      for (const value of allowedValues) {
-        if (value.toLowerCase() === lowerText || lowerText.includes(value.toLowerCase())) {
-          return { success: true, value };
-        }
-      }
-      
-      return { success: false, error: `"${trimmedText}" doesn't match options: ${allowedValues.join(", ")}` };
-    }
-    
-    case "toggle": {
-      const lower = trimmedText.toLowerCase();
-      if (["true", "yes", "1", "on", "enable", "enabled"].includes(lower)) {
-        return { success: true, value: true };
-      }
-      if (["false", "no", "0", "off", "disable", "disabled"].includes(lower)) {
-        return { success: true, value: false };
-      }
-      return { success: false, error: `Could not parse "${trimmedText}" as boolean` };
-    }
-    
-    default:
-      return { success: true, value: trimmedText };
-  }
-}
+// Helper functions imported from ./helpers
 
 // Build input for a node
 function buildNodeInput(
@@ -546,8 +362,14 @@ function buildNodeInput(
 
 export const executeWorkflow = task({
   id: "execute-workflow",
+  // Use small machine - workflow orchestration doesn't need heavy compute
+  // Individual nodes use medium-2x for FFmpeg processing
+  machine: { preset: "small-1x" },
   retry: {
     maxAttempts: 1,
+  },
+  queue: {
+    concurrencyLimit: 10, // Allow multiple workflows to run
   },
 
   run: async (payload: WorkflowExecutorPayload) => {
@@ -759,9 +581,14 @@ export const executeWorkflow = task({
         
         // Input nodes: use their result/value as output
         if (nodeType === "input") {
-          const result = (nodeData.result || nodeData.value || nodeData.url || nodeData.file) as string | undefined;
+          const rawResult = nodeData.result || nodeData.value || nodeData.url || nodeData.file;
+          // Handle both string URLs and {url: "..."} objects
+          const result = typeof rawResult === 'string' 
+            ? rawResult 
+            : (rawResult as { url?: string } | undefined)?.url;
           const mediaType = nodeData.mediaType as string | undefined;
-          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined', `mediaType: ${mediaType}`);
+          const resultPreview = result ? `${result.slice(0, 80)}...` : JSON.stringify(rawResult)?.slice(0, 80);
+          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, resultPreview ?? 'undefined', `mediaType: ${mediaType}`);
           
           if (result && typeof result === "string" && result.length > 0 && mediaType) {
             const outputType = mediaType;

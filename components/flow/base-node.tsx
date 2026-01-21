@@ -1,125 +1,29 @@
 "use client";
 
-import { memo, ReactNode, type CSSProperties, useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { memo, type CSSProperties, useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { Handle, Position } from "reactflow";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 import {
   Play,
-  Loader2,
-  AlertCircle,
   Link2,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Square,
   Info,
   SkipForward,
   AlertTriangle,
   Lock,
+  Loader2,
+  Clock,
+  Square,
+  AlertCircle,
 } from "lucide-react";
 import { useFlowStore } from "@/store";
-import { type DataType, dataTypeColors, type NodeStatus, type InheritedSettings, NODE_CONTRACTS, type AINodeType, isTypeCompatible } from "@/types/nodes";
+import { type DataType, dataTypeColors, NODE_CONTRACTS, type AINodeType, isTypeCompatible } from "@/types/nodes";
 
-export interface BaseNodeData {
-  label: string;
-  description?: string;
-  icon?: ReactNode;
-  status?: NodeStatus;
-  provider?: string;
-  estimatedCost?: number;
-  actualCost?: number;
-  progress?: number;
-  /** Settings inherited from another node */
-  _inheritedFrom?: InheritedSettings;
-  [key: string]: unknown;
-}
-
-interface HandleConfig {
-  id: string;
-  type: DataType;
-  label: string;
-  position?: "top" | "center" | "bottom";
-  required?: boolean;
-  hidden?: boolean;
-}
-
-interface BaseNodeProps extends NodeProps<BaseNodeData> {
-  color: "cyan" | "violet" | "emerald" | "amber" | "rose" | "blue" | "zinc" | "teal";
-  nodeType?: string; // Explicit node type for settings lookup
-  left?: ReactNode;
-  right?: ReactNode;
-  children?: ReactNode;
-  inputs?: HandleConfig[];
-  outputs?: HandleConfig[];
-  isUtility?: boolean;
-  layout?: "horizontal" | "vertical";
-  /** Whether this node should skip execution and use existing output */
-  skip?: boolean;
-  /** Whether this node has existing output that can be used when skipped */
-  hasOutput?: boolean;
-  /** Callback when skip toggle is clicked */
-  onSkipToggle?: (skip: boolean) => void;
-}
-
-// Color mapping for accent bars
-const accentColors: Record<string, string> = {
-  cyan: "#06b6d4",
-  violet: "#8b5cf6",
-  emerald: "#10b981",
-  amber: "#f59e0b",
-  rose: "#f43f5e",
-  blue: "#3b82f6",
-  zinc: "#71717a",
-  teal: "#14b8a6", // For audio nodes
-};
-
-// Status configuration with icons and colors - minimal dark theme
-const statusConfig: Record<NodeStatus, { 
-  icon: typeof Circle; 
-  color: string; 
-  bgColor: string;
-  label: string;
-  animate?: boolean 
-}> = {
-  idle: { 
-    icon: Circle, 
-    color: "text-zinc-500", 
-    bgColor: "",
-    label: "Ready" 
-  },
-  queued: { 
-    icon: Clock, 
-    color: "text-zinc-400", 
-    bgColor: "",
-    label: "Queued" 
-  },
-  running: { 
-    icon: Loader2, 
-    color: "text-blue-400", 
-    bgColor: "",
-    label: "Running",
-    animate: true 
-  },
-  completed: { 
-    icon: CheckCircle2, 
-    color: "text-emerald-400", 
-    bgColor: "",
-    label: "Done" 
-  },
-  failed: { 
-    icon: AlertCircle, 
-    color: "text-red-400", 
-    bgColor: "",
-    label: "Failed" 
-  },
-  cancelled: {
-    icon: Square,
-    color: "text-amber-400",
-    bgColor: "",
-    label: "Cancelled"
-  },
-};
+// Import types and constants from extracted modules
+import type { BaseNodeData, HandleConfig, BaseNodeProps } from "./base-node/types";
+export type { BaseNodeData } from "./base-node/types";
+import { accentColors, statusConfig } from "./base-node/constants";
 
 // ============================================================================
 // Settings Handles Component - Only visible when dragging compatible edge
@@ -414,18 +318,8 @@ function BaseNodeComponent({
 
   const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
 
-  // Check if we're in dark mode by checking the document's class
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDarkMode(document.documentElement.classList.contains('dark'));
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
+  // Check if we're in dark mode
+  const isDarkMode = useDarkMode();
 
   // Border states: failed (red dashed), running (node theme), selected (category color), default (very subtle)
   const isFailed = status === "failed";

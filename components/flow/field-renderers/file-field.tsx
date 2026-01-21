@@ -5,14 +5,7 @@ import { cn } from "@/lib/utils";
 import { Upload, X, Loader2, Image as ImageIcon, Film, Volume2, Play, Pause } from "lucide-react";
 import type { FileFieldConfig } from "@/lib/config/types";
 import { showError, showWarning } from "@/lib/toast";
-
-// Format time in mm:ss format
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
+import { formatTime } from "@/lib/format";
 
 export interface CropOverlay {
   xPercent: number;

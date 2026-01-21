@@ -32,6 +32,7 @@ const categoryIcon: Record<NodeCategory, React.ReactNode> = {
   audio: <Volume2 className="w-4 h-4" />,
   llm: <Brain className="w-4 h-4" />,
   utility: <Wrench className="w-4 h-4" />,
+  io: <Zap className="w-4 h-4" />,
 };
 
 const categoryColor: Record<NodeCategory, string> = {
@@ -40,6 +41,7 @@ const categoryColor: Record<NodeCategory, string> = {
   audio: "text-amber-400",
   llm: "text-blue-400",
   utility: "text-zinc-400",
+  io: "text-cyan-400",
 };
 
 export function NodeTypeModal({

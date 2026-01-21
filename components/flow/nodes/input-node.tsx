@@ -20,6 +20,8 @@ import {
 import { useFlowStore } from "@/store";
 import { dataTypeColors, type DataType } from "@/types/nodes";
 import { showError, showWarning } from "@/lib/toast";
+import { formatTime } from "@/lib/format";
+import { useDarkMode } from "@/hooks/use-dark-mode";
 
 // =============================================================================
 // TYPES
@@ -32,14 +34,6 @@ export interface InputNodeData {
   value?: string | null;
   mediaType?: InputType | null;
   [key: string]: unknown;
-}
-
-// Format time in mm:ss format
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Input type configuration
@@ -105,19 +99,7 @@ function InputNodeComponent({ data, selected, id }: NodeProps<InputNodeData>) {
   const [audioLoaded, setAudioLoaded] = useState(false);
 
   // Check dark mode
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDarkMode(document.documentElement.classList.contains("dark"));
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
+  const isDarkMode = useDarkMode();
 
   const inputType = data.mediaType;
   const value = data.value;

@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
+import { cacheLogger as log } from "@/lib/logger";
 
 // =============================================================================
 // NODE RESULT CACHE
@@ -119,10 +120,10 @@ export async function getCachedResult(
       return null;
     }
 
-    console.log(`[NodeCache] Cache HIT for hash: ${hash.slice(0, 12)}...`);
+    log.debug(`Cache HIT for hash: ${hash.slice(0, 12)}...`);
     return cached.output as Record<string, unknown>;
   } catch (error) {
-    console.error("[NodeCache] Error reading cache:", error);
+    log.error("Error reading cache", error);
     return null;
   }
 }
@@ -153,9 +154,9 @@ export async function setCachedResult(
       },
     });
 
-    console.log(`[NodeCache] Cached result for hash: ${hash.slice(0, 12)}...`);
+    log.debug(`Cached result for hash: ${hash.slice(0, 12)}...`);
   } catch (error) {
-    console.error("[NodeCache] Error writing cache:", error);
+    log.error("Error writing cache", error);
     // Don't throw - caching is not critical
   }
 }
@@ -171,10 +172,10 @@ export async function cleanupExpiredCache(): Promise<number> {
         expiresAt: { lt: new Date() },
       },
     });
-    console.log(`[NodeCache] Cleaned up ${result.count} expired entries`);
+    log.info(`Cleaned up ${result.count} expired entries`);
     return result.count;
   } catch (error) {
-    console.error("[NodeCache] Error cleaning cache:", error);
+    log.error("Error cleaning cache", error);
     return 0;
   }
 }
@@ -197,16 +198,14 @@ export async function checkCache(
   }
   
   const hash = hashNodeInputs(nodeType, inputs);
-  console.log(`[NodeCache] Checking cache for ${nodeType}`);
-  console.log(`[NodeCache] Hash: ${hash.slice(0, 16)}...`);
-  console.log(`[NodeCache] Input keys: ${Object.keys(normalizedInputs).join(", ")}`);
+  log.debug(`Checking cache for ${nodeType}`, { hash: hash.slice(0, 16), keys: Object.keys(normalizedInputs) });
   
   const result = await getCachedResult(hash);
   
   if (result) {
-    console.log(`[NodeCache] ✅ Cache HIT for ${nodeType} - returning cached result`);
+    log.debug(`Cache HIT for ${nodeType} - returning cached result`);
   } else {
-    console.log(`[NodeCache] ❌ Cache MISS for ${nodeType} - will execute`);
+    log.debug(`Cache MISS for ${nodeType} - will execute`);
   }
   
   return {
@@ -224,9 +223,8 @@ export async function cacheResult(
   nodeType: string,
   output: Record<string, unknown>
 ): Promise<void> {
-  console.log(`[NodeCache] Caching result for ${nodeType}, hash: ${hash.slice(0, 12)}...`);
+  log.debug(`Caching result for ${nodeType}`, { hash: hash.slice(0, 12) });
   await setCachedResult(hash, nodeType, output);
-  console.log(`[NodeCache] Successfully cached result`);
 }
 
 export default {
