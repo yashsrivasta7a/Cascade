@@ -272,7 +272,8 @@ export async function POST(request: NextRequest) {
     // Pre-process nodes (upload base64 to CDN)
     const processedNodes = await preprocessNodesForTrigger(nodes);
 
-    // Trigger the workflow executor task
+    // Trigger the workflow executor task with workflow tag for realtime subscription
+    const workflowTag = `workflow:${workflow.id}`;
     
     const handle = await executeWorkflow.trigger({
       workflowExecutionId: workflowExecution.id,
@@ -280,6 +281,8 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       nodes: processedNodes,
       edges,
+    }, {
+      tags: [workflowTag, `user:${user.id}`],
     });
 
     
@@ -292,16 +295,16 @@ export async function POST(request: NextRequest) {
 
     // Create a public access token for client-side realtime subscription
     // This allows the client to subscribe directly to Trigger.dev via WebSocket
-    // The token grants read access to this run, which includes:
-    // - Run status updates (EXECUTING, COMPLETED, FAILED, etc.)
-    // - Streams v2 data (node-status, workflow-status streams)
-    // - Run metadata (legacy, may not propagate)
+    // The token grants read access to:
+    // - This specific run (for backward compatibility)
+    // - All runs with this workflow's tag (for browser to see MCP-triggered runs)
     let publicToken: string | null = null;
     try {
       publicToken = await triggerAuth.createPublicToken({
         scopes: {
           read: {
             runs: [handle.id],
+            tags: [workflowTag], // Allow subscribing to all runs for this workflow
           },
         },
         expirationTime: "30m", // 30 minutes
@@ -317,6 +320,7 @@ export async function POST(request: NextRequest) {
       workflowExecutionId: workflowExecution.id,
       triggerRunId: handle.id,
       publicToken,
+      workflowTag, // Tag for subscribing to all runs for this workflow
       estimatedCost: totalEstimatedCost,
     });
 

@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 // HTTP client for communicating with Flowsmith TRPC/REST APIs
 // =============================================================================
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "http://localhost:3000";
+const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
 const API_KEY = process.env.FLOWSMITH_API_KEY || "";
 
 // =============================================================================
@@ -201,6 +201,12 @@ export async function listWorkflows(): Promise<{ workflows: WorkflowListItem[] }
 export async function getWorkflow(id: string): Promise<{ workflow: WorkflowFull }> {
   // REST endpoint: GET /api/v1/workflows/{id}
   return restCall<{ workflow: WorkflowFull }>(`/api/v1/workflows/${id}`, "GET");
+}
+
+export async function getWorkflowByName(name: string): Promise<{ workflow: WorkflowFull }> {
+  // REST endpoint: GET /api/workflows/by-name/{name}
+  // Note: Using non-versioned endpoint as this is a new feature
+  return restCall<{ workflow: WorkflowFull }>(`/api/workflows/by-name/${encodeURIComponent(name)}`, "GET");
 }
 
 export async function createWorkflow(data: {
@@ -467,6 +473,40 @@ export async function getCreditBalance(): Promise<CreditBalance> {
 
 export async function getCreditStats(): Promise<CreditStats> {
   return restCall<CreditStats>("/api/v1/credits/stats", "GET");
+}
+
+// =============================================================================
+// MEDIA UPLOAD API CALLS
+// =============================================================================
+
+export interface MediaUploadResult {
+  url: string;
+  mimeType?: string;
+}
+
+/**
+ * Upload base64 media to CDN and get a permanent URL
+ * @param dataUrl - Base64 data URL (e.g., "data:image/png;base64,iVBORw0...")
+ * @param options - Optional type hint and filename
+ * @returns CDN URL of the uploaded file
+ */
+export async function uploadMedia(
+  dataUrl: string,
+  options?: {
+    type?: "image" | "video" | "audio";
+    filename?: string;
+  }
+): Promise<MediaUploadResult> {
+  // If already an HTTP URL, return as-is
+  if (dataUrl.startsWith("http://") || dataUrl.startsWith("https://")) {
+    return { url: dataUrl };
+  }
+
+  return restCall<MediaUploadResult>("/api/media/upload", "POST", {
+    dataUrl,
+    type: options?.type,
+    filename: options?.filename,
+  });
 }
 
 // =============================================================================

@@ -1,36 +1,43 @@
 # Flowsmith MCP Server
 
-MCP (Model Context Protocol) server for Flowsmith workflow automation. Enables AI assistants to create, manage, and execute workflows.
+MCP (Model Context Protocol) server for [Flowsmith](https://flowsmiths.vercel.app) - AI workflow automation platform. Enables AI assistants like Claude, Cursor, and others to create, manage, and execute workflows.
 
-## Features
+## Quick Install (For Users)
 
-- **17 Tools** across 6 categories
-- **Automatic Authentication** - no manual API key setup needed
-- **6 Preset Workflows** for quick start
-- **Smart Workflow Builder** with auto-layout
-- **Full CRUD Operations** for workflows
-- **Execution Monitoring** and control
-
-## Installation
-
+### Option 1: NPX (Easiest - Coming Soon)
 ```bash
-cd mcp/flowsmith
+npx @flowsmith/mcp-server
+```
+
+### Option 2: Manual Installation
+
+1. **Clone or download the MCP server:**
+```bash
+git clone https://github.com/YOUR_USERNAME/flowsmith.git
+cd flowsmith/mcp/flowsmith
 npm install
 npm run build
 ```
 
+2. **Add to your AI assistant** (see Configuration below)
+
+3. **Authenticate** - The MCP will guide you through this automatically!
+
+---
+
 ## Configuration
 
-Add to `.cursor/mcp.json`:
+### For Cursor IDE
+
+Add to your `.cursor/mcp.json` (create the file if it doesn't exist):
 
 ```json
 {
   "mcpServers": {
     "flowsmith": {
       "command": "node",
-      "args": ["mcp/flowsmith/dist/index.js"],
+      "args": ["/absolute/path/to/flowsmith/mcp/flowsmith/dist/index.js"],
       "env": {
-        "FLOWSMITH_API_URL": "http://localhost:3000",
         "FLOWSMITH_API_KEY": ""
       }
     }
@@ -38,111 +45,186 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-**Note:** Leave `FLOWSMITH_API_KEY` empty - the MCP server will guide you through authentication automatically!
+### For Claude Desktop
 
-## First-Time Setup
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-When you first use the MCP server, just ask Claude to set it up:
-
-```
-User: "Create a workflow"
-Claude: "I need to authenticate first. Let me help you set that up..."
-       → Opens browser to flowsmith.app/auth/mcp
-       → User signs in and gets a code
-User: "My code is A1B2C3"
-Claude: "✓ Authenticated! Now let me create your workflow..."
-```
-
-The API key is saved automatically - you only need to do this once!
-
-## Tools
-
-### Category 1: Authentication (2 tools)
-
-| Tool | Description |
-|------|-------------|
-| `setup_auth` | Set up authentication (auto-guided flow) |
-| `check_auth` | Check current authentication status |
-
-### Category 2: Presets (Quick Start)
-
-| Tool | Description |
-|------|-------------|
-| `list_presets` | List available preset workflows |
-| `use_preset` | Get full workflow from a preset |
-
-**Available Presets:**
-- `llm` - Text generation with OpenRouter
-- `image-gen` - Text to image with Seedream
-- `video-gen` - Text to video with Seedance
-- `tts` - Text to speech with ElevenLabs
-- `upscale` - Image upscaling with SeedVR
-- `lipsync` - Video + audio lip sync
-
-### Category 2: Node Information
-
-| Tool | Description |
-|------|-------------|
-| `list_nodes` | List all nodes (optionally by category) |
-| `get_node_info` | Get detailed info about a node type |
-
-### Category 3: Workflow Builder
-
-| Tool | Description |
-|------|-------------|
-| `build_workflow` | Build workflow from node specs with auto-layout |
-
-Example:
 ```json
 {
-  "name": "Image Gen + Upscale",
-  "nodes": [
-    { "type": "input", "inputType": "text" },
-    { "type": "seedream" },
-    { "type": "seedvr" },
-    { "type": "output" }
-  ]
+  "mcpServers": {
+    "flowsmith": {
+      "command": "node",
+      "args": ["/absolute/path/to/flowsmith/mcp/flowsmith/dist/index.js"],
+      "env": {
+        "FLOWSMITH_API_KEY": ""
+      }
+    }
+  }
 }
 ```
 
-### Category 4: Workflow CRUD
+### For Other MCP Clients
 
-| Tool | Description |
-|------|-------------|
-| `list_workflows` | List saved workflows |
-| `get_workflow` | Get workflow by ID |
-| `create_workflow` | Save new workflow |
-| `update_workflow` | Update existing workflow |
-| `delete_workflow` | Delete workflow |
-| `duplicate_workflow` | Copy a workflow |
+Use these settings:
+- **Command:** `node`
+- **Args:** `["/path/to/mcp/flowsmith/dist/index.js"]`
+- **Environment:**
+  - `FLOWSMITH_API_KEY`: Leave empty (auto-setup)
+  - `FLOWSMITH_API_URL`: `https://flowsmiths.vercel.app` (default)
 
-### Category 5: Execution
+---
 
-| Tool | Description |
-|------|-------------|
-| `execute_workflow` | Start workflow execution |
-| `get_execution` | Get execution details |
-| `get_execution_status` | Quick status poll |
-| `list_executions` | List recent executions |
-| `cancel_execution` | Cancel running execution |
+## First-Time Authentication
+
+When you first use the MCP server, authentication is guided automatically:
+
+```
+You: "Create a workflow to generate images"
+
+Claude: "I need to authenticate with Flowsmith first. 
+        Please go to your Flowsmith Settings > API Keys and create one.
+        Then tell me the API key."
+
+You: "Here's my key: sk_live_abc123..."
+
+Claude: "✓ Authenticated! Now let me create your workflow..."
+```
+
+**To get your API key:**
+1. Go to [flowsmiths.vercel.app](https://flowsmiths.vercel.app)
+2. Sign in to your account
+3. Go to **Settings** > **API Keys**
+4. Click **Create API Key**
+5. Copy and share with your AI assistant
+
+---
+
+## Features
+
+| Category | Tools |
+|----------|-------|
+| **Quick Actions** | `quick_llm`, `quick_image` - One-liner AI generation |
+| **Workflow Builder** | `build_workflow`, `save_and_execute` - Create custom workflows |
+| **Workflow Management** | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow`, `duplicate_workflow` |
+| **Execution** | `execute_workflow`, `get_execution`, `get_execution_result`, `list_executions`, `cancel_execution` |
+| **Templates** | `list_presets`, `use_preset`, `find_workflow_template`, `list_workflow_templates` |
+| **Nodes** | `list_nodes`, `get_node_info` - Explore available AI nodes |
+| **Credits** | `get_credits`, `get_credit_stats` - Check balance |
+| **Media** | `upload_media` - Upload images/videos/audio |
+| **Auth** | `setup_auth`, `check_auth` |
+
+---
+
+## Example Usage
+
+### Quick LLM Chat
+```
+"Use quick_llm to answer: What is the meaning of life?"
+```
+
+### Quick Image Generation
+```
+"Use quick_image to generate: a sunset over mountains"
+```
+
+### Build Custom Workflow
+```
+"Build a workflow that takes text input, generates an image, upscales it, and outputs the result"
+```
+
+### Execute Existing Workflow
+```
+"List my workflows and run the image generation one with prompt 'a cyberpunk city'"
+```
+
+---
+
+## Available Node Types
+
+| Category | Nodes |
+|----------|-------|
+| **LLM** | `openrouter` (GPT-4, Claude, Llama, etc.) |
+| **Image** | `seedream` (text-to-image), `seedvr` (upscale), `crop-image` |
+| **Video** | `seedance` (text/image-to-video), `lipsync`, `merge-videos` |
+| **Audio** | `elevenlabs` (TTS), `extract-audio`, `merge-audio-video` |
+| **I/O** | `input`, `output` |
+
+---
 
 ## Development
 
 ```bash
-# Watch mode
-npm run dev
+cd mcp/flowsmith
+
+# Install dependencies
+npm install
 
 # Build
 npm run build
+
+# Watch mode (for development)
+npm run dev
 
 # Run directly
 npm start
 ```
 
+---
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FLOWSMITH_API_URL` | Flowsmith API base URL | `http://localhost:3000` |
-| `FLOWSMITH_API_KEY` | API key for authentication | (empty) |
-| `LOG_LEVEL` | Logging level (debug, info, warn, error) | `info` |
+| `FLOWSMITH_API_URL` | API base URL | `https://flowsmiths.vercel.app` |
+| `FLOWSMITH_API_KEY` | Your API key | (empty - auto-setup) |
+| `LOG_LEVEL` | Logging level | `info` |
+
+---
+
+## Sharing This MCP
+
+### For Teammates/Collaborators
+
+1. Share this folder (`mcp/flowsmith/`) or the full repo
+2. They run `npm install && npm run build`
+3. They add the config to their AI assistant
+4. Each person uses their own API key from Flowsmith
+
+### Publishing to npm (Optional)
+
+```bash
+cd mcp/flowsmith
+npm login
+npm publish --access public
+```
+
+Then users can install with:
+```bash
+npm install -g @flowsmith/mcp-server
+```
+
+---
+
+## Troubleshooting
+
+### "Authentication required" error
+→ Use the `setup_auth` tool or provide your API key from Flowsmith Settings
+
+### "API call failed: 401"
+→ Your API key may be invalid or expired. Create a new one at Settings > API Keys
+
+### MCP not showing in Claude/Cursor
+→ Restart the application after adding the config
+→ Check the path to `dist/index.js` is correct
+
+---
+
+## Links
+
+- **Flowsmith App:** https://flowsmiths.vercel.app
+- **API Docs:** https://flowsmiths.vercel.app/docs
+- **Support:** Create an issue on GitHub
+
+---
+
+Built with ❤️ for AI-powered workflow automation

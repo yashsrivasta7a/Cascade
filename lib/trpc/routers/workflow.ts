@@ -125,6 +125,25 @@ const WorkflowUpdateSchema = z.object({
 });
 
 export const workflowRouter = router({
+  // Check if a workflow name already exists for the current user
+  checkNameExists: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      excludeId: z.string().optional(), // Exclude this workflow ID (for updates)
+    }))
+    .output(z.object({ exists: z.boolean() }))
+    .query(async ({ ctx, input }) => {
+      const existing = await ctx.db.workflow.findFirst({
+        where: {
+          userId: ctx.userId,
+          name: input.name,
+          ...(input.excludeId && { id: { not: input.excludeId } }),
+        },
+        select: { id: true },
+      });
+      return { exists: !!existing };
+    }),
+
   // List all workflows for the current user
   list: protectedProcedure
     .meta({
@@ -281,6 +300,22 @@ export const workflowRouter = router({
     .input(WorkflowCreateSchema)
     .output(z.object({ workflow: WorkflowSchema }))
     .mutation(async ({ ctx, input }) => {
+      // Check for duplicate name
+      const existingWithName = await ctx.db.workflow.findFirst({
+        where: {
+          userId: ctx.userId,
+          name: input.name,
+        },
+        select: { id: true },
+      });
+
+      if (existingWithName) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A workflow named "${input.name}" already exists. Please choose a different name.`,
+        });
+      }
+
       const workflow = await ctx.db.workflow.create({
         data: {
           userId: ctx.userId,
@@ -322,6 +357,25 @@ export const workflowRouter = router({
           code: "NOT_FOUND",
           message: "Workflow not found",
         });
+      }
+
+      // Check for duplicate name if name is being changed
+      if (updateData.name !== undefined && updateData.name !== existing.name) {
+        const existingWithName = await ctx.db.workflow.findFirst({
+          where: {
+            userId: ctx.userId,
+            name: updateData.name,
+            id: { not: id },
+          },
+          select: { id: true },
+        });
+
+        if (existingWithName) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `A workflow named "${updateData.name}" already exists. Please choose a different name.`,
+          });
+        }
       }
 
       const data: Record<string, unknown> = {};
@@ -379,7 +433,7 @@ export const workflowRouter = router({
         path: "/workflows/{id}/duplicate",
         tags: ["Workflows"],
         summary: "Duplicate a workflow",
-        description: "Creates a copy of an existing workflow with '(Copy)' appended to the name",
+        description: "Creates a copy of an existing workflow with a unique name",
         protect: true,
       },
     })
@@ -398,11 +452,30 @@ export const workflowRouter = router({
         });
       }
 
-      // Create duplicate with "(Copy)" appended to name
+      // Generate a unique name for the duplicate
+      let newName = `${original.name} (Copy)`;
+      let attempt = 1;
+      
+      while (true) {
+        const existingWithName = await ctx.db.workflow.findFirst({
+          where: {
+            userId: ctx.userId,
+            name: newName,
+          },
+          select: { id: true },
+        });
+        
+        if (!existingWithName) break;
+        
+        attempt++;
+        newName = `${original.name} (Copy ${attempt})`;
+      }
+
+      // Create duplicate with unique name
       const duplicated = await ctx.db.workflow.create({
         data: {
           userId: ctx.userId,
-          name: `${original.name} (Copy)`,
+          name: newName,
           description: original.description,
           nodesJson: original.nodesJson ?? [],
           edgesJson: original.edgesJson ?? [],
@@ -533,6 +606,25 @@ export const workflowRouter = router({
           code: "NOT_FOUND",
           message: "Workflow not found",
         });
+      }
+
+      // Check for duplicate name if name is being changed
+      if (metadata.name !== undefined && metadata.name !== existing.name) {
+        const existingWithName = await ctx.db.workflow.findFirst({
+          where: {
+            userId: ctx.userId,
+            name: metadata.name,
+            id: { not: id },
+          },
+          select: { id: true },
+        });
+
+        if (existingWithName) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `A workflow named "${metadata.name}" already exists. Please choose a different name.`,
+          });
+        }
       }
 
       // Save to normalized tables

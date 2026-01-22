@@ -108,14 +108,13 @@ function CropPreview({
     <div 
       ref={containerRef}
       className="relative overflow-hidden rounded bg-black/20"
-      style={{ maxHeight }}
+      style={{ height: maxHeight }}
     >
       <img
         ref={imgRef}
         src={src}
         alt="Preview"
-        className="w-full h-auto object-contain"
-        style={{ maxHeight }}
+        className="w-full h-full object-contain"
       />
       {/* Crop overlay - darkens areas that will be REMOVED, keeps crop area clear */}
       {cropOverlay && imageBounds && imageBounds.width > 0 && (

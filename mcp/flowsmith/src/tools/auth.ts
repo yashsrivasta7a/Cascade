@@ -43,7 +43,7 @@ Use this when authentication fails or when first setting up the MCP server.`,
 // CONFIGURATION
 // =============================================================================
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "http://localhost:3000";
+const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
 const API_KEY = process.env.FLOWSMITH_API_KEY || "";
 
 // Find the MCP config file path

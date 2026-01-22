@@ -24,22 +24,27 @@ export const builderToolDefinitions: Tool[] = [
 Automatically positions nodes horizontally and creates edges based on type compatibility.
 Uses template caching to speed up repeated workflow patterns.
 
-Input: An array of node specs with type and optional configuration.
-Output: Complete workflow data with positioned nodes and proper edges.
+CRITICAL PATTERN: All workflows should start with Input nodes for user data:
+- User text/prompts → {type:"input", inputType:"text"} 
+- User images → {type:"input", inputType:"image"}
+- User videos → {type:"input", inputType:"video"}
+- User audio → {type:"input", inputType:"audio"}
 
-Common node types:
-- input: Universal input (set inputType to "text", "image", "video", or "audio")
-- output: Workflow output
-- seedream: Text to image
-- seedvr: Image upscaling  
+Input nodes connect to processing nodes which do the work:
+- openrouter: LLM text generation (receives text from input node)
+- seedream: Text to image (receives prompt from input node)
+- seedvr: Image upscaling (receives image from input node)
 - seedance: Text/image to video
 - elevenlabs: Text to speech
-- openrouter: LLM text generation
 - lipsync: Video + audio lip sync
 - merge-audio-video: Combine audio and video
 - merge-videos: Concatenate videos
 - extract-audio: Extract audio from video
-- crop-image: Crop images`,
+- crop-image: Crop images
+- output: Workflow output (displays results)
+
+Example: LLM workflow = input(text) → openrouter → output
+At execution, user input goes to "input-1", NOT directly to "openrouter".`,
     inputSchema: {
       type: "object",
       properties: {

@@ -6,9 +6,12 @@ import {
   triggerWorkflowExecution,
   getExecution,
   listExecutions,
+  uploadMedia,
 } from "../utils/api-client.js";
 import { logger } from "../utils/logger.js";
 import type { NodeSpec } from "../schemas/index.js";
+import * as fs from "fs";
+import * as path from "path";
 
 // =============================================================================
 // CONVENIENCE TOOL DEFINITIONS
@@ -22,11 +25,18 @@ export const convenienceToolDefinitions: Tool[] = [
     
 This is the easiest way to run a workflow - just specify the nodes and inputs.
 
-Example usage:
-- To generate an image: nodes=[{type:"input",inputType:"text"},{type:"seedream"},{type:"output"}], inputs={"input-1":"a beautiful sunset"}
-- To ask an LLM: nodes=[{type:"input",inputType:"text"},{type:"openrouter"},{type:"output"}], inputs={"input-1":"Write a poem"}
+CRITICAL: All user inputs MUST go through Input nodes:
+- Text/prompts → include {type:"input",inputType:"text"} and pass value to "input-1"
+- Images → include {type:"input",inputType:"image"} and pass URL to "input-1"  
+- Videos → include {type:"input",inputType:"video"} and pass URL to "input-1"
+- Audio → include {type:"input",inputType:"audio"} and pass URL to "input-1"
 
-IMPORTANT: You MUST ask the user for input values before calling this tool.`,
+Example usage:
+- LLM chat: nodes=[{type:"input",inputType:"text"},{type:"openrouter"},{type:"output"}], inputs={"input-1":"Hello!"}
+- Image gen: nodes=[{type:"input",inputType:"text"},{type:"seedream"},{type:"output"}], inputs={"input-1":"a sunset"}
+
+The input node receives the user's value, then passes it to the connected processing node.
+NEVER set inputs directly on processing nodes - always use Input nodes.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -130,6 +140,124 @@ Just provide a description and get an image URL.`,
       required: ["prompt"],
     },
   },
+  {
+    name: "upload_media",
+    description: `Upload an image, video, or audio file to get a CDN URL.
+
+Use this to convert base64 data into a permanent URL that can be used in workflows.
+
+The returned URL can then be passed to workflow inputs like:
+- save_and_execute with inputs: { "input-1": "<returned_url>" }
+- execute_workflow with inputs: { "input-1": "<returned_url>" }
+
+Supported formats:
+- Images: PNG, JPEG, WebP, GIF
+- Videos: MP4, WebM, MOV
+- Audio: MP3, WAV, OGG, AAC
+
+Size limit: ~3MB (base64 encoding adds ~33% overhead)`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        data: {
+          type: "string",
+          description: "Base64 data URL (e.g., 'data:image/png;base64,iVBORw0...'). If an HTTP URL is provided, it will be returned as-is.",
+        },
+        type: {
+          type: "string",
+          enum: ["image", "video", "audio"],
+          description: "Optional media type hint. Auto-detected from MIME type if not provided.",
+        },
+        filename: {
+          type: "string",
+          description: "Optional filename for the uploaded file.",
+        },
+      },
+      required: ["data"],
+    },
+  },
+  {
+    name: "quick_vision",
+    description: `Quick image analysis - describe or analyze an image using AI vision.
+
+Provide an image (base64 or URL) and optionally a prompt to guide the analysis.
+Uses GPT-4o or other vision-capable models.
+
+Examples:
+- Describe what's in an image
+- Read text from screenshots
+- Analyze charts or diagrams
+- Identify objects or people`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        image: {
+          type: "string",
+          description: "Image to analyze - either a base64 data URL (e.g., 'data:image/png;base64,...') or an HTTP URL.",
+        },
+        prompt: {
+          type: "string",
+          description: "Optional prompt to guide the analysis (default: 'Describe this image in detail').",
+        },
+        model: {
+          type: "string",
+          description: "Optional model (default: 'openai/gpt-4o'). Must be a vision-capable model.",
+        },
+      },
+      required: ["image"],
+    },
+  },
+  {
+    name: "upload_local_file",
+    description: `Upload a local image/video/audio file to CDN and get a URL.
+
+Reads a file from your local disk, converts it to base64, and uploads to Transloadit CDN.
+The returned URL can be used in workflows.
+
+Supported formats:
+- Images: PNG, JPEG, WebP, GIF
+- Videos: MP4, WebM, MOV  
+- Audio: MP3, WAV, OGG, AAC
+
+Size limit: ~3MB`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Absolute path to the local file (e.g., 'D:/images/photo.png' or '/Users/me/image.jpg').",
+        },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "analyze_local_image",
+    description: `Analyze a local image file using AI vision - all in one step.
+
+Reads an image from your local disk, uploads it to CDN, and analyzes it with GPT-4o.
+This combines upload_local_file + quick_vision into a single convenient tool.
+
+Just provide the file path and optionally a prompt.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Absolute path to the local image file (e.g., 'D:/images/photo.png').",
+        },
+        prompt: {
+          type: "string",
+          description: "Optional prompt to guide the analysis (default: 'Describe this image in detail').",
+        },
+        model: {
+          type: "string",
+          description: "Optional model (default: 'openai/gpt-4o'). Must be a vision-capable model.",
+        },
+      },
+      required: ["path"],
+    },
+  },
 ];
 
 // =============================================================================
@@ -161,7 +289,29 @@ interface QuickImageArgs {
   prompt: string;
 }
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "http://localhost:3000";
+interface UploadMediaArgs {
+  data: string;
+  type?: "image" | "video" | "audio";
+  filename?: string;
+}
+
+interface QuickVisionArgs {
+  image: string;
+  prompt?: string;
+  model?: string;
+}
+
+interface UploadLocalFileArgs {
+  path: string;
+}
+
+interface AnalyzeLocalImageArgs {
+  path: string;
+  prompt?: string;
+  model?: string;
+}
+
+const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
 
 // Node output info for response
 interface NodeOutputInfo {
@@ -419,7 +569,7 @@ export function registerConvenienceTools(
     const result = await waitForCompletion(execution.executionId, 120000);
 
     // Generate workflow URL
-    const workflowUrl = `${API_BASE}/workflow/${saved.workflow.id}`;
+    const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
     return {
       success: result.status === "completed",
@@ -458,7 +608,7 @@ export function registerConvenienceTools(
     try {
       const execResult = await getExecution(executionId);
       if (execResult.execution.workflowId) {
-        workflowUrl = `${API_BASE}/workflow/${execResult.execution.workflowId}`;
+        workflowUrl = `${API_BASE}/workflows/${execResult.execution.workflowId}`;
       }
     } catch {
       // Ignore errors getting workflow URL
@@ -555,7 +705,7 @@ export function registerConvenienceTools(
 
     // Wait for result
     const result = await waitForCompletion(execution.executionId, 60000);
-    const workflowUrl = `${API_BASE}/workflow/${saved.workflow.id}`;
+    const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
     if (result.status === "completed") {
       // Extract text from output
@@ -624,7 +774,7 @@ export function registerConvenienceTools(
 
     // Wait for result (image generation can take longer)
     const result = await waitForCompletion(execution.executionId, 180000);
-    const workflowUrl = `${API_BASE}/workflow/${saved.workflow.id}`;
+    const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
     if (result.status === "completed") {
       const output = result.output as { url?: string; type?: string } | null;
@@ -647,6 +797,300 @@ export function registerConvenienceTools(
     return {
       success: false,
       error: result.error,
+      workflowId: saved.workflow.id,
+      workflowUrl,
+      executionId: execution.executionId,
+      nodeOutputs: result.nodeOutputs,
+      workflowNodes: result.workflowNodes,
+      downloadableItems: result.downloadableItems,
+    };
+  });
+
+  // upload_media - Upload base64 media to CDN
+  handlers.set("upload_media", async (args: unknown) => {
+    const { data, type, filename } = args as UploadMediaArgs;
+
+    if (!data) throw new Error("Missing required parameter: data");
+
+    // Check if it's already an HTTP URL
+    if (data.startsWith("http://") || data.startsWith("https://")) {
+      logger.info(`Upload media: Already a URL, returning as-is`);
+      return {
+        success: true,
+        url: data,
+        message: "URL provided directly, no upload needed.",
+      };
+    }
+
+    // Validate it looks like a data URL
+    if (!data.startsWith("data:")) {
+      throw new Error(
+        "Invalid data format. Expected a base64 data URL starting with 'data:' (e.g., 'data:image/png;base64,...') or an HTTP URL."
+      );
+    }
+
+    logger.info(`Upload media: Uploading ${type || "media"} to CDN...`);
+
+    const result = await uploadMedia(data, { type, filename });
+
+    return {
+      success: true,
+      url: result.url,
+      mimeType: result.mimeType,
+      message: `Media uploaded successfully. Use this URL in your workflow inputs.`,
+    };
+  });
+
+  // quick_vision - Analyze an image using AI vision
+  handlers.set("quick_vision", async (args: unknown) => {
+    const { 
+      image, 
+      prompt = "Describe this image in detail.", 
+      model = "openai/gpt-4o" 
+    } = args as QuickVisionArgs;
+
+    if (!image) throw new Error("Missing required parameter: image");
+
+    logger.info(`Quick Vision: Analyzing image with ${model}...`);
+
+    // Step 1: Upload image if it's base64
+    let imageUrl = image;
+    if (image.startsWith("data:")) {
+      logger.info(`Quick Vision: Uploading base64 image to CDN...`);
+      const uploadResult = await uploadMedia(image, { type: "image" });
+      imageUrl = uploadResult.url;
+      logger.info(`Quick Vision: Image uploaded to ${imageUrl.slice(0, 60)}...`);
+    } else if (!image.startsWith("http://") && !image.startsWith("https://")) {
+      throw new Error(
+        "Invalid image format. Expected a base64 data URL (data:image/...) or an HTTP URL."
+      );
+    }
+
+    // Step 2: Build a vision workflow with image URL in openrouter config
+    const nodes: NodeSpec[] = [
+      { type: "input", inputType: "text" },
+      { type: "openrouter", config: { model, imageUrl } },
+      { type: "output" },
+    ];
+
+    const workflow = buildWorkflow("Quick Vision", nodes);
+
+    // Step 3: Save the workflow
+    const saved = await createWorkflow({
+      name: `Quick Vision - ${new Date().toISOString().split("T")[0]}`,
+      nodesJson: workflow.nodes,
+      edgesJson: workflow.edges,
+      viewportJson: { x: 0, y: 0, zoom: 1 },
+    });
+
+    // Step 4: Execute with the prompt
+    const execution = await triggerWorkflowExecution(saved.workflow.id, {
+      "input-1": prompt,
+    });
+
+    // Step 5: Wait for result
+    const result = await waitForCompletion(execution.executionId, 120000);
+    const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
+
+    if (result.status === "completed") {
+      const output = result.output as { text?: string; type?: string } | string | null;
+      const text = typeof output === "string" 
+        ? output 
+        : output?.text ?? JSON.stringify(output);
+
+      return {
+        success: true,
+        analysis: text,
+        model,
+        imageUrl,
+        prompt,
+        workflowId: saved.workflow.id,
+        workflowUrl,
+        executionId: execution.executionId,
+        nodeOutputs: result.nodeOutputs,
+        workflowNodes: result.workflowNodes,
+        downloadableItems: result.downloadableItems,
+      };
+    }
+
+    return {
+      success: false,
+      error: result.error,
+      workflowId: saved.workflow.id,
+      workflowUrl,
+      executionId: execution.executionId,
+      nodeOutputs: result.nodeOutputs,
+      workflowNodes: result.workflowNodes,
+      downloadableItems: result.downloadableItems,
+    };
+  });
+
+  // upload_local_file - Read local file and upload to CDN
+  handlers.set("upload_local_file", async (args: unknown) => {
+    const { path: filePath } = args as UploadLocalFileArgs;
+
+    if (!filePath) throw new Error("Missing required parameter: path");
+
+    logger.info(`Upload local file: ${filePath}`);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    // Read file and convert to base64
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString("base64");
+
+    // Determine MIME type from extension
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+      ".mp4": "video/mp4",
+      ".webm": "video/webm",
+      ".mov": "video/quicktime",
+      ".mp3": "audio/mpeg",
+      ".wav": "audio/wav",
+      ".ogg": "audio/ogg",
+      ".aac": "audio/aac",
+    };
+
+    const mimeType = mimeTypes[ext];
+    if (!mimeType) {
+      throw new Error(`Unsupported file type: ${ext}. Supported: ${Object.keys(mimeTypes).join(", ")}`);
+    }
+
+    // Create data URL
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    // Determine media type
+    let mediaType: "image" | "video" | "audio" = "image";
+    if (mimeType.startsWith("video/")) mediaType = "video";
+    else if (mimeType.startsWith("audio/")) mediaType = "audio";
+
+    logger.info(`Upload local file: Uploading ${mediaType} (${mimeType}) to CDN...`);
+
+    // Upload to CDN
+    const result = await uploadMedia(dataUrl, {
+      type: mediaType,
+      filename: path.basename(filePath),
+    });
+
+    return {
+      success: true,
+      url: result.url,
+      mimeType: result.mimeType || mimeType,
+      originalPath: filePath,
+      message: `File uploaded successfully. Use this URL in your workflows.`,
+    };
+  });
+
+  // analyze_local_image - Read local image, upload, and analyze with vision
+  handlers.set("analyze_local_image", async (args: unknown) => {
+    const {
+      path: filePath,
+      prompt = "Describe this image in detail.",
+      model = "openai/gpt-4o",
+    } = args as AnalyzeLocalImageArgs;
+
+    if (!filePath) throw new Error("Missing required parameter: path");
+
+    logger.info(`Analyze local image: ${filePath}`);
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    // Verify it's an image
+    const ext = path.extname(filePath).toLowerCase();
+    const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+    if (!imageExts.includes(ext)) {
+      throw new Error(`Not an image file: ${ext}. Supported: ${imageExts.join(", ")}`);
+    }
+
+    // Read file and convert to base64
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString("base64");
+
+    const mimeTypes: Record<string, string> = {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+    };
+    const mimeType = mimeTypes[ext];
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+    logger.info(`Analyze local image: Uploading to CDN...`);
+
+    // Upload to CDN
+    const uploadResult = await uploadMedia(dataUrl, {
+      type: "image",
+      filename: path.basename(filePath),
+    });
+    const imageUrl = uploadResult.url;
+
+    logger.info(`Analyze local image: Analyzing with ${model}...`);
+
+    // Build vision workflow
+    const nodes: NodeSpec[] = [
+      { type: "input", inputType: "text" },
+      { type: "openrouter", config: { model, imageUrl } },
+      { type: "output" },
+    ];
+
+    const workflow = buildWorkflow("Analyze Local Image", nodes);
+
+    // Save workflow
+    const saved = await createWorkflow({
+      name: `Analyze Image - ${path.basename(filePath)} - ${new Date().toISOString().split("T")[0]}`,
+      nodesJson: workflow.nodes,
+      edgesJson: workflow.edges,
+      viewportJson: { x: 0, y: 0, zoom: 1 },
+    });
+
+    // Execute with prompt
+    const execution = await triggerWorkflowExecution(saved.workflow.id, {
+      "input-1": prompt,
+    });
+
+    // Wait for result
+    const result = await waitForCompletion(execution.executionId, 120000);
+    const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
+
+    if (result.status === "completed") {
+      const output = result.output as { text?: string; type?: string } | string | null;
+      const text = typeof output === "string"
+        ? output
+        : output?.text ?? JSON.stringify(output);
+
+      return {
+        success: true,
+        analysis: text,
+        model,
+        imageUrl,
+        originalPath: filePath,
+        prompt,
+        workflowId: saved.workflow.id,
+        workflowUrl,
+        executionId: execution.executionId,
+        nodeOutputs: result.nodeOutputs,
+        workflowNodes: result.workflowNodes,
+        downloadableItems: result.downloadableItems,
+      };
+    }
+
+    return {
+      success: false,
+      error: result.error,
+      originalPath: filePath,
+      imageUrl,
       workflowId: saved.workflow.id,
       workflowUrl,
       executionId: execution.executionId,

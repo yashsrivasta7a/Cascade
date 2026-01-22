@@ -77,6 +77,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for duplicate name
+    const existingWithName = await db.workflow.findFirst({
+      where: {
+        userId: user.id,
+        name: parsed.data.name,
+      },
+      select: { id: true },
+    });
+
+    if (existingWithName) {
+      return NextResponse.json(
+        { error: `A workflow named "${parsed.data.name}" already exists. Please choose a different name.` },
+        { status: 409 }
+      );
+    }
+
     const workflow = await db.workflow.create({
       data: {
         userId: user.id,

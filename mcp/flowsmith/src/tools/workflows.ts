@@ -2,6 +2,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   listWorkflows,
   getWorkflow,
+  getWorkflowByName,
   createWorkflow,
   updateWorkflow,
   deleteWorkflow,
@@ -28,16 +29,20 @@ export const workflowToolDefinitions: Tool[] = [
   },
   {
     name: "get_workflow",
-    description: "Get a specific workflow by ID including its full nodes and edges data.",
+    description: "Get a specific workflow by ID or name including its full nodes and edges data. Provide either 'id' or 'name' (not both).",
     inputSchema: {
       type: "object",
       properties: {
         id: {
           type: "string",
-          description: "The workflow ID",
+          description: "The workflow ID (starts with 'c')",
+        },
+        name: {
+          type: "string",
+          description: "The exact workflow name (unique per user)",
         },
       },
-      required: ["id"],
+      required: [],
     },
   },
   {
@@ -70,7 +75,13 @@ export const workflowToolDefinitions: Tool[] = [
   },
   {
     name: "update_workflow",
-    description: "Update an existing workflow. Can update name, description, nodes, edges, or publish status.",
+    description: `Update an existing workflow's STRUCTURE - name, description, nodes, edges, or publish status.
+
+IMPORTANT: This is for updating workflow DESIGN, not for providing runtime inputs.
+- To change workflow structure (add/remove nodes, change connections): use this tool
+- To execute with user inputs: use execute_workflow with inputs for Input nodes
+
+Do NOT use this to set prompts or media on processing nodes. User inputs should flow through Input nodes at execution time.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -88,7 +99,7 @@ export const workflowToolDefinitions: Tool[] = [
         },
         nodes: {
           type: "array",
-          description: "New nodes array (optional)",
+          description: "New nodes array for workflow structure (optional). Do not include runtime input values here.",
           items: { type: "object" },
         },
         edges: {
@@ -139,7 +150,8 @@ export const workflowToolDefinitions: Tool[] = [
 // =============================================================================
 
 interface GetWorkflowArgs {
-  id: string;
+  id?: string;
+  name?: string;
 }
 
 interface CreateWorkflowArgs {
@@ -198,17 +210,36 @@ export function registerWorkflowTools(handlers: Map<string, (args: unknown) => P
 
   // get_workflow
   handlers.set("get_workflow", async (args: unknown) => {
-    const { id } = args as GetWorkflowArgs;
+    const { id, name } = args as GetWorkflowArgs;
     
-    if (!id) {
-      throw new Error("Missing required parameter: id");
+    if (!id && !name) {
+      throw new Error("Missing required parameter: provide either 'id' or 'name'");
     }
 
-    logger.debug(`Getting workflow: ${id}`);
+    if (id && name) {
+      throw new Error("Provide either 'id' or 'name', not both");
+    }
+
+    const lookupKey = id || name;
+    logger.debug(`Getting workflow by ${id ? "id" : "name"}: ${lookupKey}`);
     
     try {
-      const result = await getWorkflow(id);
+      // Fetch workflow by id or name
+      const result = id 
+        ? await getWorkflow(id) 
+        : await getWorkflowByName(name!);
+      
       const workflow = result.workflow;
+      const nodes = workflow.nodesJson as Array<{ id: string; type?: string; data?: { mediaType?: string; label?: string } }>;
+      
+      // Identify input nodes that require user values at execution time
+      const inputNodes = nodes
+        .filter((n) => n.type === "input" || n.type?.includes("-input"))
+        .map((n) => ({
+          nodeId: n.id,
+          inputType: n.data?.mediaType || n.type?.replace("-input", "") || "text",
+          label: n.data?.label || "Input",
+        }));
       
       return {
         id: workflow.id,
@@ -221,9 +252,14 @@ export function registerWorkflowTools(handlers: Map<string, (args: unknown) => P
         nodes: workflow.nodesJson,
         edges: workflow.edgesJson,
         viewport: workflow.viewportJson,
+        // Highlight input nodes for execution
+        inputNodes,
+        executionHint: inputNodes.length > 0
+          ? `To execute, provide inputs for: ${inputNodes.map((n) => `${n.nodeId} (${n.inputType})`).join(", ")}. Use execute_workflow with inputs: { "${inputNodes[0]?.nodeId}": "your value" }`
+          : "No input nodes found. Workflow may not require user input.",
       };
     } catch (error) {
-      logger.error(`Failed to get workflow: ${id}`, error);
+      logger.error(`Failed to get workflow by ${id ? "id" : "name"}: ${lookupKey}`, error);
       throw new Error(`Failed to get workflow: ${error instanceof Error ? error.message : String(error)}`);
     }
   });

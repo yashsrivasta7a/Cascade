@@ -102,6 +102,25 @@ export async function PATCH(
       );
     }
 
+    // Check for duplicate name if name is being changed
+    if (parsed.data.name !== undefined && parsed.data.name !== existing.name) {
+      const existingWithName = await db.workflow.findFirst({
+        where: {
+          userId,
+          name: parsed.data.name,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+
+      if (existingWithName) {
+        return NextResponse.json(
+          { error: `A workflow named "${parsed.data.name}" already exists. Please choose a different name.` },
+          { status: 409 }
+        );
+      }
+    }
+
     const updateData: Record<string, unknown> = {};
     if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
     if (parsed.data.description !== undefined) updateData.description = parsed.data.description;

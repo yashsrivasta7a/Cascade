@@ -38,11 +38,11 @@ import { RunModal } from "@/components/flow/run-modal";
 import { NodeProviders } from "@/lib/workflow/node-schemas";
 import { trpc } from "@/lib/trpc/react";
 import { estimateNodeCost } from "@/lib/credits";
-import { useWorkflowStream, useRealtimeWorkflowV2, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks } from "@/hooks";
+import { useWorkflowStream, useRealtimeWorkflowV2, useWorkflowRealtimeSubscription, type WorkflowStreamCallbacks, type RealtimeWorkflowCallbacks, type WorkflowRealtimeCallbacks } from "@/hooks";
 import { ThemeToggle } from "@/components/ui";
 import { autoLayoutNodes } from "@/lib/workflow/auto-layout";
 import { cn } from "@/lib/utils";
-import { showInsufficientCredits } from "@/lib/toast";
+import { showInsufficientCredits, showDuplicateNameWarning } from "@/lib/toast";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
@@ -218,7 +218,33 @@ function WorkflowEditorContent() {
   const [dbWorkflowId, setDbWorkflowId] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   const [workflowErrors, setWorkflowErrors] = useState<WorkflowError[]>([]);
+  const [isNameTaken, setIsNameTaken] = useState(false);
+  const [debouncedName, setDebouncedName] = useState("");
   
+  // Debounce workflow name for duplicate checking
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedName(workflowName);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [workflowName]);
+  
+  // Check if workflow name already exists (debounced)
+  const { data: nameCheckData } = trpc.workflow.checkNameExists.useQuery(
+    { name: debouncedName, excludeId: dbWorkflowId ?? undefined },
+    {
+      enabled: debouncedName.length > 0 && debouncedName !== "My Workflow",
+    }
+  );
+  
+  // Update isNameTaken state and show toast when name is taken
+  useEffect(() => {
+    const taken = nameCheckData?.exists ?? false;
+    setIsNameTaken(taken);
+    if (taken && debouncedName.length > 0) {
+      showDuplicateNameWarning(debouncedName);
+    }
+  }, [nameCheckData?.exists, debouncedName]);
   
   // Ref for stop workflow function (used in keyboard handler)
   const stopWorkflowRef = useRef<(() => void) | null>(null);
@@ -599,10 +625,14 @@ function WorkflowEditorContent() {
     });
   }, [nodes, edges]);
 
+  // Ref to store markAsLocalRun function (set by useWorkflowRealtimeSubscription)
+  const markAsLocalRunRef = useRef<((runId: string) => void) | null>(null);
+
   // Realtime workflow callbacks (using Trigger.dev React hooks - bypasses Vercel SSE buffering)
   const realtimeCallbacks: RealtimeWorkflowCallbacks = useMemo(() => ({
-    onWorkflowStarted: () => {
-      // Workflow started - V2 realtime subscription active
+    onWorkflowStarted: ({ triggerRunId }) => {
+      // Mark this run as locally triggered (so subscription doesn't treat it as external)
+      markAsLocalRunRef.current?.(triggerRunId);
     },
     onNodeQueued: (nodeId) => {
       setNodes((prev) =>
@@ -884,6 +914,45 @@ function WorkflowEditorContent() {
     dbWorkflowId ?? workflowId,
     realtimeCallbacks
   );
+
+  // Workflow-wide realtime subscription - sees ALL executions including from MCP
+  // Uses useRealtimeRunsWithTag to subscribe to workflow tag without polling
+  const workflowSubscriptionCallbacks: WorkflowRealtimeCallbacks = useMemo(() => ({
+    onExecutionDiscovered: ({ triggerRunId, isExternal }) => {
+      if (isExternal) {
+        // External execution detected (from MCP or API) - set workflow as running
+        console.log(`[WorkflowPage] External execution discovered: ${triggerRunId}`);
+        setWorkflowRunning(true);
+      }
+    },
+    onNodeQueued: realtimeCallbacks.onNodeQueued,
+    onNodeStarted: realtimeCallbacks.onNodeStarted,
+    onNodeProgress: realtimeCallbacks.onNodeProgress,
+    onNodeCompleted: realtimeCallbacks.onNodeCompleted,
+    onNodeFailed: realtimeCallbacks.onNodeFailed,
+    onWorkflowCompleted: (data) => {
+      realtimeCallbacks.onWorkflowCompleted?.({
+        ...data,
+        workflowExecutionId: data.workflowExecutionId,
+      });
+    },
+    onError: realtimeCallbacks.onError,
+  }), [realtimeCallbacks, setWorkflowRunning]);
+
+  const {
+    isSubscribed: isWorkflowSubscribed,
+    activeRunCount,
+    markAsLocalRun,
+    RunSubscribers: WorkflowRunSubscribers,
+  } = useWorkflowRealtimeSubscription(
+    dbWorkflowId ?? workflowId,
+    workflowSubscriptionCallbacks
+  );
+
+  // Update the ref so realtimeCallbacks can use markAsLocalRun
+  useEffect(() => {
+    markAsLocalRunRef.current = markAsLocalRun;
+  }, [markAsLocalRun]);
   
   // Cancel function (V2 only - no polling fallback)
   const cancelWorkflow = useCallback(async () => {
@@ -1088,6 +1157,8 @@ function WorkflowEditorContent() {
     <div className="h-full bg-gray-100 dark:bg-[#101010]">
       {/* Trigger.dev Realtime subscriber - renders null but activates WebSocket subscription */}
       {RealtimeSubscriber}
+      {/* Workflow-wide realtime subscription - sees executions from MCP/API without polling */}
+      {WorkflowRunSubscribers}
       <div className="relative h-full overflow-hidden">
         {/* Canvas */}
         <FlowCanvas 
@@ -1141,14 +1212,25 @@ function WorkflowEditorContent() {
           </button>
 
           {/* Workflow Name Input */}
-          <div className="flex items-center bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl border border-gray-200 dark:border-zinc-800 rounded-xl px-3 py-1.5 shadow-lg shadow-gray-200/50 dark:shadow-black/20 group focus-within:border-gray-300 dark:focus-within:border-zinc-700 transition-colors">
+          <div className={cn(
+            "flex items-center bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl border rounded-xl px-3 py-1.5 shadow-lg shadow-gray-200/50 dark:shadow-black/20 group transition-colors",
+            isNameTaken 
+              ? "border-red-400 dark:border-red-500/50 focus-within:border-red-500 dark:focus-within:border-red-500" 
+              : "border-gray-200 dark:border-zinc-800 focus-within:border-gray-300 dark:focus-within:border-zinc-700"
+          )}>
             <input
               type="text"
               value={workflowName}
               onChange={(e) => setWorkflowName(e.target.value)}
-              className="w-48 text-sm font-medium text-gray-700 dark:text-zinc-200 bg-transparent border-none focus:outline-none placeholder-gray-400 dark:placeholder-zinc-600"
+              className={cn(
+                "w-48 text-sm font-medium bg-transparent border-none focus:outline-none placeholder-gray-400 dark:placeholder-zinc-600",
+                isNameTaken ? "text-red-600 dark:text-red-400" : "text-gray-700 dark:text-zinc-200"
+              )}
               placeholder="Workflow Name"
             />
+            {isNameTaken && (
+              <span className="text-red-500 text-xs ml-1" title="This name is already taken">!</span>
+            )}
           </div>
         </div>
 

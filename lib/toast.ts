@@ -260,3 +260,17 @@ export function showSkipped(nodeName: string) {
     duration: 2000,
   });
 }
+
+// =============================================================================
+// WORKFLOW NAME TOASTS
+// =============================================================================
+
+/**
+ * Show warning when workflow name already exists
+ */
+export function showDuplicateNameWarning(name: string) {
+  return showWarning(`Workflow name "${name}" already exists`, {
+    description: "Please choose a different name",
+    duration: 4000,
+  });
+}
