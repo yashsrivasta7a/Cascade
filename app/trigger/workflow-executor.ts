@@ -1097,6 +1097,77 @@ export const executeWorkflow = task({
       timestamp: Date.now(),
     });
 
+    // ==========================================================================
+    // PERSIST EXECUTION VALUES BACK TO WORKFLOW
+    // This allows users to see the last execution's input values when reopening
+    // ==========================================================================
+    if (finalStatus === "COMPLETED" && outputs.size > 0) {
+      try {
+        // Build updated nodes with execution values
+        const updatedNodes = nodes.map(node => {
+          const nodeOutput = outputs.get(node.id);
+          if (!nodeOutput) return node;
+          
+          const nodeType = node.type as string;
+          const nodeData = { ...(node.data ?? {}) } as Record<string, unknown>;
+          
+          // For input nodes, persist the value/result
+          if (nodeType === "input" || nodeType.includes("-input")) {
+            // Extract URL from output based on type
+            let resultUrl: string | undefined;
+            if (nodeOutput.type === "video" && nodeOutput.video) {
+              resultUrl = (nodeOutput.video as { url: string }).url;
+            } else if (nodeOutput.type === "image" && nodeOutput.image) {
+              resultUrl = (nodeOutput.image as { url: string }).url;
+            } else if (nodeOutput.type === "audio" && nodeOutput.audio) {
+              resultUrl = (nodeOutput.audio as { url: string }).url;
+            } else if (nodeOutput.type === "text" && nodeOutput.text) {
+              resultUrl = nodeOutput.text as string;
+            }
+            
+            if (resultUrl) {
+              nodeData.value = resultUrl;
+              nodeData.result = resultUrl;
+            }
+          }
+          
+          // For processing nodes, persist the result
+          if (nodeOutput && !["input", "output", "comment"].includes(nodeType)) {
+            let resultUrl: string | undefined;
+            if (nodeOutput.type === "video" && nodeOutput.video) {
+              resultUrl = (nodeOutput.video as { url: string }).url;
+            } else if (nodeOutput.type === "image" && nodeOutput.image) {
+              resultUrl = (nodeOutput.image as { url: string }).url;
+            } else if (nodeOutput.type === "audio" && nodeOutput.audio) {
+              resultUrl = (nodeOutput.audio as { url: string }).url;
+            } else if (nodeOutput.type === "text" && nodeOutput.text) {
+              resultUrl = nodeOutput.text as string;
+            }
+            
+            if (resultUrl) {
+              nodeData.result = resultUrl;
+            }
+          }
+          
+          return { ...node, data: nodeData };
+        });
+        
+        // Save updated nodes back to workflow
+        await db.workflow.update({
+          where: { id: payload.workflowId },
+          data: {
+            nodesJson: updatedNodes as object[],
+            updatedAt: new Date(),
+          },
+        });
+        
+        console.log(`[WorkflowExecutor] Persisted execution values back to workflow ${payload.workflowId}`);
+      } catch (persistError) {
+        // Don't fail the workflow if persistence fails - just log
+        console.error(`[WorkflowExecutor] Failed to persist execution values:`, persistError);
+      }
+    }
+
     return {
       success: !hasFailures || hasSuccesses, // Success if any node completed
       workflowExecutionId,
