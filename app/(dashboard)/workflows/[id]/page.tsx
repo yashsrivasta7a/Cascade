@@ -918,11 +918,65 @@ function WorkflowEditorContent() {
   // Workflow-wide realtime subscription - sees ALL executions including from MCP
   // Uses useRealtimeRunsWithTag to subscribe to workflow tag without polling
   const workflowSubscriptionCallbacks: WorkflowRealtimeCallbacks = useMemo(() => ({
-    onExecutionDiscovered: ({ triggerRunId, isExternal }) => {
+    onExecutionDiscovered: ({ triggerRunId, isExternal, nodes: executionNodes }) => {
       if (isExternal) {
         // External execution detected (from MCP or API) - set workflow as running
-        console.log(`[WorkflowPage] External execution discovered: ${triggerRunId}`);
+        console.log(`[WorkflowPage] External execution discovered: ${triggerRunId}, isExternal: ${isExternal}`);
+        console.log(`[WorkflowPage] Execution nodes count: ${executionNodes?.length ?? 0}`);
         setWorkflowRunning(true);
+        
+        // Update input node values from the execution snapshot
+        // This shows the input values that were passed via MCP/API in the UI
+        if (executionNodes && executionNodes.length > 0) {
+          // Extract value - handle both string and { url: string } formats
+          // The trigger route sets media values as { url: "..." } but UI expects a string
+          const extractValue = (val: unknown): string | null => {
+            if (typeof val === "string") return val;
+            if (val && typeof val === "object" && "url" in val) {
+              return (val as { url: string }).url;
+            }
+            return null;
+          };
+
+          // Log execution nodes for debugging
+          for (const en of executionNodes) {
+            if (en.type === "input" || (en.data as Record<string, unknown>)?.nodeType === "input") {
+              const enData = (en.data ?? {}) as Record<string, unknown>;
+              console.log(`[WorkflowPage] Input node ${en.id}: value=${extractValue(enData.value)?.slice(0, 50)}...`);
+            }
+          }
+
+          setNodes((prev) => {
+            console.log(`[WorkflowPage] Updating ${prev.length} nodes with execution data`);
+            return prev.map((node) => {
+              // Find matching node in execution snapshot
+              const executionNode = executionNodes.find((en) => en.id === node.id);
+              if (!executionNode) return node;
+              
+              const executionData = (executionNode.data ?? {}) as Record<string, unknown>;
+              const currentData = (node.data ?? {}) as Record<string, unknown>;
+              
+              // For input nodes, update with the execution values (value, result)
+              if (node.type === "input" || currentData.nodeType === "input") {
+                const updates: Record<string, unknown> = { ...currentData };
+                
+                // Copy value and result from execution (normalized to string)
+                if (executionData.value !== undefined) {
+                  const extractedValue = extractValue(executionData.value);
+                  updates.value = extractedValue;
+                  console.log(`[WorkflowPage] Setting ${node.id}.value = ${extractedValue?.slice(0, 50)}...`);
+                }
+                if (executionData.result !== undefined) {
+                  updates.result = extractValue(executionData.result);
+                }
+                
+                return { ...node, data: updates };
+              }
+              
+              return node;
+            });
+          });
+        }
       }
     },
     onNodeQueued: realtimeCallbacks.onNodeQueued,

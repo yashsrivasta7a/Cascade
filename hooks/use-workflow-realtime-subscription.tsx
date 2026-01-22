@@ -26,6 +26,7 @@ export interface WorkflowRealtimeCallbacks {
     workflowExecutionId: string; 
     triggerRunId: string;
     isExternal: boolean; // true if triggered externally (MCP, API), false if from this browser
+    nodes?: Node[]; // Snapshot of nodes from execution payload (includes input values)
   }) => void;
   onNodeQueued?: (nodeId: string, nodeType: string) => void;
   onNodeStarted?: (nodeId: string, nodeType: string) => void;
@@ -270,18 +271,29 @@ export function useWorkflowRealtimeSubscription(
     }
   }, [subscriptionError]);
 
+  // Track which runs we've already seen (to avoid re-processing)
+  const seenRunIds = useRef<Set<string>>(new Set());
+
   // Track runs and notify when new ones appear
   useEffect(() => {
     if (!runs) return;
 
     for (const run of runs) {
-      // Skip if already tracking this run
+      // Skip if already seen this run (even if completed)
+      if (seenRunIds.current.has(run.id)) continue;
+      seenRunIds.current.add(run.id);
+
+      // Skip if already actively tracking this run
       if (activeRuns.has(run.id)) continue;
 
       // Check if this is a local run or external
       const isExternal = !localTriggeredRuns.current.has(run.id);
 
-      // Only track EXECUTING or QUEUED runs
+      // Extract payload data for all detected runs
+      const payload = run.payload as { workflowExecutionId?: string; nodes?: Node[] } | undefined;
+      const nodesSnapshot = payload?.nodes;
+
+      // Handle runs that are still in progress - track them for real-time updates
       if (run.status === "EXECUTING" || run.status === "QUEUED" || run.status === "REATTEMPTING") {
         // Create tracked run entry
         const trackedRun: TrackedRun = {
@@ -297,23 +309,50 @@ export function useWorkflowRealtimeSubscription(
         });
 
         // Notify about discovered execution
-        // Extract workflowExecutionId from payload if available
-        const payload = run.payload as { workflowExecutionId?: string } | undefined;
         callbacksRef.current?.onExecutionDiscovered?.({
           workflowExecutionId: payload?.workflowExecutionId ?? run.id,
           triggerRunId: run.id,
           isExternal,
+          nodes: nodesSnapshot,
         });
 
         // If external, also mark all nodes as queued (since we missed the initial trigger)
-        if (isExternal) {
-          const snapshot = (run.payload as { nodes?: Node[] })?.nodes;
-          if (snapshot) {
-            for (const node of snapshot) {
-              callbacksRef.current?.onNodeQueued?.(node.id, node.type ?? "unknown");
-            }
+        if (isExternal && nodesSnapshot) {
+          for (const node of nodesSnapshot) {
+            callbacksRef.current?.onNodeQueued?.(node.id, node.type ?? "unknown");
           }
         }
+      }
+      // Also handle runs that already completed before we could track them
+      // This is important for fast-completing workflows triggered via MCP
+      else if (run.status === "COMPLETED" && isExternal) {
+        console.log(`[RealtimeSubscription] Detected already-completed external run: ${run.id}`);
+        
+        // Notify about the execution so UI can update input values
+        callbacksRef.current?.onExecutionDiscovered?.({
+          workflowExecutionId: payload?.workflowExecutionId ?? run.id,
+          triggerRunId: run.id,
+          isExternal,
+          nodes: nodesSnapshot,
+        });
+
+        // Mark all nodes as completed since the workflow finished
+        if (nodesSnapshot) {
+          for (const node of nodesSnapshot) {
+            const nodeType = node.type ?? "unknown";
+            const nodeData = (node.data ?? {}) as Record<string, unknown>;
+            // For completed runs, extract output from node data if available
+            callbacksRef.current?.onNodeCompleted?.(node.id, nodeType, nodeData.result ?? nodeData.value ?? null);
+          }
+        }
+
+        // Notify workflow completed
+        callbacksRef.current?.onWorkflowCompleted?.({
+          successCount: nodesSnapshot?.length ?? 0,
+          failCount: 0,
+          status: "COMPLETED",
+          triggerRunId: run.id,
+        });
       }
     }
   }, [runs, activeRuns]);
