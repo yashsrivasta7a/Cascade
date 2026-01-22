@@ -463,3 +463,87 @@ export function nodeAcceptsType(nodeType: string, inputType: string): boolean {
   if (!types) return false;
   return types.has(inputType) || types.has("any") || inputType === "any";
 }
+
+// =============================================================================
+// REQUIRED CONFIGURATION PARAMETERS
+// Define which parameters must be provided by the user for each node type
+// =============================================================================
+
+export interface RequiredConfigParam {
+  name: string;
+  type: "number" | "string" | "boolean";
+  description: string;
+  default?: number | string | boolean;
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
+/**
+ * Configuration parameters that MUST be provided by the user (no assumptions)
+ * These are parameters where making assumptions would likely produce wrong results
+ */
+export const NODE_REQUIRED_CONFIG: Record<string, RequiredConfigParam[]> = {
+  "crop-image": [
+    { name: "xPercent", type: "number", description: "X position (% from left edge, 0-100)", min: 0, max: 100 },
+    { name: "yPercent", type: "number", description: "Y position (% from top edge, 0-100)", min: 0, max: 100 },
+    { name: "widthPercent", type: "number", description: "Width of crop area (% of original, 1-100)", min: 1, max: 100 },
+    { name: "heightPercent", type: "number", description: "Height of crop area (% of original, 1-100)", min: 1, max: 100 },
+  ],
+  "seedvr": [
+    { name: "scale", type: "string", description: "Upscale factor", options: ["2x", "4x"], default: "2x" },
+  ],
+  "merge-videos": [
+    { name: "transition", type: "string", description: "Transition effect between videos", options: ["none", "fade", "dissolve"], default: "none" },
+  ],
+  "elevenlabs": [
+    { name: "voice", type: "string", description: "Voice to use for speech", options: ["Rachel", "Domi", "Bella", "Antoni", "Elli", "Josh", "Arnold", "Adam", "Sam"] },
+  ],
+  "lipsync": [
+    { name: "model", type: "string", description: "Lipsync model version", options: ["sync-1.5", "sync-1.6-beta"], default: "sync-1.5" },
+  ],
+};
+
+/**
+ * Get required configuration parameters for a node type
+ * Returns empty array if no required config
+ */
+export function getRequiredConfig(nodeType: string): RequiredConfigParam[] {
+  return NODE_REQUIRED_CONFIG[nodeType] || [];
+}
+
+/**
+ * Check if a node type has required configuration that must be user-provided
+ */
+export function hasRequiredConfig(nodeType: string): boolean {
+  const config = NODE_REQUIRED_CONFIG[nodeType];
+  return config !== undefined && config.length > 0;
+}
+
+/**
+ * Validate that all required config parameters are provided
+ * Returns missing parameters or empty array if all provided
+ */
+export function getMissingConfig(
+  nodeType: string, 
+  providedConfig?: Record<string, unknown>
+): RequiredConfigParam[] {
+  const required = getRequiredConfig(nodeType);
+  if (required.length === 0) return [];
+  
+  const missing: RequiredConfigParam[] = [];
+  for (const param of required) {
+    // Parameter is missing if:
+    // 1. No config provided at all
+    // 2. Parameter not in config
+    // 3. Parameter has no default value (required from user)
+    const hasValue = providedConfig && providedConfig[param.name] !== undefined;
+    const hasDefault = param.default !== undefined;
+    
+    if (!hasValue && !hasDefault) {
+      missing.push(param);
+    }
+  }
+  
+  return missing;
+}

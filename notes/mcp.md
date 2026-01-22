@@ -36,6 +36,15 @@ Flowsmith MCP enables AI assistants to:
 |------|-------------|----------|
 | `quick_llm` | Fast LLM text generation | Quick AI responses without workflow setup |
 | `quick_image` | Fast image generation | Generate images with a single prompt |
+| `quick_vision` | Analyze/describe images with AI | OCR, image description, chart analysis |
+
+### Media Upload Tools
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `upload_media` | Upload base64 data to CDN | Convert data URLs to permanent URLs |
+| `upload_local_file` | Upload local files to CDN | Upload images/videos/audio from disk |
+| `analyze_local_image` | Upload + analyze local image | One-step local image analysis with vision AI |
 
 ### Workflow Management
 
@@ -169,7 +178,8 @@ Quick-start presets available via `use_preset`:
 ## Special Features
 
 ### 1. Vision/OCR Capability
-Use `openrouter` with GPT-4o to extract text from images:
+**Quick method:** Use `quick_vision` tool for one-step image analysis.
+**Workflow method:** Use `openrouter` with GPT-4o in a workflow:
 ```
 input (image) → crop-image (optional) → openrouter (vision) → output
 ```
@@ -188,6 +198,11 @@ The `build_workflow` tool automatically:
 
 ### 5. Credit Tracking
 All operations track credit usage with detailed statistics available via `get_credit_stats`.
+
+### 6. Formatted Output Tables
+Execution results include `_formattedOutput` with markdown tables:
+- **Pipeline table**: Shows each node's step #, type, status, and output preview
+- **Assets table**: Lists all generated media (images, videos, audio) with URLs
 
 ---
 
@@ -315,6 +330,33 @@ Nodes: [
   { type: "output" }
 ]
 Inputs: { "input-1": "A cat walking on the moon" }
+```
+
+### 6. Analyze Image with Vision AI
+```
+Tool: quick_vision
+Input: {
+  image: "https://example.com/image.jpg",
+  prompt: "What text is in this image?"
+}
+```
+
+### 7. Upload and Analyze Local File
+```
+Tool: analyze_local_image
+Input: {
+  path: "D:/images/screenshot.png",
+  prompt: "Extract all text from this screenshot"
+}
+```
+
+### 8. Upload Media to CDN
+```
+Tool: upload_media
+Input: {
+  data: "data:image/png;base64,iVBORw0..."
+}
+→ Returns: { url: "https://cdn.example.com/image.png" }
 ```
 
 ---

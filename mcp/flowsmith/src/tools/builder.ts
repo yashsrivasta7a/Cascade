@@ -1,6 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { buildWorkflow } from "../utils/workflow-builder.js";
-import { isValidNodeType, getNodeInfoList } from "../data/nodes.js";
+import { isValidNodeType, getNodeInfoList, hasRequiredConfig, getMissingConfig, getRequiredConfig, type RequiredConfigParam } from "../data/nodes.js";
 import { logger } from "../utils/logger.js";
 import type { NodeSpec } from "../schemas/index.js";
 import {
@@ -24,23 +24,31 @@ export const builderToolDefinitions: Tool[] = [
 Automatically positions nodes horizontally and creates edges based on type compatibility.
 Uses template caching to speed up repeated workflow patterns.
 
-CRITICAL PATTERN: All workflows should start with Input nodes for user data:
-- User text/prompts → {type:"input", inputType:"text"} 
-- User images → {type:"input", inputType:"image"}
-- User videos → {type:"input", inputType:"video"}
-- User audio → {type:"input", inputType:"audio"}
+CRITICAL RULES:
+1. All workflows should start with Input nodes for user data:
+   - User text/prompts → {type:"input", inputType:"text"} 
+   - User images → {type:"input", inputType:"image"}
+   - User videos → {type:"input", inputType:"video"}
+   - User audio → {type:"input", inputType:"audio"}
+
+2. NEVER assume configuration parameters for processing nodes!
+   - crop-image: MUST ask user for xPercent, yPercent, widthPercent, heightPercent (all 0-100)
+   - elevenlabs: MUST ask user which voice to use
+   - seedvr: Should ask user for scale (2x or 4x)
+   - merge-videos: Should ask user for transition type
+   - If a node needs parameters, ASK THE USER FIRST before building
 
 Input nodes connect to processing nodes which do the work:
 - openrouter: LLM text generation (receives text from input node)
 - seedream: Text to image (receives prompt from input node)
-- seedvr: Image upscaling (receives image from input node)
+- seedvr: Image upscaling (REQUIRES: scale - ask user!)
 - seedance: Text/image to video
-- elevenlabs: Text to speech
+- elevenlabs: Text to speech (REQUIRES: voice - ask user!)
 - lipsync: Video + audio lip sync
 - merge-audio-video: Combine audio and video
-- merge-videos: Concatenate videos
+- merge-videos: Concatenate videos (ask for transition)
 - extract-audio: Extract audio from video
-- crop-image: Crop images
+- crop-image: Crop images (REQUIRES: xPercent, yPercent, widthPercent, heightPercent - ask user!)
 - output: Workflow output (displays results)
 
 Example: LLM workflow = input(text) → openrouter → output
@@ -174,6 +182,54 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
     }
 
     try {
+      // Check for missing required configuration parameters BEFORE building
+      const missingConfigs: Array<{
+        nodeType: string;
+        nodeIndex: number;
+        missingParams: RequiredConfigParam[];
+        allParams: RequiredConfigParam[];
+      }> = [];
+
+      for (let i = 0; i < nodes.length; i++) {
+        const nodeSpec = nodes[i];
+        if (hasRequiredConfig(nodeSpec.type)) {
+          const allParams = getRequiredConfig(nodeSpec.type);
+          const missing = getMissingConfig(nodeSpec.type, nodeSpec.config as Record<string, unknown> | undefined);
+          if (missing.length > 0) {
+            missingConfigs.push({
+              nodeType: nodeSpec.type,
+              nodeIndex: i,
+              missingParams: missing,
+              allParams,
+            });
+          }
+        }
+      }
+
+      // If there are missing required configs, return prompt to ask user BEFORE proceeding
+      if (missingConfigs.length > 0) {
+        const paramDescriptions = missingConfigs.map(mc => {
+          const paramList = mc.missingParams.map(p => {
+            let desc = `  - ${p.name}: ${p.description}`;
+            if (p.options) desc += ` (options: ${p.options.join(", ")})`;
+            if (p.min !== undefined || p.max !== undefined) {
+              desc += ` (range: ${p.min ?? 0}-${p.max ?? 100})`;
+            }
+            return desc;
+          }).join("\n");
+          return `**${mc.nodeType}** requires:\n${paramList}`;
+        }).join("\n\n");
+
+        return {
+          success: false,
+          needsUserInput: true,
+          missingConfig: missingConfigs,
+          message: `Cannot build workflow - missing required parameters. Please ASK THE USER for these values:\n\n${paramDescriptions}`,
+          instructions: "DO NOT make assumptions or use default values. Ask the user to provide specific values for each missing parameter, then call this tool again with the config values included.",
+          example: `After getting user values, call build_workflow with: nodes=[..., {type:"${missingConfigs[0].nodeType}", config:{${missingConfigs[0].missingParams.map(p => `${p.name}: <user_value>`).join(", ")}}}, ...]`,
+        };
+      }
+
       // Use caching system
       const cached = await getOrBuildWorkflow(name, nodes, buildWorkflow);
 
@@ -220,6 +276,29 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
 
     logger.info(`Searching for workflow template: "${query}"`);
 
+    // Helper to get required config for template nodes
+    const getTemplateRequiredConfig = (nodes: Array<{ type: string; id: string; data?: { mediaType?: string; label?: string } }>) => {
+      const configNeeded: Array<{
+        nodeType: string;
+        nodeId: string;
+        params: RequiredConfigParam[];
+      }> = [];
+      
+      for (const node of nodes) {
+        if (hasRequiredConfig(node.type)) {
+          const params = getRequiredConfig(node.type);
+          if (params.length > 0) {
+            configNeeded.push({
+              nodeType: node.type,
+              nodeId: node.id,
+              params,
+            });
+          }
+        }
+      }
+      return configNeeded;
+    };
+
     // 1. Check preseeded templates first
     const preseeded = findPreseededTemplate(query);
     if (preseeded) {
@@ -230,6 +309,20 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
           type: n.data?.mediaType || "text",
           label: n.data?.label || "Input",
         }));
+
+      const requiredConfig = getTemplateRequiredConfig(preseeded.nodes);
+
+      // Build nextStep message
+      let nextStep = "";
+      if (requiredConfig.length > 0) {
+        const configDesc = requiredConfig.map(c => 
+          `${c.nodeType}: ${c.params.map(p => p.name).join(", ")}`
+        ).join("; ");
+        nextStep = `IMPORTANT: Before using this template, ASK THE USER for required parameters: ${configDesc}. `;
+      }
+      if (requiredInputs.length > 0) {
+        nextStep += `Also ask for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`;
+      }
 
       return {
         found: true,
@@ -242,8 +335,9 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
           nodeCount: preseeded.nodes.length,
         },
         requiredInputs,
+        requiredConfig,
         message: `Found preseeded template: "${preseeded.name}"`,
-        nextStep: `This template is ready to use. Call create_workflow with these nodes and edges, then ask user for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`,
+        nextStep: nextStep || "This template is ready to use.",
       };
     }
 
@@ -261,6 +355,20 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
           label: n.data?.label || "Input",
         }));
 
+      const requiredConfig = getTemplateRequiredConfig(workflow.nodes);
+
+      // Build nextStep message
+      let nextStep = "";
+      if (requiredConfig.length > 0) {
+        const configDesc = requiredConfig.map(c => 
+          `${c.nodeType}: ${c.params.map(p => p.name).join(", ")}`
+        ).join("; ");
+        nextStep = `IMPORTANT: Before using this template, ASK THE USER for required parameters: ${configDesc}. `;
+      }
+      if (requiredInputs.length > 0) {
+        nextStep += `Also ask for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`;
+      }
+
       return {
         found: true,
         source: "semantic",
@@ -272,8 +380,9 @@ export function registerBuilderTools(handlers: Map<string, (args: unknown) => Pr
           nodeCount: workflow.nodes.length,
         },
         requiredInputs,
+        requiredConfig,
         message: `Found semantic match: "${pattern.description}"`,
-        nextStep: `This template is ready to use. Call create_workflow with these nodes and edges, then ask user for inputs: ${requiredInputs.map(i => `${i.label} (${i.type})`).join(", ")}`,
+        nextStep: nextStep || "This template is ready to use.",
       };
     }
 

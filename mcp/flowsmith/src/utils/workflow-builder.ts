@@ -32,11 +32,11 @@ const OUTPUT_HANDLES: Record<string, string> = {
 
 // Maps node type to primary input handle based on expected input type
 const INPUT_HANDLES: Record<string, Record<string, string>> = {
-  "seedream": { text: "prompt", prompt: "prompt", any: "prompt" },
+  "seedream": { text: "prompt", prompt: "prompt", image: "referenceImages", any: "prompt" },
   "seedvr": { image: "image", any: "image" },
   "seedance": { text: "prompt", prompt: "prompt", image: "frame", any: "prompt" },
   "elevenlabs": { text: "text", prompt: "text", any: "text" },
-  "openrouter": { text: "prompt", prompt: "prompt", any: "prompt" },
+  "openrouter": { text: "prompt", prompt: "prompt", image: "inputImage", any: "prompt" },
   "lipsync": { video: "video", audio: "audio" },
   "merge-audio-video": { video: "video", audio: "audio" },
   "merge-videos": { video: "video1", video2: "video2" },

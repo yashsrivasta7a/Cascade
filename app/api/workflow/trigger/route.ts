@@ -191,13 +191,25 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Debug: Log I/O node data
+    // Debug: Log I/O node data with full details for debugging input issues
     for (const node of nodes) {
       if (node.type?.includes("input") || node.type === "output") {
         const nodeData = (node.data ?? {}) as Record<string, unknown>;
+        const resultVal = nodeData.result;
+        const valueVal = nodeData.value;
         console.log(`[WorkflowTrigger] I/O node ${node.id} (${node.type}) data:`, {
-          result: nodeData.result ? `${String(nodeData.result).slice(0, 80)}...` : 'undefined',
-          value: nodeData.value ? `${String(nodeData.value).slice(0, 80)}...` : 'undefined',
+          resultType: typeof resultVal,
+          resultIsObject: resultVal && typeof resultVal === 'object',
+          resultHasUrl: resultVal && typeof resultVal === 'object' && 'url' in (resultVal as object),
+          resultPreview: typeof resultVal === 'string' 
+            ? resultVal.slice(0, 80) 
+            : resultVal && typeof resultVal === 'object' 
+              ? JSON.stringify(resultVal).slice(0, 120)
+              : String(resultVal),
+          valueType: typeof valueVal,
+          valueIsObject: valueVal && typeof valueVal === 'object',
+          valueHasUrl: valueVal && typeof valueVal === 'object' && 'url' in (valueVal as object),
+          mediaType: nodeData.mediaType,
           keys: Object.keys(nodeData),
         });
       }

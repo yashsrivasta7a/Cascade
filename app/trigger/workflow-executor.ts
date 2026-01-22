@@ -582,10 +582,21 @@ export const executeWorkflow = task({
         // Specialized input nodes (image-input, video-input, audio-input)
         if (nodeType === "image-input" || nodeType === "video-input" || nodeType === "audio-input") {
           const rawResult = nodeData.result || nodeData.value || nodeData.url || nodeData.file;
-          // Handle both string URLs and {url: "..."} objects
-          const result = typeof rawResult === 'string' 
-            ? rawResult 
-            : (rawResult as { url?: string } | undefined)?.url;
+          
+          // Handle multiple formats: string URL, {url: string}, or nested object
+          let result: string | undefined;
+          if (typeof rawResult === 'string') {
+            result = rawResult;
+          } else if (rawResult && typeof rawResult === 'object') {
+            const obj = rawResult as Record<string, unknown>;
+            if (typeof obj.url === 'string') {
+              result = obj.url;
+            } else if (typeof obj.value === 'string') {
+              result = obj.value;
+            } else if (obj.url && typeof (obj.url as Record<string, unknown>).url === 'string') {
+              result = (obj.url as Record<string, unknown>).url as string;
+            }
+          }
           console.log(`[WorkflowExecutor] Specialized input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined');
           
           if (result && typeof result === "string" && result.length > 0) {
@@ -652,14 +663,38 @@ export const executeWorkflow = task({
         
         // Universal input node (with mediaType selector)
         if (nodeType === "input") {
+          // Debug: Log all node data to diagnose input extraction issues
+          console.log(`[WorkflowExecutor] Input node ${node.id} raw data:`, JSON.stringify({
+            hasResult: nodeData.result !== undefined,
+            resultType: typeof nodeData.result,
+            hasValue: nodeData.value !== undefined,
+            valueType: typeof nodeData.value,
+            mediaType: nodeData.mediaType,
+            allKeys: Object.keys(nodeData),
+          }));
+          
           const rawResult = nodeData.result || nodeData.value || nodeData.url || nodeData.file;
-          // Handle both string URLs and {url: "..."} objects
-          const result = typeof rawResult === 'string' 
-            ? rawResult 
-            : (rawResult as { url?: string } | undefined)?.url;
+          
+          // Handle multiple formats: string URL, {url: string}, or nested object
+          let result: string | undefined;
+          if (typeof rawResult === 'string') {
+            result = rawResult;
+          } else if (rawResult && typeof rawResult === 'object') {
+            // Try to extract URL from various object formats
+            const obj = rawResult as Record<string, unknown>;
+            if (typeof obj.url === 'string') {
+              result = obj.url;
+            } else if (typeof obj.value === 'string') {
+              result = obj.value;
+            } else if (obj.url && typeof (obj.url as Record<string, unknown>).url === 'string') {
+              // Handle double-nested {url: {url: "..."}}
+              result = (obj.url as Record<string, unknown>).url as string;
+            }
+          }
+          
           const mediaType = nodeData.mediaType as string | undefined;
           const resultPreview = result ? `${result.slice(0, 80)}...` : JSON.stringify(rawResult)?.slice(0, 80);
-          console.log(`[WorkflowExecutor] Input node ${node.id} result:`, resultPreview ?? 'undefined', `mediaType: ${mediaType}`);
+          console.log(`[WorkflowExecutor] Input node ${node.id} extracted result:`, resultPreview ?? 'undefined', `mediaType: ${mediaType}`);
           
           if (result && typeof result === "string" && result.length > 0 && mediaType) {
             const outputType = mediaType;

@@ -1,6 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { buildWorkflow } from "../utils/workflow-builder.js";
-import { isValidNodeType, getNodeInfoList } from "../data/nodes.js";
+import { isValidNodeType, getNodeInfoList, getRequiredConfig, getMissingConfig, hasRequiredConfig, type RequiredConfigParam } from "../data/nodes.js";
 import {
   createWorkflow,
   triggerWorkflowExecution,
@@ -25,15 +25,22 @@ export const convenienceToolDefinitions: Tool[] = [
     
 This is the easiest way to run a workflow - just specify the nodes and inputs.
 
-CRITICAL: All user inputs MUST go through Input nodes:
-- Text/prompts → include {type:"input",inputType:"text"} and pass value to "input-1"
-- Images → include {type:"input",inputType:"image"} and pass URL to "input-1"  
-- Videos → include {type:"input",inputType:"video"} and pass URL to "input-1"
-- Audio → include {type:"input",inputType:"audio"} and pass URL to "input-1"
+CRITICAL RULES:
+1. All user inputs MUST go through Input nodes:
+   - Text/prompts → include {type:"input",inputType:"text"} and pass value to "input-1"
+   - Images → include {type:"input",inputType:"image"} and pass URL to "input-1"  
+   - Videos → include {type:"input",inputType:"video"} and pass URL to "input-1"
+   - Audio → include {type:"input",inputType:"audio"} and pass URL to "input-1"
+
+2. NEVER make assumptions about node configuration parameters!
+   - If a node requires parameters (like crop-image needs x, y, width, height), ASK THE USER for them first
+   - Do NOT use default values or guess - always ask the user what values they want
+   - The tool will return "missingConfig" if required parameters are not provided
 
 Example usage:
 - LLM chat: nodes=[{type:"input",inputType:"text"},{type:"openrouter"},{type:"output"}], inputs={"input-1":"Hello!"}
 - Image gen: nodes=[{type:"input",inputType:"text"},{type:"seedream"},{type:"output"}], inputs={"input-1":"a sunset"}
+- Crop image: ASK USER for xPercent, yPercent, widthPercent, heightPercent FIRST, then: nodes=[{type:"input",inputType:"image"},{type:"crop-image",config:{xPercent:0,yPercent:0,widthPercent:100,heightPercent:50}},{type:"output"}]
 
 The input node receives the user's value, then passes it to the connected processing node.
 NEVER set inputs directly on processing nodes - always use Input nodes.`,
@@ -343,6 +350,121 @@ interface DownloadableItem {
   };
 }
 
+// =============================================================================
+// FORMATTING HELPERS - Create markdown tables for display
+// =============================================================================
+
+/**
+ * Format pipeline/execution steps as a markdown table
+ */
+function formatPipelineTable(nodeOutputs: NodeOutputInfo[]): string {
+  if (!nodeOutputs || nodeOutputs.length === 0) {
+    return "No pipeline steps.";
+  }
+
+  const rows: string[] = [];
+  rows.push("| # | Node | Type | Status | Output |");
+  rows.push("|---|------|------|--------|--------|");
+
+  nodeOutputs.forEach((node, index) => {
+    const status = node.status === "completed" ? "✅" : node.status === "failed" ? "❌" : "⏳";
+    
+    // Create output preview
+    let outputPreview = "-";
+    if (node.output) {
+      const out = node.output as Record<string, unknown>;
+      if (out.text && typeof out.text === "string") {
+        outputPreview = out.text.length > 50 ? out.text.substring(0, 50) + "..." : out.text;
+        outputPreview = outputPreview.replace(/\|/g, "\\|").replace(/\n/g, " ");
+      } else if (out.type === "image" || out.type === "video" || out.type === "audio") {
+        outputPreview = `[${out.type}]`;
+      } else if (out.url) {
+        outputPreview = "[media]";
+      }
+    }
+    if (node.error) {
+      outputPreview = `Error: ${node.error.substring(0, 40)}...`;
+    }
+
+    rows.push(`| ${index + 1} | ${node.label} | ${node.nodeType} | ${status} | ${outputPreview} |`);
+  });
+
+  return rows.join("\n");
+}
+
+/**
+ * Format generated assets as a markdown table
+ */
+function formatAssetsTable(downloadableItems: DownloadableItem[]): string {
+  if (!downloadableItems || downloadableItems.length === 0) {
+    return "No generated assets.";
+  }
+
+  const rows: string[] = [];
+  rows.push("| Type | Format | Created By | URL |");
+  rows.push("|------|--------|------------|-----|");
+
+  downloadableItems.forEach((item) => {
+    const typeIcon = item.type === "image" ? "🖼️" : item.type === "video" ? "🎬" : item.type === "audio" ? "🔊" : "📁";
+    rows.push(`| ${typeIcon} ${item.type} | ${item.format || "-"} | ${item.createdBy.label} | ${item.url} |`);
+  });
+
+  return rows.join("\n");
+}
+
+/**
+ * Create a complete formatted response with tables
+ */
+function createFormattedResponse(
+  status: string,
+  output: unknown,
+  nodeOutputs: NodeOutputInfo[],
+  downloadableItems: DownloadableItem[],
+  workflowUrl?: string,
+  error?: string
+): string {
+  const sections: string[] = [];
+
+  // Status header
+  if (status === "completed") {
+    sections.push("## ✅ Workflow Completed\n");
+  } else if (status === "failed") {
+    sections.push(`## ❌ Workflow Failed\n\n**Error:** ${error || "Unknown error"}\n`);
+  } else {
+    sections.push(`## ⏳ Workflow ${status}\n`);
+  }
+
+  // Final output if text
+  if (output) {
+    const out = output as Record<string, unknown>;
+    if (out.text && typeof out.text === "string") {
+      sections.push("### Final Output\n");
+      sections.push("```");
+      sections.push(out.text);
+      sections.push("```\n");
+    }
+  }
+
+  // Pipeline table
+  sections.push("### Pipeline\n");
+  sections.push(formatPipelineTable(nodeOutputs));
+  sections.push("");
+
+  // Assets table
+  if (downloadableItems && downloadableItems.length > 0) {
+    sections.push("\n### Generated Assets\n");
+    sections.push(formatAssetsTable(downloadableItems));
+    sections.push("");
+  }
+
+  // Workflow link
+  if (workflowUrl) {
+    sections.push(`\n**View in Flowsmith:** ${workflowUrl}`);
+  }
+
+  return sections.join("\n");
+}
+
 // Helper to extract downloadable items from node outputs
 function extractDownloadables(nodes: NodeOutputInfo[]): DownloadableItem[] {
   const downloadables: DownloadableItem[] = [];
@@ -551,6 +673,54 @@ export function registerConvenienceTools(
       throw new Error(`Invalid node type(s): ${invalidTypes.join(", ")}. Available: ${availableTypes}`);
     }
 
+    // Check for missing required configuration parameters
+    // IMPORTANT: Do not make assumptions - ask the user!
+    const missingConfigs: Array<{
+      nodeType: string;
+      nodeIndex: number;
+      missingParams: RequiredConfigParam[];
+    }> = [];
+
+    for (let i = 0; i < nodes.length; i++) {
+      const nodeSpec = nodes[i];
+      if (hasRequiredConfig(nodeSpec.type)) {
+        const missing = getMissingConfig(nodeSpec.type, nodeSpec.config as Record<string, unknown> | undefined);
+        if (missing.length > 0) {
+          missingConfigs.push({
+            nodeType: nodeSpec.type,
+            nodeIndex: i,
+            missingParams: missing,
+          });
+        }
+      }
+    }
+
+    // If there are missing required configs, return prompt to ask user
+    if (missingConfigs.length > 0) {
+      const paramDescriptions = missingConfigs.map(mc => {
+        const paramList = mc.missingParams.map(p => {
+          let desc = `  - ${p.name}: ${p.description}`;
+          if (p.options) desc += ` (options: ${p.options.join(", ")})`;
+          if (p.min !== undefined || p.max !== undefined) {
+            desc += ` (range: ${p.min ?? 0}-${p.max ?? 100})`;
+          }
+          return desc;
+        }).join("\n");
+        return `**${mc.nodeType}** (node ${mc.nodeIndex + 1}) requires:\n${paramList}`;
+      }).join("\n\n");
+
+      return {
+        success: false,
+        needsUserInput: true,
+        missingConfig: missingConfigs,
+        message: `Cannot execute workflow - missing required parameters. Please ask the user for these values:\n\n${paramDescriptions}`,
+        instructions: "DO NOT make assumptions or use default values. Ask the user to provide specific values for each missing parameter, then call this tool again with the config values included in each node specification.",
+        example: missingConfigs.length > 0 
+          ? `Example: After getting user values, include them like: {type:"${missingConfigs[0].nodeType}", config:{${missingConfigs[0].missingParams.map(p => `${p.name}: <user_value>`).join(", ")}}}`
+          : undefined,
+      };
+    }
+
     // 1. Build the workflow
     const workflow = buildWorkflow(name, nodes);
 
@@ -571,6 +741,16 @@ export function registerConvenienceTools(
     // Generate workflow URL
     const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
+    // Create formatted output for display
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     return {
       success: result.status === "completed",
       workflowId: saved.workflow.id,
@@ -578,6 +758,8 @@ export function registerConvenienceTools(
       workflowUrl,
       executionId: execution.executionId,
       status: result.status,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       // Final output (from output node)
       output: result.output,
       // Array 1: All node outputs
@@ -614,10 +796,22 @@ export function registerConvenienceTools(
       // Ignore errors getting workflow URL
     }
 
+    // Create formatted output for display
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     if (result.status === "completed") {
       return {
         success: true,
         status: "completed",
+        // Formatted output for display (SHOW THIS TO USER)
+        _formattedOutput: formattedOutput,
         output: result.output,
         // Array 1: All node outputs
         nodeOutputs: result.nodeOutputs,
@@ -635,6 +829,8 @@ export function registerConvenienceTools(
     return {
       success: false,
       status: result.status,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       nodeOutputs: result.nodeOutputs,
       workflowNodes: result.workflowNodes,
       downloadableItems: result.downloadableItems,
@@ -707,6 +903,16 @@ export function registerConvenienceTools(
     const result = await waitForCompletion(execution.executionId, 60000);
     const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
+    // Create formatted output
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     if (result.status === "completed") {
       // Extract text from output
       const output = result.output as { text?: string; type?: string } | string | null;
@@ -721,6 +927,8 @@ export function registerConvenienceTools(
         workflowId: saved.workflow.id,
         workflowUrl,
         executionId: execution.executionId,
+        // Formatted output for display (SHOW THIS TO USER)
+        _formattedOutput: formattedOutput,
         // Array 1: All node outputs
         nodeOutputs: result.nodeOutputs,
         // Array 2: Workflow nodes info  
@@ -736,6 +944,8 @@ export function registerConvenienceTools(
       workflowId: saved.workflow.id,
       workflowUrl,
       executionId: execution.executionId,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       nodeOutputs: result.nodeOutputs,
       workflowNodes: result.workflowNodes,
       downloadableItems: result.downloadableItems,
@@ -776,6 +986,16 @@ export function registerConvenienceTools(
     const result = await waitForCompletion(execution.executionId, 180000);
     const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
+    // Create formatted output
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     if (result.status === "completed") {
       const output = result.output as { url?: string; type?: string } | null;
       return {
@@ -785,6 +1005,8 @@ export function registerConvenienceTools(
         workflowId: saved.workflow.id,
         workflowUrl,
         executionId: execution.executionId,
+        // Formatted output for display (SHOW THIS TO USER)
+        _formattedOutput: formattedOutput,
         // Array 1: All node outputs
         nodeOutputs: result.nodeOutputs,
         // Array 2: Workflow nodes info
@@ -800,6 +1022,8 @@ export function registerConvenienceTools(
       workflowId: saved.workflow.id,
       workflowUrl,
       executionId: execution.executionId,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       nodeOutputs: result.nodeOutputs,
       workflowNodes: result.workflowNodes,
       downloadableItems: result.downloadableItems,
@@ -892,6 +1116,16 @@ export function registerConvenienceTools(
     const result = await waitForCompletion(execution.executionId, 120000);
     const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
+    // Create formatted output
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     if (result.status === "completed") {
       const output = result.output as { text?: string; type?: string } | string | null;
       const text = typeof output === "string" 
@@ -907,6 +1141,8 @@ export function registerConvenienceTools(
         workflowId: saved.workflow.id,
         workflowUrl,
         executionId: execution.executionId,
+        // Formatted output for display (SHOW THIS TO USER)
+        _formattedOutput: formattedOutput,
         nodeOutputs: result.nodeOutputs,
         workflowNodes: result.workflowNodes,
         downloadableItems: result.downloadableItems,
@@ -919,6 +1155,8 @@ export function registerConvenienceTools(
       workflowId: saved.workflow.id,
       workflowUrl,
       executionId: execution.executionId,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       nodeOutputs: result.nodeOutputs,
       workflowNodes: result.workflowNodes,
       downloadableItems: result.downloadableItems,
@@ -1064,6 +1302,16 @@ export function registerConvenienceTools(
     const result = await waitForCompletion(execution.executionId, 120000);
     const workflowUrl = `${API_BASE}/workflows/${saved.workflow.id}`;
 
+    // Create formatted output
+    const formattedOutput = createFormattedResponse(
+      result.status,
+      result.output,
+      result.nodeOutputs,
+      result.downloadableItems,
+      workflowUrl,
+      result.error
+    );
+
     if (result.status === "completed") {
       const output = result.output as { text?: string; type?: string } | string | null;
       const text = typeof output === "string"
@@ -1080,6 +1328,8 @@ export function registerConvenienceTools(
         workflowId: saved.workflow.id,
         workflowUrl,
         executionId: execution.executionId,
+        // Formatted output for display (SHOW THIS TO USER)
+        _formattedOutput: formattedOutput,
         nodeOutputs: result.nodeOutputs,
         workflowNodes: result.workflowNodes,
         downloadableItems: result.downloadableItems,
@@ -1094,6 +1344,8 @@ export function registerConvenienceTools(
       workflowId: saved.workflow.id,
       workflowUrl,
       executionId: execution.executionId,
+      // Formatted output for display (SHOW THIS TO USER)
+      _formattedOutput: formattedOutput,
       nodeOutputs: result.nodeOutputs,
       workflowNodes: result.workflowNodes,
       downloadableItems: result.downloadableItems,
