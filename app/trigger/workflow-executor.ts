@@ -565,7 +565,7 @@ export const executeWorkflow = task({
 
     // Helper: Start a node (non-blocking) - or skip if skip=true and has output
     // I/O node types that are passthrough (don't need execution)
-    const IO_NODE_TYPES = ["input", "output", "comment"];
+    const IO_NODE_TYPES = ["input", "image-input", "video-input", "audio-input", "output", "comment"];
     
     const startNode = async (node: Node) => {
       const nodeType = node.type as AINodeType;
@@ -579,7 +579,78 @@ export const executeWorkflow = task({
         console.log(`[WorkflowExecutor] I/O node ${node.id} (${nodeType}) - passthrough handling`);
         console.log(`[WorkflowExecutor] I/O node data keys:`, Object.keys(nodeData));
         
-        // Input nodes: use their result/value as output
+        // Specialized input nodes (image-input, video-input, audio-input)
+        if (nodeType === "image-input" || nodeType === "video-input" || nodeType === "audio-input") {
+          const rawResult = nodeData.result || nodeData.value || nodeData.url || nodeData.file;
+          // Handle both string URLs and {url: "..."} objects
+          const result = typeof rawResult === 'string' 
+            ? rawResult 
+            : (rawResult as { url?: string } | undefined)?.url;
+          console.log(`[WorkflowExecutor] Specialized input node ${node.id} result:`, result ? `${result.slice(0, 80)}...` : 'undefined');
+          
+          if (result && typeof result === "string" && result.length > 0) {
+            const outputType = nodeType === "image-input" ? "image" : nodeType === "video-input" ? "video" : "audio";
+            const passOutput: Record<string, unknown> = outputType === "image" 
+              ? { type: "image", image: { url: result } }
+              : outputType === "video"
+              ? { type: "video", video: { url: result } }
+              : { type: "audio", audio: { url: result } };
+            
+            outputs.set(node.id, passOutput);
+            completedNodes.add(node.id);
+            pendingNodes.delete(node.id);
+            
+            // Update database
+            await db.nodeExecution.update({
+              where: { id: nodeExecutionId },
+              data: {
+                status: "COMPLETED",
+                startedAt: new Date(),
+                completedAt: new Date(),
+                outputJson: passOutput as object,
+              },
+            });
+            
+            // Update metadata for realtime
+            await metadata.set(`node:${node.id}`, {
+              status: "completed",
+              nodeType,
+              nodeLabel: (nodeData.label as string) || nodeType,
+              output: passOutput,
+              timestamp: Date.now(),
+            });
+            
+            console.log(`[WorkflowExecutor] Specialized input node ${node.id} completed with result`);
+            return;
+          } else {
+            // No input file uploaded
+            const errorMsg = `No file uploaded to ${nodeType.replace('-input', '')} input node`;
+            console.error(`[WorkflowExecutor] Specialized input node ${node.id} failed: ${errorMsg}`);
+            
+            await db.nodeExecution.update({
+              where: { id: nodeExecutionId },
+              data: {
+                status: "FAILED",
+                startedAt: new Date(),
+                completedAt: new Date(),
+                error: errorMsg,
+              },
+            });
+            
+            await metadata.set(`node:${node.id}`, {
+              status: "failed",
+              nodeType,
+              nodeLabel: (nodeData.label as string) || nodeType,
+              error: errorMsg,
+              timestamp: Date.now(),
+            });
+            
+            await markNodeAndDependentsFailed(node.id, errorMsg);
+            return;
+          }
+        }
+        
+        // Universal input node (with mediaType selector)
         if (nodeType === "input") {
           const rawResult = nodeData.result || nodeData.value || nodeData.url || nodeData.file;
           // Handle both string URLs and {url: "..."} objects

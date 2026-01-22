@@ -25,86 +25,6 @@ import type { BaseNodeData, HandleConfig, BaseNodeProps } from "./base-node/type
 export type { BaseNodeData } from "./base-node/types";
 import { accentColors, statusConfig } from "./base-node/constants";
 
-// ============================================================================
-// Settings Handles Component - Only visible when dragging compatible edge
-// ============================================================================
-interface SettingsHandlesProps {
-  nodeId: string;
-  nodeSettings: Array<{ id: string; type: string; label: string }>;
-  isDragging: boolean;
-  draggedType: DataType | null | undefined;
-}
-
-function SettingsHandles({ nodeId, nodeSettings, isDragging, draggedType }: SettingsHandlesProps) {
-  return (
-    <>
-      {/* Settings handles - only visible when dragging compatible edge */}
-      {nodeSettings.map((setting, settingIndex) => {
-        const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
-        const total = nodeSettings.length;
-        const spacing = 3; // 3% gap between handles
-        const startPercent = 80 - ((total - 1) * spacing) / 2;
-        const handlePercent = startPercent + (settingIndex * spacing);
-        
-        // Check if dragging a compatible type (for input handles looking for this output)
-        const isCompatible = isDragging && draggedType && isTypeCompatible(setting.type as DataType, draggedType);
-        
-        return (
-          <div
-            key={`output-${setting.id}-setting`}
-            className="absolute right-0 z-30 group/handle"
-            style={{ top: `${handlePercent}%`, transform: "translate(50%, -50%)" }}
-            data-handletype={setting.type}
-          >
-            <Handle
-              id={`${setting.id}-setting`}
-              type="source"
-              position={Position.Right}
-              data-handletype={setting.type}
-              title={setting.label}
-              style={{ 
-                position: "relative",
-                right: 0,
-                top: 0,
-                transform: "none",
-                width: isCompatible ? 12 : 8,
-                height: isCompatible ? 12 : 8,
-                borderWidth: 0,
-                backgroundColor: settingColor.solid,
-                opacity: isCompatible ? 1 : 0,
-                pointerEvents: "all",
-                boxShadow: isCompatible ? `0 0 10px ${settingColor.solid}` : undefined,
-                transition: "all 0.2s ease",
-              }}
-              className="!relative !right-0 !top-0 !transform-none"
-            />
-            
-            {/* Tooltip - only show when compatible and dragging */}
-            {isCompatible && (
-              <div 
-                data-settings-label="true"
-                className={cn(
-                  "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                  "px-2.5 py-1 rounded-md",
-                  "text-[10px] whitespace-nowrap",
-                  "pointer-events-none",
-                  "shadow-lg shadow-black/20 dark:shadow-black/30",
-                  "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10"
-                )}
-                style={{ 
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                  fontWeight: 600,
-                }}
-              >
-                <span style={{ color: settingColor.solid }}>{setting.label}</span>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </>
-  );
-}
 
 // Generate SVG path for node shape with semicircular notches
 function generateNodePath(
@@ -311,10 +231,17 @@ function BaseNodeComponent({
 
   const leftNotches = visibleInputs.map((_, i) => getHandlePercent(i, visibleInputs.length));
   
-  // Right notches: just media outputs (settings handles are hidden)
+  // Right notches: only media outputs have notches (settings handles have no notches)
   const hasSettings = nodeSettings.length > 0;
   
-  const rightNotches = visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
+  // Settings positioning: start at 50%, 3% gap between each
+  const settingsStartPercent = 50;
+  const settingsGap = 3;
+  
+  // Only media output gets a notch (at 30% if has settings, otherwise standard positioning)
+  const rightNotches = hasSettings 
+    ? [30] // Only media output notch
+    : visibleOutputs.map((_, i) => getHandlePercent(i, visibleOutputs.length));
 
   const hasError = typeof (data as any).error === "string" && (data as any).error?.trim()?.length > 0;
 
@@ -615,71 +542,125 @@ function BaseNodeComponent({
         );
       })}
 
-      {/* Output Handles - Simple dot on edge */}
+      {/* Output Handles - Media output at top, individual settings below with 2% gaps */}
       {outputs.map((output, index) => {
         const isHidden = Boolean(output.hidden);
         const handleColor = dataTypeColors[output.type];
-        const percent = getHandlePercent(index, outputs.length);
+        // If we have settings, put media output at 30%, otherwise use normal positioning
+        const mediaPercent = hasSettings ? 30 : getHandlePercent(index, outputs.length);
         
         const tooltipText = output.label;
         
         return (
+          <div key={`output-${output.id}`}>
+            {/* Media Output Handle */}
+            <div
+              className={cn(
+                "absolute right-0 z-30 group/handle",
+                isHidden && "opacity-0 pointer-events-none"
+              )}
+              style={{ top: `${mediaPercent}%`, transform: "translate(50%, -50%)" }}
+              data-handletype={output.type}
+            >
+              <Handle
+                id={output.id}
+                type="source"
+                position={Position.Right}
+                data-handletype={output.type}
+                title={tooltipText}
+                style={{ 
+                  position: "relative",
+                  right: 0,
+                  top: 0,
+                  transform: "none",
+                  width: 10,
+                  height: 10,
+                  borderWidth: 0,
+                  backgroundColor: handleColor.solid,
+                }}
+                className="!relative !right-0 !top-0 !transform-none"
+              />
+              
+              {/* Hover tooltip - shows outside node (to the right) */}
+              <div 
+                className={cn(
+                  "absolute left-full ml-3 top-1/2 -translate-y-1/2",
+                  "px-3 py-1.5 rounded-lg",
+                  "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10",
+                  "text-[11px] text-gray-700 dark:text-white/90 whitespace-nowrap",
+                  "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
+                  "transition-opacity duration-150",
+                  "shadow-xl shadow-black/10 dark:shadow-black/50"
+                )}
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
+                {tooltipText}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      
+      {/* Individual Settings Output Handles - Each setting gets its own handle with 2% gap */}
+      {hasSettings && nodeSettings.map((setting, settingIndex) => {
+        const settingColor = dataTypeColors[setting.type as DataType] || dataTypeColors.any;
+        const handlePercent = settingsStartPercent + (settingIndex * settingsGap);
+        
+        // Check if dragging a compatible type (for input handles looking for this output)
+        const isCompatible = isDragging && draggedType && isTypeCompatible(setting.type as DataType, draggedType);
+        
+        return (
           <div
-            key={`output-${output.id}`}
-            className={cn(
-              "absolute right-0 z-30 group/handle",
-              isHidden && "opacity-0 pointer-events-none"
-            )}
-            style={{ top: `${percent}%`, transform: "translate(50%, -50%)" }}
-            data-handletype={output.type}
+            key={`setting-output-${setting.id}`}
+            className="absolute right-0 z-30 group/setting"
+            style={{ top: `${handlePercent}%`, transform: "translate(50%, -50%)" }}
+            data-handletype={setting.type}
           >
             <Handle
-              id={output.id}
+              id={`${setting.id}-setting`}
               type="source"
               position={Position.Right}
-              data-handletype={output.type}
-              title={tooltipText}
+              data-handletype={setting.type}
+              title={setting.label}
               style={{ 
                 position: "relative",
                 right: 0,
                 top: 0,
                 transform: "none",
-                width: 10,
-                height: 10,
+                width: isCompatible ? 12 : 8,
+                height: isCompatible ? 12 : 8,
                 borderWidth: 0,
-                backgroundColor: handleColor.solid,
+                backgroundColor: settingColor.solid,
+                boxShadow: isCompatible ? `0 0 10px ${settingColor.solid}` : undefined,
+                transition: "all 0.2s ease",
               }}
               className="!relative !right-0 !top-0 !transform-none"
             />
             
-            {/* Hover tooltip - shows outside node (to the right) */}
+            {/* Hover tooltip OR compatibility highlight tooltip */}
             <div 
+              data-settings-label="true"
               className={cn(
                 "absolute left-full ml-3 top-1/2 -translate-y-1/2",
-                "px-3 py-1.5 rounded-lg",
-                "bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10",
-                "text-[11px] text-gray-700 dark:text-white/90 whitespace-nowrap",
-                "opacity-0 group-hover/handle:opacity-100 pointer-events-none",
+                "px-2.5 py-1 rounded-md",
+                "text-[10px] whitespace-nowrap",
+                "pointer-events-none",
                 "transition-opacity duration-150",
-                "shadow-xl shadow-black/10 dark:shadow-black/50"
+                "shadow-lg shadow-black/20 dark:shadow-black/30",
+                "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10",
+                // Show on hover OR when compatible during drag
+                isCompatible ? "opacity-100" : "opacity-0 group-hover/setting:opacity-100"
               )}
-              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              style={{ 
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontWeight: isCompatible ? 600 : 500,
+              }}
             >
-              {tooltipText}
+              <span style={{ color: settingColor.solid }}>{setting.label}</span>
             </div>
           </div>
         );
       })}
-
-      {/* Settings handles - only visible when dragging compatible edge */}
-      {hasSettings && (
-        <SettingsHandles
-          nodeId={id}
-          nodeSettings={nodeSettings}
-          isDragging={isDragging}
-          draggedType={draggedType}
-        />
-      )}
 
       {/* Floating Run Button - outside node on right, appears on hover */}
       <AnimatePresence>
