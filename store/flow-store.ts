@@ -313,23 +313,37 @@ export const useFlowStore = create<FlowState>()(
       setNodes: (nodes) =>
         set((state) => {
           const newNodes = typeof nodes === "function" ? nodes(state.nodes) : nodes;
-          // Safety: filter out any nodes with invalid positions to prevent ReactFlow crashes
-          const validNodes = newNodes.filter((node) => {
+          // Safety: fix any nodes with invalid positions to prevent ReactFlow crashes
+          const fixedNodes = newNodes.map((node, index) => {
             if (!node.position || typeof node.position.x !== "number" || typeof node.position.y !== "number") {
-              console.warn(`[FlowStore] Filtering out node ${node.id} with invalid position:`, node.position);
-              return false;
+              console.warn(`[FlowStore.setNodes] Fixing node ${node.id} with invalid position:`, node.position);
+              // Assign a default position
+              return {
+                ...node,
+                position: { x: (index % 4) * 350, y: Math.floor(index / 4) * 250 }
+              };
             }
-            return true;
+            return node;
           });
-          return { nodes: validNodes };
+          return { nodes: fixedNodes };
         }),
       setEdges: (edges) => set({ edges }),
       setViewport: (viewport) => set({ viewport }),
 
       onNodesChange: (changes) => {
-        set({
-          nodes: applyNodeChanges(changes, get().nodes),
+        const updatedNodes = applyNodeChanges(changes, get().nodes);
+        // Safety: fix any nodes with invalid positions after applying changes
+        const fixedNodes = updatedNodes.map((node, index) => {
+          if (!node.position || typeof node.position.x !== "number" || typeof node.position.y !== "number") {
+            console.warn(`[FlowStore.onNodesChange] Fixing node ${node.id} with invalid position`);
+            return {
+              ...node,
+              position: { x: (index % 4) * 350, y: Math.floor(index / 4) * 250 }
+            };
+          }
+          return node;
         });
+        set({ nodes: fixedNodes });
       },
 
       onEdgesChange: (changes) => {
@@ -1075,7 +1089,23 @@ export const useFlowStore = create<FlowState>()(
 
       clearFlow: () => set({ nodes: [], edges: [], selectedNode: null, selectedNodeIds: [], highlightedNodeIds: [] }),
 
-      loadFlow: (nodes, edges) => set({ nodes, edges, selectedNode: null }),
+      loadFlow: (nodes, edges) => {
+        // Safety: fix nodes with invalid positions to prevent ReactFlow crashes
+        // Instead of filtering out, assign default positions to preserve the workflow
+        const fixedNodes = nodes.map((node, index) => {
+          if (!node.position || typeof node.position.x !== "number" || typeof node.position.y !== "number") {
+            console.warn(`[FlowStore.loadFlow] Fixing node ${node.id} with invalid position:`, node.position);
+            // Assign a default position in a grid layout
+            return {
+              ...node,
+              position: { x: (index % 4) * 350, y: Math.floor(index / 4) * 250 }
+            };
+          }
+          return node;
+        });
+        
+        set({ nodes: fixedNodes, edges, selectedNode: null });
+      },
 
       propagateOutput: (sourceNodeId, output) => {
         const state = get();
