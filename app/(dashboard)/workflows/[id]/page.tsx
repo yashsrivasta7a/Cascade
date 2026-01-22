@@ -958,6 +958,12 @@ function WorkflowEditorContent() {
           setNodes((prev) => {
             console.log(`[WorkflowPage] Updating ${prev.length} nodes with execution data`);
             return prev.map((node) => {
+              // Safety check: ensure node has a valid position
+              if (!node.position || typeof node.position.x !== "number" || typeof node.position.y !== "number") {
+                console.warn(`[WorkflowPage] Node ${node.id} has invalid position, skipping update`);
+                return node;
+              }
+              
               // Find matching node in execution snapshot
               const executionNode = executionNodes.find((en) => en.id === node.id);
               if (!executionNode) return node;

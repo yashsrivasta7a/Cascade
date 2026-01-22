@@ -1,15 +1,12 @@
 ---
 title: 'Execute Workflow'
+api: 'POST /api/workflow/trigger'
 description: 'Start executing a workflow and receive an execution ID for tracking'
 ---
 
 ## Overview
 
-This endpoint triggers the execution of a workflow. It validates the workflow, checks available credits, and returns an execution ID that can be used to track progress.
-
-<Note>
-This endpoint is at `/api/workflow/trigger`. The workflow ID is passed in the request body.
-</Note>
+This endpoint triggers the execution of a workflow. It validates the workflow, checks available credits, and returns an execution ID that can be used to track progress. The workflow ID is passed in the request body.
 
 ## Request Body
 

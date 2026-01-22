@@ -1,15 +1,12 @@
 ---
 title: 'Get Execution Status'
+api: 'GET /api/executions/{id}/status'
 description: 'Lightweight endpoint to check execution status (ideal for polling)'
 ---
 
 ## Overview
 
 Returns a lightweight status response for a workflow execution. This endpoint is optimized for polling and returns only essential status information without the full node execution details.
-
-<Note>
-This endpoint is at `/api/executions/{id}/status` (not under `/api/v1`).
-</Note>
 
 <ParamField path="id" type="string" required>
   The unique identifier of the execution

@@ -822,6 +822,12 @@ export const executeWorkflow = task({
         input,
       });
 
+      // Save the trigger task ID to the database for tracking/debugging
+      await db.nodeExecution.update({
+        where: { id: nodeExecutionId },
+        data: { triggerTaskId: handle.id },
+      });
+
       runningNodes.set(node.id, { runId: handle.id, node });
       pendingNodes.delete(node.id);
       

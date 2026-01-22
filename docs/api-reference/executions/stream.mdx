@@ -1,15 +1,12 @@
 ---
 title: 'Stream Execution'
+api: 'GET /api/executions/{id}/stream'
 description: 'Stream real-time execution progress updates via Server-Sent Events (SSE)'
 ---
 
 ## Overview
 
 Establishes a Server-Sent Events (SSE) connection to receive real-time updates about a workflow execution. This is the recommended way to track execution progress in real-time.
-
-<Note>
-This endpoint is at `/api/executions/{id}/stream` (not under `/api/v1`).
-</Note>
 
 <ParamField path="id" type="string" required>
   The unique identifier of the execution to stream

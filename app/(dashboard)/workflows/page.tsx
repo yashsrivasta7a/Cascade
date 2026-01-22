@@ -686,6 +686,15 @@ function WorkflowMinimap({
       return { bounds: null, scaledNodes: [] };
     }
 
+    // Filter out nodes with invalid positions to prevent crashes
+    const validNodes = nodes.filter((node) => 
+      node.position && typeof node.position.x === "number" && typeof node.position.y === "number"
+    );
+    
+    if (validNodes.length === 0) {
+      return { bounds: null, scaledNodes: [] };
+    }
+
     // Default node dimensions
     const defaultW = 280;
     const defaultH = 180;
@@ -693,7 +702,7 @@ function WorkflowMinimap({
     // Calculate bounds
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
-    nodes.forEach((node) => {
+    validNodes.forEach((node) => {
       const w = node.width || defaultW;
       const h = node.height || defaultH;
       minX = Math.min(minX, node.position.x);
@@ -717,7 +726,7 @@ function WorkflowMinimap({
     const offsetX = (100 - scaledW) / 2;
     const offsetY = (100 - scaledH) / 2;
 
-    const scaledNodes = nodes.map((node) => ({
+    const scaledNodes = validNodes.map((node) => ({
       id: node.id,
       x: offsetX + (node.position.x - minX) * scale,
       y: offsetY + (node.position.y - minY) * scale,

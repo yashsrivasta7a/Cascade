@@ -1,15 +1,12 @@
 ---
 title: 'Cancel Execution'
+api: 'POST /api/executions/{id}/cancel'
 description: 'Cancel a running workflow execution'
 ---
 
 ## Overview
 
 Cancels a workflow execution that is currently running. Once cancelled, any pending nodes will not be executed, and credits for incomplete nodes will not be charged.
-
-<Note>
-This endpoint is at `/api/executions/{id}/cancel` (not under `/api/v1`).
-</Note>
 
 <ParamField path="id" type="string" required>
   The unique identifier of the execution to cancel

@@ -311,9 +311,18 @@ export const useFlowStore = create<FlowState>()(
       },
 
       setNodes: (nodes) =>
-        set((state) => ({
-          nodes: typeof nodes === "function" ? nodes(state.nodes) : nodes,
-        })),
+        set((state) => {
+          const newNodes = typeof nodes === "function" ? nodes(state.nodes) : nodes;
+          // Safety: filter out any nodes with invalid positions to prevent ReactFlow crashes
+          const validNodes = newNodes.filter((node) => {
+            if (!node.position || typeof node.position.x !== "number" || typeof node.position.y !== "number") {
+              console.warn(`[FlowStore] Filtering out node ${node.id} with invalid position:`, node.position);
+              return false;
+            }
+            return true;
+          });
+          return { nodes: validNodes };
+        }),
       setEdges: (edges) => set({ edges }),
       setViewport: (viewport) => set({ viewport }),
 

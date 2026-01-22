@@ -1,15 +1,12 @@
 ---
 title: 'Get Execution'
+api: 'GET /api/executions/{id}'
 description: 'Retrieve detailed information about a specific execution'
 ---
 
 ## Overview
 
 Returns detailed information about a specific workflow execution, including the status of each node.
-
-<Note>
-This endpoint is at `/api/executions/{id}` (not under `/api/v1`).
-</Note>
 
 <ParamField path="id" type="string" required>
   The unique identifier of the execution
