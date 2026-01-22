@@ -661,7 +661,7 @@ function WorkflowEditorContent() {
         )
       );
     },
-    onNodeCompleted: (nodeId, _nodeType, output) => {
+    onNodeCompleted: (nodeId, nodeType, output) => {
       // Update node status and store output preview
       const outputData = output as { 
         type?: string; 
@@ -703,8 +703,17 @@ function WorkflowEditorContent() {
       
       if (mediaUrl) {
         updateData.result = mediaUrl;
+        // For input nodes, also set 'value' so the UI shows the preview
+        // The InputNode component checks data.value to decide whether to show preview
+        if (nodeType === "input" || nodeType?.includes("-input")) {
+          updateData.value = mediaUrl;
+        }
       } else if (resultPreview) {
         updateData.result = resultPreview;
+        // For input nodes, also set 'value'
+        if (nodeType === "input" || nodeType?.includes("-input")) {
+          updateData.value = resultPreview;
+        }
       }
       
       // Update the node - this will also trigger propagation via updateNode's logic
