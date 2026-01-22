@@ -1,6 +1,5 @@
 ---
 title: 'Execute Workflow'
-api: 'POST /workflows/{id}/execute'
 description: 'Start executing a workflow and receive an execution ID for tracking'
 ---
 
@@ -8,26 +7,45 @@ description: 'Start executing a workflow and receive an execution ID for trackin
 
 This endpoint triggers the execution of a workflow. It validates the workflow, checks available credits, and returns an execution ID that can be used to track progress.
 
-<ParamField path="id" type="string" required>
+<Note>
+This endpoint is at `/api/workflow/trigger`. The workflow ID is passed in the request body.
+</Note>
+
+## Request Body
+
+<ParamField body="workflowId" type="string" required>
   The unique identifier of the workflow to execute
+</ParamField>
+
+<ParamField body="inputs" type="object">
+  Optional input values for the workflow's input nodes. Keys are node IDs, values are the input data.
 </ParamField>
 
 ## Request
 
 <CodeGroup>
 ```bash cURL
-curl -X POST https://flowsmiths.vercel.app/api/v1/workflows/{id}/execute \
-  -H "Authorization: Bearer YOUR_API_KEY"
+curl -X POST https://flowsmiths.vercel.app/api/workflow/trigger \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"workflowId": "your-workflow-id"}'
 ```
 
 ```javascript JavaScript
 const response = await fetch(
-  'https://flowsmiths.vercel.app/api/v1/workflows/{id}/execute',
+  'https://flowsmiths.vercel.app/api/workflow/trigger',
   {
     method: 'POST',
     headers: {
-      'Authorization': 'Bearer YOUR_API_KEY'
-    }
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      workflowId: 'your-workflow-id',
+      inputs: {
+        'input-1': 'Your input value'
+      }
+    })
   }
 );
 const data = await response.json();
@@ -37,8 +55,17 @@ const data = await response.json();
 import requests
 
 response = requests.post(
-    'https://flowsmiths.vercel.app/api/v1/workflows/{id}/execute',
-    headers={'Authorization': 'Bearer YOUR_API_KEY'}
+    'https://flowsmiths.vercel.app/api/workflow/trigger',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'workflowId': 'your-workflow-id',
+        'inputs': {
+            'input-1': 'Your input value'
+        }
+    }
 )
 data = response.json()
 ```

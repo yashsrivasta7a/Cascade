@@ -1,12 +1,15 @@
 ---
 title: 'Stream Execution'
-api: 'GET /executions/{id}/stream'
 description: 'Stream real-time execution progress updates via Server-Sent Events (SSE)'
 ---
 
 ## Overview
 
 Establishes a Server-Sent Events (SSE) connection to receive real-time updates about a workflow execution. This is the recommended way to track execution progress in real-time.
+
+<Note>
+This endpoint is at `/api/executions/{id}/stream` (not under `/api/v1`).
+</Note>
 
 <ParamField path="id" type="string" required>
   The unique identifier of the execution to stream
@@ -16,14 +19,14 @@ Establishes a Server-Sent Events (SSE) connection to receive real-time updates a
 
 <CodeGroup>
 ```bash cURL
-curl -N https://flowsmiths.vercel.app/api/v1/executions/{id}/stream \
+curl -N https://flowsmiths.vercel.app/api/executions/{id}/stream \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Accept: text/event-stream"
 ```
 
 ```javascript JavaScript
 const eventSource = new EventSource(
-  'https://flowsmiths.vercel.app/api/v1/executions/{id}/stream',
+  'https://flowsmiths.vercel.app/api/executions/{id}/stream',
   {
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY'
@@ -47,7 +50,7 @@ import sseclient
 import requests
 
 response = requests.get(
-    'https://flowsmiths.vercel.app/api/v1/executions/{id}/stream',
+    'https://flowsmiths.vercel.app/api/executions/{id}/stream',
     headers={
         'Authorization': 'Bearer YOUR_API_KEY',
         'Accept': 'text/event-stream'

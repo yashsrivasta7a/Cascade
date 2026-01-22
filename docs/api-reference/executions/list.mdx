@@ -1,12 +1,15 @@
 ---
 title: 'List Executions'
-api: 'GET /executions'
 description: 'Retrieve a paginated list of all workflow executions'
 ---
 
 ## Overview
 
 Returns a paginated list of all workflow executions for the authenticated user, including execution statistics.
+
+<Note>
+This endpoint is at `/api/executions` (not under `/api/v1`).
+</Note>
 
 ## Query Parameters
 
@@ -30,13 +33,13 @@ Returns a paginated list of all workflow executions for the authenticated user, 
 
 <CodeGroup>
 ```bash cURL
-curl -X GET "https://flowsmiths.vercel.app/api/v1/executions?status=completed&limit=10" \
+curl -X GET "https://flowsmiths.vercel.app/api/executions?status=completed&limit=10" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ```javascript JavaScript
 const response = await fetch(
-  'https://flowsmiths.vercel.app/api/v1/executions?status=completed&limit=10',
+  'https://flowsmiths.vercel.app/api/executions?status=completed&limit=10',
   {
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY'
@@ -50,7 +53,7 @@ const data = await response.json();
 import requests
 
 response = requests.get(
-    'https://flowsmiths.vercel.app/api/v1/executions',
+    'https://flowsmiths.vercel.app/api/executions',
     params={'status': 'completed', 'limit': 10},
     headers={'Authorization': 'Bearer YOUR_API_KEY'}
 )

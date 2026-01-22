@@ -1,0 +1,205 @@
+---
+title: 'Get Execution Status'
+description: 'Lightweight endpoint to check execution status (ideal for polling)'
+---
+
+## Overview
+
+Returns a lightweight status response for a workflow execution. This endpoint is optimized for polling and returns only essential status information without the full node execution details.
+
+<Note>
+This endpoint is at `/api/executions/{id}/status` (not under `/api/v1`).
+</Note>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the execution
+</ParamField>
+
+## Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://flowsmiths.vercel.app/api/executions/{id}/status \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://flowsmiths.vercel.app/api/executions/{id}/status',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY'
+    }
+  }
+);
+const data = await response.json();
+
+// Poll until complete
+if (!data.isComplete) {
+  // Poll again in 1 second
+  setTimeout(() => pollStatus(executionId), 1000);
+}
+```
+
+```python Python
+import requests
+import time
+
+def poll_status(execution_id, api_key):
+    while True:
+        response = requests.get(
+            f'https://flowsmiths.vercel.app/api/executions/{execution_id}/status',
+            headers={'Authorization': f'Bearer {api_key}'}
+        )
+        data = response.json()
+        
+        print(f"Status: {data['status']} ({data['progress']}%)")
+        
+        if data['isComplete']:
+            return data
+        
+        time.sleep(1)
+
+result = poll_status('exec_abc123', 'YOUR_API_KEY')
+```
+</CodeGroup>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique execution identifier
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status: `pending`, `running`, `completed`, `failed`, `cancelled`
+</ResponseField>
+
+<ResponseField name="workflowId" type="string">
+  ID of the executed workflow
+</ResponseField>
+
+<ResponseField name="workflowName" type="string">
+  Name of the workflow
+</ResponseField>
+
+<ResponseField name="progress" type="integer">
+  Progress percentage (0-100)
+</ResponseField>
+
+<ResponseField name="completedNodes" type="integer">
+  Number of nodes that have finished (completed or failed)
+</ResponseField>
+
+<ResponseField name="totalNodes" type="integer">
+  Total number of nodes in the workflow
+</ResponseField>
+
+<ResponseField name="startedAt" type="string">
+  ISO timestamp when execution started
+</ResponseField>
+
+<ResponseField name="completedAt" type="string">
+  ISO timestamp when execution completed (null if still running)
+</ResponseField>
+
+<ResponseField name="duration" type="string">
+  Human-readable duration (e.g., "2.5s", "1m 30s")
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if execution failed (null otherwise)
+</ResponseField>
+
+<ResponseField name="isComplete" type="boolean">
+  Whether the execution has finished (true for `completed`, `failed`, or `cancelled`)
+</ResponseField>
+
+### Success Response (200)
+
+```json
+{
+  "id": "exec_abc123def456",
+  "status": "running",
+  "workflowId": "wf_xyz789",
+  "workflowName": "Image Generator",
+  "progress": 66,
+  "completedNodes": 2,
+  "totalNodes": 3,
+  "startedAt": "2024-01-15T10:30:00Z",
+  "completedAt": null,
+  "duration": "15.2s",
+  "error": null,
+  "isComplete": false
+}
+```
+
+### Completed Response
+
+```json
+{
+  "id": "exec_abc123def456",
+  "status": "completed",
+  "workflowId": "wf_xyz789",
+  "workflowName": "Image Generator",
+  "progress": 100,
+  "completedNodes": 3,
+  "totalNodes": 3,
+  "startedAt": "2024-01-15T10:30:00Z",
+  "completedAt": "2024-01-15T10:30:45Z",
+  "duration": "45.2s",
+  "error": null,
+  "isComplete": true
+}
+```
+
+### Error Responses
+
+<Accordion title="401 Unauthorized">
+```json
+{
+  "error": "Unauthorized"
+}
+```
+</Accordion>
+
+<Accordion title="404 Not Found">
+```json
+{
+  "error": "Execution not found"
+}
+```
+</Accordion>
+
+## Polling Best Practices
+
+<Tip>
+Use this endpoint for polling instead of the full [Get Execution](/api-reference/executions/get) endpoint. It returns much less data and is faster.
+</Tip>
+
+1. **Poll interval**: Start with 1 second intervals, increase to 2-5 seconds for long-running workflows
+2. **Check `isComplete`**: Stop polling when `isComplete` is `true`
+3. **Handle errors**: Implement exponential backoff if you receive 429 (rate limit) or 5xx errors
+4. **Timeout**: Set a maximum polling duration to avoid infinite loops
+
+```javascript
+async function pollWithTimeout(executionId, maxWaitMs = 300000) {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitMs) {
+    const response = await fetch(
+      `https://flowsmiths.vercel.app/api/executions/${executionId}/status`,
+      { headers: { 'Authorization': 'Bearer YOUR_API_KEY' } }
+    );
+    const data = await response.json();
+    
+    if (data.isComplete) {
+      return data;
+    }
+    
+    // Wait 1-2 seconds between polls
+    await new Promise(r => setTimeout(r, data.progress > 50 ? 1000 : 2000));
+  }
+  
+  throw new Error('Polling timeout exceeded');
+}
+```

@@ -98,6 +98,7 @@
           "pages": [
             "api-reference/executions/list",
             "api-reference/executions/get",
+            "api-reference/executions/status",
             "api-reference/executions/cancel",
             "api-reference/executions/stream"
           ]

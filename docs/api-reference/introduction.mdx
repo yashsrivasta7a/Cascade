@@ -26,43 +26,51 @@ You can import this into tools like Postman, Insomnia, or any OpenAPI-compatible
 
 ## Available Endpoints
 
-### Workflows
+### Workflows (under `/api/v1`)
 
-Manage your AI workflows - create, update, execute, and delete.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/workflows` | [List all workflows](/api-reference/workflows/list) |
-| `GET` | `/workflows/{id}` | [Get a specific workflow](/api-reference/workflows/get) |
-| `POST` | `/workflows` | [Create a new workflow](/api-reference/workflows/create) |
-| `PATCH` | `/workflows/{id}` | [Update a workflow](/api-reference/workflows/update) |
-| `DELETE` | `/workflows/{id}` | [Delete a workflow](/api-reference/workflows/delete) |
-| `POST` | `/workflows/{id}/duplicate` | [Duplicate a workflow](/api-reference/workflows/duplicate) |
-| `POST` | `/workflows/{id}/execute` | [Execute a workflow](/api-reference/workflows/execute) |
-
-### Executions
-
-Track and manage workflow executions.
+Manage your AI workflows - create, update, and delete. These endpoints use the `/api/v1` base URL.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/executions` | [List all executions](/api-reference/executions/list) |
-| `GET` | `/executions/{id}` | [Get execution details](/api-reference/executions/get) |
-| `POST` | `/executions/{id}/cancel` | [Cancel an execution](/api-reference/executions/cancel) |
-| `GET` | `/executions/{id}/stream` | [Stream execution updates](/api-reference/executions/stream) |
+| `GET` | `/api/v1/workflows` | [List all workflows](/api-reference/workflows/list) |
+| `GET` | `/api/v1/workflows/{id}` | [Get a specific workflow](/api-reference/workflows/get) |
+| `POST` | `/api/v1/workflows` | [Create a new workflow](/api-reference/workflows/create) |
+| `PATCH` | `/api/v1/workflows/{id}` | [Update a workflow](/api-reference/workflows/update) |
+| `DELETE` | `/api/v1/workflows/{id}` | [Delete a workflow](/api-reference/workflows/delete) |
+| `POST` | `/api/v1/workflows/{id}/duplicate` | [Duplicate a workflow](/api-reference/workflows/duplicate) |
 
-### Credits
+### Workflow Execution (under `/api`)
+
+Execute workflows. Note: This endpoint is NOT under `/api/v1`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/workflow/trigger` | [Execute a workflow](/api-reference/workflows/execute) |
+
+### Executions (under `/api`)
+
+Track and manage workflow executions. Note: These endpoints are NOT under `/api/v1`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/executions` | [List all executions](/api-reference/executions/list) |
+| `GET` | `/api/executions/{id}` | [Get execution details](/api-reference/executions/get) |
+| `GET` | `/api/executions/{id}/status` | [Get execution status (lightweight)](/api-reference/executions/status) |
+| `POST` | `/api/executions/{id}/cancel` | [Cancel an execution](/api-reference/executions/cancel) |
+| `GET` | `/api/executions/{id}/stream` | [Stream execution updates](/api-reference/executions/stream) |
+
+### Credits (under `/api/v1`)
 
 Monitor and manage your credit balance.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/credits/balance` | [Get current credit balance](/api-reference/credits/balance) |
-| `GET` | `/credits/stats` | [Get credit usage statistics](/api-reference/credits/stats) |
+| `GET` | `/api/v1/credits/balance` | [Get current credit balance](/api-reference/credits/balance) |
+| `GET` | `/api/v1/credits/stats` | [Get credit usage statistics](/api-reference/credits/stats) |
 
-### Nodes
+### Nodes (under `/api`)
 
-Execute individual AI nodes programmatically.
+Execute individual AI nodes programmatically. Note: These endpoints are NOT under `/api/v1`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -70,7 +78,7 @@ Execute individual AI nodes programmatically.
 | `GET` | `/api/nodes/status` | [Check node execution status](/api-reference/nodes/status) |
 | `POST` | `/api/nodes/llm/realtime` | [Stream LLM responses (SSE)](/api-reference/nodes/llm-realtime) |
 
-### Media
+### Media (under `/api`)
 
 Upload and manage media files.
 
@@ -78,13 +86,13 @@ Upload and manage media files.
 |--------|----------|-------------|
 | `POST` | `/api/media/upload` | [Upload media to CDN](/api-reference/media/upload) |
 
-### Dashboard
+### Dashboard (under `/api`)
 
 Get aggregate statistics and overview data.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/dashboard/stats` | [Get dashboard statistics](/api-reference/dashboard/stats) |
+| `GET` | `/api/dashboard/stats` | [Get dashboard statistics](/api-reference/dashboard/stats) |
 
 ## Response Format
 
