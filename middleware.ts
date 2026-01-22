@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/nodes(.*)", // All node execution endpoints
   "/api/openapi(.*)", // OpenAPI spec endpoint for Mintlify
   "/api/workflow/trigger(.*)", // Workflow trigger - handles both Clerk and API key auth internally
+  "/api/admin(.*)", // Admin routes - handle auth internally
 ]);
 
 // Routes that should completely bypass Clerk (use API key auth instead)

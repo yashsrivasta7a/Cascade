@@ -1,6 +1,12 @@
 import { z } from "zod/v4";
 import { router, protectedProcedure } from "../server";
 import { TRPCError } from "@trpc/server";
+import {
+  saveWorkflowData,
+  getWorkflowData,
+  getWorkflowNodes,
+} from "@/lib/services/workflow-nodes";
+import type { Node, Edge } from "reactflow";
 
 // =============================================================================
 // OPENAPI RESPONSE SCHEMAS
@@ -441,6 +447,141 @@ export const workflowRouter = router({
       });
 
       return { success: true };
+    }),
+
+  // Get paginated nodes (for large workflows with 1000+ nodes)
+  getNodes: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/workflows/{id}/nodes",
+        tags: ["Workflows"],
+        summary: "Get paginated workflow nodes",
+        description: "Returns nodes with pagination support for large workflows",
+        protect: true,
+      },
+    })
+    .input(z.object({
+      id: z.string(),
+      cursor: z.string().optional(),
+      limit: z.number().min(1).max(500).default(100),
+      type: z.string().optional(),
+    }))
+    .output(z.object({
+      nodes: z.array(z.unknown()),
+      nextCursor: z.string().optional(),
+      total: z.number(),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Verify ownership
+      const workflow = await ctx.db.workflow.findFirst({
+        where: { id: input.id, userId: ctx.userId },
+        select: { id: true },
+      });
+
+      if (!workflow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Workflow not found",
+        });
+      }
+
+      const result = await getWorkflowNodes(input.id, {
+        cursor: input.cursor,
+        limit: input.limit,
+        type: input.type,
+      });
+
+      return result;
+    }),
+
+  // Update with normalized storage (efficient for large workflows)
+  updateNormalized: protectedProcedure
+    .meta({
+      openapi: {
+        method: "PUT",
+        path: "/workflows/{id}/normalized",
+        tags: ["Workflows"],
+        summary: "Update workflow with normalized storage",
+        description: "Updates workflow using normalized tables for efficient storage of large workflows",
+        protect: true,
+      },
+    })
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1).max(100).optional(),
+      description: z.string().max(500).optional(),
+      nodesJson: z.array(z.unknown()),
+      edgesJson: z.array(z.unknown()),
+      viewportJson: z.object({
+        x: z.number(),
+        y: z.number(),
+        zoom: z.number(),
+      }).optional(),
+    }))
+    .output(z.object({ success: z.boolean(), nodeCount: z.number(), edgeCount: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, nodesJson, edgesJson, ...metadata } = input;
+
+      // Verify ownership
+      const existing = await ctx.db.workflow.findFirst({
+        where: { id, userId: ctx.userId },
+      });
+
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Workflow not found",
+        });
+      }
+
+      // Save to normalized tables
+      await saveWorkflowData(id, nodesJson as Node[], edgesJson as Edge[]);
+
+      // Update metadata if provided
+      if (Object.keys(metadata).length > 0) {
+        await ctx.db.workflow.update({
+          where: { id },
+          data: metadata,
+        });
+      }
+
+      return {
+        success: true,
+        nodeCount: nodesJson.length,
+        edgeCount: edgesJson.length,
+      };
+    }),
+
+  // Get migration status for a workflow
+  getMigrationStatus: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .output(z.object({
+      isNormalized: z.boolean(),
+      nodeCount: z.number(),
+      edgeCount: z.number(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const workflow = await ctx.db.workflow.findFirst({
+        where: { id: input.id, userId: ctx.userId },
+        select: { isNormalized: true, nodesJson: true, edgesJson: true },
+      });
+
+      if (!workflow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Workflow not found",
+        });
+      }
+
+      const nodesJson = workflow.nodesJson as unknown[];
+      const edgesJson = workflow.edgesJson as unknown[];
+
+      return {
+        isNormalized: workflow.isNormalized,
+        nodeCount: Array.isArray(nodesJson) ? nodesJson.length : 0,
+        edgeCount: Array.isArray(edgesJson) ? edgesJson.length : 0,
+      };
     }),
 });
 

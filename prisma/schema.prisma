@@ -76,10 +76,14 @@ model Workflow {
   name        String
   description String?
   
-  // Serialized React Flow state
-  nodesJson   Json     // Node[] from React Flow
-  edgesJson   Json     // Edge[] from React Flow
+  // Legacy: Serialized React Flow state (kept for backward compatibility)
+  // TODO: Remove after migration is complete and verified
+  nodesJson   Json     // Node[] from React Flow - DEPRECATED: use WorkflowNode table
+  edgesJson   Json     // Edge[] from React Flow - DEPRECATED: use WorkflowEdge table
   viewportJson Json?   // Viewport state
+  
+  // Migration tracking
+  isNormalized Boolean @default(false) // True when nodes/edges are in normalized tables
   
   // Versioning
   version     Int      @default(1)
@@ -91,9 +95,79 @@ model Workflow {
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions WorkflowExecution[]
   versions   WorkflowVersion[]
+  nodes      WorkflowNode[]      // Normalized nodes
+  edges      WorkflowEdge[]      // Normalized edges
 
   @@index([userId])
   @@map("workflows")
+}
+
+// =============================================================================
+// NORMALIZED WORKFLOW NODES (for scalability with 1000+ nodes)
+// =============================================================================
+
+model WorkflowNode {
+  id          String   @id @default(cuid())
+  workflowId  String
+  
+  // React Flow node identification
+  nodeId      String   // React Flow's node ID (e.g., "input-1", "seedream-2")
+  type        String   // Node type (e.g., "input", "seedream", "output")
+  
+  // Position (stored separately for efficient updates)
+  positionX   Float
+  positionY   Float
+  
+  // Node data (label, config, etc.) - small JSON object
+  dataJson    Json
+  
+  // Measured dimensions (from React Flow)
+  width       Float?
+  height      Float?
+  
+  // Ordering for sequential processing
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@unique([workflowId, nodeId])
+  @@index([workflowId])
+  @@index([workflowId, type])      // Filter by node type
+  @@index([workflowId, sortOrder]) // Ordered retrieval
+  @@map("workflow_nodes")
+}
+
+// =============================================================================
+// NORMALIZED WORKFLOW EDGES (for scalability with 1000+ nodes)
+// =============================================================================
+
+model WorkflowEdge {
+  id           String   @id @default(cuid())
+  workflowId   String
+  
+  // React Flow edge identification
+  edgeId       String   // React Flow's edge ID
+  
+  // Connection info
+  source       String   // Source node's nodeId
+  target       String   // Target node's nodeId
+  sourceHandle String?  // Output handle name
+  targetHandle String?  // Input handle name
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  workflow     Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@unique([workflowId, edgeId])
+  @@unique([workflowId, source, target, sourceHandle, targetHandle]) // Prevent duplicate edges
+  @@index([workflowId])
+  @@index([workflowId, source])  // Find edges from a node
+  @@index([workflowId, target])  // Find edges to a node
+  @@map("workflow_edges")
 }
 
 // =============================================================================
