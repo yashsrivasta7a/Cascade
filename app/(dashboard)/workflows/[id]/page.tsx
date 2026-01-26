@@ -391,14 +391,20 @@ function WorkflowEditorContent() {
   const createExecutionMutation = trpc.execution.create.useMutation();
   const updateExecutionMutation = trpc.execution.updateStatus.useMutation();
 
-  // Load existing workflow or start fresh
+  // Clear flow immediately when workflowId changes to prevent stale data from persisted store
   useEffect(() => {
+    // Clear the flow first to prevent showing old workflow data while new data loads
+    loadFlow([], []);
+    setDbWorkflowId(null);
+    setWorkflowName("My Workflow");
+    
     if (workflowId === "new" || workflowId === "unknown") {
-      loadFlow([], []);
       setWorkflowId(null);
-      return;
     }
+  }, [workflowId, loadFlow, setWorkflowId]);
 
+  // Load workflow data once it's fetched
+  useEffect(() => {
     if (workflowData?.workflow) {
       const workflow = workflowData.workflow;
       setDbWorkflowId(workflow.id);
@@ -409,7 +415,7 @@ function WorkflowEditorContent() {
         (workflow.edgesJson as unknown as Edge[]) || []
       );
     }
-  }, [workflowId, workflowData, loadFlow, setWorkflowId]);
+  }, [workflowData, loadFlow, setWorkflowId]);
 
   // Handle focus parameter from URL (e.g., when navigating from executions page)
   useEffect(() => {
