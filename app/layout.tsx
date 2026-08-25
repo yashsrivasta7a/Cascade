@@ -1,27 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Orbitron } from "next/font/google";
+import { JetBrains_Mono, Google_Sans_Flex } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
 import "./globals.css";
 
-// Inter is very similar to Suisse Intl (which is paid)
-// Clean, modern sans-serif with excellent readability
-const inter = Inter({
-  variable: "--font-geist-sans",
+const googleSansFlex = Google_Sans_Flex({
+  variable: "--font-google-sans-flex",
   subsets: ["latin"],
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-// Orbitron - Futuristic geometric font for branding
-const orbitron = Orbitron({
-  variable: "--font-orbitron",
   subsets: ["latin"],
   display: "swap",
 });
@@ -54,7 +45,7 @@ export default function RootLayout({
           colorText: "#fafafa",
           colorTextSecondary: "#a1a1aa", // zinc-400
           borderRadius: "0.75rem",
-          fontFamily: "var(--font-geist-sans)",
+          fontFamily: "var(--font-google-sans-flex)",
         },
         elements: {
           formButtonPrimary:
@@ -81,13 +72,17 @@ export default function RootLayout({
     >
       <html lang="en" className="dark" suppressHydrationWarning>
         <head>
+          <link rel="stylesheet" href="https://use.typekit.net/nhj0oua.css" />
           {/* Theme initialization script - prevents flash of wrong theme */}
           <script
             dangerouslySetInnerHTML={{
               __html: `
                 (function() {
                   try {
-                    var theme = localStorage.getItem('theme');
+                    // Auth routes are always dark - keep in sync with FORCED_DARK_ROUTES in app/providers.tsx
+                    var p = location.pathname;
+                    var forced = p.indexOf('/sign-in') === 0 || p.indexOf('/sign-up') === 0;
+                    var theme = forced ? 'dark' : localStorage.getItem('theme');
                     if (theme === 'light' || theme === 'dark') {
                       document.documentElement.classList.remove('light', 'dark');
                       document.documentElement.classList.add(theme);
@@ -99,7 +94,7 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${inter.variable} ${jetbrainsMono.variable} ${orbitron.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
+          className={`${googleSansFlex.variable} ${jetbrainsMono.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
         >
           <Providers>{children}</Providers>
         </body>

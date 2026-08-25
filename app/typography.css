@@ -1,0 +1,916 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLOWSMITH — TYPOGRAPHY SCALE
+   Headings: articulat-cf (Typekit, loaded in app/layout.tsx)
+   Body/UI:  Google Sans Flex (next/font, --font-google-sans-flex)
+
+   Everything lives in @layer base on purpose. Tailwind v4 emits utilities into
+   @layer utilities, and unlayered CSS outranks any layer — so an unlayered
+   `h1 { font-size: 5.5rem }` would beat `<h1 className="text-sm">` and resize
+   57 existing headings across the app. In @layer base, a bare heading picks up
+   the scale below and a heading carrying a Tailwind size keeps that size.
+
+   Breakpoints:
+     ≤767px          mobile
+     768–1023px      tablet
+     1024–1536px     laptop
+     1537–2048px     desktop
+     ≥2049px         falls through to the base block (largest scale)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    --font-articulat-cf: "articulat-cf", sans-serif;
+  }
+
+  .font-articulat-cf {
+    font-family: var(--font-articulat-cf);
+  }
+
+  .font-google-sans-flex {
+    font-family: var(--font-google-sans-flex), sans-serif;
+  }
+
+  /* ── Base / ≥2049px ────────────────────────────────────────────────────── */
+
+  .heading-1,
+  h1 {
+    font-size: 5.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 100px;
+  }
+
+  .heading-2,
+  h2 {
+    font-size: 4.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 84px;
+  }
+
+  .heading-3,
+  h3 {
+    font-size: 3.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 64px;
+  }
+
+  .heading-4,
+  h4 {
+    font-size: 3rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 56px;
+  }
+
+  .heading-5,
+  h5 {
+    font-size: 2.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 48px;
+  }
+
+  .heading-6,
+  h6 {
+    font-size: 2rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 40px;
+  }
+
+  .sub-heading-1 {
+    font-size: 1.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 32px;
+  }
+
+  .sub-heading-2 {
+    font-size: 1.25rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 28px;
+  }
+
+  .body-1 {
+    font-size: 1.125rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 400;
+    line-height: 26px;
+  }
+
+  .body-1-md {
+    font-size: 1.125rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 26px;
+  }
+
+  .body-2 {
+    font-size: 1rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 400;
+    line-height: 24px;
+  }
+
+  .body-2-md {
+    font-size: 1rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 24px;
+  }
+
+  .body-3 {
+    font-size: 0.875rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 400;
+    line-height: 22px;
+  }
+
+  .body-3-md {
+    font-size: 0.875rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 22px;
+  }
+
+  .label {
+    font-size: 1rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 24px;
+  }
+
+  .button {
+    font-size: 1rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 24px;
+  }
+
+  .caption {
+    font-size: 0.875rem;
+    font-family: var(--font-google-sans-flex), sans-serif;
+    font-weight: 500;
+    line-height: 22px;
+  }
+
+  .menu-text {
+    font-size: 10rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 180px;
+  }
+
+  .number {
+    font-size: 7.5rem;
+    font-family: var(--font-articulat-cf);
+    font-weight: 600;
+    line-height: 128px;
+  }
+
+  /* ── Laptop 1024–1536px ────────────────────────────────────────────────── */
+
+  @media (min-width: 1024px) and (max-width: 1536px) {
+    h1,
+    .heading-1 {
+      font-size: 3.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 64px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    h2,
+    .heading-2 {
+      font-size: 2.75rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 52px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    h3,
+    .heading-3 {
+      font-size: 2.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 44px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    h4,
+    .heading-4 {
+      font-size: 2rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 40px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    h5,
+    .heading-5 {
+      font-size: 1.75rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 36px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    h6,
+    .heading-6 {
+      font-size: 1.375rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 30px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-1 {
+      font-size: 1.125rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 26px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-2 {
+      font-size: 1rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1 {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 400;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1-md {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2 {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 400;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2-md {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3 {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 400;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3-md {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .label {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .button {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .caption {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .menu-text {
+      font-size: 5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 88px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .number {
+      font-size: 4rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 500;
+      font-style: normal;
+      line-height: 72px;
+      text-decoration: none;
+      text-transform: none;
+    }
+  }
+
+  /* ── Desktop 1537–2048px ───────────────────────────────────────────────── */
+
+  @media (min-width: 1537px) and (max-width: 2048px) {
+    .heading-1,
+    h1 {
+      font-size: 4.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 84px;
+    }
+
+    .heading-2,
+    h2 {
+      font-size: 4rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 76px;
+    }
+
+    .heading-3,
+    h3 {
+      font-size: 3rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 56px;
+    }
+
+    .heading-4,
+    h4 {
+      font-size: 2.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 48px;
+    }
+
+    .heading-5,
+    h5 {
+      font-size: 2.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 44px;
+    }
+
+    .heading-6,
+    h6 {
+      font-size: 1.875rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 38px;
+    }
+
+    .sub-heading-1 {
+      font-size: 1.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 32px;
+    }
+
+    .sub-heading-2 {
+      font-size: 1.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 28px;
+    }
+
+    .body-1 {
+      font-size: 1.125rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      line-height: 26px;
+    }
+
+    .body-1-md {
+      font-size: 1.125rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 26px;
+    }
+
+    .body-2 {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      line-height: 24px;
+    }
+
+    .body-2-md {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 24px;
+    }
+
+    .body-3 {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      line-height: 22px;
+    }
+
+    .body-3-md {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 22px;
+    }
+
+    .label {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 24px;
+    }
+
+    .button {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 24px;
+    }
+
+    .caption {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      line-height: 22px;
+    }
+
+    .menu-text {
+      font-size: 9rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 160px;
+    }
+
+    .number {
+      font-size: 6.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      line-height: 112px;
+    }
+  }
+
+  /* ── Tablet 768–1023px ─────────────────────────────────────────────────── */
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .heading-1,
+    h1 {
+      font-size: 2rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 40px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-2,
+    h2 {
+      font-size: 1.875rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 38px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-3,
+    h3 {
+      font-size: 1.75rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 36px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-4,
+    h4 {
+      font-size: 1.625rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 34px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-5,
+    h5 {
+      font-size: 1.375rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 30px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-6,
+    h6 {
+      font-size: 1.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 28px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-1 {
+      font-size: 1.125rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 26px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-2 {
+      font-size: 1rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1 {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1-md {
+      font-size: 1rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2 {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2-md {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3 {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3-md {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .label {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .button {
+      font-size: 0.875rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .caption {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .menu-text {
+      font-size: 3.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 64px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .number {
+      font-size: 3.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 64px;
+      text-decoration: none;
+      text-transform: none;
+    }
+  }
+
+  /* ── Mobile ≤767px ─────────────────────────────────────────────────────── */
+
+  @media screen and (max-width: 767px) {
+    .heading-1,
+    h1 {
+      font-size: 1.75rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 36px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-2,
+    h2 {
+      font-size: 1.625rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 34px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-3,
+    h3 {
+      font-size: 1.5rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 32px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-4,
+    h4 {
+      font-size: 1.375rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 30px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-5,
+    h5 {
+      font-size: 1.125rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 26px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .heading-6,
+    h6 {
+      font-size: 1rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 24px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-1 {
+      font-size: 1rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 22px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .sub-heading-2 {
+      font-size: 0.875rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1 {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-1-md {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2 {
+      font-size: 0.625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 18px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-2-md {
+      font-size: 0.625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 18px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3 {
+      font-size: 0.5625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 16px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .body-3-md {
+      font-size: 0.5625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 16px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .label {
+      font-size: 0.625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 18px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .button {
+      font-size: 0.75rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 20px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .caption {
+      font-size: 0.5625rem;
+      font-family: var(--font-google-sans-flex), sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      line-height: 16px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .menu-text {
+      font-size: 3.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 60px;
+      text-decoration: none;
+      text-transform: none;
+    }
+
+    .number {
+      font-size: 3.25rem;
+      font-family: var(--font-articulat-cf);
+      font-weight: 600;
+      font-style: normal;
+      line-height: 60px;
+      text-decoration: none;
+      text-transform: none;
+    }
+  }
+}

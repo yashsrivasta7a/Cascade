@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FLOWSMITH - PROFESSIONAL DARK THEME WITH GLASS MORPHISM
@@ -135,15 +136,13 @@ html.light ::selection {
 }
 
 .glass-card {
-  background: linear-gradient(
-    145deg,
-    rgba(20, 20, 22, 0.8) 0%,
-    rgba(10, 10, 11, 0.9) 100%
-  );
+  background: linear-gradient(145deg,
+      rgba(20, 20, 22, 0.8) 0%,
+      rgba(10, 10, 11, 0.9) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 
+  box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.02) inset,
     0 20px 50px -15px rgba(0, 0, 0, 0.5);
 }
@@ -183,8 +182,15 @@ html.light ::selection {
 }
 
 @keyframes gradient-flow {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -248,7 +254,9 @@ html.dark .react-flow__container {
 }
 
 @keyframes edge-flow {
-  to { stroke-dashoffset: -10; }
+  to {
+    stroke-dashoffset: -10;
+  }
 }
 
 /* Node wrapper - transparent background to let custom node styling show */
@@ -302,40 +310,120 @@ html.dark .react-flow__container {
 }
 
 /* Handle type colors - MEDIA TYPES */
-.react-flow__handle[data-handletype="text"] { color: #3b82f6 !important; }
-.react-flow__handle[data-handletype="image"] { color: #10b981 !important; }
-.react-flow__handle[data-handletype="video"] { color: #8b5cf6 !important; }
-.react-flow__handle[data-handletype="audio"] { color: #f59e0b !important; }
-.react-flow__handle[data-handletype="any"] { color: #a1a1aa !important; }
+.react-flow__handle[data-handletype="text"] {
+  color: #3b82f6 !important;
+}
+
+.react-flow__handle[data-handletype="image"] {
+  color: #10b981 !important;
+}
+
+.react-flow__handle[data-handletype="video"] {
+  color: #8b5cf6 !important;
+}
+
+.react-flow__handle[data-handletype="audio"] {
+  color: #f59e0b !important;
+}
+
+.react-flow__handle[data-handletype="any"] {
+  color: #a1a1aa !important;
+}
 
 /* Handle type colors - SETTINGS TYPES */
-.react-flow__handle[data-handletype="prompt"] { color: #0ea5e9 !important; }
-.react-flow__handle[data-handletype="negative"] { color: #ef4444 !important; }
-.react-flow__handle[data-handletype="seed"] { color: #84cc16 !important; }
-.react-flow__handle[data-handletype="aspectRatio"] { color: #6366f1 !important; }
-.react-flow__handle[data-handletype="duration"] { color: #14b8a6 !important; }
-.react-flow__handle[data-handletype="model"] { color: #f43f5e !important; }
-.react-flow__handle[data-handletype="temperature"] { color: #f97316 !important; }
-.react-flow__handle[data-handletype="number"] { color: #ec4899 !important; }
-.react-flow__handle[data-handletype="boolean"] { color: #06b6d4 !important; }
+.react-flow__handle[data-handletype="prompt"] {
+  color: #0ea5e9 !important;
+}
+
+.react-flow__handle[data-handletype="negative"] {
+  color: #ef4444 !important;
+}
+
+.react-flow__handle[data-handletype="seed"] {
+  color: #84cc16 !important;
+}
+
+.react-flow__handle[data-handletype="aspectRatio"] {
+  color: #6366f1 !important;
+}
+
+.react-flow__handle[data-handletype="duration"] {
+  color: #14b8a6 !important;
+}
+
+.react-flow__handle[data-handletype="model"] {
+  color: #f43f5e !important;
+}
+
+.react-flow__handle[data-handletype="temperature"] {
+  color: #f97316 !important;
+}
+
+.react-flow__handle[data-handletype="number"] {
+  color: #ec4899 !important;
+}
+
+.react-flow__handle[data-handletype="boolean"] {
+  color: #06b6d4 !important;
+}
 
 /* Handle hover glow - MEDIA TYPES */
-.react-flow__handle[data-handletype="text"]:hover { box-shadow: 0 0 16px rgba(59, 130, 246, 0.7) !important; }
-.react-flow__handle[data-handletype="image"]:hover { box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important; }
-.react-flow__handle[data-handletype="video"]:hover { box-shadow: 0 0 16px rgba(139, 92, 246, 0.7) !important; }
-.react-flow__handle[data-handletype="audio"]:hover { box-shadow: 0 0 16px rgba(245, 158, 11, 0.7) !important; }
-.react-flow__handle[data-handletype="any"]:hover { box-shadow: 0 0 16px rgba(161, 161, 170, 0.6) !important; }
+.react-flow__handle[data-handletype="text"]:hover {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="image"]:hover {
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="video"]:hover {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="audio"]:hover {
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="any"]:hover {
+  box-shadow: 0 0 16px rgba(161, 161, 170, 0.6) !important;
+}
 
 /* Handle hover glow - SETTINGS TYPES */
-.react-flow__handle[data-handletype="prompt"]:hover { box-shadow: 0 0 16px rgba(14, 165, 233, 0.7) !important; }
-.react-flow__handle[data-handletype="negative"]:hover { box-shadow: 0 0 16px rgba(239, 68, 68, 0.7) !important; }
-.react-flow__handle[data-handletype="seed"]:hover { box-shadow: 0 0 16px rgba(132, 204, 22, 0.7) !important; }
-.react-flow__handle[data-handletype="aspectRatio"]:hover { box-shadow: 0 0 16px rgba(99, 102, 241, 0.7) !important; }
-.react-flow__handle[data-handletype="duration"]:hover { box-shadow: 0 0 16px rgba(20, 184, 166, 0.7) !important; }
-.react-flow__handle[data-handletype="model"]:hover { box-shadow: 0 0 16px rgba(244, 63, 94, 0.7) !important; }
-.react-flow__handle[data-handletype="temperature"]:hover { box-shadow: 0 0 16px rgba(249, 115, 22, 0.7) !important; }
-.react-flow__handle[data-handletype="number"]:hover { box-shadow: 0 0 16px rgba(236, 72, 153, 0.7) !important; }
-.react-flow__handle[data-handletype="boolean"]:hover { box-shadow: 0 0 16px rgba(6, 182, 212, 0.7) !important; }
+.react-flow__handle[data-handletype="prompt"]:hover {
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="negative"]:hover {
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="seed"]:hover {
+  box-shadow: 0 0 16px rgba(132, 204, 22, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="aspectRatio"]:hover {
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="duration"]:hover {
+  box-shadow: 0 0 16px rgba(20, 184, 166, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="model"]:hover {
+  box-shadow: 0 0 16px rgba(244, 63, 94, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="temperature"]:hover {
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="number"]:hover {
+  box-shadow: 0 0 16px rgba(236, 72, 153, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="boolean"]:hover {
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.7) !important;
+}
 
 .react-flow__controls {
   background: rgba(10, 10, 11, 0.8) !important;
@@ -351,61 +439,61 @@ html.dark .react-flow__container {
    Note: .allow-color class exempts elements from these overrides
    ═══════════════════════════════════════════════════════════════════════════ */
 
-:not(.allow-color):not(.allow-color *) > .text-cyan-400,
-:not(.allow-color):not(.allow-color *) > .text-violet-400,
-:not(.allow-color):not(.allow-color *) > .text-emerald-400,
-:not(.allow-color):not(.allow-color *) > .text-amber-400,
-:not(.allow-color):not(.allow-color *) > .text-blue-400,
-:not(.allow-color):not(.allow-color *) > .text-red-400,
-:not(.allow-color):not(.allow-color *) > .text-yellow-400,
-:not(.allow-color):not(.allow-color *) > .text-purple-500,
-:not(.allow-color):not(.allow-color *) > .text-pink-500 {
+:not(.allow-color):not(.allow-color *)>.text-cyan-400,
+:not(.allow-color):not(.allow-color *)>.text-violet-400,
+:not(.allow-color):not(.allow-color *)>.text-emerald-400,
+:not(.allow-color):not(.allow-color *)>.text-amber-400,
+:not(.allow-color):not(.allow-color *)>.text-blue-400,
+:not(.allow-color):not(.allow-color *)>.text-red-400,
+:not(.allow-color):not(.allow-color *)>.text-yellow-400,
+:not(.allow-color):not(.allow-color *)>.text-purple-500,
+:not(.allow-color):not(.allow-color *)>.text-pink-500 {
   color: rgba(244, 244, 245, 0.9) !important;
 }
 
-:not(.allow-color) > .bg-cyan-500\/10,
-:not(.allow-color) > .bg-violet-500\/10,
-:not(.allow-color) > .bg-emerald-500\/10,
-:not(.allow-color) > .bg-amber-500\/10,
-:not(.allow-color) > .bg-blue-500\/10,
-:not(.allow-color) > .bg-red-500\/10,
-:not(.allow-color) > .bg-cyan-500\/20,
-:not(.allow-color) > .bg-violet-500\/20,
-:not(.allow-color) > .bg-emerald-500\/20,
-:not(.allow-color) > .bg-amber-500\/20,
-:not(.allow-color) > .bg-blue-500\/20,
-:not(.allow-color) > .bg-red-500\/20 {
+:not(.allow-color)>.bg-cyan-500\/10,
+:not(.allow-color)>.bg-violet-500\/10,
+:not(.allow-color)>.bg-emerald-500\/10,
+:not(.allow-color)>.bg-amber-500\/10,
+:not(.allow-color)>.bg-blue-500\/10,
+:not(.allow-color)>.bg-red-500\/10,
+:not(.allow-color)>.bg-cyan-500\/20,
+:not(.allow-color)>.bg-violet-500\/20,
+:not(.allow-color)>.bg-emerald-500\/20,
+:not(.allow-color)>.bg-amber-500\/20,
+:not(.allow-color)>.bg-blue-500\/20,
+:not(.allow-color)>.bg-red-500\/20 {
   background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
-:not(.allow-color) > .bg-cyan-500,
-:not(.allow-color) > .bg-violet-500,
-:not(.allow-color) > .bg-emerald-500,
-:not(.allow-color) > .bg-amber-500,
-:not(.allow-color) > .bg-blue-500,
-:not(.allow-color) > .bg-red-600,
-:not(.allow-color) > .bg-red-500 {
+:not(.allow-color)>.bg-cyan-500,
+:not(.allow-color)>.bg-violet-500,
+:not(.allow-color)>.bg-emerald-500,
+:not(.allow-color)>.bg-amber-500,
+:not(.allow-color)>.bg-blue-500,
+:not(.allow-color)>.bg-red-600,
+:not(.allow-color)>.bg-red-500 {
   background-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-:not(.allow-color) > .border-cyan-500\/20,
-:not(.allow-color) > .border-violet-500\/20,
-:not(.allow-color) > .border-emerald-500\/20,
-:not(.allow-color) > .border-amber-500\/20,
-:not(.allow-color) > .border-blue-500\/20,
-:not(.allow-color) > .border-cyan-500\/30,
-:not(.allow-color) > .border-emerald-500\/30,
-:not(.allow-color) > .border-amber-500\/30,
-:not(.allow-color) > .border-blue-500\/30 {
+:not(.allow-color)>.border-cyan-500\/20,
+:not(.allow-color)>.border-violet-500\/20,
+:not(.allow-color)>.border-emerald-500\/20,
+:not(.allow-color)>.border-amber-500\/20,
+:not(.allow-color)>.border-blue-500\/20,
+:not(.allow-color)>.border-cyan-500\/30,
+:not(.allow-color)>.border-emerald-500\/30,
+:not(.allow-color)>.border-amber-500\/30,
+:not(.allow-color)>.border-blue-500\/30 {
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-:not(.allow-color) > .from-cyan-500\/10,
-:not(.allow-color) > .from-violet-500\/10,
-:not(.allow-color) > .from-cyan-500\/20,
-:not(.allow-color) > .to-violet-500\/10,
-:not(.allow-color) > .to-violet-500\/20,
-:not(.allow-color) > .via-violet-500\/10 {
+:not(.allow-color)>.from-cyan-500\/10,
+:not(.allow-color)>.from-violet-500\/10,
+:not(.allow-color)>.from-cyan-500\/20,
+:not(.allow-color)>.to-violet-500\/10,
+:not(.allow-color)>.to-violet-500\/20,
+:not(.allow-color)>.via-violet-500\/10 {
   --tw-gradient-from: rgba(255, 255, 255, 0.05) !important;
   --tw-gradient-to: rgba(255, 255, 255, 0) !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
@@ -457,7 +545,9 @@ html.dark .react-flow__container {
 }
 
 @keyframes dash {
-  to { stroke-dashoffset: -10; }
+  to {
+    stroke-dashoffset: -10;
+  }
 }
 
 /* Connection indicator when dragging */
@@ -483,18 +573,37 @@ html.dark .react-flow__container {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.2); }
-  50% { box-shadow: 0 0 40px rgba(0, 212, 255, 0.4); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.4);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .animate-float {
@@ -506,12 +615,10 @@ html.dark .react-flow__container {
 }
 
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
 }
@@ -614,11 +721,14 @@ html.dark .react-flow__container {
 
 /* Pulsing glow effect for running edges */
 @keyframes pulseGlow {
-  0%, 100% { 
+
+  0%,
+  100% {
     opacity: 0.25;
     stroke-width: 12px;
   }
-  50% { 
+
+  50% {
     opacity: 0.5;
     stroke-width: 16px;
   }
@@ -626,28 +736,35 @@ html.dark .react-flow__container {
 
 /* Marching ants effect for data flow indication */
 @keyframes marchingAnts {
-  to { 
-    stroke-dashoffset: -12; 
+  to {
+    stroke-dashoffset: -12;
   }
 }
 
 /* Flowing dots travel animation (used with animateMotion) */
 @keyframes flowingDots {
-  0% { offset-distance: 0%; }
-  100% { offset-distance: 100%; }
+  0% {
+    offset-distance: 0%;
+  }
+
+  100% {
+    offset-distance: 100%;
+  }
 }
 
 /* Edge completion flash */
 @keyframes edgeFlash {
-  0% { 
+  0% {
     opacity: 1;
     stroke-width: 4px;
   }
-  50% { 
+
+  50% {
     opacity: 1;
     stroke-width: 8px;
   }
-  100% { 
+
+  100% {
     opacity: 0;
     stroke-width: 4px;
   }
@@ -655,11 +772,14 @@ html.dark .react-flow__container {
 
 /* Dot pulse effect */
 @keyframes dotPulse {
-  0%, 100% { 
+
+  0%,
+  100% {
     r: 3;
     opacity: 0.8;
   }
-  50% { 
+
+  50% {
     r: 5;
     opacity: 1;
   }
@@ -667,16 +787,24 @@ html.dark .react-flow__container {
 
 /* Connection line animations */
 @keyframes connectionFlow {
-  0% { stroke-dashoffset: 20; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 20;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes connectionPulse {
-  0%, 100% { 
+
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.2;
   }
-  50% { 
+
+  50% {
     transform: scale(1.8);
     opacity: 0.05;
   }
@@ -684,11 +812,14 @@ html.dark .react-flow__container {
 
 /* Sparkle effect for lightning connection */
 @keyframes sparkle {
-  0%, 100% { 
+
+  0%,
+  100% {
     opacity: 0.3;
     transform: scale(0.8);
   }
-  50% { 
+
+  50% {
     opacity: 1;
     transform: scale(1.5);
   }
@@ -707,33 +838,33 @@ html.light {
   --light-surface-elevated: #FFFFFF;
   --light-surface-overlay: #f5f5f5;
   --light-surface-muted: #fafafa;
-  
+
   /* Primary accent - consistent indigo/blue */
   --light-accent: #4F46E5;
   --light-accent-hover: #4338CA;
   --light-accent-muted: rgba(79, 70, 229, 0.08);
   --light-accent-subtle: rgba(79, 70, 229, 0.12);
-  
+
   /* Secondary colors - muted */
   --light-secondary: #6B7280;
   --light-secondary-hover: #4B5563;
-  
+
   /* Semantic colors */
   --light-success: #059669;
   --light-error: #DC2626;
   --light-warning: #D97706;
-  
+
   /* Borders - soft and subtle */
   --light-border: rgba(0, 0, 0, 0.06);
   --light-border-hover: rgba(0, 0, 0, 0.12);
   --light-border-strong: rgba(0, 0, 0, 0.15);
-  
+
   /* Text hierarchy */
   --light-text-primary: #111827;
   --light-text-secondary: #4B5563;
   --light-text-muted: #9CA3AF;
   --light-text-placeholder: #D1D5DB;
-  
+
   /* Shadows */
   --light-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --light-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -804,15 +935,13 @@ html.light .glass-accent {
 }
 
 html.light .glass-card {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(249, 250, 251, 0.98) 100%
-  );
+  background: linear-gradient(145deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(249, 250, 251, 0.98) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 
+  box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.02) inset,
     var(--light-shadow-lg);
 }
@@ -938,12 +1067,10 @@ html.light .border-gradient::before {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 html.light .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(0, 0, 0, 0.03) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.03) 50%,
+      transparent 100%);
   background-size: 200% 100%;
 }
 
@@ -1501,8 +1628,12 @@ html.light *::-webkit-scrollbar-track {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Increase contrast for better readability */
-html.light h1, html.light h2, html.light h3, 
-html.light h4, html.light h5, html.light h6 {
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
   color: #111827 !important;
 }
 
@@ -2197,18 +2328,24 @@ html.dark .react-flow__background svg pattern circle,
 
 /* Subtle pulsing glow animation for running nodes ONLY */
 @keyframes running-pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.3));
   }
+
   50% {
     filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.5));
   }
 }
 
 @keyframes border-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     stroke-opacity: 0.8;
   }
+
   50% {
     stroke-opacity: 1;
   }
@@ -2253,7 +2390,7 @@ html.light .fixed.top-16.z-50.backdrop-saturate-150 {
 html.light .fixed.top-16.z-50 .text-sm.font-semibold.text-gray-900,
 html.light .fixed.top-16.z-50 .text-sm.font-semibold,
 html.light .fixed.top-16.z-50 span.text-sm.font-semibold,
-html.light .fixed.top-16.z-50 > div span.font-semibold,
+html.light .fixed.top-16.z-50>div span.font-semibold,
 html.light .fixed.top-16 span.text-sm {
   color: #111827 !important;
 }
@@ -2468,12 +2605,12 @@ html.light .fixed.bottom-5.left-1\/2 .backdrop-saturate-150 {
 }
 
 /* Remove glow effect in light mode - except for Execute button */
-html.light .fixed.bottom-5.left-1\/2 > .group > .blur-2xl {
+html.light .fixed.bottom-5.left-1\/2>.group>.blur-2xl {
   display: none !important;
 }
 
 /* Execute button glow - lighter in light mode */
-html.light .fixed.bottom-5.left-1\/2 .group\/runwrap > .blur-lg {
+html.light .fixed.bottom-5.left-1\/2 .group\/runwrap>.blur-lg {
   opacity: 0.25 !important;
 }
 
@@ -2632,12 +2769,12 @@ html.light .react-flow__controls-button svg {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Modal backdrop */
-html.light .fixed.inset-0.z-50 > .bg-black\/60 {
+html.light .fixed.inset-0.z-50>.bg-black\/60 {
   background-color: rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Modal container - target by structure instead of complex class names */
-html.light .fixed.inset-0.z-50 > div > div > div {
+html.light .fixed.inset-0.z-50>div>div>div {
   background-color: #FFFFFF !important;
   border-color: #E5E7EB !important;
 }
@@ -2788,7 +2925,7 @@ html.light .react-flow__node span.bg-white {
 }
 
 /* Node handle hover tooltips - ensure visible in light mode */
-html.light .react-flow__node .group\/handle > div.bg-white,
+html.light .react-flow__node .group\/handle>div.bg-white,
 html.light .react-flow__node div.bg-white.border-gray-200 {
   background-color: #FFFFFF !important;
   border-color: #E5E7EB !important;
@@ -3063,17 +3200,17 @@ html.light .fixed.inset-0.z-50 .text-zinc-600.hover\:text-zinc-200:hover {
 }
 
 /* Keep icons inside colored stat boxes white - MUST override earlier text-white rules */
-html.light .bg-emerald-500 > .text-white,
+html.light .bg-emerald-500>.text-white,
 html.light .bg-emerald-500 .text-white,
-html.light .bg-red-500 > .text-white,
+html.light .bg-red-500>.text-white,
 html.light .bg-red-500 .text-white,
-html.light .bg-blue-500 > .text-white,
+html.light .bg-blue-500>.text-white,
 html.light .bg-blue-500 .text-white,
-html.light .bg-amber-500 > .text-white,
+html.light .bg-amber-500>.text-white,
 html.light .bg-amber-500 .text-white,
-html.light .bg-violet-500 > .text-white,
+html.light .bg-violet-500>.text-white,
 html.light .bg-violet-500 .text-white,
-html.light .bg-purple-500 > .text-white,
+html.light .bg-purple-500>.text-white,
 html.light .bg-purple-500 .text-white,
 html.light .bg-emerald-600 .text-white,
 html.light .bg-red-600 .text-white,
@@ -3151,11 +3288,11 @@ html.light .border-zinc-700 {
 }
 
 /* Divider colors */
-html.light .divide-zinc-800\/50 > :not([hidden]) ~ :not([hidden]) {
+html.light .divide-zinc-800\/50> :not([hidden])~ :not([hidden]) {
   border-color: #E5E7EB !important;
 }
 
-html.light .divide-zinc-800\/60 > :not([hidden]) ~ :not([hidden]) {
+html.light .divide-zinc-800\/60> :not([hidden])~ :not([hidden]) {
   border-color: #E5E7EB !important;
 }
 
@@ -3632,4 +3769,83 @@ html.light .text-violet-600 {
 
 html.light .text-blue-600 {
   color: #2563EB !important;
+}
+
+/* =============================================================================
+   CLERK AUTH CARD
+   Clerk injects emotion styles with single-class selectors that outrank the
+   Tailwind classes passed via `appearance.elements`. Two-class selectors here
+   win without !important.
+   ========================================================================== */
+.cl-cardBox>.cl-card {
+  background: rgba(24, 24, 27, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -20px rgba(0, 0, 0, 0.8);
+}
+
+.cl-cardBox {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   DISPLAY TYPEFACE — articulat-cf (Typekit sheet loaded in app/layout.tsx)
+   Only the variable + utility class. The full heading scale lives in
+   app/typography.css and is deliberately NOT imported: its bare h1–h6 rules
+   would resize every heading in the app.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font-articulat-cf: "articulat-cf", sans-serif;
+}
+
+.font-articulat-cf {
+  font-family: var(--font-articulat-cf);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR TOKENS
+   Keyed off the theme class, not `dark:` utilities. Tailwind v4 in this repo
+   has no `@custom-variant dark`, so `dark:` compiles to
+   @media (prefers-color-scheme: dark) and follows the OS instead of the
+   .light / .dark class the theme script sets.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root,
+html.dark {
+  --sb-bg: #0B0B0D;
+  --sb-panel: #141417;
+  --sb-panel-hover: #1B1B1F;
+  --sb-line: rgba(255, 255, 255, 0.07);
+  --sb-line-strong: rgba(255, 255, 255, 0.14);
+  --sb-ink: #F4F4F2;
+  --sb-ink-2: #A3A39D;
+  --sb-ink-3: #66665F;
+  --sb-accent: #4FC3A1;
+  --sb-accent-soft: rgba(79, 195, 161, 0.13);
+  --sb-warn: #E0A33E;
+  --sb-danger: #F2585B;
+  --sb-invert-bg: #F4F4F2;
+  --sb-invert-ink: #0B0B0D;
+}
+
+html.light {
+  --sb-bg: #EAE8E3;
+  --sb-panel: #E1DED7;
+  --sb-panel-hover: #D8D4CB;
+  --sb-line: #D2CEC5;
+  --sb-line-strong: #BCB7AC;
+  --sb-ink: #18181B;
+  --sb-ink-2: #5C5A54;
+  --sb-ink-3: #8B887F;
+  --sb-accent: #2D8B73;
+  --sb-accent-soft: rgba(45, 139, 115, 0.12);
+  --sb-warn: #B4761B;
+  --sb-danger: #C93A3D;
+  --sb-invert-bg: #18181B;
+  --sb-invert-ink: #EAE8E3;
 }

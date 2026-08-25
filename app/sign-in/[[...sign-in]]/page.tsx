@@ -4,7 +4,7 @@ import { SignIn } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect } from "react";
+import { TiltCard, TiltCardItem } from "@/components/spectrumui/tilt-card";
 
 const AuthFlowBackground = dynamic(
   () => import("@/components/auth/auth-flow-background").then((mod) => mod.AuthFlowBackground),
@@ -12,20 +12,6 @@ const AuthFlowBackground = dynamic(
 );
 
 export default function SignInPage() {
-  // Force dark mode on auth pages
-  useEffect(() => {
-    const html = document.documentElement;
-    const originalTheme = html.classList.contains("light") ? "light" : "dark";
-    html.classList.remove("light");
-    html.classList.add("dark");
-    
-    return () => {
-      // Restore original theme when leaving
-      html.classList.remove("dark");
-      html.classList.add(originalTheme);
-    };
-  }, []);
-
   return (
     <div className="dark min-h-screen bg-[#101010] relative">
       {/* Cinematic Background */}
@@ -41,7 +27,7 @@ export default function SignInPage() {
         <Link href="/" className="inline-flex items-center gap-2.5 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.svg" alt="Flowsmith" className="w-9 h-9 transition-transform group-hover:scale-105" />
-          <span className="text-lg font-bold text-white/90 tracking-wide uppercase" style={{ fontFamily: 'var(--font-orbitron)' }}>Flowsmith</span>
+          <span className="text-lg font-bold text-white/90 tracking-wide uppercase">Flowsmith</span>
         </Link>
       </motion.header>
 
@@ -51,7 +37,7 @@ export default function SignInPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="w-full max-w-[380px]"
+          className="w-full max-w-[400px]"
         >
           {/* Header Text */}
           <div className="text-center mb-10">
@@ -59,17 +45,17 @@ export default function SignInPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.15 }}
-              className="text-[28px] font-semibold text-white tracking-tight mb-3"
+              className="text-[30px] leading-[1.15] font-medium text-white tracking-[-0.02em] mb-3"
             >
-              Sign in to Flowsmith
+              Welcome back
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-[15px] text-zinc-400"
+              className="text-[15px] leading-relaxed text-zinc-400"
             >
-              Welcome back. Enter your credentials to continue.
+              Sign in to pick up where your workflows left off.
             </motion.p>
           </div>
 
@@ -78,13 +64,23 @@ export default function SignInPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25 }}
-            className=" backdrop-blur-xl border border-white/[0.06] rounded-2xl pt-3 pl-3 "
+            className="w-full"
           >
+            {/* maxTilt/scale at rest values: the pointer-following glare is the
+                only effect we want here — rotation moves the fields you type in. */}
+            <TiltCard
+              maxTilt={0}
+              scale={1}
+              glareColor="rgba(34, 211, 238, 0.13)"
+              className="rounded-2xl border-white/[0.07] bg-zinc-900/55 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset,0_24px_60px_-20px_rgba(0,0,0,0.8)] dark:border-white/[0.07] dark:bg-zinc-900/55"
+            >
+              <TiltCardItem depth={0}>
             <SignIn
               appearance={{
                 elements: {
                   rootBox: "w-full",
-                  card: "w-full bg-transparent shadow-none p-0",
+                  cardBox: "w-full shadow-none border-none bg-transparent",
+                  card: "w-full p-6", // surface is TiltCard; globals.css keeps Clerk's own chrome off
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   socialButtonsBlockButton:
@@ -106,7 +102,7 @@ export default function SignInPage() {
                   alternativeMethodsBlockButton: "text-zinc-400 hover:text-white",
                   alert: "bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[13px]",
                   alertText: "text-red-400",
-                  footer: "hidden",
+                  footer: { display: "none" },
                   formFieldInputShowPasswordButton: "text-zinc-500 hover:text-white",
                 },
               }}
@@ -115,6 +111,8 @@ export default function SignInPage() {
               signUpUrl="/sign-up"
               forceRedirectUrl="/dashboard"
             />
+              </TiltCardItem>
+            </TiltCard>
           </motion.div>
 
           {/* Sign Up Link */}
@@ -124,9 +122,9 @@ export default function SignInPage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="text-center mt-6 text-[14px] text-zinc-500"
           >
-            Don't have an account?{" "}
+            New to Flowsmith?{" "}
             <Link href="/sign-up" className="text-white hover:text-cyan-400 font-medium transition-colors">
-              Sign up
+              Create an account
             </Link>
           </motion.p>
 

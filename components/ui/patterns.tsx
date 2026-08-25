@@ -53,11 +53,11 @@ export function GridPattern({ className }: { className?: string }) {
   );
 }
 
-export function PageBackground({ 
+export function PageBackground({
   children,
   showDots = true,
-  className 
-}: { 
+  className
+}: {
   children: React.ReactNode;
   showDots?: boolean;
   className?: string;
@@ -80,13 +80,13 @@ export function PageBackground({
   );
 }
 
-export function StatCard({ 
-  label, 
-  value, 
+export function StatCard({
+  label,
+  value,
   icon: Icon,
   color = "zinc",
   className
-}: { 
+}: {
   label: string;
   value: React.ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
@@ -111,11 +111,11 @@ export function StatCard({
       <DotPattern className={cn(
         "transition-colors",
         color === "zinc" ? "text-zinc-500/5 group-hover:text-zinc-500/10" :
-        color === "violet" ? "text-violet-500/5 group-hover:text-violet-500/10" :
-        color === "blue" ? "text-blue-500/5 group-hover:text-blue-500/10" :
-        color === "emerald" ? "text-emerald-500/5 group-hover:text-emerald-500/10" :
-        color === "amber" ? "text-amber-500/5 group-hover:text-amber-500/10" :
-        "text-red-500/5 group-hover:text-red-500/10"
+          color === "violet" ? "text-violet-500/5 group-hover:text-violet-500/10" :
+            color === "blue" ? "text-blue-500/5 group-hover:text-blue-500/10" :
+              color === "emerald" ? "text-emerald-500/5 group-hover:text-emerald-500/10" :
+                color === "amber" ? "text-amber-500/5 group-hover:text-amber-500/10" :
+                  "text-red-500/5 group-hover:text-red-500/10"
       )} />
       <div className="relative">
         <div className="flex items-center gap-2 mb-3">

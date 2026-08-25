@@ -181,7 +181,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
                       className="w-10 h-10" 
                     />
                     <div>
-                      <h2 className="text-sm font-bold text-gray-900 dark:text-white tracking-wider uppercase" style={{ fontFamily: 'var(--font-orbitron)' }}>Flowsmith</h2>
+                      <h2 className="text-sm font-bold text-gray-900 dark:text-white tracking-wider uppercase" style={{ fontFamily: 'var(--font-articulat-cf)' }}>Flowsmith</h2>
                       <p className="text-[10px] text-gray-500 dark:text-zinc-500 font-medium">Studio</p>
                     </div>
                   </div>

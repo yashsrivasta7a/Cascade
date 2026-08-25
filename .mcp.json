@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "spectrum-ui": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@spectrumui/mcp"]
+    }
+  }
+}
