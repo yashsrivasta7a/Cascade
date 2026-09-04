@@ -49,7 +49,7 @@ console.log(`[trigger.config] Loaded ${Object.keys(envVars).length} env vars fro
 
 export default defineConfig({
   // Project ref from Trigger.dev dashboard
-  project: process.env.TRIGGER_PROJECT_REF ?? "flowsmith",
+  project: process.env.TRIGGER_PROJECT_REF ?? "cascade",
 
   // Directories containing your tasks
   dirs: ["./app/trigger"],

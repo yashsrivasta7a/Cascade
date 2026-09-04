@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       user = await db.user.create({
         data: {
           id: clerkUserId,
-          email: `user-${clerkUserId}@flowsmith.dev`,
+          email: `user-${clerkUserId}@cascade.dev`,
           credits: 1_000_000, // Default 1M credits for new users
         },
       });

@@ -318,7 +318,7 @@ interface AnalyzeLocalImageArgs {
   model?: string;
 }
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
 
 // Node output info for response
 interface NodeOutputInfo {
@@ -459,7 +459,7 @@ function createFormattedResponse(
 
   // Workflow link
   if (workflowUrl) {
-    sections.push(`\n**View in Flowsmith:** ${workflowUrl}`);
+    sections.push(`\n**View in Cascade:** ${workflowUrl}`);
   }
 
   return sections.join("\n");

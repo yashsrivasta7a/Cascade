@@ -1,16 +1,15 @@
-# Flowsmith
+# Cascade
 
 <div align="center">
 
-![Flowsmith](public/logo.svg)
+![Cascade](public/logo.svg)
 
 **Visual AI Workflow Builder**
 
 Create, connect, and execute AI-powered pipelines with an intuitive node-based interface.
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://flowsmiths.vercel.app)
-[![Documentation](https://img.shields.io/badge/docs-mintlify-blue?style=for-the-badge)](https://docs.flowsmiths.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-357%2B%20passing-success?style=for-the-badge)](#test-coverage)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://cascade.vercel.app)
+[![Documentation](https://img.shields.io/badge/docs-mintlify-blue?style=for-the-badge)](https://docs.cascade.vercel.app)
 
 </div>
 
@@ -49,7 +48,6 @@ Create, connect, and execute AI-powered pipelines with an intuitive node-based i
 - **Config-driven nodes** – Add new nodes without writing component code
 - **Type-safe API** – Full tRPC integration with Zod validation
 - **Auto-generated docs** – OpenAPI spec via trpc-to-openapi
-- **357+ tests** – Unit, integration, and E2E coverage
 
 ---
 
@@ -66,8 +64,8 @@ Create, connect, and execute AI-powered pipelines with an intuitive node-based i
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/flowsmith.git
-cd flowsmith
+git clone https://github.com/your-repo/cascade.git
+cd cascade
 
 # Install dependencies
 npm install
@@ -102,14 +100,13 @@ Open [http://localhost:3000](http://localhost:3000) to start building workflows.
 | **Jobs** | Trigger.dev |
 | **AI** | fal.ai, OpenRouter, ElevenLabs |
 | **Media** | Transloadit (CDN), FFmpeg |
-| **Testing** | Vitest, Playwright |
 | **Docs** | Mintlify |
 
 ---
 
 ## 📡 API Reference
 
-Full API documentation is available at [docs.flowsmiths.vercel.app](https://docs.flowsmiths.vercel.app).
+Full API documentation is available at [docs.cascade.vercel.app](https://docs.cascade.vercel.app).
 
 ### Public Endpoints
 
@@ -125,7 +122,7 @@ Full API documentation is available at [docs.flowsmiths.vercel.app](https://docs
 ### OpenAPI Spec
 
 ```
-https://flowsmiths.vercel.app/api/openapi
+https://cascade.vercel.app/api/openapi
 ```
 
 Import into Postman, Insomnia, or any OpenAPI-compatible client.
@@ -136,7 +133,7 @@ Import into Postman, Insomnia, or any OpenAPI-compatible client.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              FLOWSMITH ARCHITECTURE                          │
+│                              CASCADE ARCHITECTURE                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -176,29 +173,6 @@ Import into Postman, Insomnia, or any OpenAPI-compatible client.
 | Workflow Executor | `app/trigger/workflow-executor.ts` | DAG execution engine |
 | Node Executor | `app/trigger/node-executor.ts` | Individual node processing |
 | Flow Store | `store/flow-store.ts` | Zustand state management |
-
----
-
-## 🧪 Test Coverage
-
-**357+ tests passing** across unit, integration, and E2E suites.
-
-| Category | Tests | Coverage |
-|----------|-------|----------|
-| Unit Tests | ~310 | Type compatibility, credits, UI components |
-| Integration Tests | ~46 | API endpoints, tRPC procedures |
-| E2E Tests | ~45 | Auth flows, workflow editor, navigation |
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run E2E tests
-npm run test:e2e
-```
 
 ---
 
@@ -264,11 +238,6 @@ npm run db:generate      # Generate Prisma client
 npm run db:push          # Push schema changes
 npm run db:studio        # Open Prisma Studio
 
-# Testing
-npm test                 # Run all tests
-npm run test:coverage    # With coverage report
-npm run test:e2e         # Playwright E2E tests
-
 # Production
 npm run build            # Build for production
 npm run start            # Start production server
@@ -287,6 +256,6 @@ Private project - All rights reserved.
 
 <div align="center">
 
-**[Live Demo](https://flowsmiths.vercel.app)** · **[Documentation](https://docs.flowsmiths.vercel.app)** · **[API Reference](https://flowsmiths.vercel.app/api/openapi)**
+**[Live Demo](https://cascade.vercel.app)** · **[Documentation](https://docs.cascade.vercel.app)** · **[API Reference](https://cascade.vercel.app/api/openapi)**
 
 </div>

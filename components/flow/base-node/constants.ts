@@ -8,16 +8,28 @@ import {
 } from "lucide-react";
 import type { NodeStatus } from "@/types/nodes";
 
-// Color mapping for accent bars
+/**
+ * Node accent colours.
+ *
+ * These were Tailwind's 500-weights — fully saturated primaries. On a dark
+ * canvas a dozen of those at once reads as noise rather than as a system, and
+ * the accent bar sits at the top of every card, so it is the loudest element
+ * on screen by area.
+ *
+ * These are the same hues pulled down in chroma and up in lightness: muted
+ * enough to coexist a dozen at a time, still distinct enough to tell an image
+ * node from an audio node at a glance. Category identity survives; the shouting
+ * does not.
+ */
 export const accentColors: Record<string, string> = {
-  cyan: "#06b6d4",
-  violet: "#8b5cf6",
-  emerald: "#10b981",
-  amber: "#f59e0b",
-  rose: "#f43f5e",
-  blue: "#3b82f6",
-  zinc: "#71717a",
-  teal: "#14b8a6", // For audio nodes
+  cyan: "#7fc7d9",
+  violet: "#a99bd6",
+  emerald: "#8fc7a8",
+  amber: "#e0be8a",
+  rose: "#dda1ac",
+  blue: "#93b4e0",
+  zinc: "#9a9aa2",
+  teal: "#8cc4bd",
 };
 
 // Status configuration with icons and colors - minimal dark theme
@@ -30,13 +42,13 @@ export const statusConfig: Record<NodeStatus, {
 }> = {
   idle: { 
     icon: Circle, 
-    color: "text-zinc-500", 
+    color: "text-slate-700", 
     bgColor: "",
     label: "Ready" 
   },
   queued: { 
     icon: Clock, 
-    color: "text-zinc-400", 
+    color: "text-slate-600", 
     bgColor: "",
     label: "Queued" 
   },

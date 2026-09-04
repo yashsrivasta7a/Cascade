@@ -5,7 +5,7 @@ import { createServer } from "./server.js";
 import { logger } from "./utils/logger.js";
 
 /**
- * Flowsmith MCP Server Entry Point
+ * Cascade MCP Server Entry Point
  * 
  * This server provides tools for:
  * - Preset workflows (quick start templates)
@@ -16,14 +16,14 @@ import { logger } from "./utils/logger.js";
  */
 
 async function main() {
-  logger.info("Starting Flowsmith MCP Server...");
+  logger.info("Starting Cascade MCP Server...");
 
   const server = createServer();
   const transport = new StdioServerTransport();
 
   await server.connect(transport);
 
-  logger.info("Flowsmith MCP Server connected and ready");
+  logger.info("Cascade MCP Server connected and ready");
 
   // Handle graceful shutdown
   process.on("SIGINT", async () => {

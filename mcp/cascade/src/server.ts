@@ -22,7 +22,7 @@ import { registerCreditsTools, creditsToolDefinitions } from "./tools/credits.js
 export function createServer(): Server {
   const server = new Server(
     {
-      name: "flowsmith",
+      name: "cascade",
       version: "1.0.0",
     },
     {

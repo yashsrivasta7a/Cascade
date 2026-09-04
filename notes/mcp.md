@@ -1,4 +1,4 @@
-# Flowsmith MCP Documentation
+# Cascade MCP Documentation
 
 A comprehensive Model Context Protocol (MCP) server for building and executing AI-powered media workflows.
 
@@ -19,7 +19,7 @@ A comprehensive Model Context Protocol (MCP) server for building and executing A
 
 ## Overview
 
-Flowsmith MCP enables AI assistants to:
+Cascade MCP enables AI assistants to:
 - Build custom media processing workflows
 - Execute workflows with user inputs
 - Generate images, videos, and audio
@@ -365,13 +365,13 @@ Input: {
 
 | File | Purpose |
 |------|---------|
-| `mcp/flowsmith/src/tools/builder.ts` | Workflow building tools |
-| `mcp/flowsmith/src/tools/workflows.ts` | Workflow CRUD operations |
-| `mcp/flowsmith/src/tools/executions.ts` | Execution management |
-| `mcp/flowsmith/src/utils/template-cache.ts` | Caching system |
-| `mcp/flowsmith/src/utils/workflow-hash.ts` | Structure hashing |
-| `mcp/flowsmith/src/utils/workflow-builder.ts` | Edge auto-generation |
-| `mcp/flowsmith/src/data/nodes.ts` | Node definitions |
+| `mcp/cascade/src/tools/builder.ts` | Workflow building tools |
+| `mcp/cascade/src/tools/workflows.ts` | Workflow CRUD operations |
+| `mcp/cascade/src/tools/executions.ts` | Execution management |
+| `mcp/cascade/src/utils/template-cache.ts` | Caching system |
+| `mcp/cascade/src/utils/workflow-hash.ts` | Structure hashing |
+| `mcp/cascade/src/utils/workflow-builder.ts` | Edge auto-generation |
+| `mcp/cascade/src/data/nodes.ts` | Node definitions |
 | `app/api/workflow-templates/route.ts` | Template API |
 | `prisma/schema.prisma` | WorkflowTemplate model |
 

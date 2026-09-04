@@ -186,9 +186,7 @@ export const outputConfig: NodeConfig = {
 
 // Export all I/O node configs
 export const ioNodes = {
-  "input": inputConfig,
   "image-input": imageInputConfig,
   "video-input": videoInputConfig,
   "audio-input": audioInputConfig,
-  "output": outputConfig,
 };

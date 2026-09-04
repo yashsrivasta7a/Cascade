@@ -1,10 +1,10 @@
-# Flowsmith Development Plan
+# Cascade Development Plan
 
 ## Overview
 
-**Flowsmith** is a visual AI workflow builder that lets users create, connect, and execute AI-powered pipelines with an intuitive node-based interface.
+**Cascade** is a visual AI workflow builder that lets users create, connect, and execute AI-powered pipelines with an intuitive node-based interface.
 
-**Live URL:** https://flowsmiths.vercel.app
+**Live URL:** https://cascade.vercel.app
 
 ---
 
@@ -831,7 +831,7 @@ await metadata.set("workflow", {
 ## 📁 Project Structure
 
 ```
-flowsmith/
+cascade/
 ├── app/                    # Next.js App Router
 │   ├── (dashboard)/        # Dashboard pages
 │   ├── api/                # API routes
@@ -935,7 +935,7 @@ REST Routes  ──► Manual MDX files ─────────────�
 
 ## 🔑 API Key System
 
-Flowsmith supports programmatic API access via API keys, allowing external applications to integrate with workflows, executions, and credits.
+Cascade supports programmatic API access via API keys, allowing external applications to integrate with workflows, executions, and credits.
 
 ### Overview
 
@@ -986,7 +986,7 @@ sk_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
  prefix       32 random hex characters
 ```
 
-- **Prefix**: `sk_live_` - indicates it's a Flowsmith API key
+- **Prefix**: `sk_live_` - indicates it's a Cascade API key
 - **Random part**: 32 hex characters (16 bytes of entropy)
 - **Display in UI**: Only prefix shown after creation (e.g., `sk_live_a1b2••••••••`)
 
@@ -1057,17 +1057,17 @@ When a request comes in, the authentication system checks in this order:
 
 ```bash
 # Create workflow via API
-curl -X POST "https://flowsmiths.vercel.app/api/v1/workflows" \
+curl -X POST "https://cascade.vercel.app/api/v1/workflows" \
   -H "Authorization: Bearer sk_live_abc123def456..." \
   -H "Content-Type: application/json" \
   -d '{"name": "My Workflow", "nodesJson": [], "edgesJson": []}'
 
 # Get credit balance
-curl "https://flowsmiths.vercel.app/api/v1/credits/balance" \
+curl "https://cascade.vercel.app/api/v1/credits/balance" \
   -H "Authorization: Bearer sk_live_abc123def456..."
 
 # Execute a workflow
-curl -X POST "https://flowsmiths.vercel.app/api/v1/workflows/{id}/execute" \
+curl -X POST "https://cascade.vercel.app/api/v1/workflows/{id}/execute" \
   -H "Authorization: Bearer sk_live_abc123def456..." \
   -H "Content-Type: application/json" \
   -d '{"inputs": {}}'

@@ -22,7 +22,7 @@ This endpoint triggers the execution of a workflow. It validates the workflow, c
 
 <CodeGroup>
 ```bash cURL
-curl -X POST https://flowsmiths.vercel.app/api/workflow/trigger \
+curl -X POST https://cascade.vercel.app/api/workflow/trigger \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"workflowId": "your-workflow-id"}'
@@ -30,7 +30,7 @@ curl -X POST https://flowsmiths.vercel.app/api/workflow/trigger \
 
 ```javascript JavaScript
 const response = await fetch(
-  'https://flowsmiths.vercel.app/api/workflow/trigger',
+  'https://cascade.vercel.app/api/workflow/trigger',
   {
     method: 'POST',
     headers: {
@@ -52,7 +52,7 @@ const data = await response.json();
 import requests
 
 response = requests.post(
-    'https://flowsmiths.vercel.app/api/workflow/trigger',
+    'https://cascade.vercel.app/api/workflow/trigger',
     headers={
         'Authorization': 'Bearer YOUR_API_KEY',
         'Content-Type': 'application/json'

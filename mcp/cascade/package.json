@@ -1,7 +1,7 @@
 {
-  "name": "@flowsmith/mcp-server",
+  "name": "@cascade/mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for Flowsmith workflow automation",
+  "description": "MCP server for Cascade workflow automation",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

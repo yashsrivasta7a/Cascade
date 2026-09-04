@@ -2,7 +2,7 @@ import type { NodeInfo, NodeDetail } from "../schemas/index.js";
 
 // =============================================================================
 // NODE DEFINITIONS
-// Copied from Flowsmith types/nodes.ts for MCP server use
+// Copied from Cascade types/nodes.ts for MCP server use
 // =============================================================================
 
 // Data types for inputs/outputs

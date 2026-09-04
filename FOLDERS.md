@@ -1,11 +1,11 @@
-# Flowsmith Folder Structure
+# Cascade Folder Structure
 
 > Complete guide to the codebase organization
 
 ## Root Level Overview
 
 ```
-flowsmith/
+cascade/
 ├── app/              # Next.js App Router (pages, API routes)
 ├── components/       # React UI components
 ├── lib/              # Core business logic & utilities
@@ -15,7 +15,6 @@ flowsmith/
 ├── mcp/              # MCP Server (AI assistant integration)
 ├── prisma/           # Database schema
 ├── docs/             # Mintlify API documentation
-├── tests/            # Test suites (unit, integration, e2e)
 ├── public/           # Static assets
 ├── notes/            # Documentation & planning
 └── .cursor/          # Cursor IDE rules
@@ -269,7 +268,7 @@ store/
 Model Context Protocol server for AI assistant integration.
 
 ```
-mcp/flowsmith/
+mcp/cascade/
 ├── package.json          # Separate npm package
 ├── README.md             # MCP documentation
 ├── tsconfig.json         # TypeScript config
@@ -347,36 +346,6 @@ docs/
 
 ---
 
-## 📁 `tests/` - Test Suites
-
-```
-tests/
-├── unit/                 # Unit tests (Vitest)
-│   ├── flow-store.test.ts    # Store tests
-│   ├── auto-layout.test.ts   # Layout algorithm
-│   ├── credits.test.ts       # Credit system
-│   ├── node-schemas.test.ts  # Schema validation
-│   ├── button.test.tsx       # Component tests
-│   └── ... more
-│
-├── integration/          # Integration tests
-│   ├── api-workflows.test.ts  # API tests
-│   └── trpc-routers.test.ts   # tRPC tests
-│
-├── e2e/                  # End-to-end tests (Playwright)
-│   ├── global.setup.ts   # Test setup
-│   ├── auth.spec.ts      # Auth flows
-│   ├── dashboard.spec.ts # Dashboard tests
-│   ├── workflow.spec.ts  # Workflow editor
-│   └── smoke.spec.ts     # Smoke tests
-│
-└── msw/                  # Mock Service Worker
-    ├── handlers.ts       # API mocks
-    └── server.ts         # MSW server
-```
-
----
-
 ## 📁 `types/` - TypeScript Definitions
 
 ```
@@ -400,8 +369,6 @@ types/
 | `next.config.ts` | Next.js configuration |
 | `package.json` | Dependencies & scripts |
 | `tsconfig.json` | TypeScript config |
-| `vitest.config.ts` | Vitest test config |
-| `playwright.config.ts` | Playwright e2e config |
 | `vercel.json` | Vercel deployment config |
 | `eslint.config.mjs` | ESLint rules |
 | `postcss.config.mjs` | PostCSS (Tailwind) |
@@ -412,7 +379,7 @@ types/
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         FLOWSMITH ARCHITECTURE                       │
+│                         CASCADE ARCHITECTURE                       │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐          │

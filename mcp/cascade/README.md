@@ -1,20 +1,20 @@
-# Flowsmith MCP Server
+# Cascade MCP Server
 
-MCP (Model Context Protocol) server for [Flowsmith](https://flowsmiths.vercel.app) - AI workflow automation platform. Enables AI assistants like Claude, Cursor, and others to create, manage, and execute workflows.
+MCP (Model Context Protocol) server for [Cascade](https://cascade.vercel.app) - AI workflow automation platform. Enables AI assistants like Claude, Cursor, and others to create, manage, and execute workflows.
 
 ## Quick Install (For Users)
 
 ### Option 1: NPX (Easiest - Coming Soon)
 ```bash
-npx @flowsmith/mcp-server
+npx @cascade/mcp-server
 ```
 
 ### Option 2: Manual Installation
 
 1. **Clone or download the MCP server:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/flowsmith.git
-cd flowsmith/mcp/flowsmith
+git clone https://github.com/YOUR_USERNAME/cascade.git
+cd cascade/mcp/cascade
 npm install
 npm run build
 ```
@@ -34,11 +34,11 @@ Add to your `.cursor/mcp.json` (create the file if it doesn't exist):
 ```json
 {
   "mcpServers": {
-    "flowsmith": {
+    "cascade": {
       "command": "node",
-      "args": ["/absolute/path/to/flowsmith/mcp/flowsmith/dist/index.js"],
+      "args": ["/absolute/path/to/cascade/mcp/cascade/dist/index.js"],
       "env": {
-        "FLOWSMITH_API_KEY": ""
+        "CASCADE_API_KEY": ""
       }
     }
   }
@@ -52,11 +52,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```json
 {
   "mcpServers": {
-    "flowsmith": {
+    "cascade": {
       "command": "node",
-      "args": ["/absolute/path/to/flowsmith/mcp/flowsmith/dist/index.js"],
+      "args": ["/absolute/path/to/cascade/mcp/cascade/dist/index.js"],
       "env": {
-        "FLOWSMITH_API_KEY": ""
+        "CASCADE_API_KEY": ""
       }
     }
   }
@@ -67,10 +67,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 Use these settings:
 - **Command:** `node`
-- **Args:** `["/path/to/mcp/flowsmith/dist/index.js"]`
+- **Args:** `["/path/to/mcp/cascade/dist/index.js"]`
 - **Environment:**
-  - `FLOWSMITH_API_KEY`: Leave empty (auto-setup)
-  - `FLOWSMITH_API_URL`: `https://flowsmiths.vercel.app` (default)
+  - `CASCADE_API_KEY`: Leave empty (auto-setup)
+  - `CASCADE_API_URL`: `https://cascade.vercel.app` (default)
 
 ---
 
@@ -81,8 +81,8 @@ When you first use the MCP server, authentication is guided automatically:
 ```
 You: "Create a workflow to generate images"
 
-Claude: "I need to authenticate with Flowsmith first. 
-        Please go to your Flowsmith Settings > API Keys and create one.
+Claude: "I need to authenticate with Cascade first. 
+        Please go to your Cascade Settings > API Keys and create one.
         Then tell me the API key."
 
 You: "Here's my key: sk_live_abc123..."
@@ -91,7 +91,7 @@ Claude: "✓ Authenticated! Now let me create your workflow..."
 ```
 
 **To get your API key:**
-1. Go to [flowsmiths.vercel.app](https://flowsmiths.vercel.app)
+1. Go to [cascade.vercel.app](https://cascade.vercel.app)
 2. Sign in to your account
 3. Go to **Settings** > **API Keys**
 4. Click **Create API Key**
@@ -154,7 +154,7 @@ Claude: "✓ Authenticated! Now let me create your workflow..."
 ## Development
 
 ```bash
-cd mcp/flowsmith
+cd mcp/cascade
 
 # Install dependencies
 npm install
@@ -175,8 +175,8 @@ npm start
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FLOWSMITH_API_URL` | API base URL | `https://flowsmiths.vercel.app` |
-| `FLOWSMITH_API_KEY` | Your API key | (empty - auto-setup) |
+| `CASCADE_API_URL` | API base URL | `https://cascade.vercel.app` |
+| `CASCADE_API_KEY` | Your API key | (empty - auto-setup) |
 | `LOG_LEVEL` | Logging level | `info` |
 
 ---
@@ -185,22 +185,22 @@ npm start
 
 ### For Teammates/Collaborators
 
-1. Share this folder (`mcp/flowsmith/`) or the full repo
+1. Share this folder (`mcp/cascade/`) or the full repo
 2. They run `npm install && npm run build`
 3. They add the config to their AI assistant
-4. Each person uses their own API key from Flowsmith
+4. Each person uses their own API key from Cascade
 
 ### Publishing to npm (Optional)
 
 ```bash
-cd mcp/flowsmith
+cd mcp/cascade
 npm login
 npm publish --access public
 ```
 
 Then users can install with:
 ```bash
-npm install -g @flowsmith/mcp-server
+npm install -g @cascade/mcp-server
 ```
 
 ---
@@ -208,7 +208,7 @@ npm install -g @flowsmith/mcp-server
 ## Troubleshooting
 
 ### "Authentication required" error
-→ Use the `setup_auth` tool or provide your API key from Flowsmith Settings
+→ Use the `setup_auth` tool or provide your API key from Cascade Settings
 
 ### "API call failed: 401"
 → Your API key may be invalid or expired. Create a new one at Settings > API Keys
@@ -221,8 +221,8 @@ npm install -g @flowsmith/mcp-server
 
 ## Links
 
-- **Flowsmith App:** https://flowsmiths.vercel.app
-- **API Docs:** https://flowsmiths.vercel.app/docs
+- **Cascade App:** https://cascade.vercel.app
+- **API Docs:** https://cascade.vercel.app/docs
 - **Support:** Create an issue on GitHub
 
 ---

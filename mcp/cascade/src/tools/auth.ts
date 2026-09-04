@@ -11,9 +11,9 @@ import { homedir } from "os";
 export const authToolDefinitions: Tool[] = [
   {
     name: "setup_auth",
-    description: `Set up authentication for Flowsmith MCP server. 
+    description: `Set up authentication for Cascade MCP server. 
 
-The user needs to provide their API key from Flowsmith Settings > API Keys.
+The user needs to provide their API key from Cascade Settings > API Keys.
 If they don't have one, they can create it there.
 
 Use this when authentication fails or when first setting up the MCP server.`,
@@ -22,7 +22,7 @@ Use this when authentication fails or when first setting up the MCP server.`,
       properties: {
         apiKey: {
           type: "string",
-          description: "The API key from Flowsmith Settings (starts with 'sk_live_').",
+          description: "The API key from Cascade Settings (starts with 'sk_live_').",
         },
       },
       required: [],
@@ -30,7 +30,7 @@ Use this when authentication fails or when first setting up the MCP server.`,
   },
   {
     name: "check_auth",
-    description: "Check if the MCP server is authenticated with Flowsmith. Returns the authentication status and user email if authenticated.",
+    description: "Check if the MCP server is authenticated with Cascade. Returns the authentication status and user email if authenticated.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -43,8 +43,8 @@ Use this when authentication fails or when first setting up the MCP server.`,
 // CONFIGURATION
 // =============================================================================
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
-const API_KEY = process.env.FLOWSMITH_API_KEY || "";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
+const API_KEY = process.env.CASCADE_API_KEY || "";
 
 // Find the MCP config file path
 function getMcpConfigPath(): string {
@@ -103,26 +103,26 @@ function updateMcpConfig(apiKey: string): { success: boolean; path: string } {
     }
   }
 
-  // Update the flowsmith server config
+  // Update the cascade server config
   const mcpServers = (config.mcpServers || {}) as Record<string, unknown>;
-  const flowsmithConfig = (mcpServers.flowsmith || {}) as Record<string, unknown>;
-  const env = (flowsmithConfig.env || {}) as Record<string, string>;
+  const cascadeConfig = (mcpServers.cascade || {}) as Record<string, unknown>;
+  const env = (cascadeConfig.env || {}) as Record<string, string>;
 
-  env.FLOWSMITH_API_KEY = apiKey;
-  flowsmithConfig.env = env;
+  env.CASCADE_API_KEY = apiKey;
+  cascadeConfig.env = env;
 
   // Ensure other required fields exist
-  if (!flowsmithConfig.command) {
-    flowsmithConfig.command = "node";
+  if (!cascadeConfig.command) {
+    cascadeConfig.command = "node";
   }
-  if (!flowsmithConfig.args) {
-    flowsmithConfig.args = ["mcp/flowsmith/dist/index.js"];
+  if (!cascadeConfig.args) {
+    cascadeConfig.args = ["mcp/cascade/dist/index.js"];
   }
-  if (!env.FLOWSMITH_API_URL) {
-    env.FLOWSMITH_API_URL = "http://localhost:3000";
+  if (!env.CASCADE_API_URL) {
+    env.CASCADE_API_URL = "http://localhost:3000";
   }
 
-  mcpServers.flowsmith = flowsmithConfig;
+  mcpServers.cascade = cascadeConfig;
   config.mcpServers = mcpServers;
 
   // Write back
@@ -174,7 +174,7 @@ export function registerAuthTools(handlers: Map<string, (args: unknown) => Promi
         return {
           status: "error",
           message: `Invalid API key format. Keys should start with "sk_live_".`,
-          hint: "Go to Flowsmith Settings > API Keys to get or create your key.",
+          hint: "Go to Cascade Settings > API Keys to get or create your key.",
           settingsUrl: `${API_BASE}/settings`,
         };
       }
@@ -193,7 +193,7 @@ export function registerAuthTools(handlers: Map<string, (args: unknown) => Promi
           nextSteps: [
             "Your API key has been saved to the MCP configuration.",
             "Please restart Cursor to apply the changes.",
-            "After restarting, you can use all Flowsmith MCP tools!",
+            "After restarting, you can use all Cascade MCP tools!",
           ],
         };
       } catch (error) {
@@ -211,9 +211,9 @@ export function registerAuthTools(handlers: Map<string, (args: unknown) => Promi
     
     return {
       status: "needs_api_key",
-      message: "To use Flowsmith MCP, you need an API key.",
+      message: "To use Cascade MCP, you need an API key.",
       instructions: [
-        `1. Go to Flowsmith Settings: ${settingsUrl}`,
+        `1. Go to Cascade Settings: ${settingsUrl}`,
         "2. Navigate to 'API Keys' section",
         "3. Click 'Create API Key' (or copy an existing one)",
         "4. Tell me: 'My API key is sk_live_...'",
@@ -233,7 +233,7 @@ export function registerAuthTools(handlers: Map<string, (args: unknown) => Promi
       return {
         authenticated: false,
         message: "No API key configured. Use the setup_auth tool to authenticate.",
-        hint: "Say 'set up flowsmith auth' to get started.",
+        hint: "Say 'set up cascade auth' to get started.",
       };
     }
 

@@ -86,7 +86,7 @@ export class OpenRouterProvider implements AIProvider {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "HTTP-Referer": process.env.WEBHOOK_BASE_URL ?? "http://localhost:3000",
-        "X-Title": "Flowsmith",
+        "X-Title": "Cascade",
       },
       body: JSON.stringify(request),
     });

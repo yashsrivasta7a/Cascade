@@ -11,14 +11,14 @@ import { appRouter } from "@/lib/trpc/routers";
 
 export async function GET() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://flowsmith-ys7.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://cascade-ys7.vercel.app";
     
     const openApiDocument = generateOpenApiDocument(appRouter, {
-      title: "Flowsmith API",
+      title: "Cascade API",
       version: "1.0.0",
-      description: "Flowsmith API for managing workflows, executions, and credits.",
+      description: "Cascade API for managing workflows, executions, and credits.",
       baseUrl: `${baseUrl}/api/v1`,
-      docsUrl: "https://docs.flowsmith.com",
+      docsUrl: "https://docs.cascade.com",
       tags: ["Workflows", "Executions", "Credits"],
     });
 

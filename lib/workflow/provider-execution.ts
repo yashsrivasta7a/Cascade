@@ -245,35 +245,15 @@ async function executeOpenRouterStream(input: unknown): Promise<AnyOut> {
       throw new Error(error.error || "LLM API error");
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response stream");
+    // Despite the route name, /api/nodes/llm/stream does not stream: it polls the
+    // Trigger.dev run to completion and returns one JSON body. Parsing it as SSE
+    // matched no "data: " lines, so the text was silently dropped and the node
+    // rendered an empty result while the run reported success.
+    const result = (await response.json()) as { text?: string; error?: string };
 
-    const decoder = new TextDecoder();
-    let fullText = "";
+    if (result.error) throw new Error(result.error);
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n");
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const jsonData = line.slice(6);
-          if (jsonData === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonData);
-            if (parsed.content) {
-              fullText += parsed.content;
-            }
-          } catch {
-            // Ignore parse errors
-          }
-        }
-      }
-    }
-
+    const fullText = result.text ?? "";
     console.log(`[executeWithProvider] OpenRouter completed. Length: ${fullText.length}`);
     return { type: "text", text: fullText };
   } catch (error) {

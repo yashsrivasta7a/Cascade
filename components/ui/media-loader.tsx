@@ -91,13 +91,13 @@ export function MediaLoader({
               {/* Center icon */}
               <div className="absolute inset-0 flex items-center justify-center">
                 {type === "image" ? (
-                  <ImageIcon className="w-4 h-4 text-zinc-500" />
+                  <ImageIcon className="w-4 h-4 text-slate-700" />
                 ) : (
-                  <Film className="w-4 h-4 text-zinc-500" />
+                  <Film className="w-4 h-4 text-slate-700" />
                 )}
               </div>
             </div>
-            <span className="text-[10px] text-zinc-500 font-medium animate-pulse">
+            <span className="text-[10px] text-slate-700 font-medium animate-pulse">
               Loading {type}...
             </span>
           </div>
@@ -170,11 +170,11 @@ export function MediaSkeleton({
     )}>
       <div className="p-4 flex flex-col items-center gap-2">
         {type === "image" ? (
-          <ImageIcon className="w-6 h-6 text-zinc-700" />
+          <ImageIcon className="w-6 h-6 text-slate-800" />
         ) : (
-          <Film className="w-6 h-6 text-zinc-700" />
+          <Film className="w-6 h-6 text-slate-800" />
         )}
-        <span className="text-[10px] text-zinc-600">{message}</span>
+        <span className="text-[10px] text-slate-700">{message}</span>
       </div>
     </div>
   );

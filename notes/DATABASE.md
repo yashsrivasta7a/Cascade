@@ -1,4 +1,4 @@
-# Flowsmith Database Architecture
+# Cascade Database Architecture
 
 > A visual AI workflow automation platform - Database documentation for interview prep
 
@@ -18,7 +18,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FLOWSMITH DATABASE                                │
+│                           CASCADE DATABASE                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────┐                                                            │

@@ -2,11 +2,11 @@ import { logger } from "./logger.js";
 
 // =============================================================================
 // API CLIENT
-// HTTP client for communicating with Flowsmith TRPC/REST APIs
+// HTTP client for communicating with Cascade TRPC/REST APIs
 // =============================================================================
 
-const API_BASE = process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app";
-const API_KEY = process.env.FLOWSMITH_API_KEY || "";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
+const API_KEY = process.env.CASCADE_API_KEY || "";
 
 // =============================================================================
 // AUTH CHECK

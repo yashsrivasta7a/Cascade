@@ -5,8 +5,8 @@ import { logger } from "./logger.js";
 // Centralized auth checking for all MCP tools
 // =============================================================================
 
-const API_BASE = (process.env.FLOWSMITH_API_URL || "https://flowsmiths.vercel.app").replace(/\/+$/, "");
-const API_KEY = process.env.FLOWSMITH_API_KEY || "";
+const API_BASE = (process.env.CASCADE_API_URL || "https://cascade.vercel.app").replace(/\/+$/, "");
+const API_KEY = process.env.CASCADE_API_KEY || "";
 
 export interface AuthStatus {
   authenticated: boolean;
@@ -58,7 +58,7 @@ export function getAuthRequiredResponse() {
     authenticated: false,
     message: "You need an API key to use this feature.",
     instructions: [
-      `1. Go to Flowsmith Settings: ${settingsUrl}`,
+      `1. Go to Cascade Settings: ${settingsUrl}`,
       "2. Navigate to 'API Keys' section",
       "3. Click 'Create API Key' (or copy an existing one)",
       "4. Tell me: 'My API key is sk_live_...'",

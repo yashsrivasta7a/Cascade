@@ -63,12 +63,9 @@ export function PageBackground({
   className?: string;
 }) {
   return (
-    <div className={cn("h-full flex flex-col bg-[#909192] dark:bg-[#09090b] relative overflow-hidden", className)}>
+    <div className={cn("h-full flex flex-col bg-[#e5eefb] dark:bg-[#09090b] relative overflow-hidden", className)}>
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {showDots && (
-          <DotPattern className="text-gray-300 dark:text-zinc-800/40 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black_70%)]" />
-        )}
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/[0.02] dark:bg-blue-600/[0.03] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/[0.02] dark:bg-cyan-600/[0.03] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
       </div>
@@ -94,7 +91,7 @@ export function StatCard({
   className?: string;
 }) {
   const colorMap = {
-    zinc: "text-zinc-500 hover:border-zinc-700/60",
+    zinc: "text-slate-700 hover:border-zinc-700/60",
     violet: "text-violet-500 hover:border-violet-500/20",
     blue: "text-blue-500 hover:border-blue-500/20",
     emerald: "text-emerald-500 hover:border-emerald-500/20",
@@ -108,19 +105,10 @@ export function StatCard({
       colorMap[color],
       className
     )}>
-      <DotPattern className={cn(
-        "transition-colors",
-        color === "zinc" ? "text-zinc-500/5 group-hover:text-zinc-500/10" :
-          color === "violet" ? "text-violet-500/5 group-hover:text-violet-500/10" :
-            color === "blue" ? "text-blue-500/5 group-hover:text-blue-500/10" :
-              color === "emerald" ? "text-emerald-500/5 group-hover:text-emerald-500/10" :
-                color === "amber" ? "text-amber-500/5 group-hover:text-amber-500/10" :
-                  "text-red-500/5 group-hover:text-red-500/10"
-      )} />
       <div className="relative">
         <div className="flex items-center gap-2 mb-3">
           {Icon && <Icon className={cn("w-4 h-4", colorMap[color].split(" ")[0])} />}
-          <span className="text-xs text-zinc-500">{label}</span>
+          <span className="text-xs text-slate-700">{label}</span>
         </div>
         <span className="text-3xl font-semibold text-white tabular-nums">
           {value}

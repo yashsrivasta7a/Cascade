@@ -209,12 +209,8 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
     })
     .merge(ExtractAudioConfigSchema.partial()),
 
-  // I/O nodes - these are passthrough nodes that don't need execution
-  "input": z.object({
-    value: z.string().optional(),
-    result: z.string().optional(),
-    mediaType: z.enum(["text", "image", "video", "audio"]).optional(),
-  }),
+  // Typed media inputs. These are the upload entry points; the former generic
+  // "input"/"output" passthrough nodes were removed.
   "image-input": z.object({
     value: z.string().optional(),
     result: z.string().optional(),
@@ -225,9 +221,6 @@ export const NodeInputSchemas: Record<AINodeType, z.ZodTypeAny> = {
   }),
   "audio-input": z.object({
     value: z.string().optional(),
-    result: z.string().optional(),
-  }),
-  "output": z.object({
     result: z.string().optional(),
   }),
   
@@ -251,11 +244,9 @@ export const NodeOutputSchemas: Record<AINodeType, z.ZodTypeAny> = {
   "merge-videos": VideoOutSchema,
   "extract-audio": AudioOutSchema,
   // I/O nodes - passthrough output types
-  "input": AnyOutSchema,
   "image-input": ImageOutSchema,
   "video-input": VideoOutSchema,
   "audio-input": AudioOutSchema,
-  "output": AnyOutSchema,
   // Annotation node
   "comment": z.object({}),
 };
@@ -272,11 +263,9 @@ export const NodePrimaryOutputType: Record<AINodeType, DataType> = {
   "merge-videos": "video",
   "extract-audio": "audio",
   // I/O nodes
-  "input": "any",
   "image-input": "image",
   "video-input": "video",
   "audio-input": "audio",
-  "output": "any",
   // Annotation node
   "comment": "any",
 };
@@ -303,9 +292,12 @@ export const NodeProviders: Record<AINodeType, ProviderId[]> = {
   "merge-audio-video": ["internal", "mock"],
   "merge-videos": ["internal", "mock"],
   "extract-audio": ["internal", "mock"],
-  // I/O nodes - passthrough, no provider needed
-  "input": ["internal"],
-  "output": ["internal"],
+  // Media inputs hold an uploaded asset and hand it downstream; nothing executes,
+  // but they must still be listed so Record<AINodeType, …> stays exhaustive.
+  // (The removed generic "input" entry was previously masking their absence.)
+  "image-input": ["internal"],
+  "video-input": ["internal"],
+  "audio-input": ["internal"],
   // Annotation node
   "comment": ["internal"],
 };

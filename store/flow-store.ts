@@ -18,6 +18,19 @@ import { type AINodeType } from "@/types/nodes";
 import { validateWorkflow as validateWorkflowFn, type ValidationResult } from "@/lib/workflow/validation";
 import { clampSettingValue, type HistoryEntry, type ClipboardData, MAX_HISTORY_LENGTH } from "./helpers";
 
+/**
+ * Monotonic suffix for generated node ids.
+ *
+ * `node-${Date.now()}` alone is not unique: duplicate and paste both complete
+ * well inside a millisecond, so holding the shortcut produced colliding ids
+ * (measured: 50 rapid duplicates yielded 1 unique id). Colliding ids make
+ * React Flow drop nodes and make edge lookups resolve to the wrong node.
+ * Mirrors the counter already used by getNewNodeId() in flow-canvas.tsx.
+ */
+let nodeIdSeq = 0;
+const nextNodeId = (suffix: string) => `node-${Date.now()}-${suffix}-${nodeIdSeq++}`;
+const nextEdgeId = (suffix: string) => `e-${Date.now()}-${suffix}-${nodeIdSeq++}`;
+
 export interface FlowState {
   nodes: Node[];
   edges: Edge[];
@@ -700,7 +713,7 @@ export const useFlowStore = create<FlowState>()(
         // Record history before duplicating node for undo support
         get().recordHistory();
 
-        const newId = `node-${Date.now()}-dup`;
+        const newId = nextNodeId('dup');
         const originalData = original.data as Record<string, unknown>;
         const newNode: Node = {
           ...original,
@@ -933,11 +946,9 @@ export const useFlowStore = create<FlowState>()(
         
         // Generate new IDs for pasted nodes
         const idMap = new Map<string, string>();
-        const timestamp = Date.now();
-        
-        state.clipboard.nodes.forEach((node, index) => {
-          const newId = `node-${timestamp}-${index}`;
-          idMap.set(node.id, newId);
+
+        state.clipboard.nodes.forEach((node) => {
+          idMap.set(node.id, nextNodeId('paste'));
         });
         
         // Calculate offset for new nodes
@@ -979,9 +990,9 @@ export const useFlowStore = create<FlowState>()(
         }));
         
         // Create new edges with updated source/target IDs
-        const newEdges: Edge[] = state.clipboard.edges.map((edge, index) => ({
+        const newEdges: Edge[] = state.clipboard.edges.map((edge) => ({
           ...JSON.parse(JSON.stringify(edge)),
-          id: `e-${timestamp}-${index}`,
+          id: nextEdgeId('paste'),
           source: idMap.get(edge.source)!,
           target: idMap.get(edge.target)!,
         }));
@@ -1042,10 +1053,9 @@ export const useFlowStore = create<FlowState>()(
         
         // Generate new IDs
         const idMap = new Map<string, string>();
-        const timestamp = Date.now();
-        
-        selectedIds.forEach((id, index) => {
-          idMap.set(id, `node-${timestamp}-dup-${index}`);
+
+        selectedIds.forEach((id) => {
+          idMap.set(id, nextNodeId('dup'));
         });
         
         // Create duplicated nodes
@@ -1072,9 +1082,9 @@ export const useFlowStore = create<FlowState>()(
         const edgesToDuplicate = state.edges.filter(
           e => selectedIds.includes(e.source) && selectedIds.includes(e.target)
         );
-        const newEdges: Edge[] = edgesToDuplicate.map((edge, index) => ({
+        const newEdges: Edge[] = edgesToDuplicate.map((edge) => ({
           ...JSON.parse(JSON.stringify(edge)),
-          id: `e-${timestamp}-dup-${index}`,
+          id: nextEdgeId('dup'),
           source: idMap.get(edge.source)!,
           target: idMap.get(edge.target)!,
         }));
@@ -1550,7 +1560,7 @@ export const useFlowStore = create<FlowState>()(
       },
       }),
       {
-        name: "flowsmith-flow",
+        name: "cascade-flow",
         storage: createJSONStorage(() => localStorage),
         // Only persist serializable, essential data - not transient state or large media
         partialize: (state) => {

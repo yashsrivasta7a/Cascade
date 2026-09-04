@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Google_Sans_Flex } from "next/font/google";
+import { JetBrains_Mono, Google_Sans_Flex, Syne } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { Providers } from "./providers";
@@ -11,6 +11,14 @@ const googleSansFlex = Google_Sans_Flex({
   display: "swap",
 });
 
+// Display face for the Cascade wordmark only - deliberately not the UI font.
+const syne = Syne({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  display: "swap",
+});
+
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -18,14 +26,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Flowsmith",
+  title: "Cascade",
   description: "Build powerful AI automations visually. Connect models, APIs, and data sources with drag-and-drop simplicity.",
   keywords: ["AI", "workflow", "automation", "GPT-4", "Claude", "visual builder"],
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/logo.svg",
-  },
 };
 
 export default function RootLayout({
@@ -37,6 +40,10 @@ export default function RootLayout({
     <ClerkProvider
       appearance={{
         baseTheme: dark,
+        layout: {
+          logoImageUrl: "/logo.svg",
+          logoLinkUrl: "/",
+        },
         variables: {
           colorPrimary: "#06b6d4", // cyan-500
           colorBackground: "#101010", // custom dark
@@ -94,7 +101,7 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${googleSansFlex.variable} ${jetbrainsMono.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
+          className={`${googleSansFlex.variable} ${jetbrainsMono.variable} ${syne.variable} antialiased bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-100`}
         >
           <Providers>{children}</Providers>
         </body>

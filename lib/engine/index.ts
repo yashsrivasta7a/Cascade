@@ -1,5 +1,5 @@
 // =============================================================================
-// FLOWSMITH ENGINE - Core Execution System
+// CASCADE ENGINE - Core Execution System
 // =============================================================================
 
 export * from "./types";

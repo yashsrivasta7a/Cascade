@@ -1,65 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <!-- Gear at top-left -->
-  <g transform="translate(28, 28)">
-    <path d="M12 0L14 6L20 4L18 10L24 12L18 14L20 20L14 18L12 24L10 18L4 20L6 14L0 12L6 10L4 4L10 6L12 0Z" 
-          fill="#2D8B73" stroke="#2D8B73" stroke-width="1"/>
-    <circle cx="12" cy="12" r="5" fill="#1a1a1a"/>
-    <circle cx="12" cy="12" r="3" fill="#2D8B73"/>
-  </g>
-  
-  <!-- Main F circuit traces -->
-  <g stroke="#2D8B73" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <!-- Vertical main stem -->
-    <path d="M40 52 L40 170 Q40 180 50 180 L70 180"/>
-    
-    <!-- Top horizontal bar -->
-    <path d="M40 52 L130 52 Q140 52 140 62 L140 72 Q140 82 150 82 L170 82"/>
-    
-    <!-- Top right corner return -->
-    <path d="M170 82 L170 52 Q170 42 160 42 L90 42"/>
-    
-    <!-- Middle connection from stem -->
-    <path d="M40 100 L80 100 Q90 100 90 110 L90 130 Q90 140 100 140 L130 140"/>
-    
-    <!-- Middle branch going right -->
-    <path d="M80 100 L110 100 Q120 100 120 90 L120 70"/>
-    
-    <!-- Lower middle branch -->
-    <path d="M40 130 L60 130 Q70 130 70 140 L70 160"/>
-    
-    <!-- Bottom branches -->
-    <path d="M70 180 L100 180 Q110 180 110 170 L110 155"/>
-    <path d="M110 155 L140 155 Q150 155 150 165 L150 180"/>
-    
-    <!-- Additional circuit detail -->
-    <path d="M130 140 L130 120 Q130 110 140 110 L160 110"/>
-    <path d="M160 110 L160 130"/>
-  </g>
-  
-  <!-- Orange circuit nodes -->
-  <g fill="#F59E0B">
-    <circle cx="40" cy="52" r="5"/>
-    <circle cx="90" cy="42" r="5"/>
-    <circle cx="170" cy="52" r="4"/>
-    <circle cx="170" cy="82" r="5"/>
-    <circle cx="120" cy="70" r="4"/>
-    <circle cx="80" cy="100" r="4"/>
-    <circle cx="130" cy="140" r="5"/>
-    <circle cx="160" cy="110" r="4"/>
-    <circle cx="160" cy="130" r="4"/>
-    <circle cx="70" cy="160" r="4"/>
-    <circle cx="70" cy="180" r="5"/>
-    <circle cx="110" cy="155" r="4"/>
-    <circle cx="150" cy="180" r="5"/>
-    <circle cx="40" cy="170" r="4"/>
-  </g>
-  
-  <!-- Node outlines for depth -->
-  <g fill="none" stroke="#D97706" stroke-width="1.5">
-    <circle cx="40" cy="52" r="5"/>
-    <circle cx="170" cy="82" r="5"/>
-    <circle cx="130" cy="140" r="5"/>
-    <circle cx="70" cy="180" r="5"/>
-    <circle cx="150" cy="180" r="5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="Cascade">
+  <!-- Cascade mark: two blocks stepping down in isometric. Loaded via <img>, where
+       currentColor never resolves, so the mark takes its ink from the viewer's
+       colour scheme instead. -->
+  <style>
+    .ink { fill: #101010; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #ffffff; } }
+  </style>
+  <g class="ink">
+    <polygon points="4.3,8.9 11.5,4.75 18.7,8.9 11.5,13.05" />
+    <polygon points="4.3,8.9 11.5,13.05 11.5,19.05 4.3,14.9" opacity="0.34" />
+    <polygon points="11.5,13.05 18.7,8.9 18.7,14.9 11.5,19.05" opacity="0.62" />
+    <polygon points="13.3,17.4 20.5,13.25 27.7,17.4 20.5,21.55" />
+    <polygon points="13.3,17.4 20.5,21.55 20.5,27.55 13.3,23.4" opacity="0.34" />
+    <polygon points="20.5,21.55 27.7,17.4 27.7,23.4 20.5,27.55" opacity="0.62" />
   </g>
 </svg>
