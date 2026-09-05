@@ -1,19 +1,14 @@
 # Cascade MCP Server
 
-MCP (Model Context Protocol) server for [Cascade](https://cascade.vercel.app) - AI workflow automation platform. Enables AI assistants like Claude, Cursor, and others to create, manage, and execute workflows.
+MCP (Model Context Protocol) server for [Cascade](https://cascade-ys7.vercel.app) - AI workflow automation platform. Enables AI assistants like Claude, Cursor, and others to create, manage, and execute workflows.
 
 ## Quick Install (For Users)
 
-### Option 1: NPX (Easiest - Coming Soon)
-```bash
-npx @cascade/mcp-server
-```
+> Not published to npm yet, so build from source.
 
-### Option 2: Manual Installation
-
-1. **Clone or download the MCP server:**
+1. **Clone and build the MCP server:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/cascade.git
+git clone https://github.com/yashsrivasta7a/Flowsmith.git cascade
 cd cascade/mcp/cascade
 npm install
 npm run build
@@ -70,7 +65,7 @@ Use these settings:
 - **Args:** `["/path/to/mcp/cascade/dist/index.js"]`
 - **Environment:**
   - `CASCADE_API_KEY`: Leave empty (auto-setup)
-  - `CASCADE_API_URL`: `https://cascade.vercel.app` (default)
+  - `CASCADE_API_URL`: `https://cascade-ys7.vercel.app` (default)
 
 ---
 
@@ -91,7 +86,7 @@ Claude: "✓ Authenticated! Now let me create your workflow..."
 ```
 
 **To get your API key:**
-1. Go to [cascade.vercel.app](https://cascade.vercel.app)
+1. Go to [cascade.vercel.app](https://cascade-ys7.vercel.app)
 2. Sign in to your account
 3. Go to **Settings** > **API Keys**
 4. Click **Create API Key**
@@ -175,7 +170,7 @@ npm start
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CASCADE_API_URL` | API base URL | `https://cascade.vercel.app` |
+| `CASCADE_API_URL` | API base URL | `https://cascade-ys7.vercel.app` |
 | `CASCADE_API_KEY` | Your API key | (empty - auto-setup) |
 | `LOG_LEVEL` | Logging level | `info` |
 
@@ -221,8 +216,7 @@ npm install -g @cascade/mcp-server
 
 ## Links
 
-- **Cascade App:** https://cascade.vercel.app
-- **API Docs:** https://cascade.vercel.app/docs
+- **Cascade App:** https://cascade-ys7.vercel.app
 - **Support:** Create an issue on GitHub
 
 ---
