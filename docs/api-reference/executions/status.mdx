@@ -16,13 +16,13 @@ Returns a lightweight status response for a workflow execution. This endpoint is
 
 <CodeGroup>
 ```bash cURL
-curl -X GET https://flowsmiths.vercel.app/api/executions/{id}/status \
+curl -X GET https://cascade.vercel.app/api/executions/{id}/status \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ```javascript JavaScript
 const response = await fetch(
-  'https://flowsmiths.vercel.app/api/executions/{id}/status',
+  'https://cascade.vercel.app/api/executions/{id}/status',
   {
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY'
@@ -45,7 +45,7 @@ import time
 def poll_status(execution_id, api_key):
     while True:
         response = requests.get(
-            f'https://flowsmiths.vercel.app/api/executions/{execution_id}/status',
+            f'https://cascade.vercel.app/api/executions/{execution_id}/status',
             headers={'Authorization': f'Bearer {api_key}'}
         )
         data = response.json()
@@ -184,7 +184,7 @@ async function pollWithTimeout(executionId, maxWaitMs = 300000) {
   
   while (Date.now() - startTime < maxWaitMs) {
     const response = await fetch(
-      `https://flowsmiths.vercel.app/api/executions/${executionId}/status`,
+      `https://cascade.vercel.app/api/executions/${executionId}/status`,
       { headers: { 'Authorization': 'Bearer YOUR_API_KEY' } }
     );
     const data = await response.json();

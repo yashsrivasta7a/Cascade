@@ -10,45 +10,12 @@ import {
   AlertCircle,
   CreditCard,
   Layers,
-  Cpu,
-  Coins,
   Server,
   ShieldCheck,
   GitBranch,
-  Terminal,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NODE_DEFINITIONS, type AINodeType } from "@/types/nodes";
 import { formatCredits } from "@/lib/credits";
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function getNodeColors(type: string): { bg: string; border: string; text: string; glow: string } {
-  switch (type) {
-    case "openrouter":
-      return { bg: "bg-blue-500/15", border: "border-blue-500/30", text: "text-blue-400", glow: "shadow-blue-500/20" };
-    case "seedream":
-      return { bg: "bg-emerald-500/15", border: "border-emerald-500/30", text: "text-emerald-400", glow: "shadow-emerald-500/20" };
-    case "seedance":
-    case "seedvr":
-      return { bg: "bg-violet-500/15", border: "border-violet-500/30", text: "text-violet-400", glow: "shadow-violet-500/20" };
-    case "elevenlabs":
-    case "lipsync":
-      return { bg: "bg-amber-500/15", border: "border-amber-500/30", text: "text-amber-400", glow: "shadow-amber-500/20" };
-    case "crop-image":
-      return { bg: "bg-emerald-500/15", border: "border-emerald-500/30", text: "text-emerald-400", glow: "shadow-emerald-500/20" };
-    case "merge-videos":
-    case "merge-audio-video":
-      return { bg: "bg-violet-500/15", border: "border-violet-500/30", text: "text-violet-400", glow: "shadow-violet-500/20" };
-    case "extract-audio":
-      return { bg: "bg-amber-500/15", border: "border-amber-500/30", text: "text-amber-400", glow: "shadow-amber-500/20" };
-    default:
-      return { bg: "bg-zinc-500/15", border: "border-zinc-500/30", text: "text-zinc-400", glow: "shadow-zinc-500/20" };
-  }
-}
 
 // =============================================================================
 // TYPES
@@ -150,7 +117,7 @@ export function RunModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           onClick={onClose}
         />
 
@@ -162,78 +129,64 @@ export function RunModal({
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="relative w-full max-w-3xl"
         >
-          <div className="group relative bg-[#0a0a0a] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/80 overflow-hidden flex flex-col md:flex-row h-[520px]">
+          <div className="shadow-2xl group relative bg-white dark:bg-zinc-950 border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden flex flex-col md:flex-row h-[min(520px,85vh)] md:h-[520px]">
             {/* Left Column: Context & Resources */}
-            <div className="w-full md:w-[40%] bg-[#0d0d0d] border-b md:border-b-0 md:border-r border-white/[0.06] flex flex-col relative overflow-hidden">
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.02] via-transparent to-violet-500/[0.02] pointer-events-none" />
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-              
+            <div className="w-full md:w-[40%] bg-gray-50 dark:bg-zinc-900 md:border-r border-gray-200 dark:border-white/10 flex flex-col relative overflow-hidden">
               <div className="p-6 h-full flex flex-col relative z-10">
-                <div className="flex items-center gap-2 text-zinc-500 mb-8">
-                  <div className="w-6 h-6 rounded bg-white/5 border border-white/10 flex items-center justify-center">
-                    <Terminal className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">System Check</span>
-                </div>
-
-                <div className="mb-8">
-                  <h2 className="text-xl font-semibold text-zinc-100 mb-1.5 tracking-tight">
-                    Execute Workflow
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-zinc-100 mb-1.5 tracking-tight">
+                    Confirm Execution
                   </h2>
-                  <p className="text-sm text-zinc-500 font-normal line-clamp-2 leading-relaxed">
-                    {workflowName}
+                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-normal line-clamp-2 leading-relaxed">
+                    {workflowName || "Untitled Workflow"}
                   </p>
                 </div>
 
                 {/* Resource Card */}
-                <div className="rounded-xl bg-gradient-to-br from-white/[0.05] to-white/[0.02] border border-white/[0.08] p-5 mb-4 backdrop-blur-xl relative overflow-hidden">
-                  {/* Subtle glow */}
-                  <div className="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-                  
-                  <div className="flex items-center gap-2 mb-5 text-zinc-400 relative">
-                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 flex items-center justify-center">
-                      <CreditCard className="w-3 h-3 text-amber-400" />
+                <div className="rounded-xl bg-white dark:bg-zinc-800/50 border border-gray-200 dark:border-white/10 p-5 mb-4 relative overflow-hidden shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 text-slate-600 dark:text-zinc-400 relative">
+                    <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 flex items-center justify-center">
+                      <CreditCard className="w-3.5 h-3.5" />
                     </div>
-                    <span className="text-[10px] font-medium uppercase tracking-widest text-amber-400/70">Allocation</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-zinc-300">Cost Estimate</span>
                   </div>
 
                   <div className="flex items-end justify-between mb-4 relative">
                     <div>
-                      <span className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent tracking-tight block tabular-nums">
+                      <span className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight block tabular-nums">
                         {formatCredits(stats.totalCost)}
                       </span>
-                      <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide mt-1 block">Credits Req.</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-500 font-medium uppercase mt-1 block">Credits Required</span>
                     </div>
                     <div className="text-right">
                       <div className="flex items-center justify-end gap-1.5 mb-0.5">
                         <span className={cn(
-                          "text-lg font-mono block tabular-nums font-bold",
-                          stats.hasEnoughCredits ? "text-emerald-400" : "text-red-400"
+                          "text-lg block tabular-nums font-semibold",
+                          stats.hasEnoughCredits ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                         )}>
                           {formatCredits(creditBalance)}
                         </span>
-                        {stats.hasEnoughCredits && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
+                        {stats.hasEnoughCredits && <ShieldCheck className="w-4 h-4 text-emerald-500" />}
                       </div>
-                      <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">Available</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-500 font-medium uppercase">Available</span>
                     </div>
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden mb-1">
+                  <div className="relative h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden mb-1">
                     <div 
                       className={cn(
                         "absolute inset-y-0 left-0 transition-all duration-500 rounded-full",
                         stats.hasEnoughCredits 
-                          ? "bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-lg shadow-emerald-500/30" 
-                          : "bg-gradient-to-r from-red-500 to-red-400 shadow-lg shadow-red-500/30"
+                          ? "bg-emerald-500" 
+                          : "bg-red-500"
                       )}
                       style={{ width: `${Math.min((stats.totalCost / (creditBalance || 1)) * 100, 100)}%` }}
                     />
                   </div>
 
                   {!stats.hasEnoughCredits && (
-                    <div className="flex items-start gap-2 mt-4 text-[11px] text-red-300 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 leading-snug backdrop-blur-sm">
+                    <div className="text-[11px] flex items-start gap-2 mt-4 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-2.5 rounded-md border border-red-100 dark:border-red-500/20 leading-snug">
                       <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                       <span>Insufficient credits to run pipeline. Please top up your balance.</span>
                     </div>
@@ -242,35 +195,35 @@ export function RunModal({
 
                 {/* System Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-sm flex flex-col gap-1.5 hover:bg-white/[0.05] transition-colors">
+                  <div className="p-3.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800/50 flex flex-col gap-1.5 shadow-sm">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-md bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
-                        <Clock className="w-2.5 h-2.5 text-blue-400" />
+                      <div className="w-5 h-5 rounded-md bg-gray-50 dark:bg-zinc-700 border border-gray-100 dark:border-zinc-600 flex items-center justify-center">
+                        <Clock className="w-3 h-3 text-slate-500 dark:text-zinc-400" />
                       </div>
-                      <span className="text-[9px] uppercase font-medium tracking-wider text-blue-400/70">Est. Time</span>
+                      <span className="text-[10px] font-medium text-slate-600 dark:text-zinc-400">Est. Time</span>
                     </div>
-                    <span className="text-base font-semibold text-zinc-200 pl-6">~{formatDuration(stats.estimatedDuration)}</span>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-zinc-200 pl-6">~{formatDuration(stats.estimatedDuration)}</span>
                   </div>
-                  <div className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-sm flex flex-col gap-1.5 hover:bg-white/[0.05] transition-colors">
+                  <div className="p-3.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800/50 flex flex-col gap-1.5 shadow-sm">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-md bg-violet-500/15 border border-violet-500/20 flex items-center justify-center">
-                        <Server className="w-2.5 h-2.5 text-violet-400" />
+                      <div className="w-5 h-5 rounded-md bg-gray-50 dark:bg-zinc-700 border border-gray-100 dark:border-zinc-600 flex items-center justify-center">
+                        <Server className="w-3 h-3 text-slate-500 dark:text-zinc-400" />
                       </div>
-                      <span className="text-[9px] uppercase font-medium tracking-wider text-violet-400/70">Providers</span>
+                      <span className="text-[10px] font-medium text-slate-600 dark:text-zinc-400">Providers</span>
                     </div>
-                    <span className="text-base font-semibold text-zinc-200 pl-6">{stats.uniqueProviders} services</span>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-zinc-200 pl-6">{stats.uniqueProviders} services</span>
                   </div>
                 </div>
 
                 {/* Environment Info */}
-                <div className="mt-auto pt-6 border-t border-white/5">
-                  <div className="flex items-center justify-between text-[10px] text-zinc-600 uppercase tracking-widest font-mono">
+                <div className="mt-auto pt-4">
+                  <div className="text-[10px] flex items-center justify-between text-slate-500 dark:text-zinc-500 font-medium">
                     <span className="flex items-center gap-1.5">
                       <GitBranch className="w-3 h-3" />
                       v1.0.2
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Production
                     </span>
                   </div>
@@ -280,153 +233,127 @@ export function RunModal({
               {/* Bottom aligned cancel for mobile */}
               <div className="p-6 pt-0 md:hidden relative z-10">
                 <button
-                   onClick={onClose}
-                   className="w-full text-sm font-medium text-zinc-400 hover:text-zinc-200 py-3 border border-white/10 rounded-xl bg-white/5"
-                 >
-                   Cancel Operation
-                 </button>
+                  onClick={onClose}
+                  className="text-sm w-full font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 py-2.5 border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-zinc-800"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
 
             {/* Right Column: Execution Plan */}
-            <div className="w-full md:w-[60%] flex flex-col bg-[#0a0a0a] relative">
+            <div className="w-full md:w-[60%] flex flex-col bg-white dark:bg-zinc-950 relative">
               {/* Header */}
-              <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.02] backdrop-blur-xl z-20 pr-12">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex items-center justify-center w-3 h-3">
-                    <span className="absolute inset-0 rounded-full bg-emerald-500/30 animate-ping" />
-                    <span className="relative block w-2 h-2 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-lg shadow-emerald-500/50" />
-                  </div>
-                  <h3 className="text-xs font-medium text-zinc-300 uppercase tracking-widest">Execution Sequence</h3>
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-white dark:bg-zinc-950 z-20 pr-12">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-zinc-200">Execution Plan</h3>
                 </div>
-                <div className="px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border border-cyan-500/20 text-[10px] text-cyan-400 font-mono flex items-center gap-1.5">
-                  <Layers className="w-3 h-3" />
-                  {stats.nodeCount} STEPS
+                <div className="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 font-medium flex items-center gap-1.5">
+                  {stats.nodeCount} Steps
                 </div>
               </div>
 
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-zinc-800 relative">
-                <div className="relative pl-3">
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-200 dark:scrollbar-thumb-zinc-800 relative">
+                <div className="relative">
                   {/* Vertical Timeline Line */}
-                  <div className="absolute left-[17px] top-4 bottom-6 w-px bg-gradient-to-b from-violet-500/30 via-blue-500/20 to-transparent" />
+                  <div className="absolute left-4 top-4 bottom-6 w-px bg-gray-200 dark:bg-zinc-800" />
 
                   <motion.div 
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="space-y-5"
+                    className="space-y-6"
                   >
-                    {nodes.map((node, i) => {
-                      const colors = getNodeColors(node.type);
-                      return (
+                    {nodes.map((node, i) => (
                       <motion.div 
                         key={node.id} 
                         variants={itemVariants}
-                        className="relative flex items-start gap-4 group"
+                        className="relative flex items-start gap-4"
                       >
                         {/* Timeline Node */}
-                        <div className={cn(
-                          "relative z-10 w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-300 backdrop-blur-sm",
-                          node.estimatedCost > 0 
-                            ? cn(colors.bg, colors.border, "shadow-lg", colors.glow, "group-hover:scale-105")
-                            : "bg-white/[0.03] border-white/10 group-hover:border-white/20"
-                        )}>
-                          {node.estimatedCost > 0 ? (
-                            <Zap className={cn("w-4 h-4 transition-colors", colors.text)} />
-                          ) : (
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 group-hover:bg-zinc-400 transition-colors" />
-                          )}
+                        <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center bg-white dark:bg-zinc-900 border-2 border-gray-200 dark:border-zinc-700 text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                          {i + 1}
                         </div>
                         
                         {/* Node Content */}
-                        <div className="flex-1 pt-1.5 min-w-0">
-                          <div className="flex items-center justify-between mb-2 gap-2">
-                            <h4 className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors truncate">
+                        <div className="flex-1 min-w-0 pt-1.5">
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <h4 className="text-sm font-medium text-slate-800 dark:text-zinc-200 truncate">
                               {node.label}
                             </h4>
                             
                             {/* Cost Badge */}
                             {node.estimatedCost > 0 && (
-                              <div className={cn(
-                                "flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono transition-all backdrop-blur-sm",
-                                colors.bg, colors.border, colors.text
-                              )}>
-                                <Coins className="w-3 h-3" />
-                                <span className="font-semibold">{formatCredits(node.estimatedCost)}</span>
+                              <div className="flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
+                                <span>{formatCredits(node.estimatedCost)} cr</span>
                               </div>
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "px-2 py-0.5 rounded-md font-medium uppercase text-[8px] tracking-wide border",
-                              colors.bg, colors.border, colors.text
-                            )}>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border border-gray-200 dark:border-zinc-700">
                               {node.type.replace("-", " ")}
                             </span>
-                            <span className="text-zinc-500 text-[10px] truncate max-w-[120px] flex items-center gap-1.5">
-                              <span className="w-0.5 h-2 bg-zinc-700 rounded-full" />
+                            <span className="text-[11px] text-slate-500 dark:text-zinc-500 truncate flex items-center gap-1.5">
                               {node.provider}
                             </span>
                           </div>
                         </div>
                       </motion.div>
-                    );
-                    })}
+                    ))}
                   </motion.div>
                   
                   {/* End Node */}
                   <motion.div 
                     initial={{ opacity: 0 }} 
-                    animate={{ opacity: 0.6 }} 
+                    animate={{ opacity: 1 }} 
                     transition={{ delay: 0.5 }}
                     className="relative flex items-center gap-4 mt-6"
                   >
-                    <div className="relative z-10 w-9 h-9 rounded-xl flex items-center justify-center border border-dashed border-zinc-700 bg-white/[0.02] backdrop-blur-sm">
-                      <div className="w-2 h-2 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-700" />
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">End of Pipeline</span>
+                    <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 dark:bg-zinc-900 border-2 border-dashed border-gray-200 dark:border-zinc-700" />
+                    <span className="text-xs text-slate-400 dark:text-zinc-500 font-medium">End of Pipeline</span>
                   </motion.div>
                 </div>
               </div>
 
               {/* Footer Actions */}
-              <div className="p-5 border-t border-white/[0.06] bg-gradient-to-r from-white/[0.02] to-transparent flex items-center justify-end gap-3 z-10 backdrop-blur-xl">
+              <div className="p-4 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-zinc-950 flex items-center justify-end gap-3 z-10">
                 <button
-                   onClick={onClose}
-                   className="hidden md:block text-xs font-medium text-zinc-500 hover:text-zinc-200 transition-colors px-4 py-2.5 rounded-lg hover:bg-white/[0.05]"
-                 >
-                   Cancel
-                 </button>
+                  onClick={onClose}
+                  className="text-sm hidden md:block font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 transition-colors px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
                 <button
                   onClick={handleExecute}
                   disabled={!stats.hasEnoughCredits || isExecuting}
                   className={cn(
-                    "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300",
+                    "flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200",
                     stats.hasEnoughCredits
-                      ? "bg-gradient-to-r from-white to-zinc-100 text-black hover:from-zinc-100 hover:to-white shadow-[0_0_30px_rgba(255,255,255,0.15)] hover:shadow-[0_0_40px_rgba(255,255,255,0.25)] transform hover:-translate-y-0.5 hover:scale-[1.02]"
-                      : "bg-zinc-800/50 text-zinc-500 cursor-not-allowed backdrop-blur-sm"
+                      ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                      : "bg-gray-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 cursor-not-allowed"
                   )}
                 >
                   {isExecuting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Initializing...</span>
+                      <span>Starting...</span>
                     </>
                   ) : (
                     <>
                       <Play className="w-4 h-4 fill-current" />
-                      <span>Execute Workflow</span>
+                      <span>Run Workflow</span>
                     </>
                   )}
                 </button>
               </div>
 
-              {/* Close Button Absolute - Moved out of scroll area */}
+              {/* Close Button Absolute */}
               <button
                 onClick={onClose}
-                className="absolute top-5 right-5 text-zinc-600 hover:text-zinc-200 transition-colors z-20 p-2 rounded-lg hover:bg-white/5"
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors z-20 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
               >
                 <X className="w-4 h-4" />
               </button>

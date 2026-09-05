@@ -26,12 +26,13 @@ export type AINodeType =
   | "extract-audio"
   // Annotation
   | "comment"
-  // I/O Nodes
-  | "input"
+  // I/O Nodes. Generic "input"/"output" were removed: every node already has
+  // its own ports and renders its own result, so a passthrough source and a
+  // display-only sink were a hop with no capability. Typed media inputs remain
+  // as the upload entry points.
   | "image-input"
   | "video-input"
-  | "audio-input"
-  | "output";
+  | "audio-input";
 
 // ============================================================================
 // DATA TYPES (What flows between nodes)
@@ -77,111 +78,118 @@ export const dataTypeCategory: Record<DataType, DataTypeCategory> = {
   boolean: "settings",
 };
 
+/**
+ * Port / handle colours.
+ *
+ * Previously 14 saturated hues, each with a `0 0 12px` bloom. Two problems:
+ * the bloom is the single most recognisable "AI-generated UI" tell, and 14
+ * colour categories exceed what anyone can learn — nobody remembers that pink
+ * is `number`.
+ *
+ * Now: the four media kinds carry muted, distinguishable hues; every settings
+ * type shares one neutral, because a settings port's meaning comes from the row
+ * it sits on, not its colour. The glow is replaced by a tight focus-ring style
+ * halo, which reads as an affordance (this is a target you can hit) rather than
+ * as decoration.
+ */
 export const dataTypeColors: Record<DataType, { bg: string; border: string; text: string; solid: string; glow: string }> = {
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MEDIA TYPES - Bold, saturated colors for main data flowing between nodes
-  // ═══════════════════════════════════════════════════════════════════════════
-  text: { 
-    bg: "bg-blue-500", 
-    border: "border-blue-400", 
-    text: "text-blue-400", 
-    solid: "#3b82f6", 
-    glow: "0 0 12px rgba(59, 130, 246, 0.6)" 
+  text: {
+    bg: "bg-[#8fa8c8]",
+    border: "border-[#8fa8c8]",
+    text: "text-[#8fa8c8]",
+    solid: "#8fa8c8",
+    glow: "0 0 0 3px rgba(143,168,200,0.45)",
   },
-  image: { 
-    bg: "bg-emerald-500", 
-    border: "border-emerald-400", 
-    text: "text-emerald-400", 
-    solid: "#10b981", 
-    glow: "0 0 12px rgba(16, 185, 129, 0.6)" 
+  image: {
+    bg: "bg-[#86b79c]",
+    border: "border-[#86b79c]",
+    text: "text-[#86b79c]",
+    solid: "#86b79c",
+    glow: "0 0 0 3px rgba(134,183,156,0.45)",
   },
-  video: { 
-    bg: "bg-violet-500", 
-    border: "border-violet-400", 
-    text: "text-violet-400", 
-    solid: "#8b5cf6", 
-    glow: "0 0 12px rgba(139, 92, 246, 0.6)" 
+  video: {
+    bg: "bg-[#a094c4]",
+    border: "border-[#a094c4]",
+    text: "text-[#a094c4]",
+    solid: "#a094c4",
+    glow: "0 0 0 3px rgba(160,148,196,0.45)",
   },
-  audio: { 
-    bg: "bg-teal-500", 
-    border: "border-teal-400", 
-    text: "text-teal-400", 
-    solid: "#14b8a6", 
-    glow: "0 0 12px rgba(20, 184, 166, 0.6)" 
+  audio: {
+    bg: "bg-[#c9ac83]",
+    border: "border-[#c9ac83]",
+    text: "text-[#c9ac83]",
+    solid: "#c9ac83",
+    glow: "0 0 0 3px rgba(201,172,131,0.45)",
   },
-  any: { 
-    bg: "bg-zinc-400", 
-    border: "border-zinc-400", 
-    text: "text-zinc-400", 
-    solid: "#a1a1aa", 
-    glow: "0 0 12px rgba(161, 161, 170, 0.5)" 
+  any: {
+    bg: "bg-[#8a8a92]",
+    border: "border-[#8a8a92]",
+    text: "text-[#8a8a92]",
+    solid: "#8a8a92",
+    glow: "0 0 0 3px rgba(138,138,146,0.40)",
   },
-  
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SETTINGS TYPES - Distinct colors for parameters shared across nodes
-  // ═══════════════════════════════════════════════════════════════════════════
-  prompt: { 
-    bg: "bg-sky-500", 
-    border: "border-sky-400", 
-    text: "text-sky-400", 
-    solid: "#0ea5e9", 
-    glow: "0 0 12px rgba(14, 165, 233, 0.6)" 
+  prompt: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  negative: { 
-    bg: "bg-red-500", 
-    border: "border-red-400", 
-    text: "text-red-400", 
-    solid: "#ef4444", 
-    glow: "0 0 12px rgba(239, 68, 68, 0.6)" 
+  negative: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  seed: { 
-    bg: "bg-lime-500", 
-    border: "border-lime-400", 
-    text: "text-lime-400", 
-    solid: "#84cc16", 
-    glow: "0 0 12px rgba(132, 204, 22, 0.6)" 
+  seed: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  aspectRatio: { 
-    bg: "bg-indigo-500", 
-    border: "border-indigo-400", 
-    text: "text-indigo-400", 
-    solid: "#6366f1", 
-    glow: "0 0 12px rgba(99, 102, 241, 0.6)" 
+  aspectRatio: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  duration: { 
-    bg: "bg-teal-500", 
-    border: "border-teal-400", 
-    text: "text-teal-400", 
-    solid: "#14b8a6", 
-    glow: "0 0 12px rgba(20, 184, 166, 0.6)" 
+  duration: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  model: { 
-    bg: "bg-rose-500", 
-    border: "border-rose-400", 
-    text: "text-rose-400", 
-    solid: "#f43f5e", 
-    glow: "0 0 12px rgba(244, 63, 94, 0.6)" 
+  model: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  temperature: { 
-    bg: "bg-orange-500", 
-    border: "border-orange-400", 
-    text: "text-orange-400", 
-    solid: "#f97316", 
-    glow: "0 0 12px rgba(249, 115, 22, 0.6)" 
+  temperature: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  number: { 
-    bg: "bg-pink-500", 
-    border: "border-pink-400", 
-    text: "text-pink-400", 
-    solid: "#ec4899", 
-    glow: "0 0 12px rgba(236, 72, 153, 0.6)" 
+  number: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
-  boolean: { 
-    bg: "bg-cyan-500", 
-    border: "border-cyan-400", 
-    text: "text-cyan-400", 
-    solid: "#06b6d4", 
-    glow: "0 0 12px rgba(6, 182, 212, 0.6)" 
+  boolean: {
+    bg: "bg-[#6b6b73]",
+    border: "border-[#6b6b73]",
+    text: "text-[#6b6b73]",
+    solid: "#6b6b73",
+    glow: "0 0 0 3px rgba(107,107,115,0.40)",
   },
 };
 
@@ -367,19 +375,6 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     color: "zinc",
   },
   // I/O Nodes
-  "input": {
-    type: "input",
-    category: "io",
-    label: "Input",
-    description: "Add input (text, image, video, or audio) to use in your workflow",
-    provider: "local",
-    action: "Input",
-    inputs: [],
-    outputs: [{ type: "any", label: "Output" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "zinc",
-  },
   "image-input": {
     type: "image-input",
     category: "io",
@@ -418,19 +413,6 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 0,
     isUtility: true,
     color: "teal",
-  },
-  "output": {
-    type: "output",
-    category: "io",
-    label: "Output",
-    description: "Display and download workflow output",
-    provider: "local",
-    action: "Output",
-    inputs: [{ type: "any", label: "Input" }],
-    outputs: [],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "zinc",
   },
 };
 
@@ -661,12 +643,6 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     mediaInputs: [],
   },
   // I/O Nodes
-  "input": {
-    primaryOutputType: "any",
-    primaryOutputId: "output",
-    settings: [],
-    mediaInputs: [],
-  },
   "image-input": {
     primaryOutputType: "image",
     primaryOutputId: "output",
@@ -684,12 +660,6 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     primaryOutputId: "output",
     settings: [],
     mediaInputs: [],
-  },
-  "output": {
-    primaryOutputType: "any",
-    primaryOutputId: "",
-    settings: [],
-    mediaInputs: [{ id: "input", type: "any", label: "Input" }],
   },
 };
 

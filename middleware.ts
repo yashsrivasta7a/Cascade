@@ -33,12 +33,12 @@ export default async function middleware(req: NextRequest) {
   return clerkMiddleware(async (auth, req) => {
     const { pathname } = req.nextUrl;
 
-    // Redirect root to dashboard
+    // Redirect root to workflows
     if (pathname === "/") {
       const { userId } = await auth();
       if (userId) {
-        // Authenticated - go to dashboard
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+        // Authenticated - go to workflows
+        return NextResponse.redirect(new URL("/workflows", req.url));
       } else {
         // Not authenticated - go to sign-in
         return NextResponse.redirect(new URL("/sign-in", req.url));

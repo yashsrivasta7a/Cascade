@@ -9,25 +9,41 @@ import { type AINodeType } from "@/types/nodes";
 // EDGE COLORS
 // =============================================================================
 
-// Data type colors for edges - organized by category
-export const edgeColors: Record<string, { stroke: string; glow: string; dash: string }> = {
-  // MEDIA TYPES - Primary data flow
-  text: { stroke: "#3b82f6", glow: "#3b82f6", dash: "#60a5fa" },           // Blue
-  image: { stroke: "#10b981", glow: "#10b981", dash: "#34d399" },          // Emerald
-  video: { stroke: "#8b5cf6", glow: "#8b5cf6", dash: "#a78bfa" },          // Violet
-  audio: { stroke: "#f59e0b", glow: "#f59e0b", dash: "#fbbf24" },          // Amber
-  any: { stroke: "#a1a1aa", glow: "#a1a1aa", dash: "#d4d4d8" },            // Zinc
+/**
+ * Edge colours.
+ *
+ * This was 14 fully-saturated hues — one per data type, each a Tailwind 500.
+ * A graph with a dozen connections became a rainbow of wires, and because edges
+ * cross the whole canvas they were the largest coloured surface in the product.
+ * Worse, 14 categories is past the point where colour communicates: nobody
+ * learns that pink means "number" and orange means "temperature".
+ *
+ * The system now distinguishes only what a user actually reasons about — the
+ * four media kinds that flow between nodes — and renders everything else as
+ * neutral wire. The four are desaturated to sit behind the node cards rather
+ * than in front of them; edges are connective tissue, not content.
+ */
+const NEUTRAL = { stroke: "#6b6b73", glow: "#6b6b73", dash: "#8a8a92" };
 
-  // SETTINGS TYPES - Parameters & configuration
-  prompt: { stroke: "#0ea5e9", glow: "#0ea5e9", dash: "#38bdf8" },         // Sky
-  negative: { stroke: "#ef4444", glow: "#ef4444", dash: "#f87171" },       // Red
-  seed: { stroke: "#84cc16", glow: "#84cc16", dash: "#a3e635" },           // Lime
-  aspectRatio: { stroke: "#6366f1", glow: "#6366f1", dash: "#818cf8" },    // Indigo
-  duration: { stroke: "#14b8a6", glow: "#14b8a6", dash: "#2dd4bf" },       // Teal
-  model: { stroke: "#f43f5e", glow: "#f43f5e", dash: "#fb7185" },          // Rose
-  temperature: { stroke: "#f97316", glow: "#f97316", dash: "#fb923c" },    // Orange
-  number: { stroke: "#ec4899", glow: "#ec4899", dash: "#f472b6" },         // Pink
-  boolean: { stroke: "#06b6d4", glow: "#06b6d4", dash: "#22d3ee" },        // Cyan
+export const edgeColors: Record<string, { stroke: string; glow: string; dash: string }> = {
+  // Media types — the only distinctions worth encoding in colour.
+  text: { stroke: "#8fa8c8", glow: "#8fa8c8", dash: "#a9bdd6" },
+  image: { stroke: "#86b79c", glow: "#86b79c", dash: "#a3c9b4" },
+  video: { stroke: "#a094c4", glow: "#a094c4", dash: "#b6acd3" },
+  audio: { stroke: "#c9ac83", glow: "#c9ac83", dash: "#d7c1a0" },
+  any: NEUTRAL,
+
+  // Settings/parameter wires. Deliberately all one neutral: these are numerous,
+  // short, and their meaning is already carried by the port they land on.
+  prompt: NEUTRAL,
+  negative: NEUTRAL,
+  seed: NEUTRAL,
+  aspectRatio: NEUTRAL,
+  duration: NEUTRAL,
+  model: NEUTRAL,
+  temperature: NEUTRAL,
+  number: NEUTRAL,
+  boolean: NEUTRAL,
 };
 
 // Advanced settings by node type (for visibility control)

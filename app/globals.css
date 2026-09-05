@@ -2,7 +2,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FLOWSMITH - PROFESSIONAL DARK THEME WITH GLASS MORPHISM
+   CASCADE - PROFESSIONAL DARK THEME WITH GLASS MORPHISM
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme inline {
@@ -70,12 +70,16 @@ html {
 }
 
 html.light {
-  background: #f3f4f6;
+  background: #e5eefb;
 }
 
 body {
   background: inherit;
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  /* A stray wide child should scroll inside its own container, never widen the
+     page. Without this a single overflowing row lets the whole layout slide
+     sideways on a phone, which reads as content being cut off. */
+  overflow-x: hidden;
 }
 
 /* Default to dark mode text color */
@@ -114,19 +118,7 @@ html.light ::selection {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.glass-light {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
 
-.glass-dark {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-}
 
 .glass-accent {
   background: rgba(255, 255, 255, 0.04);
@@ -155,31 +147,14 @@ html.light ::selection {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset, 0 18px 45px -25px rgba(0, 0, 0, 0.7);
 }
 
-.glow-md {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 22px 55px -28px rgba(0, 0, 0, 0.8);
-}
 
-.glow-lg {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 28px 70px -34px rgba(0, 0, 0, 0.85);
-}
 
-.glow-text {
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GRADIENT TEXT
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.text-gradient {
-  background: none;
-  -webkit-text-fill-color: currentColor;
-}
 
-.text-gradient-static {
-  background: none;
-  -webkit-text-fill-color: currentColor;
-}
 
 @keyframes gradient-flow {
 
@@ -220,7 +195,7 @@ html.dark .react-flow {
 
 /* Light mode ReactFlow background - MUST come before dark mode */
 html.light .react-flow {
-  background: #F3F4F6 !important;
+  background: #e5eefb !important;
 }
 
 html.light .react-flow__renderer,
@@ -249,9 +224,6 @@ html.dark .react-flow__container {
 }
 
 /* Custom edge animations */
-.animate-dash {
-  animation: edge-flow 1s linear infinite;
-}
 
 @keyframes edge-flow {
   to {
@@ -606,72 +578,23 @@ html.dark .react-flow__container {
   }
 }
 
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
 
-.animate-pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
-}
 
-.animate-shimmer {
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.05) 50%,
-      transparent 100%);
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NODE CARD STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Node cards - clean minimal design */
-.node-card {
-  background: #161616;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.5);
-}
 
-.node-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
-}
 
-.node-card.selected {
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.7);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY CLASSES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.bg-noise {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  opacity: 0.02;
-}
 
-.border-gradient {
-  position: relative;
-}
 
-.border-gradient::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    EDGE GLOW EFFECTS & ANIMATIONS
@@ -913,19 +836,7 @@ html.light .glass {
   box-shadow: var(--light-shadow-md);
 }
 
-html.light .glass-light {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
 
-html.light .glass-dark {
-  background: rgba(249, 250, 251, 0.9);
-  backdrop-filter: blur(24px) saturate(200%);
-  -webkit-backdrop-filter: blur(24px) saturate(200%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
 
 html.light .glass-accent {
   background: rgba(79, 70, 229, 0.04);
@@ -954,38 +865,15 @@ html.light .glow-sm {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.03) inset, var(--light-shadow-md);
 }
 
-html.light .glow-md {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04) inset, var(--light-shadow-lg);
-}
 
-html.light .glow-lg {
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04) inset, var(--light-shadow-xl);
-}
 
-html.light .glow-text {
-  text-shadow: none;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - NODE CARD STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .node-card {
-  background: #FFFFFF;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
-  box-shadow: var(--light-shadow-md);
-}
 
-html.light .node-card:hover {
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: var(--light-shadow-lg);
-}
 
-html.light .node-card.selected {
-  border-color: var(--light-accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1), var(--light-shadow-lg);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - REACTFLOW OVERRIDES
@@ -1054,98 +942,31 @@ html.light .react-flow__handle.connecting {
    LIGHT MODE - UTILITY CLASSES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-noise {
-  opacity: 0.015;
-}
 
-html.light .border-gradient::before {
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - ANIMATION ADJUSTMENTS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .animate-shimmer {
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(0, 0, 0, 0.03) 50%,
-      transparent 100%);
-  background-size: 200% 100%;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - COMMON COMPONENT OVERRIDES (Scoped to html.light)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Zinc background overrides for light mode */
-html.light .bg-zinc-950 {
-  background-color: var(--light-background) !important;
-}
 
-html.light .bg-zinc-900,
-html.light .bg-zinc-900\/80,
-html.light .bg-zinc-900\/90 {
-  background-color: var(--light-surface) !important;
-}
 
-html.light .bg-zinc-800,
-html.light .bg-zinc-800\/50,
-html.light .bg-zinc-800\/80 {
-  background-color: var(--light-surface-overlay) !important;
-}
 
 /* Text color overrides for light mode */
-html.light .text-white {
-  color: var(--light-text-primary) !important;
-}
 
-html.light .text-zinc-100,
-html.light .text-zinc-200 {
-  color: var(--light-text-primary) !important;
-}
 
-html.light .text-zinc-300,
-html.light .text-zinc-400 {
-  color: var(--light-text-secondary) !important;
-}
 
-html.light .text-zinc-500,
-html.light .text-zinc-600 {
-  color: var(--light-text-muted) !important;
-}
 
-html.light .text-white\/40,
-html.light .text-white\/50,
-html.light .text-white\/60,
-html.light .text-white\/70,
-html.light .text-white\/80,
-html.light .text-white\/90 {
-  color: var(--light-text-secondary) !important;
-}
 
 /* Border overrides for light mode */
-html.light .border-zinc-700,
-html.light .border-zinc-700\/50,
-html.light .border-zinc-800,
-html.light .border-zinc-800\/60 {
-  border-color: var(--light-border) !important;
-}
 
-html.light .border-white\/5,
-html.light .border-white\/6,
-html.light .border-white\/8,
-html.light .border-white\/10,
-html.light .border-white\/\[0\.08\] {
-  border-color: var(--light-border) !important;
-}
 
 /* Placeholder text for light mode */
-html.light .placeholder-white\/30,
-html.light .placeholder-zinc-500,
-html.light .placeholder-zinc-600 {
-  color: var(--light-text-placeholder) !important;
-}
 
 html.light input::placeholder,
 html.light textarea::placeholder {
@@ -1195,23 +1016,9 @@ html.light .hover\:text-zinc-300:hover {
 }
 
 /* Background opacity overrides */
-html.light .bg-white\/3,
-html.light .bg-white\/\[0\.03\],
-html.light .bg-white\/5,
-html.light .bg-white\/\[0\.05\] {
-  background-color: rgba(0, 0, 0, 0.02) !important;
-}
 
 /* Shadow overrides for light mode */
-html.light .shadow-lg,
-html.light .shadow-2xl {
-  box-shadow: var(--light-shadow-lg) !important;
-}
 
-html.light .shadow-black\/20,
-html.light .shadow-black\/40 {
-  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
-}
 
 /* Gradient backdrop adjustments */
 html.light .backdrop-blur-xl,
@@ -1225,29 +1032,14 @@ html.light .backdrop-blur-2xl {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Primary button light mode */
-html.light .from-\[\#1e3a5f\],
-html.light .to-\[\#2a4a6f\] {
-  --tw-gradient-from: #4F46E5 !important;
-  --tw-gradient-to: #6366F1 !important;
-}
 
-html.light .shadow-\[\#0f1f33\]\/50 {
-  --tw-shadow-color: rgba(79, 70, 229, 0.2) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - CARD & PANEL STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Card backgrounds */
-html.light .bg-\[\#0a0a0b\] {
-  background-color: var(--light-surface) !important;
-}
 
-html.light .bg-zinc-950\/90,
-html.light .bg-zinc-900\/90 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
 
 /* Sidebar styles for light mode */
 html.light aside {
@@ -1259,23 +1051,12 @@ html.light aside {
    LIGHT MODE - ACTIVE/SELECTED STATES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-zinc-800\/80 {
-  background-color: rgba(79, 70, 229, 0.08) !important;
-}
 
-html.light .text-blue-400 {
-  color: var(--light-accent) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - MODAL & OVERLAY STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-black\/50,
-html.light .bg-black\/60,
-html.light .bg-black\/80 {
-  background-color: rgba(0, 0, 0, 0.4) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - INPUT STYLES
@@ -1310,40 +1091,16 @@ html.light kbd {
    LIGHT MODE - TOOLTIP STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-zinc-900 {
-  background-color: var(--light-text-primary) !important;
-}
 
-html.light .bg-zinc-900 .text-zinc-300 {
-  color: #FFFFFF !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - BADGE/TAG STYLES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-blue-500\/10 {
-  background-color: rgba(79, 70, 229, 0.08) !important;
-}
 
-html.light .bg-emerald-500\/10,
-html.light .bg-green-500\/10 {
-  background-color: rgba(5, 150, 105, 0.08) !important;
-}
 
-html.light .bg-amber-500\/10,
-html.light .bg-yellow-500\/10 {
-  background-color: rgba(217, 119, 6, 0.08) !important;
-}
 
-html.light .bg-red-500\/10 {
-  background-color: rgba(220, 38, 38, 0.08) !important;
-}
 
-html.light .bg-purple-500\/10,
-html.light .bg-violet-500\/10 {
-  background-color: rgba(139, 92, 246, 0.08) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - NODE SPECIFIC STYLES (Critical for node cards)
@@ -1360,17 +1117,8 @@ html.light .group\/node svg rect[fill="#0d0d0d"] {
 
 /* Node inner content areas - handled by component classes */
 
-html.light .bg-\[\#161616\] {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-\[\#1a1a1d\] {
-  background-color: #FAFAFA !important;
-}
 
-html.light .bg-\[\#1a1a2e\] {
-  background-color: #F5F5FF !important;
-}
 
 /* Node border overrides */
 html.light .group\/node svg path[stroke^="rgba(255"] {
@@ -1378,35 +1126,13 @@ html.light .group\/node svg path[stroke^="rgba(255"] {
 }
 
 /* Node content sections */
-html.light .bg-white\/\[0\.02\] {
-  background-color: #F9FAFB !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
-html.light .bg-white\/\[0\.04\] {
-  background-color: #F5F6F7 !important;
-}
 
-html.light .bg-white\/\[0\.05\] {
-  background-color: #F3F4F6 !important;
-}
 
-html.light .bg-white\/\[0\.08\] {
-  background-color: #F0F1F3 !important;
-}
 
-html.light .bg-white\/10 {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-}
 
-html.light .border-white\/\[0\.04\] {
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
 /* Node shadows for light mode - soft and subtle */
-html.light .shadow-2xl.shadow-black\/50 {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-}
 
 html.light .group\/node {
   --tw-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
@@ -1419,10 +1145,6 @@ html.light .group\/node {
 
 /* Node Palette Panel */
 html.light [class*="node-palette"],
-html.light .bg-zinc-950\/95 {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
 
 /* Dashboard sidebar */
 html.light aside.w-60 {
@@ -1436,11 +1158,6 @@ html.light main {
 }
 
 /* Panel backgrounds */
-html.light .bg-zinc-950\/80,
-html.light .bg-zinc-950\/90,
-html.light .bg-zinc-950\/95 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - STAT CARDS & DASHBOARD COMPONENTS
@@ -1456,14 +1173,7 @@ html.light [class*="StatCard"] {
 }
 
 /* Activity list items */
-html.light .border-b.border-zinc-800\/40 {
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
-html.light .border-zinc-800\/40,
-html.light .border-zinc-800\/50 {
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - FLOATING ACTION BAR
@@ -1477,37 +1187,19 @@ html.light .fixed.bottom-6 .backdrop-blur-2xl.backdrop-saturate-150 {
 }
 
 /* Floating bar buttons */
-html.light .from-white\/\[0\.05\] {
-  --tw-gradient-from: transparent !important;
-}
 
-html.light .bg-gradient-to-b.from-white\/\[0\.05\] {
-  background: none !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - GRADIENT OVERRIDES
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Gradient overlays that need light mode treatment */
-html.light .bg-gradient-to-br.from-\[\#1e3a5f\] {
-  background: linear-gradient(to bottom right, #4F46E5, #6366F1) !important;
-}
 
-html.light .from-indigo-600,
-html.light .from-violet-600,
-html.light .from-blue-600 {
-  --tw-gradient-from: #4F46E5 !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - ICON COLORS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .text-zinc-500 svg,
-html.light .text-zinc-400 svg {
-  color: #6B7280 !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - CANVAS BACKGROUND (Pure white like Krea)
@@ -1521,9 +1213,6 @@ html.light .react-flow__background {
   background: transparent !important;
 }
 
-html.light .bg-\[\#101010\] {
-  background-color: #F3F4F6 !important;
-}
 
 /* Subtle dot pattern - removed, using consolidated rule below */
 
@@ -1543,21 +1232,12 @@ html.light .hover\:bg-zinc-900\/90:hover {
 }
 
 /* Credit badge */
-html.light .bg-gradient-to-br.from-amber-400 {
-  background: linear-gradient(to bottom right, #F59E0B, #D97706) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - DIVIDERS & SEPARATORS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-html.light .bg-gradient-to-b.from-transparent.via-zinc-600\/50 {
-  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1), transparent) !important;
-}
 
-html.light .via-zinc-600\/50 {
-  --tw-gradient-via: rgba(0, 0, 0, 0.1) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - SPECIFIC COMPONENT FIXES
@@ -1581,30 +1261,12 @@ html.light input[placeholder*="Search"]:focus {
 }
 
 /* Status indicator colors - keep semantic meaning */
-html.light .text-emerald-400 {
-  color: #059669 !important;
-}
 
-html.light .text-red-400 {
-  color: #DC2626 !important;
-}
 
-html.light .text-amber-400 {
-  color: #D97706 !important;
-}
 
 /* Success/Error backgrounds */
-html.light .bg-emerald-500\/10 {
-  background-color: rgba(5, 150, 105, 0.08) !important;
-}
 
-html.light .bg-red-500\/10 {
-  background-color: rgba(220, 38, 38, 0.08) !important;
-}
 
-html.light .bg-amber-500\/10 {
-  background-color: rgba(217, 119, 6, 0.08) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - SCROLLBAR REFINEMENTS
@@ -1641,11 +1303,6 @@ html.light p {
   color: #374151 !important;
 }
 
-html.light .text-\[10px\],
-html.light .text-\[11px\],
-html.light .text-\[9px\] {
-  color: #6B7280 !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - WORKFLOW CARDS IN LISTS
@@ -1677,100 +1334,31 @@ html.light .relative.h-full.overflow-hidden {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Dashboard stat cards */
-html.light .bg-zinc-900\/50 {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-zinc-900\/40 {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-}
 
-html.light .bg-zinc-800\/60 {
-  background-color: #F5F6F7 !important;
-}
 
 /* Dashboard card borders */
-html.light .border-zinc-800\/60 {
-  border-color: rgba(0, 0, 0, 0.08) !important;
-}
 
 /* Colored backgrounds - make lighter for light mode */
-html.light .bg-violet-500\/10 {
-  background-color: rgba(139, 92, 246, 0.08) !important;
-}
 
-html.light .bg-blue-500\/10 {
-  background-color: rgba(59, 130, 246, 0.08) !important;
-}
 
-html.light .bg-emerald-500\/10 {
-  background-color: rgba(16, 185, 129, 0.08) !important;
-}
 
-html.light .bg-amber-500\/10 {
-  background-color: rgba(245, 158, 11, 0.08) !important;
-}
 
 /* Colored text - adjust for light mode contrast */
-html.light .text-violet-400 {
-  color: #7C3AED !important;
-}
 
-html.light .text-blue-400 {
-  color: #2563EB !important;
-}
 
-html.light .text-emerald-400 {
-  color: #059669 !important;
-}
 
-html.light .text-amber-400 {
-  color: #D97706 !important;
-}
 
 /* DotPattern adjustments - make dots nearly invisible in light mode */
-html.light .text-violet-500\/5,
-html.light .text-violet-500\/10 {
-  color: rgba(139, 92, 246, 0.02) !important;
-}
 
-html.light .text-blue-500\/5,
-html.light .text-blue-500\/10 {
-  color: rgba(59, 130, 246, 0.02) !important;
-}
 
-html.light .text-emerald-500\/5,
-html.light .text-emerald-500\/10 {
-  color: rgba(16, 185, 129, 0.02) !important;
-}
 
-html.light .text-amber-500\/5,
-html.light .text-amber-500\/10 {
-  color: rgba(245, 158, 11, 0.02) !important;
-}
 
-html.light .text-red-500\/5,
-html.light .text-red-500\/10 {
-  color: rgba(239, 68, 68, 0.02) !important;
-}
 
-html.light .text-zinc-500\/5,
-html.light .text-zinc-500\/10 {
-  color: rgba(0, 0, 0, 0.01) !important;
-}
 
 /* Gradient logo boxes */
-html.light .bg-gradient-to-br.from-blue-500 {
-  background: linear-gradient(to bottom right, #3B82F6, #2563EB) !important;
-}
 
-html.light .bg-gradient-to-br.from-violet-500 {
-  background: linear-gradient(to bottom right, #8B5CF6, #7C3AED) !important;
-}
 
-html.light .bg-gradient-to-br.from-emerald-500 {
-  background: linear-gradient(to bottom right, #10B981, #059669) !important;
-}
 
 /* Button overrides */
 html.light button.bg-zinc-800\/50 {
@@ -1785,19 +1373,10 @@ html.light button.bg-zinc-800\/50:hover {
 }
 
 /* Activity list styling */
-html.light .border-b.border-zinc-800\/40 {
-  border-color: rgba(0, 0, 0, 0.05) !important;
-}
 
 /* Quick actions card */
-html.light .bg-gradient-to-br.from-violet-600.to-indigo-600 {
-  background: linear-gradient(to bottom right, #8B5CF6, #6366F1) !important;
-}
 
 /* Credit usage bar */
-html.light .bg-gradient-to-r.from-amber-500 {
-  background: linear-gradient(to right, #F59E0B, #D97706) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - NODE PALETTE SPECIFIC OVERRIDES
@@ -1809,9 +1388,6 @@ html.light .fixed.left-4 .backdrop-blur-2xl {
 }
 
 /* Category tabs */
-html.light .bg-zinc-800\/40 {
-  background-color: #F3F4F6 !important;
-}
 
 /* Category buttons */
 html.light button.rounded-lg.border.border-transparent {
@@ -1824,10 +1400,6 @@ html.light button.rounded-lg.border.border-transparent:hover {
 }
 
 /* Node items in palette */
-html.light .bg-zinc-900\/60 {
-  background-color: #FFFFFF !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
 html.light .hover\:bg-zinc-800\/60:hover {
   background-color: #F5F6F7 !important;
@@ -1844,17 +1416,8 @@ html.light [class*="bg-zinc-8"] {
 }
 
 /* Specific zinc overrides */
-html.light .bg-zinc-800 {
-  background-color: #F3F4F6 !important;
-}
 
-html.light .bg-zinc-900 {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-zinc-950 {
-  background-color: #F8F9FB !important;
-}
 
 /* Border catch-all */
 html.light [class*="border-zinc-7"],
@@ -1867,19 +1430,10 @@ html.light [class*="border-zinc-8"] {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Loader */
-html.light .text-zinc-600 {
-  color: #9CA3AF !important;
-}
 
 /* View All link */
-html.light .text-zinc-500.hover\:text-white:hover {
-  color: #111827 !important;
-}
 
 /* Active nav items with accent */
-html.light .text-blue-400 {
-  color: #4F46E5 !important;
-}
 
 /* Rounded panels/modals */
 html.light .rounded-2xl.border.border-white\/5 {
@@ -1888,18 +1442,9 @@ html.light .rounded-2xl.border.border-white\/5 {
 }
 
 /* Headers with borders */
-html.light .border-b.border-zinc-800\/60 {
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
 /* Node settings modal */
-html.light .bg-\[\#0f0f10\] {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-\[\#111113\] {
-  background-color: #F9FAFB !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - PAGE BACKGROUND COMPONENT
@@ -1911,39 +1456,19 @@ html.light .h-full.flex.flex-col {
 }
 
 /* Background gradient blobs - soften for light mode */
-html.light .bg-blue-600\/\[0\.03\] {
-  background-color: rgba(79, 70, 229, 0.03) !important;
-}
 
-html.light .bg-cyan-600\/\[0\.03\] {
-  background-color: rgba(59, 130, 246, 0.03) !important;
-}
 
 /* DotPattern in light mode - make dots very subtle */
-html.light .text-zinc-800\/40,
-html.light .text-zinc-800\/60 {
-  color: rgba(0, 0, 0, 0.03) !important;
-}
 
 /* DotPattern component - light mode very subtle */
-html.light .text-gray-300 {
-  color: rgba(0, 0, 0, 0.04) !important;
-}
 
 /* StatCard text */
-html.light .text-3xl.font-semibold.text-white {
-  color: #111827 !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - WORKFLOW LIST/CARDS
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Workflow cards in list */
-html.light .bg-zinc-900\/40 {
-  background-color: #FFFFFF !important;
-  border-color: rgba(0, 0, 0, 0.06) !important;
-}
 
 /* Workflow card hover state */
 html.light .hover\:bg-zinc-900\/60:hover {
@@ -2351,13 +1876,7 @@ html.dark .react-flow__background svg pattern circle,
   }
 }
 
-.running-node-glow {
-  animation: running-pulse-glow 1s ease-in-out infinite;
-}
 
-.animate-pulse-glow {
-  animation: border-pulse 2s ease-in-out infinite;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - SIDE PANELS (Credits, Activity, Asset Manager)
@@ -2518,38 +2037,14 @@ html.light .fixed.top-16.z-50 .bg-gray-200 {
 }
 
 /* Stats cards backgrounds */
-html.light .bg-emerald-50 {
-  background-color: #ECFDF5 !important;
-}
 
-html.light .bg-red-50 {
-  background-color: #FEF2F2 !important;
-}
 
-html.light .bg-blue-50 {
-  background-color: #EFF6FF !important;
-}
 
-html.light .bg-amber-50 {
-  background-color: #FFFBEB !important;
-}
 
 /* Stats card icon backgrounds - solid colors */
-html.light .bg-emerald-500 {
-  background-color: #10B981 !important;
-}
 
-html.light .bg-red-500 {
-  background-color: #EF4444 !important;
-}
 
-html.light .bg-blue-500 {
-  background-color: #3B82F6 !important;
-}
 
-html.light .bg-amber-500 {
-  background-color: #F59E0B !important;
-}
 
 /* Pipeline card backgrounds */
 html.light .bg-emerald-50.dark\:bg-emerald-950\/20,
@@ -2557,19 +2052,10 @@ html.light .cardBg {
   background-color: #ECFDF5 !important;
 }
 
-html.light .bg-gray-50 {
-  background-color: #F9FAFB !important;
-}
 
 /* Tab switcher */
-html.light .bg-gray-100 {
-  background-color: #F3F4F6 !important;
-}
 
 /* Panel header */
-html.light .bg-gray-50.dark\:bg-white\/\[0\.02\] {
-  background-color: #F9FAFB !important;
-}
 
 /* Text colors for light mode panels */
 html.light .fixed.top-16 .text-zinc-500 {
@@ -2780,46 +2266,21 @@ html.light .fixed.inset-0.z-50>div>div>div {
 }
 
 /* Modal header */
-html.light .bg-white\/\[0\.02\] {
-  background-color: #F9FAFB !important;
-}
 
 /* Modal title */
-html.light .text-zinc-400.uppercase.tracking-widest {
-  color: #6B7280 !important;
-}
 
 /* Close button */
-html.light .text-zinc-500.hover\:text-white {
-  color: #9CA3AF !important;
-}
 
-html.light .text-zinc-500.hover\:text-white:hover {
-  color: #111827 !important;
-  background-color: rgba(0, 0, 0, 0.05) !important;
-}
 
 /* Search input */
-html.light .bg-black\/40.border-white\/10 {
-  background-color: #F3F4F6 !important;
-  border-color: #D1D5DB !important;
-  color: #111827 !important;
-}
 
 html.light .bg-black\/40.border-white\/10::placeholder,
 html.light input.placeholder\:text-zinc-600::placeholder {
   color: #9CA3AF !important;
 }
 
-html.light .bg-black\/40.border-white\/10:focus {
-  background-color: #FFFFFF !important;
-  border-color: #3B82F6 !important;
-}
 
 /* Search icon */
-html.light .text-zinc-500.group-focus-within\:text-zinc-300 {
-  color: #9CA3AF !important;
-}
 
 /* Node list items */
 html.light .hover\:bg-white\/\[0\.04\]:hover {
@@ -2831,88 +2292,30 @@ html.light .hover\:border-white\/5:hover {
 }
 
 /* Node icon container */
-html.light .from-white\/5.to-white\/\[0\.02\] {
-  background: linear-gradient(to bottom right, #F3F4F6, #F9FAFB) !important;
-  border-color: #E5E7EB !important;
-}
 
 html.light .group-hover\:border-white\/20:hover,
-html.light .group:hover .group-hover\:border-white\/20 {
-  border-color: #D1D5DB !important;
-}
 
 /* Node text */
-html.light .text-zinc-200.group-hover\:text-white {
-  color: #111827 !important;
-}
 
-html.light .group:hover .group-hover\:text-white {
-  color: #111827 !important;
-}
 
-html.light .text-zinc-500.truncate.group-hover\:text-zinc-400 {
-  color: #6B7280 !important;
-}
 
-html.light .group:hover .group-hover\:text-zinc-400 {
-  color: #4B5563 !important;
-}
 
 /* Cost badge */
-html.light .text-zinc-500.font-mono.bg-white\/\[0\.02\] {
-  color: #6B7280 !important;
-  background-color: #F3F4F6 !important;
-  border-color: #E5E7EB !important;
-}
 
 /* Empty state */
-html.light .bg-white\/5 {
-  background-color: #F3F4F6 !important;
-}
 
-html.light .text-zinc-600 {
-  color: #9CA3AF !important;
-}
 
 /* Footer */
-html.light .border-white\/5.bg-white\/\[0\.02\] {
-  border-color: #E5E7EB !important;
-  background-color: #F9FAFB !important;
-}
 
-html.light .text-zinc-600.uppercase.tracking-wider {
-  color: #9CA3AF !important;
-}
 
-html.light .bg-zinc-700 {
-  background-color: #9CA3AF !important;
-}
 
-html.light .bg-zinc-800 {
-  background-color: #D1D5DB !important;
-}
 
 /* Category colors for light mode */
-html.light .text-emerald-400 {
-  color: #059669 !important;
-}
 
-html.light .text-violet-400 {
-  color: #7C3AED !important;
-}
 
-html.light .text-amber-400 {
-  color: #D97706 !important;
-}
 
-html.light .text-blue-400 {
-  color: #2563EB !important;
-}
 
 /* Ring/outline */
-html.light .ring-white\/5 {
-  --tw-ring-color: rgba(0, 0, 0, 0.05) !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - NODE HANDLE LABELS & NODE PALETTE
@@ -2942,20 +2345,9 @@ html.light .react-flow__node .text-\[11px\].text-gray-700 {
 }
 
 /* Node palette panel */
-html.light .bg-black\/60.backdrop-blur-2xl {
-  background-color: #FFFFFF !important;
-  border-color: #E5E7EB !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-}
 
 /* Node palette header/footer */
-html.light .bg-white\/\[0\.02\] {
-  background-color: #F9FAFB !important;
-}
 
-html.light .bg-white\/\[0\.03\] {
-  background-color: #F3F4F6 !important;
-}
 
 /* Node palette title - be specific to avoid overriding button text */
 html.light .fixed.left-4 .text-white,
@@ -2964,11 +2356,6 @@ html.light .w-72.h-full .text-white {
 }
 
 /* Node palette search input */
-html.light .bg-white\/\[0\.03\].border-white\/\[0\.06\] {
-  background-color: #F3F4F6 !important;
-  border-color: #D1D5DB !important;
-  color: #111827 !important;
-}
 
 /* Node palette text - scoped to palette area */
 html.light .fixed.left-4 .text-zinc-300,
@@ -2987,51 +2374,21 @@ html.light .w-72.h-full .text-zinc-600 {
 }
 
 /* Node card in palette */
-html.light .bg-white\/\[0\.02\].border-transparent {
-  background-color: #FFFFFF !important;
-  border-color: #E5E7EB !important;
-}
 
-html.light .bg-white\/\[0\.04\] {
-  background-color: #F3F4F6 !important;
-}
 
-html.light .bg-white\/\[0\.06\] {
-  background-color: #E5E7EB !important;
-}
 
 html.light .hover\:bg-white\/\[0\.04\]:hover {
   background-color: #F3F4F6 !important;
 }
 
 /* Node palette borders */
-html.light .border-white\/\[0\.06\] {
-  border-color: #E5E7EB !important;
-}
 
-html.light .border-white\/\[0\.08\] {
-  border-color: #D1D5DB !important;
-}
 
-html.light .border-white\/\[0\.04\] {
-  border-color: #F3F4F6 !important;
-}
 
 /* Hover info card */
-html.light .bg-black\/60.backdrop-blur-2xl.backdrop-saturate-150.border-white\/\[0\.1\] {
-  background-color: #FFFFFF !important;
-  border-color: #E5E7EB !important;
-}
 
 /* Category active chip */
-html.light .bg-white.text-black {
-  background-color: #111827 !important;
-  color: #FFFFFF !important;
-}
 
-html.light .bg-white\/5 {
-  background-color: #F3F4F6 !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LIGHT MODE - RUN MODAL (Execute Workflow) - HIGH SPECIFICITY
@@ -3241,106 +2598,34 @@ html.light [class*="bg-gradient-to-r"] .text-white {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Page backgrounds - bg-[#09090b] -> light gray */
-html.light .bg-\[\#09090b\] {
-  background-color: #F9FAFB !important;
-}
 
 /* Card/Panel backgrounds - bg-zinc-900/50 -> white */
-html.light .bg-zinc-900\/50 {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-zinc-900\/30 {
-  background-color: #FFFFFF !important;
-}
 
-html.light .bg-zinc-900\/60 {
-  background-color: #F9FAFB !important;
-}
 
-html.light .bg-zinc-900 {
-  background-color: #FFFFFF !important;
-}
 
 /* Border colors - border-zinc-800/xx -> light gray */
-html.light .border-zinc-800\/60 {
-  border-color: #E5E7EB !important;
-}
 
-html.light .border-zinc-800\/50 {
-  border-color: #E5E7EB !important;
-}
 
-html.light .border-zinc-800\/40 {
-  border-color: #F3F4F6 !important;
-}
 
-html.light .border-zinc-800 {
-  border-color: #E5E7EB !important;
-}
 
-html.light .border-zinc-700\/50 {
-  border-color: #D1D5DB !important;
-}
 
-html.light .border-zinc-700 {
-  border-color: #D1D5DB !important;
-}
 
 /* Divider colors */
-html.light .divide-zinc-800\/50> :not([hidden])~ :not([hidden]) {
-  border-color: #E5E7EB !important;
-}
 
-html.light .divide-zinc-800\/60> :not([hidden])~ :not([hidden]) {
-  border-color: #E5E7EB !important;
-}
 
 /* Text colors */
-html.light .text-white {
-  color: #111827 !important;
-}
 
-html.light .text-zinc-200 {
-  color: #1F2937 !important;
-}
 
-html.light .text-zinc-300 {
-  color: #374151 !important;
-}
 
-html.light .text-zinc-400 {
-  color: #4B5563 !important;
-}
 
-html.light .text-zinc-500 {
-  color: #6B7280 !important;
-}
 
-html.light .text-zinc-600 {
-  color: #9CA3AF !important;
-}
 
-html.light .text-zinc-700 {
-  color: #D1D5DB !important;
-}
 
 /* Button backgrounds */
-html.light .bg-zinc-800\/50 {
-  background-color: #F3F4F6 !important;
-}
 
-html.light .bg-zinc-800\/80 {
-  background-color: #E5E7EB !important;
-}
 
-html.light .bg-zinc-800\/30 {
-  background-color: #F9FAFB !important;
-}
 
-html.light .bg-zinc-800 {
-  background-color: #E5E7EB !important;
-}
 
 html.light .hover\:bg-zinc-800:hover {
   background-color: #D1D5DB !important;
@@ -3411,79 +2696,25 @@ html.light .hover\:border-zinc-700\/60:hover {
 }
 
 /* Keep colored text vibrant in light mode */
-html.light .text-violet-400 {
-  color: #7C3AED !important;
-}
 
-html.light .text-blue-400 {
-  color: #2563EB !important;
-}
 
-html.light .text-emerald-400 {
-  color: #059669 !important;
-}
 
-html.light .text-amber-400 {
-  color: #D97706 !important;
-}
 
-html.light .text-red-400 {
-  color: #DC2626 !important;
-}
 
-html.light .text-amber-500 {
-  color: #F59E0B !important;
-}
 
-html.light .text-blue-500 {
-  color: #3B82F6 !important;
-}
 
-html.light .text-emerald-500 {
-  color: #10B981 !important;
-}
 
-html.light .text-violet-500 {
-  color: #8B5CF6 !important;
-}
 
-html.light .text-red-500 {
-  color: #EF4444 !important;
-}
 
 /* Background colors with alpha - make them more visible */
-html.light .bg-violet-500\/10 {
-  background-color: rgba(139, 92, 246, 0.15) !important;
-}
 
-html.light .bg-blue-500\/10 {
-  background-color: rgba(59, 130, 246, 0.15) !important;
-}
 
-html.light .bg-emerald-500\/10 {
-  background-color: rgba(16, 185, 129, 0.15) !important;
-}
 
-html.light .bg-amber-500\/10 {
-  background-color: rgba(245, 158, 11, 0.15) !important;
-}
 
-html.light .bg-red-500\/10 {
-  background-color: rgba(239, 68, 68, 0.15) !important;
-}
 
 /* Status badges background/text */
-html.light .bg-emerald-500\/20 {
-  background-color: rgba(16, 185, 129, 0.2) !important;
-}
 
-html.light .bg-red-500\/20 {
-  background-color: rgba(239, 68, 68, 0.2) !important;
-}
 
-html.light .bg-blue-500\/20 {
-  background-color: rgba(59, 130, 246, 0.2) !important;
-}
 
 /* Tab indicator stays white on active */
 html.light .h-0\.5.bg-white {
@@ -3491,26 +2722,10 @@ html.light .h-0\.5.bg-white {
 }
 
 /* Gradient header icon boxes - keep original colors */
-html.light .bg-gradient-to-br.from-blue-500.to-blue-600,
-html.light .bg-gradient-to-br.from-amber-500.to-orange-600 {
-  color: #FFFFFF !important;
-}
 
-html.light .bg-gradient-to-br.from-blue-500.to-blue-600 .text-white,
-html.light .bg-gradient-to-br.from-amber-500.to-orange-600 .text-white {
-  color: #FFFFFF !important;
-}
 
 /* Filter buttons */
-html.light .bg-zinc-900.border.border-zinc-800 {
-  background-color: #F3F4F6 !important;
-  border-color: #E5E7EB !important;
-}
 
-html.light .bg-zinc-800.text-white.shadow-sm {
-  background-color: #E5E7EB !important;
-  color: #111827 !important;
-}
 
 /* Hover text transitions */
 html.light .hover\:text-white:hover {
@@ -3526,18 +2741,12 @@ html.light .hover\:text-zinc-400:hover {
 }
 
 /* Empty state icons */
-html.light .text-zinc-700.mb-4 {
-  color: #9CA3AF !important;
-}
 
 /* Timeline and node dots */
 html.light .w-px.bg-zinc-800 {
   background-color: #E5E7EB !important;
 }
 
-html.light .border-zinc-700.bg-\[\#09090b\] {
-  background-color: #FFFFFF !important;
-}
 
 /* API provider status dots stay colored */
 html.light .w-2.h-2.rounded-full.bg-emerald-500 {
@@ -3564,42 +2773,17 @@ html.light .relative.inline-flex.rounded-full.bg-blue-500 {
 }
 
 /* Running indicator badge */
-html.light .bg-blue-500\/10.border.border-blue-500\/20 {
-  background-color: rgba(59, 130, 246, 0.15) !important;
-  border-color: rgba(59, 130, 246, 0.3) !important;
-}
 
 /* Plan cards with special border */
-html.light .border-blue-500\/30 {
-  border-color: rgba(59, 130, 246, 0.4) !important;
-}
 
 /* Checkbox icons - keep them colored correctly */
-html.light .text-zinc-600.w-3\.5.h-3\.5 {
-  color: #9CA3AF !important;
-}
 
 /* Gradient progress bars - keep colored */
-html.light .bg-gradient-to-r.from-amber-500.to-orange-500,
-html.light .bg-gradient-to-r.from-blue-600.to-blue-500 {
-  background: inherit !important;
-}
 
 /* Glow effects on icons - soften in light mode */
-html.light .shadow-lg.shadow-blue-500\/25 {
-  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.15) !important;
-}
 
-html.light .shadow-xl.shadow-emerald-500\/10 {
-  box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.1) !important;
-}
 
 /* Context menu / dropdown */
-html.light .bg-zinc-900.border.border-zinc-700.rounded-xl.shadow-xl {
-  background-color: #FFFFFF !important;
-  border-color: #E5E7EB !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
-}
 
 /* Hover on dropdown items */
 html.light .hover\:bg-red-500\/10:hover {
@@ -3607,16 +2791,8 @@ html.light .hover\:bg-red-500\/10:hover {
 }
 
 /* SPECIAL: Keep icons inside gradient boxes white */
-html.light .bg-gradient-to-br .text-white {
-  color: #FFFFFF !important;
-}
 
 /* Keep badges styled correctly */
-html.light .bg-emerald-500\/10.text-emerald-400.border.border-emerald-500\/20 {
-  background-color: rgba(16, 185, 129, 0.15) !important;
-  color: #059669 !important;
-  border-color: rgba(16, 185, 129, 0.3) !important;
-}
 
 /* Search input on workflows page */
 html.light input.bg-zinc-900\/50.border.border-zinc-800.rounded-xl {
@@ -3647,34 +2823,14 @@ html.light .rounded-xl.bg-zinc-900\/30.border.border-zinc-800\/50:hover {
 }
 
 /* Workflow item icon box */
-html.light .bg-zinc-800\/80.border.border-zinc-700\/50 {
-  background-color: #F3F4F6 !important;
-  border-color: #E5E7EB !important;
-}
 
 /* Icon color transitions */
-html.light .text-zinc-400.group-hover\:text-zinc-300 {
-  color: #6B7280 !important;
-}
 
-html.light .group:hover .group-hover\:text-zinc-300 {
-  color: #4B5563 !important;
-}
 
-html.light .group:hover .group-hover\:text-white {
-  color: #111827 !important;
-}
 
 /* Node timeline dot backgrounds */
-html.light .border-blue-500.bg-\[\#09090b\] {
-  background-color: #FFFFFF !important;
-}
 
 /* Credit bar icon boxes */
-html.light .bg-amber-500\/10.border.border-amber-500\/20 {
-  background-color: rgba(245, 158, 11, 0.15) !important;
-  border-color: rgba(245, 158, 11, 0.3) !important;
-}
 
 /* Transaction list hover */
 html.light .hover\:bg-zinc-800\/30.transition-colors:hover {
@@ -3726,50 +2882,17 @@ html.dark .react-flow__node select option,
    ============================================================================= */
 
 /* Ensure all text-gray-900 is visible in light mode */
-html.light .text-gray-900 {
-  color: #111827 !important;
-}
 
-html.light .text-gray-800 {
-  color: #1F2937 !important;
-}
 
-html.light .text-gray-700 {
-  color: #374151 !important;
-}
 
-html.light .text-gray-600 {
-  color: #4B5563 !important;
-}
 
-html.light .text-gray-500 {
-  color: #6B7280 !important;
-}
 
-html.light .text-gray-400 {
-  color: #9CA3AF !important;
-}
 
 /* Success/error text colors in light mode */
-html.light .text-emerald-600 {
-  color: #059669 !important;
-}
 
-html.light .text-red-600 {
-  color: #DC2626 !important;
-}
 
-html.light .text-amber-600 {
-  color: #D97706 !important;
-}
 
-html.light .text-violet-600 {
-  color: #7C3AED !important;
-}
 
-html.light .text-blue-600 {
-  color: #2563EB !important;
-}
 
 /* =============================================================================
    CLERK AUTH CARD
@@ -3848,4 +2971,19 @@ html.light {
   --sb-danger: #C93A3D;
   --sb-invert-bg: #18181B;
   --sb-invert-ink: #EAE8E3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide the scrollbar while keeping the element scrollable. Used by the bottom
+   toolbar, which scrolls horizontally on narrow screens rather than forcing
+   the viewport wider. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

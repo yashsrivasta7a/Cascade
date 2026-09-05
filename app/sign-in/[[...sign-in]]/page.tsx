@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { TiltCard, TiltCardItem } from "@/components/spectrumui/tilt-card";
+import { Logo } from "@/components/ui";
 
 const AuthFlowBackground = dynamic(
   () => import("@/components/auth/auth-flow-background").then((mod) => mod.AuthFlowBackground),
@@ -24,10 +25,9 @@ export default function SignInPage() {
         transition={{ duration: 0.5 }}
         className="fixed top-0 left-0 right-0 z-50 p-6"
       >
-        <Link href="/" className="inline-flex items-center gap-2.5 group">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="Flowsmith" className="w-9 h-9 transition-transform group-hover:scale-105" />
-          <span className="text-lg font-bold text-white/90 tracking-wide uppercase">Flowsmith</span>
+        <Link href="/" className="inline-flex items-center gap-2.5">
+          <Logo className="w-9 h-9 text-white/90" />
+          <span className="font-display text-xl text-white/90 uppercase tracking-[0.14em]">Cascade</span>
         </Link>
       </motion.header>
 
@@ -109,7 +109,7 @@ export default function SignInPage() {
               routing="path"
               path="/sign-in"
               signUpUrl="/sign-up"
-              forceRedirectUrl="/dashboard"
+              forceRedirectUrl="/workflows"
             />
               </TiltCardItem>
             </TiltCard>
@@ -122,7 +122,7 @@ export default function SignInPage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="text-center mt-6 text-[14px] text-zinc-500"
           >
-            New to Flowsmith?{" "}
+            New to Cascade?{" "}
             <Link href="/sign-up" className="text-white hover:text-cyan-400 font-medium transition-colors">
               Create an account
             </Link>

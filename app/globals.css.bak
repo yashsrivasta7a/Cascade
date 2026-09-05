@@ -1,0 +1,3851 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CASCADE - PROFESSIONAL DARK THEME WITH GLASS MORPHISM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Override zinc-950 to use our custom background */
+  --color-zinc-950: #101010;
+
+  --color-background: #101010;
+  --color-foreground: #fafafa;
+  --color-surface: #0a0a0b;
+  --color-surface-elevated: #111113;
+  --color-surface-overlay: #1a1a1d;
+
+  /* Minimal monochrome */
+  --color-accent: #ffffff;
+  --color-accent-hover: rgba(255, 255, 255, 0.9);
+  --color-accent-muted: rgba(255, 255, 255, 0.08);
+
+  --color-secondary: #ffffff;
+  --color-secondary-hover: rgba(255, 255, 255, 0.9);
+
+  --color-success: #ffffff;
+  --color-error: #ffffff;
+  --color-warning: #ffffff;
+
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-hover: rgba(255, 255, 255, 0.12);
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a0a0a0;
+  --color-text-muted: #606060;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html {
+  background: #101010;
+}
+
+html.light {
+  background: #f3f4f6;
+}
+
+body {
+  background: inherit;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Default to dark mode text color */
+html.dark body,
+.dark body {
+  color: #fafafa;
+}
+
+/* Font smoothing */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode selection */
+html.dark ::selection,
+.dark ::selection {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* Light mode selection */
+html.light ::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: #111827;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLASS MORPHISM SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.glass {
+  background: rgba(10, 10, 11, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-accent {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: linear-gradient(145deg,
+      rgba(20, 20, 22, 0.8) 0%,
+      rgba(10, 10, 11, 0.9) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 20px 50px -15px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLOW EFFECTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.glow-sm {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset, 0 18px 45px -25px rgba(0, 0, 0, 0.7);
+}
+
+.glow-md {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 22px 55px -28px rgba(0, 0, 0, 0.8);
+}
+
+.glow-lg {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 28px 70px -34px rgba(0, 0, 0, 0.85);
+}
+
+.glow-text {
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRADIENT TEXT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.text-gradient {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+.text-gradient-static {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+@keyframes gradient-flow {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REACTFLOW OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.react-flow {
+  background: #434343 !important;
+}
+
+html.dark .react-flow {
+  background: #101010 !important;
+}
+
+.react-flow__background {
+  background: transparent !important;
+  z-index: 0 !important;
+}
+
+/* Make renderer/container transparent so dots show through */
+.react-flow__renderer,
+.react-flow__container,
+.react-flow__viewport,
+.react-flow__pane {
+  background: transparent !important;
+}
+
+/* Light mode ReactFlow background - MUST come before dark mode */
+html.light .react-flow {
+  background: #F3F4F6 !important;
+}
+
+html.light .react-flow__renderer,
+html.light .react-flow__container {
+  background: transparent !important;
+}
+
+/* Dark mode ReactFlow background */
+html.dark .react-flow {
+  background: #101010 !important;
+}
+
+html.dark .react-flow__renderer,
+html.dark .react-flow__container {
+  background: transparent !important;
+}
+
+/* Default edge styles - now using custom edge component */
+.react-flow__edge-path {
+  stroke-width: 2px !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3px !important;
+}
+
+/* Custom edge animations */
+.animate-dash {
+  animation: edge-flow 1s linear infinite;
+}
+
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Node wrapper - transparent background to let custom node styling show */
+.react-flow__node {
+  background: transparent !important;
+  background-color: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ReactFlow node wrapper - transparent wrapper only */
+.react-flow__node {
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Ensure focus/selection states don't add backgrounds to wrapper */
+.react-flow__node:focus,
+.react-flow__node:focus-visible,
+.react-flow__node.selected {
+  outline: none !important;
+  background: transparent !important;
+}
+
+/* Connection handles - prominent and always visible */
+.react-flow__handle {
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 50% !important;
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  background: currentColor !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  z-index: 50 !important;
+}
+
+.react-flow__handle:hover {
+  background: currentColor !important;
+}
+
+.react-flow__handle-left {
+  left: -7px !important;
+}
+
+.react-flow__handle-right {
+  right: -7px !important;
+}
+
+/* Handle type colors - MEDIA TYPES */
+.react-flow__handle[data-handletype="text"] {
+  color: #3b82f6 !important;
+}
+
+.react-flow__handle[data-handletype="image"] {
+  color: #10b981 !important;
+}
+
+.react-flow__handle[data-handletype="video"] {
+  color: #8b5cf6 !important;
+}
+
+.react-flow__handle[data-handletype="audio"] {
+  color: #f59e0b !important;
+}
+
+.react-flow__handle[data-handletype="any"] {
+  color: #a1a1aa !important;
+}
+
+/* Handle type colors - SETTINGS TYPES */
+.react-flow__handle[data-handletype="prompt"] {
+  color: #0ea5e9 !important;
+}
+
+.react-flow__handle[data-handletype="negative"] {
+  color: #ef4444 !important;
+}
+
+.react-flow__handle[data-handletype="seed"] {
+  color: #84cc16 !important;
+}
+
+.react-flow__handle[data-handletype="aspectRatio"] {
+  color: #6366f1 !important;
+}
+
+.react-flow__handle[data-handletype="duration"] {
+  color: #14b8a6 !important;
+}
+
+.react-flow__handle[data-handletype="model"] {
+  color: #f43f5e !important;
+}
+
+.react-flow__handle[data-handletype="temperature"] {
+  color: #f97316 !important;
+}
+
+.react-flow__handle[data-handletype="number"] {
+  color: #ec4899 !important;
+}
+
+.react-flow__handle[data-handletype="boolean"] {
+  color: #06b6d4 !important;
+}
+
+/* Handle hover glow - MEDIA TYPES */
+.react-flow__handle[data-handletype="text"]:hover {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="image"]:hover {
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="video"]:hover {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="audio"]:hover {
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="any"]:hover {
+  box-shadow: 0 0 16px rgba(161, 161, 170, 0.6) !important;
+}
+
+/* Handle hover glow - SETTINGS TYPES */
+.react-flow__handle[data-handletype="prompt"]:hover {
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="negative"]:hover {
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="seed"]:hover {
+  box-shadow: 0 0 16px rgba(132, 204, 22, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="aspectRatio"]:hover {
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="duration"]:hover {
+  box-shadow: 0 0 16px rgba(20, 184, 166, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="model"]:hover {
+  box-shadow: 0 0 16px rgba(244, 63, 94, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="temperature"]:hover {
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="number"]:hover {
+  box-shadow: 0 0 16px rgba(236, 72, 153, 0.7) !important;
+}
+
+.react-flow__handle[data-handletype="boolean"]:hover {
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.7) !important;
+}
+
+.react-flow__controls {
+  background: rgba(10, 10, 11, 0.8) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MONOCHROME OVERRIDES (force B/W even if some components still use accents)
+   Note: .allow-color class exempts elements from these overrides
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:not(.allow-color):not(.allow-color *)>.text-cyan-400,
+:not(.allow-color):not(.allow-color *)>.text-violet-400,
+:not(.allow-color):not(.allow-color *)>.text-emerald-400,
+:not(.allow-color):not(.allow-color *)>.text-amber-400,
+:not(.allow-color):not(.allow-color *)>.text-blue-400,
+:not(.allow-color):not(.allow-color *)>.text-red-400,
+:not(.allow-color):not(.allow-color *)>.text-yellow-400,
+:not(.allow-color):not(.allow-color *)>.text-purple-500,
+:not(.allow-color):not(.allow-color *)>.text-pink-500 {
+  color: rgba(244, 244, 245, 0.9) !important;
+}
+
+:not(.allow-color)>.bg-cyan-500\/10,
+:not(.allow-color)>.bg-violet-500\/10,
+:not(.allow-color)>.bg-emerald-500\/10,
+:not(.allow-color)>.bg-amber-500\/10,
+:not(.allow-color)>.bg-blue-500\/10,
+:not(.allow-color)>.bg-red-500\/10,
+:not(.allow-color)>.bg-cyan-500\/20,
+:not(.allow-color)>.bg-violet-500\/20,
+:not(.allow-color)>.bg-emerald-500\/20,
+:not(.allow-color)>.bg-amber-500\/20,
+:not(.allow-color)>.bg-blue-500\/20,
+:not(.allow-color)>.bg-red-500\/20 {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+:not(.allow-color)>.bg-cyan-500,
+:not(.allow-color)>.bg-violet-500,
+:not(.allow-color)>.bg-emerald-500,
+:not(.allow-color)>.bg-amber-500,
+:not(.allow-color)>.bg-blue-500,
+:not(.allow-color)>.bg-red-600,
+:not(.allow-color)>.bg-red-500 {
+  background-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+:not(.allow-color)>.border-cyan-500\/20,
+:not(.allow-color)>.border-violet-500\/20,
+:not(.allow-color)>.border-emerald-500\/20,
+:not(.allow-color)>.border-amber-500\/20,
+:not(.allow-color)>.border-blue-500\/20,
+:not(.allow-color)>.border-cyan-500\/30,
+:not(.allow-color)>.border-emerald-500\/30,
+:not(.allow-color)>.border-amber-500\/30,
+:not(.allow-color)>.border-blue-500\/30 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+:not(.allow-color)>.from-cyan-500\/10,
+:not(.allow-color)>.from-violet-500\/10,
+:not(.allow-color)>.from-cyan-500\/20,
+:not(.allow-color)>.to-violet-500\/10,
+:not(.allow-color)>.to-violet-500\/20,
+:not(.allow-color)>.via-violet-500\/10 {
+  --tw-gradient-from: rgba(255, 255, 255, 0.05) !important;
+  --tw-gradient-to: rgba(255, 255, 255, 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  transition: all 0.2s ease !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #00d4ff !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+
+.react-flow__minimap {
+  background: rgba(10, 10, 11, 0.8) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(0, 212, 255, 0.1) !important;
+}
+
+.react-flow__minimap-node {
+  fill: rgba(255, 255, 255, 0.2) !important;
+  stroke: none !important;
+}
+
+/* Connection line is now styled via CustomConnectionLine component */
+/* This provides fallback styling if custom component isn't used */
+.react-flow__connection-line {
+  stroke: currentColor !important;
+  stroke-width: 2px !important;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+/* Connection indicator when dragging */
+.react-flow__handle.connecting {
+  background: currentColor !important;
+  border-color: #00d4ff !important;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
+}
+
+/* Pane double-click hint */
+.react-flow__pane {
+  cursor: crosshair;
+}
+
+/* Dot grid visibility - base style */
+.react-flow__background pattern circle,
+.react-flow__background circle {
+  fill: #3f3f46 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 40px rgba(0, 212, 255, 0.4);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NODE CARD STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node cards - clean minimal design */
+.node-card {
+  background: #161616;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+.node-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.node-card.selected {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 16px 48px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.02;
+}
+
+.border-gradient {
+  position: relative;
+}
+
+.border-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EDGE GLOW EFFECTS & ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ensure edge elements aren't clipped */
+.react-flow__edge,
+.react-flow__edge g,
+.react-flow__edges {
+  overflow: visible !important;
+}
+
+/* Ensure edges are visible above background */
+.react-flow__edges {
+  z-index: 5 !important;
+}
+
+.react-flow__edge {
+  z-index: 5 !important;
+}
+
+.react-flow__edge path {
+  z-index: 5 !important;
+}
+
+/* Smooth transitions for edges */
+.react-flow__edge path {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+/* Brighten glow on hover */
+.react-flow__edge:hover path[id$="-glow"] {
+  opacity: 0.8 !important;
+}
+
+.react-flow__edge:hover path[id$="-glow-mid"] {
+  opacity: 0.6 !important;
+}
+
+.react-flow__edge:hover path[id$="-glow-outer"] {
+  opacity: 0.25 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EDGE RUNNING STATE ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Pulsing glow effect for running edges */
+@keyframes pulseGlow {
+
+  0%,
+  100% {
+    opacity: 0.25;
+    stroke-width: 12px;
+  }
+
+  50% {
+    opacity: 0.5;
+    stroke-width: 16px;
+  }
+}
+
+/* Marching ants effect for data flow indication */
+@keyframes marchingAnts {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* Flowing dots travel animation (used with animateMotion) */
+@keyframes flowingDots {
+  0% {
+    offset-distance: 0%;
+  }
+
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+/* Edge completion flash */
+@keyframes edgeFlash {
+  0% {
+    opacity: 1;
+    stroke-width: 4px;
+  }
+
+  50% {
+    opacity: 1;
+    stroke-width: 8px;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-width: 4px;
+  }
+}
+
+/* Dot pulse effect */
+@keyframes dotPulse {
+
+  0%,
+  100% {
+    r: 3;
+    opacity: 0.8;
+  }
+
+  50% {
+    r: 5;
+    opacity: 1;
+  }
+}
+
+/* Connection line animations */
+@keyframes connectionFlow {
+  0% {
+    stroke-dashoffset: 20;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes connectionPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: scale(1.8);
+    opacity: 0.05;
+  }
+}
+
+/* Sparkle effect for lightning connection */
+@keyframes sparkle {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - PREMIUM SOFT DESIGN
+   Scoped exclusively to html.light - Dark mode remains completely untouched
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Light Mode Color Tokens */
+html.light {
+  --light-background: #909192;
+  --light-background-soft: #9a9b9c;
+  --light-surface: #FFFFFF;
+  --light-surface-elevated: #FFFFFF;
+  --light-surface-overlay: #f5f5f5;
+  --light-surface-muted: #fafafa;
+
+  /* Primary accent - consistent indigo/blue */
+  --light-accent: #4F46E5;
+  --light-accent-hover: #4338CA;
+  --light-accent-muted: rgba(79, 70, 229, 0.08);
+  --light-accent-subtle: rgba(79, 70, 229, 0.12);
+
+  /* Secondary colors - muted */
+  --light-secondary: #6B7280;
+  --light-secondary-hover: #4B5563;
+
+  /* Semantic colors */
+  --light-success: #059669;
+  --light-error: #DC2626;
+  --light-warning: #D97706;
+
+  /* Borders - soft and subtle */
+  --light-border: rgba(0, 0, 0, 0.06);
+  --light-border-hover: rgba(0, 0, 0, 0.12);
+  --light-border-strong: rgba(0, 0, 0, 0.15);
+
+  /* Text hierarchy */
+  --light-text-primary: #111827;
+  --light-text-secondary: #4B5563;
+  --light-text-muted: #9CA3AF;
+  --light-text-placeholder: #D1D5DB;
+
+  /* Shadows */
+  --light-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --light-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --light-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --light-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.1);
+}
+
+/* Base Light Mode Overrides */
+html.light {
+  background: var(--light-background);
+}
+
+html.light body {
+  background: var(--light-background) !important;
+  color: var(--light-text-primary) !important;
+}
+
+/* Light Mode Scrollbars */
+html.light * {
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+html.light *::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+html.light *::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Light Mode Selection */
+html.light ::selection {
+  background: rgba(79, 70, 229, 0.2);
+  color: #111827;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - GLASS MORPHISM SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--light-shadow-md);
+}
+
+html.light .glass-light {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+html.light .glass-dark {
+  background: rgba(249, 250, 251, 0.9);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+html.light .glass-accent {
+  background: rgba(79, 70, 229, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(79, 70, 229, 0.12);
+}
+
+html.light .glass-card {
+  background: linear-gradient(145deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(249, 250, 251, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.02) inset,
+    var(--light-shadow-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - GLOW EFFECTS (Softened for Light Theme)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .glow-sm {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.03) inset, var(--light-shadow-md);
+}
+
+html.light .glow-md {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04) inset, var(--light-shadow-lg);
+}
+
+html.light .glow-lg {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04) inset, var(--light-shadow-xl);
+}
+
+html.light .glow-text {
+  text-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - NODE CARD STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .node-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  box-shadow: var(--light-shadow-md);
+}
+
+html.light .node-card:hover {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: var(--light-shadow-lg);
+}
+
+html.light .node-card.selected {
+  border-color: var(--light-accent);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1), var(--light-shadow-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - REACTFLOW OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .react-flow {
+  background: #F3F4F6 !important;
+}
+
+html.light .react-flow__background {
+  background: transparent !important;
+}
+
+html.light .react-flow__viewport {
+  background: transparent !important;
+}
+
+/* Light mode dot grid - removed, using consolidated rule below */
+
+/* Light mode handles */
+html.light .react-flow__handle {
+  border: 2px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Light mode controls */
+html.light .react-flow__controls {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: var(--light-shadow-lg);
+}
+
+html.light .react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.5) !important;
+}
+
+html.light .react-flow__controls-button:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--light-accent) !important;
+}
+
+html.light .react-flow__minimap {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .react-flow__minimap-mask {
+  fill: rgba(79, 70, 229, 0.1) !important;
+}
+
+html.light .react-flow__minimap-node {
+  fill: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Light mode connection indicator */
+html.light .react-flow__handle.connecting {
+  border-color: var(--light-accent) !important;
+  box-shadow: 0 0 16px rgba(79, 70, 229, 0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-noise {
+  opacity: 0.015;
+}
+
+html.light .border-gradient::before {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ANIMATION ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .animate-shimmer {
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.03) 50%,
+      transparent 100%);
+  background-size: 200% 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - COMMON COMPONENT OVERRIDES (Scoped to html.light)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Zinc background overrides for light mode */
+html.light .bg-zinc-950 {
+  background-color: var(--light-background) !important;
+}
+
+html.light .bg-zinc-900,
+html.light .bg-zinc-900\/80,
+html.light .bg-zinc-900\/90 {
+  background-color: var(--light-surface) !important;
+}
+
+html.light .bg-zinc-800,
+html.light .bg-zinc-800\/50,
+html.light .bg-zinc-800\/80 {
+  background-color: var(--light-surface-overlay) !important;
+}
+
+/* Text color overrides for light mode */
+html.light .text-white {
+  color: var(--light-text-primary) !important;
+}
+
+html.light .text-zinc-100,
+html.light .text-zinc-200 {
+  color: var(--light-text-primary) !important;
+}
+
+html.light .text-zinc-300,
+html.light .text-zinc-400 {
+  color: var(--light-text-secondary) !important;
+}
+
+html.light .text-zinc-500,
+html.light .text-zinc-600 {
+  color: var(--light-text-muted) !important;
+}
+
+html.light .text-white\/40,
+html.light .text-white\/50,
+html.light .text-white\/60,
+html.light .text-white\/70,
+html.light .text-white\/80,
+html.light .text-white\/90 {
+  color: var(--light-text-secondary) !important;
+}
+
+/* Border overrides for light mode */
+html.light .border-zinc-700,
+html.light .border-zinc-700\/50,
+html.light .border-zinc-800,
+html.light .border-zinc-800\/60 {
+  border-color: var(--light-border) !important;
+}
+
+html.light .border-white\/5,
+html.light .border-white\/6,
+html.light .border-white\/8,
+html.light .border-white\/10,
+html.light .border-white\/\[0\.08\] {
+  border-color: var(--light-border) !important;
+}
+
+/* Placeholder text for light mode */
+html.light .placeholder-white\/30,
+html.light .placeholder-zinc-500,
+html.light .placeholder-zinc-600 {
+  color: var(--light-text-placeholder) !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: var(--light-text-placeholder) !important;
+}
+
+/* Focus states for light mode */
+html.light .focus\:border-white\/20:focus,
+html.light .focus\:ring-white\/10:focus,
+html.light .focus\:ring-white\/20:focus {
+  border-color: var(--light-accent) !important;
+  --tw-ring-color: rgba(79, 70, 229, 0.15) !important;
+}
+
+html.light .focus-visible\:ring-white\/20:focus-visible {
+  --tw-ring-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+html.light .focus-visible\:ring-offset-\[\#101010\]:focus-visible {
+  --tw-ring-offset-color: var(--light-background) !important;
+}
+
+/* Hover states for light mode */
+html.light .hover\:bg-zinc-800:hover,
+html.light .hover\:bg-zinc-800\/50:hover,
+html.light .hover\:bg-zinc-700:hover {
+  background-color: var(--light-surface-overlay) !important;
+}
+
+html.light .hover\:bg-white\/5:hover,
+html.light .hover\:bg-white\/\[0\.07\]:hover {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .hover\:border-zinc-600:hover,
+html.light .hover\:border-zinc-600\/50:hover,
+html.light .hover\:border-zinc-700:hover,
+html.light .hover\:border-white\/15:hover,
+html.light .hover\:border-white\/20:hover {
+  border-color: var(--light-border-hover) !important;
+}
+
+html.light .hover\:text-white:hover,
+html.light .hover\:text-zinc-200:hover,
+html.light .hover\:text-zinc-300:hover {
+  color: var(--light-text-primary) !important;
+}
+
+/* Background opacity overrides */
+html.light .bg-white\/3,
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/5,
+html.light .bg-white\/\[0\.05\] {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Shadow overrides for light mode */
+html.light .shadow-lg,
+html.light .shadow-2xl {
+  box-shadow: var(--light-shadow-lg) !important;
+}
+
+html.light .shadow-black\/20,
+html.light .shadow-black\/40 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Gradient backdrop adjustments */
+html.light .backdrop-blur-xl,
+html.light .backdrop-blur-2xl {
+  backdrop-filter: blur(20px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - BUTTON STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Primary button light mode */
+html.light .from-\[\#1e3a5f\],
+html.light .to-\[\#2a4a6f\] {
+  --tw-gradient-from: #4F46E5 !important;
+  --tw-gradient-to: #6366F1 !important;
+}
+
+html.light .shadow-\[\#0f1f33\]\/50 {
+  --tw-shadow-color: rgba(79, 70, 229, 0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - CARD & PANEL STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Card backgrounds */
+html.light .bg-\[\#0a0a0b\] {
+  background-color: var(--light-surface) !important;
+}
+
+html.light .bg-zinc-950\/90,
+html.light .bg-zinc-900\/90 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Sidebar styles for light mode */
+html.light aside {
+  background: #f8f9fb !important;
+  border-color: rgba(229, 231, 235, 0.8) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ACTIVE/SELECTED STATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-zinc-800\/80 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+}
+
+html.light .text-blue-400 {
+  color: var(--light-accent) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - MODAL & OVERLAY STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-black\/50,
+html.light .bg-black\/60,
+html.light .bg-black\/80 {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - INPUT STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light input,
+html.light textarea,
+html.light select {
+  background-color: var(--light-surface) !important;
+  border-color: var(--light-border-strong) !important;
+  color: var(--light-text-primary) !important;
+}
+
+html.light input:focus,
+html.light textarea:focus,
+html.light select:focus {
+  border-color: var(--light-accent) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - KBD/KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light kbd {
+  background-color: var(--light-surface-overlay) !important;
+  border-color: var(--light-border-strong) !important;
+  color: var(--light-text-secondary) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - TOOLTIP STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-zinc-900 {
+  background-color: var(--light-text-primary) !important;
+}
+
+html.light .bg-zinc-900 .text-zinc-300 {
+  color: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - BADGE/TAG STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-blue-500\/10 {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+}
+
+html.light .bg-emerald-500\/10,
+html.light .bg-green-500\/10 {
+  background-color: rgba(5, 150, 105, 0.08) !important;
+}
+
+html.light .bg-amber-500\/10,
+html.light .bg-yellow-500\/10 {
+  background-color: rgba(217, 119, 6, 0.08) !important;
+}
+
+html.light .bg-red-500\/10 {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+}
+
+html.light .bg-purple-500\/10,
+html.light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - NODE SPECIFIC STYLES (Critical for node cards)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node background - override inline fills */
+html.light .group\/node svg path[fill="#0d0d0d"] {
+  fill: #FFFFFF !important;
+}
+
+html.light .group\/node svg rect[fill="#0d0d0d"] {
+  fill: #FFFFFF !important;
+}
+
+/* Node inner content areas - handled by component classes */
+
+html.light .bg-\[\#161616\] {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-\[\#1a1a1d\] {
+  background-color: #FAFAFA !important;
+}
+
+html.light .bg-\[\#1a1a2e\] {
+  background-color: #F5F5FF !important;
+}
+
+/* Node border overrides */
+html.light .group\/node svg path[stroke^="rgba(255"] {
+  stroke: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Node content sections */
+html.light .bg-white\/\[0\.02\] {
+  background-color: #F9FAFB !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+html.light .bg-white\/\[0\.04\] {
+  background-color: #F5F6F7 !important;
+}
+
+html.light .bg-white\/\[0\.05\] {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-white\/\[0\.08\] {
+  background-color: #F0F1F3 !important;
+}
+
+html.light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light .border-white\/\[0\.04\] {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Node shadows for light mode - soft and subtle */
+html.light .shadow-2xl.shadow-black\/50 {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .group\/node {
+  --tw-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+  box-shadow: var(--tw-shadow) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SIDEBAR & PANEL STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node Palette Panel */
+html.light [class*="node-palette"],
+html.light .bg-zinc-950\/95 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dashboard sidebar */
+html.light aside.w-60 {
+  background: #f8f9fb !important;
+  border-color: rgba(229, 231, 235, 0.8) !important;
+}
+
+/* Main content area */
+html.light main {
+  background-color: #F8F9FB !important;
+}
+
+/* Panel backgrounds */
+html.light .bg-zinc-950\/80,
+html.light .bg-zinc-950\/90,
+html.light .bg-zinc-950\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - STAT CARDS & DASHBOARD COMPONENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Stat cards on dashboard */
+html.light .rounded-2xl.bg-\[\#0a0a0b\],
+html.light .rounded-xl.bg-\[\#0a0a0b\],
+html.light [class*="StatCard"] {
+  background-color: #FFFFFF !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Activity list items */
+html.light .border-b.border-zinc-800\/40 {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+html.light .border-zinc-800\/40,
+html.light .border-zinc-800\/50 {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - FLOATING ACTION BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Floating action bar only - not side panels */
+html.light .fixed.bottom-6 .backdrop-blur-2xl.backdrop-saturate-150 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Floating bar buttons */
+html.light .from-white\/\[0\.05\] {
+  --tw-gradient-from: transparent !important;
+}
+
+html.light .bg-gradient-to-b.from-white\/\[0\.05\] {
+  background: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - GRADIENT OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Gradient overlays that need light mode treatment */
+html.light .bg-gradient-to-br.from-\[\#1e3a5f\] {
+  background: linear-gradient(to bottom right, #4F46E5, #6366F1) !important;
+}
+
+html.light .from-indigo-600,
+html.light .from-violet-600,
+html.light .from-blue-600 {
+  --tw-gradient-from: #4F46E5 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ICON COLORS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .text-zinc-500 svg,
+html.light .text-zinc-400 svg {
+  color: #6B7280 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - CANVAS BACKGROUND (Pure white like Krea)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .react-flow {
+  background: #F3F4F6 !important;
+}
+
+html.light .react-flow__background {
+  background: transparent !important;
+}
+
+html.light .bg-\[\#101010\] {
+  background-color: #F3F4F6 !important;
+}
+
+/* Subtle dot pattern - removed, using consolidated rule below */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - TOP BAR & NAVIGATION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Top bar buttons */
+html.light .bg-zinc-950\/90,
+html.light button.bg-zinc-950\/90 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+html.light .hover\:bg-zinc-900\/90:hover {
+  background-color: #F5F5F5 !important;
+}
+
+/* Credit badge */
+html.light .bg-gradient-to-br.from-amber-400 {
+  background: linear-gradient(to bottom right, #F59E0B, #D97706) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - DIVIDERS & SEPARATORS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .bg-gradient-to-b.from-transparent.via-zinc-600\/50 {
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1), transparent) !important;
+}
+
+html.light .via-zinc-600\/50 {
+  --tw-gradient-via: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SPECIFIC COMPONENT FIXES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Logo container */
+html.light .rounded-lg.bg-gradient-to-br.from-\[\#1e3a5f\] {
+  background: linear-gradient(to bottom right, #4F46E5, #6366F1) !important;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25) !important;
+}
+
+/* Search input in panels */
+html.light input[placeholder*="Search"] {
+  background-color: #F5F6F7 !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light input[placeholder*="Search"]:focus {
+  background-color: #FFFFFF !important;
+  border-color: #4F46E5 !important;
+}
+
+/* Status indicator colors - keep semantic meaning */
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-red-400 {
+  color: #DC2626 !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+/* Success/Error backgrounds */
+html.light .bg-emerald-500\/10 {
+  background-color: rgba(5, 150, 105, 0.08) !important;
+}
+
+html.light .bg-red-500\/10 {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+}
+
+html.light .bg-amber-500\/10 {
+  background-color: rgba(217, 119, 6, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SCROLLBAR REFINEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light *::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-radius: 4px !important;
+}
+
+html.light *::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25) !important;
+}
+
+html.light *::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - TYPOGRAPHY REFINEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Increase contrast for better readability */
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light h5,
+html.light h6 {
+  color: #111827 !important;
+}
+
+html.light p {
+  color: #374151 !important;
+}
+
+html.light .text-\[10px\],
+html.light .text-\[11px\],
+html.light .text-\[9px\] {
+  color: #6B7280 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - WORKFLOW CARDS IN LISTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .hover\:-translate-y-0\.5:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ENSURE PURE WHITE CANVAS LIKE KREA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .h-full.bg-\[\#101010\] {
+  background: #FFFFFF !important;
+}
+
+html.light div.h-full.bg-\[\#101010\] {
+  background: #FFFFFF !important;
+}
+
+/* Canvas area - always white */
+html.light .relative.h-full.overflow-hidden {
+  background: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - DASHBOARD SPECIFIC OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Dashboard stat cards */
+html.light .bg-zinc-900\/50 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-900\/40 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.light .bg-zinc-800\/60 {
+  background-color: #F5F6F7 !important;
+}
+
+/* Dashboard card borders */
+html.light .border-zinc-800\/60 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Colored backgrounds - make lighter for light mode */
+html.light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+
+html.light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+html.light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+html.light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+/* Colored text - adjust for light mode contrast */
+html.light .text-violet-400 {
+  color: #7C3AED !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563EB !important;
+}
+
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+/* DotPattern adjustments - make dots nearly invisible in light mode */
+html.light .text-violet-500\/5,
+html.light .text-violet-500\/10 {
+  color: rgba(139, 92, 246, 0.02) !important;
+}
+
+html.light .text-blue-500\/5,
+html.light .text-blue-500\/10 {
+  color: rgba(59, 130, 246, 0.02) !important;
+}
+
+html.light .text-emerald-500\/5,
+html.light .text-emerald-500\/10 {
+  color: rgba(16, 185, 129, 0.02) !important;
+}
+
+html.light .text-amber-500\/5,
+html.light .text-amber-500\/10 {
+  color: rgba(245, 158, 11, 0.02) !important;
+}
+
+html.light .text-red-500\/5,
+html.light .text-red-500\/10 {
+  color: rgba(239, 68, 68, 0.02) !important;
+}
+
+html.light .text-zinc-500\/5,
+html.light .text-zinc-500\/10 {
+  color: rgba(0, 0, 0, 0.01) !important;
+}
+
+/* Gradient logo boxes */
+html.light .bg-gradient-to-br.from-blue-500 {
+  background: linear-gradient(to bottom right, #3B82F6, #2563EB) !important;
+}
+
+html.light .bg-gradient-to-br.from-violet-500 {
+  background: linear-gradient(to bottom right, #8B5CF6, #7C3AED) !important;
+}
+
+html.light .bg-gradient-to-br.from-emerald-500 {
+  background: linear-gradient(to bottom right, #10B981, #059669) !important;
+}
+
+/* Button overrides */
+html.light button.bg-zinc-800\/50 {
+  background-color: #F5F6F7 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #4B5563 !important;
+}
+
+html.light button.bg-zinc-800\/50:hover {
+  background-color: #EEEFF1 !important;
+  color: #111827 !important;
+}
+
+/* Activity list styling */
+html.light .border-b.border-zinc-800\/40 {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Quick actions card */
+html.light .bg-gradient-to-br.from-violet-600.to-indigo-600 {
+  background: linear-gradient(to bottom right, #8B5CF6, #6366F1) !important;
+}
+
+/* Credit usage bar */
+html.light .bg-gradient-to-r.from-amber-500 {
+  background: linear-gradient(to right, #F59E0B, #D97706) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - NODE PALETTE SPECIFIC OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node palette background - only for left-positioned panels */
+html.light .fixed.left-4 .backdrop-blur-2xl {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Category tabs */
+html.light .bg-zinc-800\/40 {
+  background-color: #F3F4F6 !important;
+}
+
+/* Category buttons */
+html.light button.rounded-lg.border.border-transparent {
+  color: #6B7280 !important;
+}
+
+html.light button.rounded-lg.border.border-transparent:hover {
+  color: #374151 !important;
+  background-color: #F9FAFB !important;
+}
+
+/* Node items in palette */
+html.light .bg-zinc-900\/60 {
+  background-color: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+html.light .hover\:bg-zinc-800\/60:hover {
+  background-color: #F5F6F7 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ENSURE ALL DARK BACKGROUNDS ARE LIGHT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Catch-all for remaining dark backgrounds */
+html.light [class*="bg-zinc-9"],
+html.light [class*="bg-zinc-8"] {
+  background-color: #F9FAFB !important;
+}
+
+/* Specific zinc overrides */
+html.light .bg-zinc-800 {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-zinc-900 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-950 {
+  background-color: #F8F9FB !important;
+}
+
+/* Border catch-all */
+html.light [class*="border-zinc-7"],
+html.light [class*="border-zinc-8"] {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ADDITIONAL REFINEMENTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Loader */
+html.light .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+/* View All link */
+html.light .text-zinc-500.hover\:text-white:hover {
+  color: #111827 !important;
+}
+
+/* Active nav items with accent */
+html.light .text-blue-400 {
+  color: #4F46E5 !important;
+}
+
+/* Rounded panels/modals */
+html.light .rounded-2xl.border.border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  background-color: #FFFFFF !important;
+}
+
+/* Headers with borders */
+html.light .border-b.border-zinc-800\/60 {
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Node settings modal */
+html.light .bg-\[\#0f0f10\] {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-\[\#111113\] {
+  background-color: #F9FAFB !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - PAGE BACKGROUND COMPONENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* PageBackground main container */
+html.light .h-full.flex.flex-col {
+  background-color: #F8F9FB !important;
+}
+
+/* Background gradient blobs - soften for light mode */
+html.light .bg-blue-600\/\[0\.03\] {
+  background-color: rgba(79, 70, 229, 0.03) !important;
+}
+
+html.light .bg-cyan-600\/\[0\.03\] {
+  background-color: rgba(59, 130, 246, 0.03) !important;
+}
+
+/* DotPattern in light mode - make dots very subtle */
+html.light .text-zinc-800\/40,
+html.light .text-zinc-800\/60 {
+  color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* DotPattern component - light mode very subtle */
+html.light .text-gray-300 {
+  color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* StatCard text */
+html.light .text-3xl.font-semibold.text-white {
+  color: #111827 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - WORKFLOW LIST/CARDS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Workflow cards in list */
+html.light .bg-zinc-900\/40 {
+  background-color: #FFFFFF !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Workflow card hover state */
+html.light .hover\:bg-zinc-900\/60:hover {
+  background-color: #FAFAFA !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - ENSURE PROPER SVG HANDLING
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* SVG icons inherit parent color in light mode */
+html.light svg {
+  color: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - FINAL CLEANUP
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Any remaining white text should be dark - but NOT inside colored stat boxes */
+/* This rule is overridden by the more specific colored box rules at the end of this file */
+
+/* Ensure disabled state is visible */
+html.light .disabled\:opacity-50:disabled {
+  opacity: 0.5 !important;
+}
+
+/* Focus rings */
+html.light *:focus-visible {
+  outline-color: #4F46E5 !important;
+}
+
+/* Placeholder colors */
+html.light ::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - FLOW NODES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node main text - headers, labels, titles (HIGH PRIORITY) */
+html.light .react-flow__node h3,
+html.light .react-flow__node .text-white\/80,
+html.light .react-flow__node .text-white\/90,
+html.light .react-flow__node [class*="text-white"],
+html.light .group\/node h3,
+html.light .group\/node .text-white\/80,
+html.light .group\/node .text-white\/90 {
+  color: #111827 !important;
+}
+
+/* Node header name - override inline styles too */
+html.light .react-flow__node h3[style*="font-family"],
+html.light .group\/node h3[style*="font-family"] {
+  color: #111827 !important;
+}
+
+/* Node SVG fills - ensure the node background is white */
+html.light .react-flow__node svg path[fill="#161616"],
+html.light .react-flow__node svg path[fill="#0d0d0d"],
+html.light .react-flow__node svg rect[fill="#161616"],
+html.light .react-flow__node svg rect[fill="#0d0d0d"],
+html.light .group\/node svg path[fill="#161616"],
+html.light .group\/node svg path[fill="#0d0d0d"] {
+  fill: #FFFFFF !important;
+}
+
+/* Node inner dark backgrounds */
+html.light .react-flow__node .bg-\[\#0f0f0f\],
+html.light .group\/node .bg-\[\#0f0f0f\] {
+  background-color: #F3F4F6 !important;
+}
+
+/* Node text inputs and textareas */
+html.light .react-flow__node textarea,
+html.light .react-flow__node input[type="text"],
+html.light .react-flow__node input[type="number"] {
+  background-color: #F9FAFB !important;
+  border-color: #E5E7EB !important;
+  color: #111827 !important;
+}
+
+html.light .react-flow__node textarea:focus,
+html.light .react-flow__node input[type="text"]:focus,
+html.light .react-flow__node input[type="number"]:focus {
+  border-color: #D1D5DB !important;
+}
+
+html.light .react-flow__node textarea::placeholder,
+html.light .react-flow__node input::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Node internal backgrounds */
+html.light .react-flow__node .bg-zinc-900\/60,
+html.light .react-flow__node .bg-zinc-900 {
+  background-color: #F9FAFB !important;
+}
+
+html.light .react-flow__node .bg-white\/\[0\.02\],
+html.light .react-flow__node .bg-white\/\[0\.03\],
+html.light .react-flow__node .bg-white\/\[0\.04\] {
+  background-color: #F3F4F6 !important;
+}
+
+/* Node text colors */
+html.light .react-flow__node .text-zinc-100,
+html.light .react-flow__node .text-zinc-200 {
+  color: #111827 !important;
+}
+
+html.light .react-flow__node .text-zinc-300 {
+  color: #374151 !important;
+}
+
+html.light .react-flow__node .text-zinc-400,
+html.light .react-flow__node .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .react-flow__node .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+/* Node borders */
+html.light .react-flow__node .border-white\/10,
+html.light .react-flow__node .border-white\/20 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .react-flow__node .border-white\/\[0\.04\],
+html.light .react-flow__node .border-white\/\[0\.06\] {
+  border-color: #E5E7EB !important;
+}
+
+/* Node dropdowns */
+html.light .react-flow__node select,
+html.light .react-flow__node .bg-zinc-900.border {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  color: #374151 !important;
+}
+
+/* Node buttons */
+html.light .react-flow__node button.bg-white\/\[0\.03\],
+html.light .react-flow__node button.bg-white\/\[0\.04\] {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .react-flow__node button.bg-white\/\[0\.03\]:hover,
+html.light .react-flow__node button.bg-white\/\[0\.04\]:hover {
+  background-color: #E5E7EB !important;
+}
+
+/* Node output/result areas */
+html.light .react-flow__node .bg-white\/\[0\.03\].border {
+  background-color: #F9FAFB !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Node range inputs */
+html.light .react-flow__node input[type="range"] {
+  background-color: #E5E7EB !important;
+}
+
+/* Node linked indicators */
+html.light .react-flow__node .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .react-flow__node .bg-blue-500\/5 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+html.light .react-flow__node .bg-emerald-500\/5 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+html.light .react-flow__node .bg-cyan-500\/10 {
+  background-color: rgba(6, 182, 212, 0.1) !important;
+}
+
+/* Node context indicator */
+html.light .react-flow__node .text-cyan-400 {
+  color: #0891B2 !important;
+}
+
+html.light .react-flow__node .text-cyan-300\/80 {
+  color: #06B6D4 !important;
+}
+
+/* Model dropdown */
+html.light .react-flow__node .bg-zinc-900.border.border-white\/10.rounded-lg {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Dropdown items */
+html.light .react-flow__node .hover\:bg-white\/5:hover {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .react-flow__node .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+
+/* Image upload area - dashed border */
+html.light .react-flow__node .border-dashed.border-white\/10 {
+  border-color: #D1D5DB !important;
+}
+
+html.light .react-flow__node .border-dashed.border-white\/10:hover {
+  border-color: #9CA3AF !important;
+}
+
+/* File upload dashed border - ensure visibility in light mode */
+html.light .react-flow__node .border-dashed.border-gray-500 {
+  border-color: #6B7280 !important;
+}
+
+html.light .react-flow__node .border-dashed.border-gray-500:hover {
+  border-color: #4B5563 !important;
+}
+
+html.light .react-flow__node .border-2.border-dashed {
+  border-color: #6B7280 !important;
+}
+
+html.light .react-flow__node .border-2.border-dashed:hover {
+  border-color: #4B5563 !important;
+}
+
+/* Negative prompt area */
+html.light .react-flow__node .bg-red-500\/5 {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+html.light .react-flow__node .border-red-500\/20 {
+  border-color: rgba(239, 68, 68, 0.25) !important;
+}
+
+/* Settings toggle button */
+html.light .react-flow__node button.border-white\/10.bg-white\/\[0\.02\] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .react-flow__node button.border-white\/10.bg-white\/\[0\.02\]:hover {
+  background-color: #F9FAFB !important;
+}
+
+/* Slider thumb styling for light mode */
+html.light .react-flow__node input[type="range"]::-webkit-slider-thumb {
+  background-color: #4F46E5 !important;
+}
+
+html.light .react-flow__node input[type="range"]::-moz-range-thumb {
+  background-color: #4F46E5 !important;
+}
+
+/* Toggle switches */
+html.light .react-flow__node .bg-zinc-700 {
+  background-color: #D1D5DB !important;
+}
+
+/* Media preview containers */
+html.light .react-flow__node .bg-black\/30 {
+  background-color: #F3F4F6 !important;
+}
+
+/* Streaming cursor */
+html.light .react-flow__node .bg-blue-400.animate-pulse {
+  background-color: #3B82F6 !important;
+}
+
+/* Labels and uppercase tracking text */
+html.light .react-flow__node .uppercase.tracking-wider {
+  color: #6B7280 !important;
+}
+
+/* Handle labels */
+html.light .react-flow__node .rounded-md {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Node mini control buttons */
+html.light .react-flow__node .bg-white\/\[0\.04\].text-zinc-500 {
+  background-color: #F3F4F6 !important;
+  color: #6B7280 !important;
+}
+
+html.light .react-flow__node .bg-white\/\[0\.04\].text-zinc-500:hover {
+  background-color: #E5E7EB !important;
+  color: #374151 !important;
+}
+
+/* Run button states */
+html.light .react-flow__node button.bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .react-flow__node button.bg-blue-500\/20:hover {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Additional text cleanup in nodes */
+html.light .react-flow__node .text-blue-300 {
+  color: #2563EB !important;
+}
+
+html.light .react-flow__node .text-blue-400 {
+  color: #3B82F6 !important;
+}
+
+html.light .react-flow__node .text-red-300 {
+  color: #DC2626 !important;
+}
+
+/* Handle label colors - use vibrant node colors */
+html.light .react-flow__node .text-emerald-400 {
+  color: #10B981 !important;
+}
+
+html.light .react-flow__node .text-violet-400 {
+  color: #8B5CF6 !important;
+}
+
+html.light .react-flow__node .text-amber-400 {
+  color: #F59E0B !important;
+}
+
+html.light .react-flow__node .text-rose-400 {
+  color: #F43F5E !important;
+}
+
+html.light .react-flow__node .text-purple-400 {
+  color: #A855F7 !important;
+}
+
+/* Video/Image preview text overlays */
+html.light .react-flow__node .bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REACT FLOW BACKGROUND DOTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Light mode - subtle dots (barely visible) */
+html.light .react-flow__background circle,
+html.light .react-flow__background pattern circle,
+html.light .react-flow__background svg circle,
+html.light .react-flow__background svg pattern circle {
+  fill: #d1d5db !important;
+}
+
+/* Dark mode - visible white dots */
+html.dark .react-flow__background circle,
+html.dark .react-flow__background pattern circle,
+html.dark .react-flow__background svg circle,
+html.dark .react-flow__background svg pattern circle,
+.dark .react-flow__background circle,
+.dark .react-flow__background pattern circle,
+.dark .react-flow__background svg circle,
+.dark .react-flow__background svg pattern circle {
+  fill: #373737 !important;
+}
+
+/* Fallback for default/no theme class */
+.react-flow__background circle,
+.react-flow__background pattern circle {
+  fill: #3f3f46 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RUNNING NODE GLOW EFFECT - SUBTLE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Subtle pulsing glow animation for running nodes ONLY */
+@keyframes running-pulse-glow {
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.3));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.5));
+  }
+}
+
+@keyframes border-pulse {
+
+  0%,
+  100% {
+    stroke-opacity: 0.8;
+  }
+
+  50% {
+    stroke-opacity: 1;
+  }
+}
+
+.running-node-glow {
+  animation: running-pulse-glow 1s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: border-pulse 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - SIDE PANELS (Credits, Activity, Asset Manager)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Panel container - solid white, no glass effect */
+html.light .fixed.top-16.z-50.w-\[340px\] {
+  background-color: #FFFFFF !important;
+  color: #111827 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Remove blur/saturate from panels */
+html.light .fixed.top-16.z-50 .backdrop-blur-2xl,
+html.light .fixed.top-16.z-50 .backdrop-blur-xl,
+html.light .fixed.top-16.z-50.backdrop-blur-2xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.light .fixed.top-16.z-50 .backdrop-saturate-150,
+html.light .fixed.top-16.z-50.backdrop-saturate-150 {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Panel titles - MUST be dark text - HIGH PRIORITY */
+html.light .fixed.top-16.z-50 .text-sm.font-semibold.text-gray-900,
+html.light .fixed.top-16.z-50 .text-sm.font-semibold,
+html.light .fixed.top-16.z-50 span.text-sm.font-semibold,
+html.light .fixed.top-16.z-50>div span.font-semibold,
+html.light .fixed.top-16 span.text-sm {
+  color: #111827 !important;
+}
+
+/* Panel subtitles */
+html.light .fixed.top-16.z-50 .text-\[10px\].text-gray-500 {
+  color: #6B7280 !important;
+}
+
+/* Panel header backgrounds */
+html.light .fixed.top-16.z-50 .bg-gray-50 {
+  background-color: #F9FAFB !important;
+}
+
+/* Panel section borders */
+html.light .fixed.top-16.z-50 .border-gray-100 {
+  border-color: #F3F4F6 !important;
+}
+
+/* Tab switcher background */
+html.light .fixed.top-16.z-50 .bg-gray-100 {
+  background-color: #F3F4F6 !important;
+}
+
+/* Active tab */
+html.light .fixed.top-16.z-50 .bg-white.shadow-sm {
+  background-color: #FFFFFF !important;
+}
+
+/* Tab text colors */
+html.light .fixed.top-16.z-50 .text-gray-900 {
+  color: #111827 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-gray-400 {
+  color: #9CA3AF !important;
+}
+
+html.light .fixed.top-16.z-50 .text-gray-600 {
+  color: #4B5563 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-gray-800 {
+  color: #1F2937 !important;
+}
+
+/* Colored text for stats */
+html.light .fixed.top-16.z-50 .text-emerald-600 {
+  color: #059669 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-emerald-700 {
+  color: #047857 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-red-600 {
+  color: #DC2626 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-blue-600 {
+  color: #2563EB !important;
+}
+
+html.light .fixed.top-16.z-50 .text-blue-700 {
+  color: #1D4ED8 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-amber-600 {
+  color: #D97706 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-amber-700 {
+  color: #B45309 !important;
+}
+
+html.light .fixed.top-16.z-50 .text-violet-600 {
+  color: #7C3AED !important;
+}
+
+html.light .fixed.top-16.z-50 .text-violet-700 {
+  color: #6D28D9 !important;
+}
+
+/* Card backgrounds in panels */
+html.light .fixed.top-16.z-50 .bg-gray-50,
+html.light .fixed.top-16.z-50 .bg-white {
+  background-color: #FFFFFF !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-emerald-50,
+html.light .fixed.top-16.z-50 .bg-emerald-500\/10 {
+  background-color: #ECFDF5 !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-red-50 {
+  background-color: #FEF2F2 !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-blue-50 {
+  background-color: #EFF6FF !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-amber-50 {
+  background-color: #FFFBEB !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-violet-50 {
+  background-color: #F5F3FF !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-blue-100 {
+  background-color: #DBEAFE !important;
+}
+
+html.light .fixed.top-16.z-50 .bg-gray-200 {
+  background-color: #E5E7EB !important;
+}
+
+/* Stats cards backgrounds */
+html.light .bg-emerald-50 {
+  background-color: #ECFDF5 !important;
+}
+
+html.light .bg-red-50 {
+  background-color: #FEF2F2 !important;
+}
+
+html.light .bg-blue-50 {
+  background-color: #EFF6FF !important;
+}
+
+html.light .bg-amber-50 {
+  background-color: #FFFBEB !important;
+}
+
+/* Stats card icon backgrounds - solid colors */
+html.light .bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+
+html.light .bg-red-500 {
+  background-color: #EF4444 !important;
+}
+
+html.light .bg-blue-500 {
+  background-color: #3B82F6 !important;
+}
+
+html.light .bg-amber-500 {
+  background-color: #F59E0B !important;
+}
+
+/* Pipeline card backgrounds */
+html.light .bg-emerald-50.dark\:bg-emerald-950\/20,
+html.light .cardBg {
+  background-color: #ECFDF5 !important;
+}
+
+html.light .bg-gray-50 {
+  background-color: #F9FAFB !important;
+}
+
+/* Tab switcher */
+html.light .bg-gray-100 {
+  background-color: #F3F4F6 !important;
+}
+
+/* Panel header */
+html.light .bg-gray-50.dark\:bg-white\/\[0\.02\] {
+  background-color: #F9FAFB !important;
+}
+
+/* Text colors for light mode panels */
+html.light .fixed.top-16 .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.top-16 .text-zinc-400 {
+  color: #9CA3AF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - BOTTOM FLOATING ACTION BAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Bottom floating bar container - solid white, no glass effect */
+html.light .fixed.bottom-5.left-1\/2 .bg-white\/\[0\.03\] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Remove blur/saturate backdrop effects */
+html.light .fixed.bottom-5.left-1\/2 .backdrop-blur-2xl {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .backdrop-saturate-150 {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Remove glow effect in light mode - except for Execute button */
+html.light .fixed.bottom-5.left-1\/2>.group>.blur-2xl {
+  display: none !important;
+}
+
+/* Execute button glow - lighter in light mode */
+html.light .fixed.bottom-5.left-1\/2 .group\/runwrap>.blur-lg {
+  opacity: 0.25 !important;
+}
+
+/* Execute button text must stay white */
+html.light .fixed.bottom-5.left-1\/2 .group\/run .text-white,
+html.light .fixed.bottom-5.left-1\/2 .group\/runwrap .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Remove inner glass highlight */
+html.light .fixed.bottom-5.left-1\/2 .bg-gradient-to-b.from-white\/\[0\.05\] {
+  display: none !important;
+}
+
+/* Bottom bar buttons - default state */
+html.light .fixed.bottom-5.left-1\/2 .text-zinc-400 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-zinc-400:hover {
+  color: #111827 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .hover\:text-white:hover {
+  color: #111827 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .hover\:bg-white\/5:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Active button states */
+html.light .fixed.bottom-5.left-1\/2 .text-blue-400 {
+  color: #2563EB !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-violet-400 {
+  color: #7C3AED !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-purple-400 {
+  color: #9333EA !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-amber-400 {
+  color: #D97706 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-emerald-400 {
+  color: #059669 !important;
+}
+
+/* Active indicator backgrounds */
+html.light .fixed.bottom-5.left-1\/2 .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .from-blue-500\/30 {
+  --tw-gradient-from: rgba(59, 130, 246, 0.2) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .border-blue-500\/30 {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .bg-violet-500\/20 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .bg-purple-500\/20 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+/* Dividers */
+html.light .fixed.bottom-5.left-1\/2 .via-zinc-600\/50 {
+  --tw-gradient-via: rgba(0, 0, 0, 0.1) !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .bg-gradient-to-b.from-transparent.via-zinc-600\/50.to-transparent {
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1), transparent) !important;
+}
+
+/* Tooltips */
+html.light .fixed.bottom-5.left-1\/2 .bg-zinc-900 {
+  background-color: #1F2937 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .border-zinc-700 {
+  border-color: #374151 !important;
+}
+
+html.light .fixed.bottom-5.left-1\/2 .text-zinc-300 {
+  color: #E5E7EB !important;
+}
+
+/* Glass inner highlight - adjust for light mode */
+html.light .fixed.bottom-5.left-1\/2 .from-white\/\[0\.05\] {
+  --tw-gradient-from: rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - MINIMAP & CONTROLS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html.light .react-flow__minimap,
+html.light .react-flow__minimap.\!bg-zinc-900\/80,
+html.light .react-flow .react-flow__minimap {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.light .react-flow__minimap-mask {
+  fill: rgba(59, 130, 246, 0.1) !important;
+}
+
+html.light .react-flow__minimap-node {
+  fill: #9CA3AF !important;
+  stroke: #6B7280 !important;
+}
+
+/* Controls panel */
+html.light .react-flow__controls,
+html.light .react-flow .react-flow__controls {
+  background-color: #FFFFFF !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.light .react-flow__controls-button {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  fill: #6B7280 !important;
+}
+
+html.light .react-flow__controls-button:hover {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .react-flow__controls-button svg {
+  fill: #6B7280 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - NODE TYPE MODAL (Add Node Popup)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Modal backdrop */
+html.light .fixed.inset-0.z-50>.bg-black\/60 {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Modal container - target by structure instead of complex class names */
+html.light .fixed.inset-0.z-50>div>div>div {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Modal header */
+html.light .bg-white\/\[0\.02\] {
+  background-color: #F9FAFB !important;
+}
+
+/* Modal title */
+html.light .text-zinc-400.uppercase.tracking-widest {
+  color: #6B7280 !important;
+}
+
+/* Close button */
+html.light .text-zinc-500.hover\:text-white {
+  color: #9CA3AF !important;
+}
+
+html.light .text-zinc-500.hover\:text-white:hover {
+  color: #111827 !important;
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Search input */
+html.light .bg-black\/40.border-white\/10 {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+html.light .bg-black\/40.border-white\/10::placeholder,
+html.light input.placeholder\:text-zinc-600::placeholder {
+  color: #9CA3AF !important;
+}
+
+html.light .bg-black\/40.border-white\/10:focus {
+  background-color: #FFFFFF !important;
+  border-color: #3B82F6 !important;
+}
+
+/* Search icon */
+html.light .text-zinc-500.group-focus-within\:text-zinc-300 {
+  color: #9CA3AF !important;
+}
+
+/* Node list items */
+html.light .hover\:bg-white\/\[0\.04\]:hover {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .hover\:border-white\/5:hover {
+  border-color: #E5E7EB !important;
+}
+
+/* Node icon container */
+html.light .from-white\/5.to-white\/\[0\.02\] {
+  background: linear-gradient(to bottom right, #F3F4F6, #F9FAFB) !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .group-hover\:border-white\/20:hover,
+html.light .group:hover .group-hover\:border-white\/20 {
+  border-color: #D1D5DB !important;
+}
+
+/* Node text */
+html.light .text-zinc-200.group-hover\:text-white {
+  color: #111827 !important;
+}
+
+html.light .group:hover .group-hover\:text-white {
+  color: #111827 !important;
+}
+
+html.light .text-zinc-500.truncate.group-hover\:text-zinc-400 {
+  color: #6B7280 !important;
+}
+
+html.light .group:hover .group-hover\:text-zinc-400 {
+  color: #4B5563 !important;
+}
+
+/* Cost badge */
+html.light .text-zinc-500.font-mono.bg-white\/\[0\.02\] {
+  color: #6B7280 !important;
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Empty state */
+html.light .bg-white\/5 {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+/* Footer */
+html.light .border-white\/5.bg-white\/\[0\.02\] {
+  border-color: #E5E7EB !important;
+  background-color: #F9FAFB !important;
+}
+
+html.light .text-zinc-600.uppercase.tracking-wider {
+  color: #9CA3AF !important;
+}
+
+html.light .bg-zinc-700 {
+  background-color: #9CA3AF !important;
+}
+
+html.light .bg-zinc-800 {
+  background-color: #D1D5DB !important;
+}
+
+/* Category colors for light mode */
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-violet-400 {
+  color: #7C3AED !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563EB !important;
+}
+
+/* Ring/outline */
+html.light .ring-white\/5 {
+  --tw-ring-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - NODE HANDLE LABELS & NODE PALETTE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Node handle labels (input/output labels like "Prompt", "Image", etc.) */
+html.light .react-flow__node span.bg-white {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Node handle hover tooltips - ensure visible in light mode */
+html.light .react-flow__node .group\/handle>div.bg-white,
+html.light .react-flow__node div.bg-white.border-gray-200 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  color: #374151 !important;
+}
+
+/* Ensure tooltip text is visible */
+html.light .react-flow__node .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.light .react-flow__node .text-\[11px\].text-gray-700 {
+  color: #374151 !important;
+}
+
+/* Node palette panel */
+html.light .bg-black\/60.backdrop-blur-2xl {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Node palette header/footer */
+html.light .bg-white\/\[0\.02\] {
+  background-color: #F9FAFB !important;
+}
+
+html.light .bg-white\/\[0\.03\] {
+  background-color: #F3F4F6 !important;
+}
+
+/* Node palette title - be specific to avoid overriding button text */
+html.light .fixed.left-4 .text-white,
+html.light .w-72.h-full .text-white {
+  color: #111827 !important;
+}
+
+/* Node palette search input */
+html.light .bg-white\/\[0\.03\].border-white\/\[0\.06\] {
+  background-color: #F3F4F6 !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+/* Node palette text - scoped to palette area */
+html.light .fixed.left-4 .text-zinc-300,
+html.light .w-72.h-full .text-zinc-300 {
+  color: #374151 !important;
+}
+
+html.light .fixed.left-4 .text-zinc-500,
+html.light .w-72.h-full .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.left-4 .text-zinc-600,
+html.light .w-72.h-full .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+/* Node card in palette */
+html.light .bg-white\/\[0\.02\].border-transparent {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .bg-white\/\[0\.04\] {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-white\/\[0\.06\] {
+  background-color: #E5E7EB !important;
+}
+
+html.light .hover\:bg-white\/\[0\.04\]:hover {
+  background-color: #F3F4F6 !important;
+}
+
+/* Node palette borders */
+html.light .border-white\/\[0\.06\] {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-white\/\[0\.08\] {
+  border-color: #D1D5DB !important;
+}
+
+html.light .border-white\/\[0\.04\] {
+  border-color: #F3F4F6 !important;
+}
+
+/* Hover info card */
+html.light .bg-black\/60.backdrop-blur-2xl.backdrop-saturate-150.border-white\/\[0\.1\] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Category active chip */
+html.light .bg-white.text-black {
+  background-color: #111827 !important;
+  color: #FFFFFF !important;
+}
+
+html.light .bg-white\/5 {
+  background-color: #F3F4F6 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - RUN MODAL (Execute Workflow) - HIGH SPECIFICITY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Modal backdrop - lighter */
+html.light .fixed.inset-0.z-50 .bg-black\/80 {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Modal main container - target the specific structure */
+html.light .fixed.inset-0.z-50 .max-w-3xl .group {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Left column background */
+html.light .fixed.inset-0.z-50 .flex-col.relative.overflow-hidden {
+  background-color: #F3F4F6 !important;
+}
+
+/* ALL text in the modal - dark colors */
+html.light .fixed.inset-0.z-50 .text-zinc-100,
+html.light .fixed.inset-0.z-50 .text-xl.font-semibold {
+  color: #111827 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-200,
+html.light .fixed.inset-0.z-50 .text-sm.font-medium,
+html.light .fixed.inset-0.z-50 .text-base.font-semibold {
+  color: #1F2937 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-300,
+html.light .fixed.inset-0.z-50 .text-xs.font-medium {
+  color: #374151 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-400 {
+  color: #4B5563 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-600 {
+  color: #6B7280 !important;
+}
+
+/* Large credit numbers - make them dark and visible */
+html.light .fixed.inset-0.z-50 .text-3xl.font-bold,
+html.light .fixed.inset-0.z-50 span.tabular-nums {
+  color: #111827 !important;
+  background: none !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+/* Small labels like "CREDITS REQ." and "AVAILABLE" */
+html.light .fixed.inset-0.z-50 .text-\[10px\].text-zinc-500,
+html.light .fixed.inset-0.z-50 .text-\[10px\].font-medium,
+html.light .fixed.inset-0.z-50 .uppercase.tracking-wide {
+  color: #4B5563 !important;
+}
+
+/* Section headers like "ALLOCATION", "EST. TIME", "PROVIDERS" */
+html.light .fixed.inset-0.z-50 .text-\[10px\].font-medium.uppercase,
+html.light .fixed.inset-0.z-50 .text-\[9px\].uppercase {
+  color: #374151 !important;
+}
+
+/* Card backgrounds in modal */
+html.light .fixed.inset-0.z-50 .rounded-xl.bg-gradient-to-br {
+  background: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .fixed.inset-0.z-50 .rounded-xl.border.bg-white\/\[0\.03\] {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Node type badges - make text darker and more visible */
+html.light .fixed.inset-0.z-50 .text-blue-400 {
+  color: #1D4ED8 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-violet-400 {
+  color: #6D28D9 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-amber-400 {
+  color: #B45309 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-cyan-400 {
+  color: #0E7490 !important;
+}
+
+/* Badge backgrounds - make them more visible */
+html.light .fixed.inset-0.z-50 .bg-blue-500\/15 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .fixed.inset-0.z-50 .bg-emerald-500\/15 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+html.light .fixed.inset-0.z-50 .bg-violet-500\/15 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+html.light .fixed.inset-0.z-50 .bg-amber-500\/15 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+/* Badge borders */
+html.light .fixed.inset-0.z-50 .border-blue-500\/30 {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+html.light .fixed.inset-0.z-50 .border-emerald-500\/30 {
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+html.light .fixed.inset-0.z-50 .border-violet-500\/30 {
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+html.light .fixed.inset-0.z-50 .border-amber-500\/30 {
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+/* Borders */
+html.light .fixed.inset-0.z-50 .border-white\/\[0\.06\],
+html.light .fixed.inset-0.z-50 .border-white\/\[0\.08\] {
+  border-color: #E5E7EB !important;
+}
+
+/* Execute button */
+html.light .fixed.inset-0.z-50 button.bg-gradient-to-r.from-white {
+  background: linear-gradient(to right, #111827, #1F2937) !important;
+  color: #FFFFFF !important;
+}
+
+/* Cancel button */
+html.light .fixed.inset-0.z-50 .text-zinc-500.hover\:text-zinc-200 {
+  color: #6B7280 !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-500.hover\:text-zinc-200:hover {
+  color: #111827 !important;
+}
+
+/* Close button */
+html.light .fixed.inset-0.z-50 .text-zinc-600.hover\:text-zinc-200 {
+  color: #9CA3AF !important;
+}
+
+html.light .fixed.inset-0.z-50 .text-zinc-600.hover\:text-zinc-200:hover {
+  color: #111827 !important;
+}
+
+/* Keep icons inside colored stat boxes white - MUST override earlier text-white rules */
+html.light .bg-emerald-500>.text-white,
+html.light .bg-emerald-500 .text-white,
+html.light .bg-red-500>.text-white,
+html.light .bg-red-500 .text-white,
+html.light .bg-blue-500>.text-white,
+html.light .bg-blue-500 .text-white,
+html.light .bg-amber-500>.text-white,
+html.light .bg-amber-500 .text-white,
+html.light .bg-violet-500>.text-white,
+html.light .bg-violet-500 .text-white,
+html.light .bg-purple-500>.text-white,
+html.light .bg-purple-500 .text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-red-600 .text-white,
+html.light .bg-blue-600 .text-white,
+html.light .bg-amber-600 .text-white,
+html.light .bg-purple-600 .text-white,
+html.light div[class*="bg-emerald-5"] .text-white,
+html.light div[class*="bg-red-5"] .text-white,
+html.light div[class*="bg-blue-5"] .text-white,
+html.light div[class*="bg-amber-5"] .text-white,
+html.light div[class*="bg-violet-5"] .text-white,
+html.light div[class*="bg-purple-5"] .text-white,
+html.light .fixed.top-16 .bg-emerald-500 .text-white,
+html.light .fixed.top-16 .bg-red-500 .text-white,
+html.light .fixed.top-16 .bg-blue-500 .text-white,
+html.light .fixed.top-16 .bg-amber-500 .text-white,
+html.light .fixed.top-16 .bg-violet-500 .text-white,
+html.light .fixed.top-16 .bg-purple-500 .text-white,
+html.light .fixed.bottom-5 .group\/run .text-white,
+html.light .fixed.bottom-5 .group\/runwrap .text-white,
+html.light .fixed.bottom-5 button .text-white,
+html.light [class*="bg-gradient-to-r"] .text-white {
+  color: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - DASHBOARD PAGES (/dashboard, /workflows, /executions, /billing)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Page backgrounds - bg-[#09090b] -> light gray */
+html.light .bg-\[\#09090b\] {
+  background-color: #F9FAFB !important;
+}
+
+/* Card/Panel backgrounds - bg-zinc-900/50 -> white */
+html.light .bg-zinc-900\/50 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-900\/30 {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-zinc-900\/60 {
+  background-color: #F9FAFB !important;
+}
+
+html.light .bg-zinc-900 {
+  background-color: #FFFFFF !important;
+}
+
+/* Border colors - border-zinc-800/xx -> light gray */
+html.light .border-zinc-800\/60 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-800\/50 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-800\/40 {
+  border-color: #F3F4F6 !important;
+}
+
+html.light .border-zinc-800 {
+  border-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-700\/50 {
+  border-color: #D1D5DB !important;
+}
+
+html.light .border-zinc-700 {
+  border-color: #D1D5DB !important;
+}
+
+/* Divider colors */
+html.light .divide-zinc-800\/50> :not([hidden])~ :not([hidden]) {
+  border-color: #E5E7EB !important;
+}
+
+html.light .divide-zinc-800\/60> :not([hidden])~ :not([hidden]) {
+  border-color: #E5E7EB !important;
+}
+
+/* Text colors */
+html.light .text-white {
+  color: #111827 !important;
+}
+
+html.light .text-zinc-200 {
+  color: #1F2937 !important;
+}
+
+html.light .text-zinc-300 {
+  color: #374151 !important;
+}
+
+html.light .text-zinc-400 {
+  color: #4B5563 !important;
+}
+
+html.light .text-zinc-500 {
+  color: #6B7280 !important;
+}
+
+html.light .text-zinc-600 {
+  color: #9CA3AF !important;
+}
+
+html.light .text-zinc-700 {
+  color: #D1D5DB !important;
+}
+
+/* Button backgrounds */
+html.light .bg-zinc-800\/50 {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .bg-zinc-800\/80 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .bg-zinc-800\/30 {
+  background-color: #F9FAFB !important;
+}
+
+html.light .bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .hover\:bg-zinc-800:hover {
+  background-color: #D1D5DB !important;
+}
+
+html.light .hover\:bg-zinc-700:hover {
+  background-color: #D1D5DB !important;
+}
+
+html.light .hover\:bg-zinc-800\/30:hover {
+  background-color: #F3F4F6 !important;
+}
+
+html.light .hover\:bg-zinc-900\/50:hover {
+  background-color: #F3F4F6 !important;
+}
+
+/* Input fields */
+html.light input.bg-zinc-900,
+html.light input.bg-zinc-900\/50 {
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+html.light input.bg-zinc-900::placeholder,
+html.light input.bg-zinc-900\/50::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Progress bar backgrounds */
+html.light .bg-zinc-800.rounded-full,
+html.light .h-1\.5.bg-zinc-800,
+html.light .h-2.bg-zinc-800,
+html.light .h-1.bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+/* DotPattern in light mode - more visible */
+html.light svg.text-zinc-800\/40,
+html.light svg.text-zinc-800\/60 {
+  color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Hover border effects remain colored */
+html.light .hover\:border-violet-500\/20:hover {
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+html.light .hover\:border-blue-500\/20:hover {
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+html.light .hover\:border-emerald-500\/20:hover {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+html.light .hover\:border-amber-500\/20:hover {
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+html.light .hover\:border-red-500\/20:hover {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+html.light .hover\:border-zinc-700\/60:hover {
+  border-color: #D1D5DB !important;
+}
+
+/* Keep colored text vibrant in light mode */
+html.light .text-violet-400 {
+  color: #7C3AED !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563EB !important;
+}
+
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+html.light .text-red-400 {
+  color: #DC2626 !important;
+}
+
+html.light .text-amber-500 {
+  color: #F59E0B !important;
+}
+
+html.light .text-blue-500 {
+  color: #3B82F6 !important;
+}
+
+html.light .text-emerald-500 {
+  color: #10B981 !important;
+}
+
+html.light .text-violet-500 {
+  color: #8B5CF6 !important;
+}
+
+html.light .text-red-500 {
+  color: #EF4444 !important;
+}
+
+/* Background colors with alpha - make them more visible */
+html.light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+html.light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+html.light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+html.light .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Status badges background/text */
+html.light .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+html.light .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+html.light .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Tab indicator stays white on active */
+html.light .h-0\.5.bg-white {
+  background-color: #111827 !important;
+}
+
+/* Gradient header icon boxes - keep original colors */
+html.light .bg-gradient-to-br.from-blue-500.to-blue-600,
+html.light .bg-gradient-to-br.from-amber-500.to-orange-600 {
+  color: #FFFFFF !important;
+}
+
+html.light .bg-gradient-to-br.from-blue-500.to-blue-600 .text-white,
+html.light .bg-gradient-to-br.from-amber-500.to-orange-600 .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Filter buttons */
+html.light .bg-zinc-900.border.border-zinc-800 {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .bg-zinc-800.text-white.shadow-sm {
+  background-color: #E5E7EB !important;
+  color: #111827 !important;
+}
+
+/* Hover text transitions */
+html.light .hover\:text-white:hover {
+  color: #111827 !important;
+}
+
+html.light .hover\:text-zinc-300:hover {
+  color: #374151 !important;
+}
+
+html.light .hover\:text-zinc-400:hover {
+  color: #4B5563 !important;
+}
+
+/* Empty state icons */
+html.light .text-zinc-700.mb-4 {
+  color: #9CA3AF !important;
+}
+
+/* Timeline and node dots */
+html.light .w-px.bg-zinc-800 {
+  background-color: #E5E7EB !important;
+}
+
+html.light .border-zinc-700.bg-\[\#09090b\] {
+  background-color: #FFFFFF !important;
+}
+
+/* API provider status dots stay colored */
+html.light .w-2.h-2.rounded-full.bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+
+html.light .w-2.h-2.rounded-full.bg-amber-500 {
+  background-color: #F59E0B !important;
+}
+
+html.light .w-2.h-2.rounded-full.bg-red-500 {
+  background-color: #EF4444 !important;
+}
+
+/* Ping animation dots stay colored */
+html.light .animate-ping.bg-emerald-400,
+html.light .animate-ping.bg-blue-400 {
+  background-color: inherit !important;
+}
+
+html.light .relative.inline-flex.rounded-full.bg-emerald-500,
+html.light .relative.inline-flex.rounded-full.bg-blue-500 {
+  background-color: inherit !important;
+}
+
+/* Running indicator badge */
+html.light .bg-blue-500\/10.border.border-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Plan cards with special border */
+html.light .border-blue-500\/30 {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Checkbox icons - keep them colored correctly */
+html.light .text-zinc-600.w-3\.5.h-3\.5 {
+  color: #9CA3AF !important;
+}
+
+/* Gradient progress bars - keep colored */
+html.light .bg-gradient-to-r.from-amber-500.to-orange-500,
+html.light .bg-gradient-to-r.from-blue-600.to-blue-500 {
+  background: inherit !important;
+}
+
+/* Glow effects on icons - soften in light mode */
+html.light .shadow-lg.shadow-blue-500\/25 {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.15) !important;
+}
+
+html.light .shadow-xl.shadow-emerald-500\/10 {
+  box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Context menu / dropdown */
+html.light .bg-zinc-900.border.border-zinc-700.rounded-xl.shadow-xl {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Hover on dropdown items */
+html.light .hover\:bg-red-500\/10:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* SPECIAL: Keep icons inside gradient boxes white */
+html.light .bg-gradient-to-br .text-white {
+  color: #FFFFFF !important;
+}
+
+/* Keep badges styled correctly */
+html.light .bg-emerald-500\/10.text-emerald-400.border.border-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Search input on workflows page */
+html.light input.bg-zinc-900\/50.border.border-zinc-800.rounded-xl {
+  background-color: #FFFFFF !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+}
+
+html.light input.bg-zinc-900\/50.border.border-zinc-800.rounded-xl::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Empty state container */
+html.light .rounded-2xl.border.border-zinc-800\/60.bg-zinc-900\/30 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Workflow item cards */
+html.light .rounded-xl.bg-zinc-900\/30.border.border-zinc-800\/50 {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.light .rounded-xl.bg-zinc-900\/30.border.border-zinc-800\/50:hover {
+  background-color: #F9FAFB !important;
+  border-color: #D1D5DB !important;
+}
+
+/* Workflow item icon box */
+html.light .bg-zinc-800\/80.border.border-zinc-700\/50 {
+  background-color: #F3F4F6 !important;
+  border-color: #E5E7EB !important;
+}
+
+/* Icon color transitions */
+html.light .text-zinc-400.group-hover\:text-zinc-300 {
+  color: #6B7280 !important;
+}
+
+html.light .group:hover .group-hover\:text-zinc-300 {
+  color: #4B5563 !important;
+}
+
+html.light .group:hover .group-hover\:text-white {
+  color: #111827 !important;
+}
+
+/* Node timeline dot backgrounds */
+html.light .border-blue-500.bg-\[\#09090b\] {
+  background-color: #FFFFFF !important;
+}
+
+/* Credit bar icon boxes */
+html.light .bg-amber-500\/10.border.border-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Transaction list hover */
+html.light .hover\:bg-zinc-800\/30.transition-colors:hover {
+  background-color: #F3F4F6 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE - SELECT DROPDOWN STYLING
+   Native select/option elements need explicit dark mode styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Dark mode select dropdowns */
+html.dark select,
+.dark select {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+/* Dark mode option elements inside select */
+html.dark select option,
+.dark select option {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+html.dark select option:hover,
+.dark select option:hover,
+html.dark select option:checked,
+.dark select option:checked {
+  background-color: #27272a !important;
+  color: #fafafa !important;
+}
+
+/* ReactFlow node select dropdowns in dark mode */
+html.dark .react-flow__node select,
+.dark .react-flow__node select {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+html.dark .react-flow__node select option,
+.dark .react-flow__node select option {
+  background-color: #18181b !important;
+  color: #d4d4d8 !important;
+}
+
+/* =============================================================================
+   DASHBOARD LIGHT MODE FIXES
+   ============================================================================= */
+
+/* Ensure all text-gray-900 is visible in light mode */
+html.light .text-gray-900 {
+  color: #111827 !important;
+}
+
+html.light .text-gray-800 {
+  color: #1F2937 !important;
+}
+
+html.light .text-gray-700 {
+  color: #374151 !important;
+}
+
+html.light .text-gray-600 {
+  color: #4B5563 !important;
+}
+
+html.light .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+html.light .text-gray-400 {
+  color: #9CA3AF !important;
+}
+
+/* Success/error text colors in light mode */
+html.light .text-emerald-600 {
+  color: #059669 !important;
+}
+
+html.light .text-red-600 {
+  color: #DC2626 !important;
+}
+
+html.light .text-amber-600 {
+  color: #D97706 !important;
+}
+
+html.light .text-violet-600 {
+  color: #7C3AED !important;
+}
+
+html.light .text-blue-600 {
+  color: #2563EB !important;
+}
+
+/* =============================================================================
+   CLERK AUTH CARD
+   Clerk injects emotion styles with single-class selectors that outrank the
+   Tailwind classes passed via `appearance.elements`. Two-class selectors here
+   win without !important.
+   ========================================================================== */
+.cl-cardBox>.cl-card {
+  background: rgba(24, 24, 27, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -20px rgba(0, 0, 0, 0.8);
+}
+
+.cl-cardBox {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   DISPLAY TYPEFACE — articulat-cf (Typekit sheet loaded in app/layout.tsx)
+   Only the variable + utility class. The full heading scale lives in
+   app/typography.css and is deliberately NOT imported: its bare h1–h6 rules
+   would resize every heading in the app.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font-articulat-cf: "articulat-cf", sans-serif;
+}
+
+.font-articulat-cf {
+  font-family: var(--font-articulat-cf);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR TOKENS
+   Keyed off the theme class, not `dark:` utilities. Tailwind v4 in this repo
+   has no `@custom-variant dark`, so `dark:` compiles to
+   @media (prefers-color-scheme: dark) and follows the OS instead of the
+   .light / .dark class the theme script sets.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root,
+html.dark {
+  --sb-bg: #0B0B0D;
+  --sb-panel: #141417;
+  --sb-panel-hover: #1B1B1F;
+  --sb-line: rgba(255, 255, 255, 0.07);
+  --sb-line-strong: rgba(255, 255, 255, 0.14);
+  --sb-ink: #F4F4F2;
+  --sb-ink-2: #A3A39D;
+  --sb-ink-3: #66665F;
+  --sb-accent: #4FC3A1;
+  --sb-accent-soft: rgba(79, 195, 161, 0.13);
+  --sb-warn: #E0A33E;
+  --sb-danger: #F2585B;
+  --sb-invert-bg: #F4F4F2;
+  --sb-invert-ink: #0B0B0D;
+}
+
+html.light {
+  --sb-bg: #EAE8E3;
+  --sb-panel: #E1DED7;
+  --sb-panel-hover: #D8D4CB;
+  --sb-line: #D2CEC5;
+  --sb-line-strong: #BCB7AC;
+  --sb-ink: #18181B;
+  --sb-ink-2: #5C5A54;
+  --sb-ink-3: #8B887F;
+  --sb-accent: #2D8B73;
+  --sb-accent-soft: rgba(45, 139, 115, 0.12);
+  --sb-warn: #B4761B;
+  --sb-danger: #C93A3D;
+  --sb-invert-bg: #18181B;
+  --sb-invert-ink: #EAE8E3;
+}

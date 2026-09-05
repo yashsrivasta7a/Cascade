@@ -1,56 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 50" fill="none">
-  <!-- Import Orbitron font -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 50" fill="none" role="img" aria-label="Cascade">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&amp;display=swap');
-    </style>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&amp;display=swap');</style>
   </defs>
-  
-  <!-- Logo Icon (scaled down) -->
-  <g transform="translate(0, 5) scale(0.2)">
-    <!-- Gear at top-left -->
-    <g transform="translate(28, 28)">
-      <path d="M12 0L14 6L20 4L18 10L24 12L18 14L20 20L14 18L12 24L10 18L4 20L6 14L0 12L6 10L4 4L10 6L12 0Z" 
-            fill="#2D8B73" stroke="#2D8B73" stroke-width="1"/>
-      <circle cx="12" cy="12" r="5" fill="#101010"/>
-      <circle cx="12" cy="12" r="3" fill="#2D8B73"/>
-    </g>
-    
-    <!-- Main F circuit traces -->
-    <g stroke="#2D8B73" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M40 52 L40 170 Q40 180 50 180 L70 180"/>
-      <path d="M40 52 L130 52 Q140 52 140 62 L140 72 Q140 82 150 82 L170 82"/>
-      <path d="M170 82 L170 52 Q170 42 160 42 L90 42"/>
-      <path d="M40 100 L80 100 Q90 100 90 110 L90 130 Q90 140 100 140 L130 140"/>
-      <path d="M80 100 L110 100 Q120 100 120 90 L120 70"/>
-      <path d="M40 130 L60 130 Q70 130 70 140 L70 160"/>
-      <path d="M70 180 L100 180 Q110 180 110 170 L110 155"/>
-      <path d="M110 155 L140 155 Q150 155 150 165 L150 180"/>
-      <path d="M130 140 L130 120 Q130 110 140 110 L160 110"/>
-      <path d="M160 110 L160 130"/>
-    </g>
-    
-    <!-- Orange circuit nodes -->
-    <g fill="#F59E0B">
-      <circle cx="40" cy="52" r="5"/>
-      <circle cx="90" cy="42" r="5"/>
-      <circle cx="170" cy="52" r="4"/>
-      <circle cx="170" cy="82" r="5"/>
-      <circle cx="120" cy="70" r="4"/>
-      <circle cx="80" cy="100" r="4"/>
-      <circle cx="130" cy="140" r="5"/>
-      <circle cx="160" cy="110" r="4"/>
-      <circle cx="160" cy="130" r="4"/>
-      <circle cx="70" cy="160" r="4"/>
-      <circle cx="70" cy="180" r="5"/>
-      <circle cx="110" cy="155" r="4"/>
-      <circle cx="150" cy="180" r="5"/>
-      <circle cx="40" cy="170" r="4"/>
-    </g>
+  <g transform="translate(3, 5) scale(1.25)" fill="#FFFFFF">
+    <polygon points="4.3,8.9 11.5,4.75 18.7,8.9 11.5,13.05" />
+    <polygon points="4.3,8.9 11.5,13.05 11.5,19.05 4.3,14.9" opacity="0.34" />
+    <polygon points="11.5,13.05 18.7,8.9 18.7,14.9 11.5,19.05" opacity="0.62" />
+    <polygon points="13.3,17.4 20.5,13.25 27.7,17.4 20.5,21.55" />
+    <polygon points="13.3,17.4 20.5,21.55 20.5,27.55 13.3,23.4" opacity="0.34" />
+    <polygon points="20.5,21.55 27.7,17.4 27.7,23.4 20.5,27.55" opacity="0.62" />
   </g>
-  
-  <!-- FLOWSMITH Text in Orbitron -->
-  <text x="52" y="35" font-family="Orbitron, sans-serif" font-weight="700" font-size="24" fill="#FFFFFF" letter-spacing="3">
-    FLOWSMITH
-  </text>
+  <text x="54" y="34" font-family="Syne, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-weight="800" font-size="25" letter-spacing="5" fill="#FFFFFF">CASCADE</text>
 </svg>

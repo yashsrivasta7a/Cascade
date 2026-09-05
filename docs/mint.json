@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "Flowsmith",
+  "name": "Cascade",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
@@ -42,16 +42,16 @@
   "topbarLinks": [
     {
       "name": "Dashboard",
-      "url": "https://flowsmiths.vercel.app/dashboard"
+      "url": "https://cascade.vercel.app/dashboard"
     },
     {
       "name": "Changelog",
-      "url": "https://flowsmiths.vercel.app/changelog"
+      "url": "https://cascade.vercel.app/changelog"
     }
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "https://flowsmiths.vercel.app/sign-up",
+    "url": "https://cascade.vercel.app/sign-up",
     "style": "pill"
   },
   "styling": {
@@ -142,7 +142,7 @@
     "raiseIssue": true
   },
   "api": {
-    "baseUrl": "https://flowsmiths.vercel.app",
+    "baseUrl": "https://cascade.vercel.app",
     "auth": {
       "method": "bearer"
     },

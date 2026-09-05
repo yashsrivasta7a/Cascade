@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useUser, SignInButton } from "@clerk/nextjs";
 import { motion } from "framer-motion";
-import { Copy, Check, Loader2, Terminal, RefreshCw, CheckCircle } from "lucide-react";
+import { Copy, Check, Loader2, RefreshCw, CheckCircle } from "lucide-react";
+import { Logo } from "@/components/ui";
 
 export default function MCPAuthPage() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -142,12 +143,12 @@ export default function MCPAuthPage() {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 mb-4">
-            <Terminal className="w-8 h-8 text-emerald-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 border border-white/10 mb-4">
+            <Logo className="w-9 h-9 text-white" />
           </div>
           <h1 className="text-2xl font-bold mb-2">Connect MCP Server</h1>
           <p className="text-zinc-400 text-sm">
-            Authenticate your Flowsmith MCP server with Cursor
+            Authenticate your Cascade MCP server with Cursor
           </p>
         </div>
 

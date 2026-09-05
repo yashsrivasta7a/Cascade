@@ -1,292 +1,225 @@
-# Flowsmith
-
 <div align="center">
 
-![Flowsmith](public/logo.svg)
+<img src="public/logo.svg" alt="Flowsmith" width="88" />
 
-**Visual AI Workflow Builder**
+# Flowsmith
 
-Create, connect, and execute AI-powered pipelines with an intuitive node-based interface.
+**Wire AI models together on a canvas. Press run.**
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge)](https://flowsmiths.vercel.app)
-[![Documentation](https://img.shields.io/badge/docs-mintlify-blue?style=for-the-badge)](https://docs.flowsmiths.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-357%2B%20passing-success?style=for-the-badge)](#test-coverage)
+Drag nodes, connect them, and Flowsmith figures out what can run in parallel —
+generating images, video, and speech through one graph.
+
+<br />
+
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-149ECA?style=flat-square&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?style=flat-square&logo=prisma&logoColor=white)
+![License](https://img.shields.io/badge/license-proprietary-lightgrey?style=flat-square)
 
 </div>
 
 ---
 
-## ✨ Features
+## What it does
 
-### Visual Workflow Editor
-- **Drag-and-drop** node-based interface powered by ReactFlow
-- **Smart connections** with type validation and compatibility hints
-- **Auto-layout** algorithm for clean DAG visualization
-- **Keyboard shortcuts** for power users (copy, paste, undo, redo)
-- **Multi-select** and bulk operations
-- **Version history** with one-click restore
+You build a directed graph. Each node is a model call or a media operation, and
+each edge carries a typed asset — text, image, video, audio — from one node's
+output into the next node's input.
 
-### AI Node Types
-| Node | Provider | Description |
-|------|----------|-------------|
-| **Seedream** | fal.ai | High-quality image generation |
-| **Seedance** | fal.ai | AI video generation |
-| **SeedVR** | fal.ai | VR content generation |
-| **OpenRouter LLM** | OpenRouter | GPT-4, Claude, Llama, Gemini |
-| **ElevenLabs** | ElevenLabs | Text-to-speech synthesis |
-| **Merge Videos** | Internal | Combine videos with transitions |
-| **Extract Audio** | Internal | Extract audio from video |
-| **Crop Image** | Internal | Crop and resize images |
+```
+   ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+   │  OpenRouter  │─────▶│   Seedream   │─────▶│   Seedance   │
+   │  write scene │ text │  still frame │ image│  animate it  │
+   └──────────────┘      └──────────────┘      └──────┬───────┘
+                                                       │ video
+   ┌──────────────┐      ┌──────────────┐              │
+   │  ElevenLabs  │─────▶│   Lipsync    │◀─────────────┘
+   │   narration  │ audio│   sync them  │
+   └──────────────┘      └──────┬───────┘
+                                │ video
+                                ▼
+                         finished clip
+```
 
-### Execution Engine
-- **DAG-based parallel execution** – Independent nodes run simultaneously
-- **Real-time streaming** – SSE updates for live progress
-- **Skip node** – Cache results and skip re-execution to save credits
-- **Cascading failures** – Automatic error propagation
-- **Credit tracking** – Per-execution cost breakdown
-
-### Developer Experience
-- **Config-driven nodes** – Add new nodes without writing component code
-- **Type-safe API** – Full tRPC integration with Zod validation
-- **Auto-generated docs** – OpenAPI spec via trpc-to-openapi
-- **357+ tests** – Unit, integration, and E2E coverage
+The executor walks the graph, starts every node whose inputs are ready, and
+keeps going as results land — so the two branches above run at the same time
+rather than one after the other.
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### Prerequisites
+**Canvas**
+Drag-and-drop editing on ReactFlow, with type-checked connections that refuse
+to link an audio output into an image input. Auto-layout untangles a messy
+graph into a readable DAG. Undo/redo, multi-select, and version history with
+one-click restore.
 
-- **Node.js** 18+
-- **PostgreSQL** database (or [Neon.tech](https://neon.tech))
-- **Clerk** account for authentication
-- **Trigger.dev** account for background jobs
+**Execution**
+True DAG scheduling — nodes wait only on their own dependencies, never on a
+batch. Progress streams back live over Trigger.dev Realtime. A failed node
+propagates failure downstream instead of leaving the run half-finished.
 
-### Installation
+**Cost control**
+Every node carries a credit estimate, totalled before you commit to a run.
+Toggle *skip* on a node to reuse its last output and spend nothing re-running
+a step you have already paid for.
+
+**Extending it**
+Nodes are declarative. A new node is an entry in `lib/config/nodes/` — fields,
+handles, and provider binding — and the generic renderer builds the component,
+the form, and the validation from it. No new React component required.
+
+---
+
+## Nodes
+
+| Node | Provider | What it does |
+|------|----------|--------------|
+| **Seedream 4.5** | fal.ai | Text-to-image with strong prompt adherence |
+| **SeedVR 2** | fal.ai | Image upscaling with face enhancement |
+| **Seedance 1.5** | fal.ai | Cinematic video from a prompt, or animate a still |
+| **Sync Lipsync** | fal.ai | Match mouth movement to an audio track |
+| **OpenRouter LLM** | OpenRouter | GPT, Claude, Gemini and others behind one API |
+| **ElevenLabs V3** | ElevenLabs | Text-to-speech with emotion control |
+| **Crop Image** | Internal | Percentage-based cropping |
+| **Merge Videos** | Internal | Concatenate clips, optional transitions |
+| **Merge Audio + Video** | Internal | Combine or replace a video's audio track |
+| **Extract Audio** | Internal | Pull the audio track out of a video |
+| **Image / Video / Audio Input** | — | Upload entry points for your own media |
+
+---
+
+## Quick start
+
+**You'll need** Node 18+, a PostgreSQL database ([Neon](https://neon.tech) works
+well), and accounts for [Clerk](https://clerk.com) and
+[Trigger.dev](https://trigger.dev).
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-repo/flowsmith.git
-cd flowsmith
-
-# Install dependencies
+git clone https://github.com/yashsrivasta7a/Flowsmith.git
+cd Flowsmith
 npm install
 
-# Set up environment variables
-cp .env.example .env.local
-# Edit .env.local with your credentials
+cp .env.example .env.local     # fill in the values below
 
-# Set up database
 npm run db:generate
 npm run db:push
-
-# Start development servers
-npm run dev          # Terminal 1: Next.js
-npm run trigger:dev  # Terminal 2: Trigger.dev worker
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to start building workflows.
-
----
-
-## 🔧 Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 14, React 18, TypeScript |
-| **State** | Zustand with persistence |
-| **Styling** | Tailwind CSS, Framer Motion |
-| **Canvas** | ReactFlow |
-| **Backend** | tRPC, Prisma, PostgreSQL |
-| **Auth** | Clerk |
-| **Jobs** | Trigger.dev |
-| **AI** | fal.ai, OpenRouter, ElevenLabs |
-| **Media** | Transloadit (CDN), FFmpeg |
-| **Testing** | Vitest, Playwright |
-| **Docs** | Mintlify |
-
----
-
-## 📡 API Reference
-
-Full API documentation is available at [docs.flowsmiths.vercel.app](https://docs.flowsmiths.vercel.app).
-
-### Public Endpoints
-
-| Category | Endpoints | Description |
-|----------|-----------|-------------|
-| **Workflows** | 7 | CRUD, duplicate, execute |
-| **Executions** | 4 | List, get, cancel, stream |
-| **Nodes** | 3 | Execute, status, LLM streaming |
-| **Credits** | 2 | Balance, statistics |
-| **Media** | 1 | Upload to CDN |
-| **Dashboard** | 1 | Aggregate stats |
-
-### OpenAPI Spec
-
-```
-https://flowsmiths.vercel.app/api/openapi
-```
-
-Import into Postman, Insomnia, or any OpenAPI-compatible client.
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              FLOWSMITH ARCHITECTURE                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Next.js App    │────▶│   Vercel Edge    │────▶│    PostgreSQL    │
-│   (Frontend)     │     │   (API Routes)   │     │    (Neon.tech)   │
-└────────┬─────────┘     └────────┬─────────┘     └──────────────────┘
-         │                        │
-         │ SSE Streaming          │ Task Triggers
-         │                        ▼
-         │               ┌──────────────────┐
-         │               │   Trigger.dev    │
-         │               │   (Workers)      │
-         │               └────────┬─────────┘
-         │                        │
-         │                        ▼
-         │               ┌──────────────────┐
-         │               │   AI Providers   │
-         │               │ • fal.ai         │
-         │               │ • OpenRouter     │
-         │               │ • ElevenLabs     │
-         │               └──────────────────┘
-         │
-         ▼
-┌──────────────────┐     ┌──────────────────┐
-│   Transloadit    │     │   Clerk Auth     │
-│   (Media CDN)    │     │   (Identity)     │
-└──────────────────┘     └──────────────────┘
-```
-
-### Key Files
-
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Flow Canvas | `components/flow/flow-canvas.tsx` | Main workflow editor |
-| Generic Node | `components/flow/generic-node.tsx` | Unified node component |
-| Node Config | `lib/config/node-config.ts` | Declarative node definitions |
-| Workflow Executor | `app/trigger/workflow-executor.ts` | DAG execution engine |
-| Node Executor | `app/trigger/node-executor.ts` | Individual node processing |
-| Flow Store | `store/flow-store.ts` | Zustand state management |
-
----
-
-## 🧪 Test Coverage
-
-**357+ tests passing** across unit, integration, and E2E suites.
-
-| Category | Tests | Coverage |
-|----------|-------|----------|
-| Unit Tests | ~310 | Type compatibility, credits, UI components |
-| Integration Tests | ~46 | API endpoints, tRPC procedures |
-| E2E Tests | ~45 | Auth flows, workflow editor, navigation |
+Then start both processes — the app and the background worker:
 
 ```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run E2E tests
-npm run test:e2e
+npm run dev          # terminal 1 → http://localhost:3000
+npm run trigger:dev  # terminal 2 → executes the nodes
 ```
 
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + Z` | Undo |
-| `Ctrl/Cmd + Shift + Z` | Redo |
-| `Ctrl/Cmd + C` | Copy selected nodes |
-| `Ctrl/Cmd + V` | Paste nodes |
-| `Ctrl/Cmd + S` | Save workflow |
-| `Delete` | Delete selected nodes |
-| `Escape` | Deselect / Cancel |
-| `R` | Run workflow |
-| `S` | Open shortcuts panel |
-| `H` | Toggle Timeline panel |
-| `A` | Toggle Asset Manager |
-| `W` | Toggle Workflow sidebar |
+> Without the Trigger.dev worker running, workflows queue but never execute.
 
 ---
 
-## 🔐 Environment Variables
-
-Create a `.env.local` file:
+## Environment
 
 ```env
 # Database
 DATABASE_URL="postgresql://..."
 
-# Authentication (Clerk)
+# Auth
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_..."
 CLERK_SECRET_KEY="sk_..."
 
-# Background Jobs (Trigger.dev)
+# Background jobs
 TRIGGER_SECRET_KEY="tr_dev_..."
 TRIGGER_PROJECT_REF="proj_..."
 
-# AI Providers
-FAL_KEY="..."                    # fal.ai
-OPENROUTER_API_KEY="..."         # OpenRouter
-ELEVENLABS_API_KEY="..."         # ElevenLabs
+# Model providers
+FAL_KEY="..."
+OPENROUTER_API_KEY="..."
+ELEVENLABS_API_KEY="..."
 
-# Media Processing (Transloadit)
+# Media CDN
 TRANSLOADIT_AUTH_KEY="..."
 TRANSLOADIT_AUTH_SECRET="..."
 
-# App Config
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
 ---
 
-## 📜 Scripts
+## Architecture
+
+```
+Browser ── tRPC ──▶ Next.js ── Prisma ──▶ PostgreSQL
+   ▲                   │
+   │                   └── triggers ──▶ Trigger.dev workers
+   │                                          │
+   └──────── Realtime run updates ────────────┤
+                                              ├──▶ fal.ai
+                                              ├──▶ OpenRouter
+                                              ├──▶ ElevenLabs
+                                              └──▶ Transloadit (CDN)
+```
+
+Long media jobs run on Trigger.dev rather than in a serverless request, so
+FFmpeg work and slow model calls aren't bound by a request timeout. The browser
+subscribes to run updates directly, which keeps progress live without polling.
+
+**Where things live**
+
+| Path | Purpose |
+|------|---------|
+| `components/flow/flow-canvas.tsx` | The editor canvas |
+| `components/flow/generic-node.tsx` | One component renders every node type |
+| `lib/config/nodes/` | Declarative node definitions |
+| `app/trigger/workflow-executor.ts` | DAG scheduler |
+| `app/trigger/node-executor.ts` | Runs a single node |
+| `store/flow-store.ts` | Canvas state (Zustand) |
+
+---
+
+## Shortcuts
+
+| Key | Action | | Key | Action |
+|-----|--------|-|-----|--------|
+| `R` | Run workflow | | `Ctrl/⌘ + Z` | Undo |
+| `N` | Node palette | | `Ctrl/⌘ + ⇧ + Z` | Redo |
+| `H` | Timeline | | `Ctrl/⌘ + C` | Copy |
+| `A` | Assets | | `Ctrl/⌘ + V` | Paste |
+| `C` | Credits | | `Ctrl/⌘ + S` | Save |
+| `G` | Auto-arrange | | `Delete` | Delete selection |
+| `S` | Shortcuts | | `Esc` | Cancel / stop run |
+
+---
+
+## Scripts
 
 ```bash
-# Development
-npm run dev              # Start Next.js dev server
-npm run trigger:dev      # Start Trigger.dev worker
-
-# Database
-npm run db:generate      # Generate Prisma client
-npm run db:push          # Push schema changes
-npm run db:studio        # Open Prisma Studio
-
-# Testing
-npm test                 # Run all tests
-npm run test:coverage    # With coverage report
-npm run test:e2e         # Playwright E2E tests
-
-# Production
-npm run build            # Build for production
-npm run start            # Start production server
-
-# Documentation
-cd docs && npx mintlify dev  # Start docs locally
+npm run dev          # dev server
+npm run trigger:dev  # background worker
+npm run build        # production build
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+npm run db:studio    # browse the database
 ```
 
 ---
 
-## 📄 License
+## API
 
-Private project - All rights reserved.
+Flowsmith exposes a typed tRPC API, mirrored to REST via `trpc-to-openapi`.
+Workflows can be created and executed programmatically — the same engine the
+canvas uses.
+
+```
+GET /api/openapi     # OpenAPI spec, importable into Postman or Insomnia
+```
+
+Local docs: `cd docs && npx mintlify dev`
 
 ---
 
 <div align="center">
-
-**[Live Demo](https://flowsmiths.vercel.app)** · **[Documentation](https://docs.flowsmiths.vercel.app)** · **[API Reference](https://flowsmiths.vercel.app/api/openapi)**
-
+<sub>Private project · All rights reserved</sub>
 </div>

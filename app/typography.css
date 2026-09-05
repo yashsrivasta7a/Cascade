@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   FLOWSMITH — TYPOGRAPHY SCALE
+   CASCADE — TYPOGRAPHY SCALE
    Headings: articulat-cf (Typekit, loaded in app/layout.tsx)
    Body/UI:  Google Sans Flex (next/font, --font-google-sans-flex)
+   Wordmark: Syne 800 (next/font, --font-display) - brand only, see .font-display
 
    Everything lives in @layer base on purpose. Tailwind v4 emits utilities into
    @layer utilities, and unlayered CSS outranks any layer — so an unlayered
@@ -28,6 +29,14 @@
 
   .font-google-sans-flex {
     font-family: var(--font-google-sans-flex), sans-serif;
+  }
+
+  /* Wordmark only. Syne (next/font, --font-display) is deliberately unlike the
+     UI face - do not reach for it in body copy or headings. */
+  .font-display {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.02em;
   }
 
   /* ── Base / ≥2049px ────────────────────────────────────────────────────── */

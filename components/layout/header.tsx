@@ -23,13 +23,13 @@ export function CreditBalanceDisplay() {
       </div>
       <div className="flex flex-col">
         {isLoading ? (
-          <span className="text-xs font-medium text-zinc-400 animate-pulse">...</span>
+          <span className="text-xs font-medium text-slate-600 animate-pulse">...</span>
         ) : (
           <>
             <span className="text-xs font-semibold text-zinc-100 tabular-nums leading-none group-hover:text-white transition-colors">
               {creditsData?.formatted ?? "0"}
             </span>
-            <span className="text-[10px] text-zinc-500 leading-none">credits</span>
+            <span className="text-[10px] text-slate-700 leading-none">credits</span>
           </>
         )}
       </div>
@@ -57,7 +57,7 @@ export function Header({ title, description, actions, showCredits = false }: Hea
           <h1 className="text-base font-semibold text-zinc-100">{title}</h1>
         )}
         {description && (
-          <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+          <p className="text-xs text-slate-700 mt-0.5">{description}</p>
         )}
       </div>
 

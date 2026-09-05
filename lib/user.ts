@@ -43,20 +43,50 @@ export async function ensureCurrentUser(): Promise<EnsuredUser | null> {
     // If not in DB, fetch from Clerk and create
     if (!user) {
       const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? `${userId}@flowsmith.app`;
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? `${userId}@cascade.app`;
 
-      user = await db.user.upsert({
-        where: { id: userId },
-        create: {
-          id: userId,
-          email,
-          credits: 1000, // Welcome credits
-        },
-        update: {},
-        select: { id: true, email: true, credits: true },
-      });
+      // The upsert matches on id, but email carries its own unique index, so a
+      // create can still collide two ways: concurrent requests (the dashboard
+      // fires several tRPC calls at once, and they all miss the findUnique
+      // above before any of them writes), or an existing row holding this email
+      // under a different Clerk id — which happens whenever the Clerk instance
+      // is swapped and issues new user ids for the same person.
+      try {
+        user = await db.user.upsert({
+          where: { id: userId },
+          create: {
+            id: userId,
+            email,
+            credits: 1000, // Welcome credits
+          },
+          update: {},
+          select: { id: true, email: true, credits: true },
+        });
 
-      log.info(`Created user ${userId}`, { email });
+        log.info(`Created user ${userId}`, { email });
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== "P2002") throw error;
+
+        // Lost the race, or the email belongs to a prior Clerk identity. Re-read
+        // by id first: if a concurrent request won, that row is the right one.
+        user = await db.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, credits: true },
+        });
+
+        if (!user) {
+          // The email is held by an older id. Re-point that row at the current
+          // Clerk id so the account keeps its workflows and credit balance
+          // instead of silently starting over.
+          user = await db.user.update({
+            where: { email },
+            data: { id: userId },
+            select: { id: true, email: true, credits: true },
+          });
+          log.info(`Re-linked user ${userId} to existing email`, { email });
+        }
+      }
     }
 
     return user;
@@ -166,7 +196,7 @@ export async function getUserIdForApi(): Promise<{ userId: string; isDevUser: bo
     where: { id: devUserId },
     create: {
       id: devUserId,
-      email: "dev@flowsmith.dev",
+      email: "dev@cascade.dev",
       credits: 99999,
     },
     update: {},

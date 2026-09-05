@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  compiler: {
+    // 546 console calls ship to the client today, many inside node render and
+    // field-change paths where they run on every keystroke. Stripping them at
+    // build time keeps full dev logging while removing the work (and the leaked
+    // internals) from production. console.error/warn are kept deliberately.
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   // Ignore TypeScript errors during build
   typescript: {
     ignoreBuildErrors: true,

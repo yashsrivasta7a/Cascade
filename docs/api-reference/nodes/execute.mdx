@@ -55,7 +55,7 @@ This endpoint executes nodes asynchronously through Trigger.dev. For synchronous
 ### OpenRouter LLM
 
 ```bash
-curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+curl -X POST https://cascade.vercel.app/api/nodes/execute \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -84,7 +84,7 @@ curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
 ### Seedream Image Generation
 
 ```bash
-curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+curl -X POST https://cascade.vercel.app/api/nodes/execute \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -100,13 +100,13 @@ curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
 ### ElevenLabs Text-to-Speech
 
 ```bash
-curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
+curl -X POST https://cascade.vercel.app/api/nodes/execute \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "nodeType": "elevenlabs",
     "input": {
-      "text": "Hello, welcome to Flowsmith!",
+      "text": "Hello, welcome to Cascade!",
       "voiceId": "21m00Tcm4TlvDq8ikWAM",
       "stability": 0.5,
       "clarity": 0.75
@@ -119,7 +119,7 @@ curl -X POST https://flowsmiths.vercel.app/api/nodes/execute \
 After triggering, use the [Node Status](/api-reference/nodes/status) endpoint to check completion:
 
 ```bash
-curl "https://flowsmiths.vercel.app/api/nodes/status?nodeId=YOUR_NODE_ID" \
+curl "https://cascade.vercel.app/api/nodes/status?nodeId=YOUR_NODE_ID" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 

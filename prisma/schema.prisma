@@ -1,4 +1,4 @@
-// Flowsmith - AI Workflow Orchestration Platform
+// Cascade - AI Workflow Orchestration Platform
 // Prisma Schema for PostgreSQL (Neon)
 
 generator client {
@@ -9,7 +9,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://neondb_owner:npg_WFO29IUfqEXB@ep-odd-bread-admxn4nd-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require"
+  url      = env("DATABASE_URL")
 }
 
 // =============================================================================

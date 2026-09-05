@@ -65,7 +65,7 @@ export function RunSelectedButton({
       <button
         onClick={isRunning ? onStop : onRun}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all shadow-lg group/runbtn",
+          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-lg group/runbtn",
           isRunning
             ? "bg-zinc-800 hover:bg-red-600 border border-zinc-700 hover:border-red-500"
             : "border border-white/10 hover:brightness-110"
