@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 // Centralized auth checking for all MCP tools
 // =============================================================================
 
-const API_BASE = (process.env.CASCADE_API_URL || "https://cascade.vercel.app").replace(/\/+$/, "");
+const API_BASE = (process.env.CASCADE_API_URL || "https://cascade-ys7.vercel.app").replace(/\/+$/, "");
 const API_KEY = process.env.CASCADE_API_KEY || "";
 
 export interface AuthStatus {

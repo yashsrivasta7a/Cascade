@@ -31,7 +31,7 @@ const bottomItems = [
  { label: "Billing", href: "/billing", icon: CreditCard },
 ];
 
-const SIDEBAR_STORAGE_KEY = "flowsmith:sidebar-collapsed";
+const SIDEBAR_STORAGE_KEY = "cascade:sidebar-collapsed";
 
 // Minimal external store over localStorage so the sidebar state survives
 // navigation and stays in sync across every mounted Sidebar.

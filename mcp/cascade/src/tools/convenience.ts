@@ -318,7 +318,7 @@ interface AnalyzeLocalImageArgs {
   model?: string;
 }
 
-const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade-ys7.vercel.app";
 
 // Node output info for response
 interface NodeOutputInfo {

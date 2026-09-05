@@ -43,7 +43,7 @@ Use this when authentication fails or when first setting up the MCP server.`,
 // CONFIGURATION
 // =============================================================================
 
-const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade-ys7.vercel.app";
 const API_KEY = process.env.CASCADE_API_KEY || "";
 
 // Find the MCP config file path

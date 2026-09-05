@@ -5,7 +5,7 @@ import { logger } from "./logger.js";
 // HTTP client for communicating with Cascade TRPC/REST APIs
 // =============================================================================
 
-const API_BASE = process.env.CASCADE_API_URL || "https://cascade.vercel.app";
+const API_BASE = process.env.CASCADE_API_URL || "https://cascade-ys7.vercel.app";
 const API_KEY = process.env.CASCADE_API_KEY || "";
 
 // =============================================================================

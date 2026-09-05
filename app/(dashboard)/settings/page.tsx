@@ -35,35 +35,12 @@ import { UserMenu } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-type SettingsTab = "profile" | "providers" | "notifications" | "security" | "appearance";
-
-interface Provider {
- id: string;
- name: string;
- description: string;
- icon: string;
- connected: boolean;
- apiKey?: string;
- status?: "active" | "error" | "rate_limited";
- lastUsed?: string;
-}
-
-const providers: Provider[] = [
- { id: "openrouter", name: "OpenRouter", description: "Access GPT-4, Claude, Gemini and more", icon: "🌐", connected: true, apiKey: "sk-or-****************************", status: "active", lastUsed: "2 hours ago" },
- { id: "elevenlabs", name: "ElevenLabs", description: "State-of-the-art text-to-speech", icon: "🎙️", connected: true, apiKey: "el-****************************", status: "active", lastUsed: "5 hours ago" },
- { id: "fal", name: "fal.ai", description: "Fast inference for image and video", icon: "⚡", connected: true, apiKey: "fal-****************************", status: "active", lastUsed: "1 day ago" },
- { id: "replicate", name: "Replicate", description: "Run ML models in the cloud", icon: "🔄", connected: false },
- { id: "together", name: "Together AI", description: "Open-source model inference", icon: "🤝", connected: false },
- { id: "synclabs", name: "Sync Labs", description: "Lip-sync and video generation", icon: "👄", connected: true, apiKey: "sync-****************************", status: "error", lastUsed: "3 days ago" },
-];
+type SettingsTab = 'profile' | 'api-keys' | 'appearance';
 
 const tabs = [
- { id: "profile", label: "Profile", icon: User },
- { id: "api-keys", label: "API Keys", icon: Code },
- { id: "providers", label: "Providers", icon: Key },
- { id: "notifications", label: "Notifications", icon: Bell },
- { id: "security", label: "Security", icon: Shield },
- { id: "appearance", label: "Appearance", icon: Palette },
+  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'api-keys', label: 'API Keys', icon: Code },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
 ];
 
 // Component that uses useSearchParams - must be wrapped in Suspense
@@ -627,155 +604,6 @@ function SettingsContent() {
  ))
  )}
 
- </div>
- )}
-
- {/* Providers Tab */}
- {activeTab === "providers" && (
- <div className="space-y-4">
- <div className="relative p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
- <DotPattern className="text-blue-500/5" />
- <div className="relative flex items-center justify-between">
- <div className="flex items-center gap-4">
- <div className="w-12 h-12 rounded-xl bg-blue-200 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/20 flex items-center justify-center">
- <Link2 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
- </div>
- <div>
- <h3 className="font-medium text-slate-900 dark:text-white">Provider Connections</h3>
- <p className="text-xs text-slate-700 dark:text-zinc-500">{providers.filter((p) => p.connected).length} of {providers.length} connected</p>
- </div>
- </div>
- <Button variant="outline" leftIcon={<Plus className="w-4 h-4" />}>Add Provider</Button>
- </div>
- </div>
-
- {providers.map((provider, i) => (
- <motion.div key={provider.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
- <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
- <div className="flex items-start justify-between">
- <div className="flex items-start gap-4">
- <div className="w-12 h-12 rounded-xl bg-white dark:bg-zinc-800 flex items-center justify-center text-2xl">{provider.icon}</div>
- <div>
- <div className="flex items-center gap-2 mb-1">
- <h4 className="font-medium text-slate-900 dark:text-white">{provider.name}</h4>
- {provider.connected ? (
- <Badge variant={provider.status === "active" ? "success" : "error"}>
- {provider.status === "active" && <CheckCircle2 className="w-3 h-3" />}
- {provider.status === "error" && <AlertCircle className="w-3 h-3" />}
- {provider.status === "active" ? "Connected" : "Error"}
- </Badge>
- ) : (
- <Badge variant="default">Not Connected</Badge>
- )}
- </div>
- <p className="text-xs text-slate-700 dark:text-zinc-500 mb-3">{provider.description}</p>
- {provider.connected && provider.apiKey && (
- <div className="flex items-center gap-2">
- <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
- <Key className="w-3 h-3 text-slate-800 dark:text-zinc-500" />
- <code className="text-xs text-slate-800 dark:text-zinc-400 font-mono">
- {showApiKeys[provider.id] ? provider.apiKey.replace(/\*/g, "x") : provider.apiKey}
- </code>
- <button onClick={() => toggleShowApiKey(provider.id)} className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded">
- {showApiKeys[provider.id] ? <EyeOff className="w-3 h-3 text-slate-800 dark:text-zinc-500" /> : <Eye className="w-3 h-3 text-slate-800 dark:text-zinc-500" />}
- </button>
- <button className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"><Copy className="w-3 h-3 text-slate-800 dark:text-zinc-500" /></button>
- </div>
- {provider.lastUsed && <span className="text-xs text-slate-800 dark:text-zinc-600">Last used {provider.lastUsed}</span>}
- </div>
- )}
- </div>
- </div>
- <div className="flex items-center gap-2">
- {provider.connected ? (
- <>
- <Button variant="ghost" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />}>Test</Button>
- <Button variant="ghost" size="sm" className="text-red-400 hover:bg-red-500/10"><Trash2 className="w-4 h-4" /></Button>
- </>
- ) : (
- <Button size="sm" leftIcon={<Plus className="w-4 h-4" />}>Connect</Button>
- )}
- </div>
- </div>
- {provider.status === "error" && (
- <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
- <p className="text-xs text-red-400">Connection error: API key is invalid or expired.</p>
- </div>
- )}
- </div>
- </motion.div>
- ))}
-
- <div className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
- <h3 className="font-medium text-slate-900 dark:text-white mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Fallback Settings</h3>
- <div className="space-y-3">
- <label className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">Enable automatic fallback</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">Try next provider on failure</p>
- </div>
- <input type="checkbox" defaultChecked className="w-4 h-4 rounded" />
- </label>
- <label className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">Retry on rate limit</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">Wait and retry when rate limited</p>
- </div>
- <input type="checkbox" defaultChecked className="w-4 h-4 rounded" />
- </label>
- </div>
- </div>
- </div>
- )}
-
- {/* Notifications Tab */}
- {activeTab === "notifications" && (
- <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
- <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-6">Notification Preferences</h3>
- <div className="space-y-3">
- {[
- { title: "Workflow completed", desc: "Get notified when a workflow finishes", default: true },
- { title: "Workflow failed", desc: "Get notified when a workflow fails", default: true },
- { title: "Credits low", desc: "Alert when credits fall below 20%", default: true },
- { title: "Weekly summary", desc: "Receive weekly usage summary", default: false },
- ].map((item) => (
- <label key={item.title} className="flex items-center justify-between p-4 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 cursor-pointer hover:border-gray-300 dark:hover:border-zinc-600/50">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">{item.title}</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">{item.desc}</p>
- </div>
- <input type="checkbox" defaultChecked={item.default} className="w-4 h-4 rounded" />
- </label>
- ))}
- </div>
- </div>
- )}
-
- {/* Security Tab */}
- {activeTab === "security" && (
- <div className="p-6 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
- <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-6">Security Settings</h3>
- <div className="space-y-4">
- <div className="p-4 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
- <div className="flex items-center justify-between mb-3">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">Two-Factor Authentication</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">Add an extra layer of security</p>
- </div>
- <Badge variant="success">Enabled</Badge>
- </div>
- <Button variant="outline" size="sm">Manage 2FA</Button>
- </div>
- <div className="p-4 rounded-lg bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50">
- <div className="flex items-center justify-between mb-3">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">Password</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">Last changed 3 months ago</p>
- </div>
- </div>
- <Button variant="outline" size="sm">Change Password</Button>
- </div>
- </div>
  </div>
  )}
 
