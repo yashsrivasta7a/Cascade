@@ -169,7 +169,7 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
  colorTheme.border,
  " ",
  "shadow-xl shadow-black/20",
- selected && "ring-2 ring-white/30 ring-offset-2 ring-offset-transparent",
+ selected && "ring-2 ring-offset-transparent",
  isHovered && !selected && "shadow-2xl shadow-black/30 scale-[1.02]"
  )}
  onMouseEnter={() => setIsHovered(true)}
@@ -274,7 +274,7 @@ function CommentNodeComponent(props: NodeProps<CommentNodeData>) {
  title="Change color"
  >
  <div 
- className="w-3 h-3 rounded-full ring-1 ring-white/30"
+ className="ring-1 w-3 h-3 rounded-full ring-white/30"
  style={{ backgroundColor: colorTheme.hex }}
  />
  </button>

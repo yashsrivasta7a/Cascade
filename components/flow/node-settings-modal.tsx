@@ -48,7 +48,7 @@ export function NodeSettingsModal({
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
- className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+ className="absolute inset-0 bg-black/60"
  onClick={onClose}
  />
 
@@ -61,9 +61,9 @@ export function NodeSettingsModal({
  className="relative w-full max-w-md mx-4"
  onClick={(e) => e.stopPropagation()}
  >
- <div className="bg-[#09090b]/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/5">
+ <div className="ring-1 bg-[#09090b]/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden ring-white/5">
  {/* Header */}
- <div className="px-5 py-4 border-b border-white/5 bg-white /[0.02] flex items-center justify-between">
+ <div className="px-5 py-4 border-white/5 bg-gray-50 dark:bg-white/[0.03] flex items-center justify-between">
  <div className="flex items-center gap-3">
  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 flex items-center justify-center shadow-lg">
  <Settings className="w-4 h-4 text-slate-600" />
@@ -75,7 +75,7 @@ export function NodeSettingsModal({
  </div>
  <button
  onClick={onClose}
- className="w-8 h-8 rounded-lg border border-white/5 bg-white /[0.02] text-slate-600 hover:text-white hover:bg-white/60 hover:border-white/10 flex items-center justify-center transition-all"
+ className="w-8 h-8 rounded-lg border border-white/5 bg-gray-50 dark:bg-white/[0.03] text-slate-600 hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:border-white/10 flex items-center justify-center transition-all"
  >
  <X className="w-4 h-4" />
  </button>
@@ -87,16 +87,16 @@ export function NodeSettingsModal({
  </div>
 
  {/* Footer */}
- <div className="px-5 py-4 border-t border-white/5 bg-white /[0.02] flex items-center justify-end gap-3 backdrop-blur-sm">
+ <div className="px-5 py-4 border-white/5 bg-gray-50 dark:bg-white/[0.03] flex items-center justify-end gap-3">
  <button
  onClick={onClose}
- className="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-zinc-200 hover:bg-white/60 transition-colors border border-transparent hover:border-white/5"
+ className="text-xs px-4 py-2 rounded-lg font-medium text-slate-600 hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors border border-transparent hover:border-white/5"
  >
  Cancel
  </button>
  <button
  onClick={onClose}
- className="px-6 py-2 rounded-xl text-xs font-semibold bg-white text-black hover:bg-zinc-200 shadow-lg shadow-white/5 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+ className="text-xs shadow-lg px-6 py-2 rounded-xl font-semibold bg-white text-black hover:bg-zinc-200 shadow-white/5 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
  >
  Apply Changes
  </button>
@@ -134,7 +134,7 @@ export function SliderInput({
  <div className="space-y-3">
  <div className="flex items-center justify-between">
  <label className="text-xs font-medium text-slate-600">{label}</label>
- <span className="text-[10px] font-mono text-slate-600 bg-white /[0.05] px-2 py-1 rounded-md border border-white/5 min-w-[3rem] text-center">
+ <span className="text-[10px] font-mono bg-white /[0.05] px-2 py-1 rounded-md border border-white/5 min-w-[3rem] text-center">
  {value}{unit}
  </span>
  </div>
@@ -215,7 +215,7 @@ export function ToggleInput({
  onChange,
 }: ToggleInputProps) {
  return (
- <div className="flex items-center justify-between p-3 rounded-xl bg-white /[0.02] border border-white/5">
+ <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-white/5">
  <div>
  <label className="text-xs font-medium text-zinc-200 block">{label}</label>
  {description && (

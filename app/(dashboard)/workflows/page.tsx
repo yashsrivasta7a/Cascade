@@ -38,6 +38,23 @@ interface ContextMenuState {
  y: number;
 }
 
+const MAX_WORKFLOW_NAME = 100;
+
+// Produce a unique name that fits the server's 100-char limit: "Foo (Imported)",
+// then "Foo (Imported 2)", "Foo (Imported 3)" ... trimming the base as needed.
+function buildImportName(base: string, taken: Set<string>): string {
+ const build = (suffix: string) => {
+ const room = MAX_WORKFLOW_NAME - suffix.length;
+ return `${base.slice(0, Math.max(1, room))}${suffix}`;
+ };
+
+ let candidate = build(" (Imported)");
+ for (let n = 2; taken.has(candidate) && n < 1000; n++) {
+ candidate = build(` (Imported ${n})`);
+ }
+ return candidate;
+}
+
 export default function WorkflowsPage() {
  const router = useRouter();
  const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -84,7 +101,8 @@ export default function WorkflowsPage() {
  refetch();
  setIsImporting(false);
  toast.success("Workflow imported successfully");
- router.push(`/workflows/${data.id}`);
+ // The mutation returns { workflow }, not the workflow itself.
+ router.push(`/workflows/${data.workflow.id}`);
  },
  onError: (error) => {
  toast.error(`Failed to import: ${error.message}`);
@@ -200,6 +218,7 @@ export default function WorkflowsPage() {
  };
 
  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const existingNames = new Set(workflows.map((w) => w.name));
  const file = e.target.files?.[0];
  if (!file) return;
 
@@ -214,9 +233,11 @@ export default function WorkflowsPage() {
  throw new Error("Invalid workflow file format");
  }
 
- // Create new workflow from imported data
+ // Create new workflow from imported data.
+ // Names must be unique per user and <=100 chars, so suffix uniquely and
+ // trim the base rather than letting the server reject the import.
  createMutation.mutate({
- name: `${importData.name} (Imported)`,
+ name: buildImportName(String(importData.name), existingNames),
  description: importData.description || "",
  nodesJson: importData.nodesJson,
  edgesJson: importData.edgesJson,
@@ -287,7 +308,7 @@ export default function WorkflowsPage() {
  />
 
  {/* Hero Header */}
- <div className="relative z-10 shrink-0 px-8 py-5 flex items-center justify-between border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
+ <div className="relative z-10 shrink-0 px-4 sm:px-8 py-4 sm:py-5 flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
  <div className="flex items-center gap-3">
  <h1 className="text-[20px] font-semibold text-slate-900 dark:text-zinc-100 tracking-tight">Workflows</h1>
  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-zinc-800 text-xs font-medium text-slate-800 dark:text-zinc-400 border border-blue-100 dark:border-zinc-700/50">
@@ -314,15 +335,15 @@ export default function WorkflowsPage() {
  </div>
 
  {/* Filter Bar */}
- <div className="relative z-10 shrink-0 px-8 py-3 flex items-center justify-between border-b border-blue-100 dark:border-white/5 bg-white dark:bg-black/10 ">
- <div className="relative">
+ <div className="relative z-10 shrink-0 px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 dark:border-white/5 bg-white dark:bg-black/10 ">
+ <div className="relative flex-1 min-w-0 sm:flex-none">
  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-800 dark:text-zinc-500" />
  <input
  type="text"
  placeholder="Search workflows..."
  value={filter}
  onChange={(e) => setFilter(e.target.value)}
- className="w-64 bg-white dark:bg-white/5 border border-blue-100 dark:border-white/10 rounded-xl pl-10 pr-4 py-1.5 text-sm text-slate-900 dark:text-zinc-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-sm"
+ className="w-full sm:w-64 bg-white dark:bg-white/5 border border-blue-100 dark:border-white/10 rounded-xl pl-10 pr-4 py-1.5 text-sm text-slate-900 dark:text-zinc-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-sm"
  />
  </div>
 

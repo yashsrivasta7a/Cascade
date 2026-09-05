@@ -76,6 +76,10 @@ html.light {
 body {
   background: inherit;
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  /* A stray wide child should scroll inside its own container, never widen the
+     page. Without this a single overflowing row lets the whole layout slide
+     sideways on a phone, which reads as content being cut off. */
+  overflow-x: hidden;
 }
 
 /* Default to dark mode text color */
@@ -2967,4 +2971,19 @@ html.light {
   --sb-danger: #C93A3D;
   --sb-invert-bg: #18181B;
   --sb-invert-ink: #EAE8E3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide the scrollbar while keeping the element scrollable. Used by the bottom
+   toolbar, which scrolls horizontally on narrow screens rather than forcing
+   the viewport wider. */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

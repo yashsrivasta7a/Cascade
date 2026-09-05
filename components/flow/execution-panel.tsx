@@ -193,13 +193,13 @@ export function ExecutionPanel({
  >
  <button
  onClick={onToggleMinimize}
- className="flex items-center gap-4 px-4 py-3 hover:bg-white/60 transition-colors rounded-2xl"
+ className="flex items-center gap-4 px-4 py-3 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors rounded-2xl"
  >
  <div className="relative">
- <div className="w-10 h-10 rounded-xl bg-white /[0.03] flex items-center justify-center border border-white/10">
+ <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-white/[0.03] flex items-center justify-center border border-white/10">
  <Loader2 className="w-5 h-5 text-zinc-200 animate-spin" />
  </div>
- <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white text-[10px] font-bold text-white flex items-center justify-center border border-white/10">
+ <span className="text-[10px] absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white font-bold text-white flex items-center justify-center border border-white/10">
  {completedNodes}
  </span>
  </div>
@@ -221,13 +221,13 @@ export function ExecutionPanel({
  animate={{ x: 0, opacity: 1 }}
  exit={{ x: 400, opacity: 0 }}
  className={cn(
- "w-96 h-full bg-zinc-950/95 border-l border-white/5",
+ "w-96 h-full bg-zinc-950/95 border-white/5",
  "flex flex-col shadow-2xl",
  className
  )}
  >
  {/* Header */}
- <div className="p-4 border-b border-white/5">
+ <div className="p-4 border-white/5">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
  <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
@@ -284,7 +284,7 @@ export function ExecutionPanel({
  </div>
 
  {/* Controls */}
- <div className="p-4 border-b border-white/5 flex items-center gap-2">
+ <div className="p-4 border-white/5 flex items-center gap-2">
  {execution.status === "running" ? (
  <Button variant="outline" size="sm" className="flex-1">
  <Pause className="w-4 h-4" />
@@ -319,7 +319,7 @@ export function ExecutionPanel({
  className={cn(
  "rounded-xl border transition-all",
  isActive
- ? "bg-white /[0.03] border-white/15"
+ ? "bg-gray-50 dark:bg-white/[0.03] border-white/15"
  : "bg-zinc-900/50 border-white/5 hover:border-white/10"
  )}
  >
@@ -332,9 +332,9 @@ export function ExecutionPanel({
  <div
  className={cn(
  "w-8 h-8 rounded-lg flex items-center justify-center",
- node.status === "completed" && "bg-white /[0.03] border border-white/10",
- node.status === "running" && "bg-white /[0.03] border border-white/10",
- node.status === "failed" && "bg-white /[0.03] border border-white/10",
+ node.status === "completed" && "bg-gray-50 dark:bg-white/[0.03] border border-white/10",
+ node.status === "running" && "bg-gray-50 dark:bg-white/[0.03] border border-white/10",
+ node.status === "failed" && "bg-gray-50 dark:bg-white/[0.03] border border-white/10",
  (node.status === "idle" || node.status === "queued") &&
  "bg-zinc-800"
  )}
@@ -389,10 +389,10 @@ export function ExecutionPanel({
  <motion.div
  initial={{ width: 0 }}
  animate={{ width: `${node.progress}%` }}
- className="h-full bg-white "
+ className="h-full bg-white"
  />
  </div>
- <p className="text-[10px] text-slate-700 mt-1 text-center">
+ <p className="text-[10px] mt-1 text-center">
  {node.progress}% complete
  </p>
  </div>
@@ -443,7 +443,7 @@ export function ExecutionPanel({
  </div>
 
  {/* Footer */}
- <div className="p-4 border-t border-white/5 bg-zinc-900/30">
+ <div className="p-4 border-white/5 bg-zinc-900/30">
  <Button variant="outline" className="w-full" size="sm">
  <ExternalLink className="w-4 h-4" />
  View Full Details

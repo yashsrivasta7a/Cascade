@@ -231,7 +231,7 @@ function AudioDisplay({ url, className }: { url: string; className?: string }) {
  </div>
  
  {/* Time Display */}
- <div className="flex justify-between text-[9px] text-slate-700 dark:text-zinc-500 font-mono">
+ <div className="text-[9px] flex justify-between text-slate-700 dark:text-zinc-500 font-mono">
  <span>{formatTime(currentTime)}</span>
  <span>{formatTime(duration)}</span>
  </div>
@@ -289,7 +289,7 @@ function TextDisplay({ text, className }: { text: string; className?: string }) 
  {isLong && (
  <button
  onClick={() => setExpanded(!expanded)}
- className="mt-2 text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+ className="text-[10px] mt-2 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
  >
  {expanded ? "Show less" : "Show more"}
  </button>

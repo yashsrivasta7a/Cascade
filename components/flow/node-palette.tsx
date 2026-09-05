@@ -8,19 +8,20 @@ import {
  Image,
  Film,
  Volume2,
- Brain,
+ MessageSquareText,
  Wrench,
  X,
- Sparkles,
- GripVertical,
+ Plus,
  Clock,
  Zap,
  Layers,
- Wand2,
+ SlidersHorizontal,
  Monitor,
  HelpCircle,
  Palette,
  ArrowRightLeft,
+ LayoutGrid,
+ GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -101,12 +102,12 @@ const nodePricingInfo: Record<AINodeType, { priceLabel: string; priceNote: strin
 // =============================================================================
 
 const categoryIcons: Record<NodeCategory, React.ReactNode> = {
- image: <Image className="w-4 h-4" />,
- video: <Film className="w-4 h-4" />,
- audio: <Volume2 className="w-4 h-4" />,
- llm: <Brain className="w-4 h-4" />,
- utility: <Wrench className="w-4 h-4" />,
- io: <ArrowRightLeft className="w-4 h-4" />,
+ image: <Image className="w-4 h-4" strokeWidth={1.75} />,
+ video: <Film className="w-4 h-4" strokeWidth={1.75} />,
+ audio: <Volume2 className="w-4 h-4" strokeWidth={1.75} />,
+ llm: <MessageSquareText className="w-4 h-4" strokeWidth={1.75} />,
+ utility: <Wrench className="w-4 h-4" strokeWidth={1.75} />,
+ io: <ArrowRightLeft className="w-4 h-4" strokeWidth={1.75} />,
 };
 
 /**
@@ -206,11 +207,12 @@ const outputTypeBadge: Record<DataType, { bg: string; text: string }> = {
 // =============================================================================
 
 interface NodePaletteProps {
- onDragStart?: (event: React.DragEvent, nodeType: string) => void;
- onClose?: () => void;
+  onDragStart?: (event: React.DragEvent, nodeType: string) => void;
+  onNodeClick?: (nodeType: string) => void;
+  onClose?: () => void;
 }
 
-export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
+export function NodePalette({ onDragStart, onNodeClick, onClose }: NodePaletteProps) {
  const [search, setSearch] = useState("");
  const [activeCategory, setActiveCategory] = useState<NodeCategory | null>(null);
  const [hoveredNode, setHoveredNode] = useState<AINodeType | null>(null);
@@ -283,17 +285,17 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  animate={{ opacity: 1, x: 0 }}
  exit={{ opacity: 0, x: -20 }}
  transition={{ type: "spring", damping: 25, stiffness: 300 }}
- className="w-72 h-full bg-white dark:bg-black/60 rounded-2xl border border-blue-100 dark:border-white/[0.08] flex flex-col overflow-hidden shadow-xl shadow-gray-200/80 dark:shadow-2xl dark:shadow-black/40 relative"
+ className="w-[min(18rem,calc(100vw-1.5rem))] h-full bg-white dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden shadow-gray-300/40 dark:shadow-black/50 relative"
  >
  {/* Dot Pattern */}
  {/* Dots removed - now only on ReactFlow background */}
 
  {/* Header - Glass highlight */}
- <div className="px-4 py-3 border-b border-gray-100 dark:border-white/[0.06] bg-white dark:bg-white/[0.02]">
+ <div className="px-4 py-3 border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.02]">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-2">
- <div className="w-7 h-7 rounded-lg bg-blue-500 dark:bg-blue-500/20 border border-blue-600 dark:border-blue-500/30 flex items-center justify-center">
- <Sparkles className="w-3.5 h-3.5 text-white dark:text-blue-400" />
+ <div className="w-7 h-7 rounded-lg bg-zinc-800 dark:bg-white/10 border border-zinc-700 dark:border-white/20 flex items-center justify-center">
+ <LayoutGrid className="w-3.5 h-3.5 text-white dark:text-white/80" strokeWidth={1.75} />
  </div>
  <span className="text-sm font-semibold text-slate-900 dark:text-white">Nodes</span>
  </div>
@@ -306,19 +308,19 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  "p-1.5 rounded-lg transition-all",
  showColorHelp 
  ? "text-slate-900 dark:text-white bg-gray-200 dark:bg-white/10" 
- : "text-slate-800 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-slate-700 hover:bg-white/70 dark:hover:bg-white/5"
+ : "text-slate-800 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-slate-700 hover:bg-gray-100 dark:hover:bg-white/5"
  )}
  title="Color scheme guide"
  >
- <HelpCircle className="w-4 h-4" />
+ <HelpCircle className="w-4 h-4" strokeWidth={1.75} />
  </button>
  
  {onClose && (
  <button
  onClick={onClose}
- className="p-1.5 rounded-lg text-slate-800 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-slate-700 hover:bg-white/70 dark:hover:bg-white/5 transition-all"
+ className="p-1.5 rounded-lg text-slate-800 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-slate-700 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
  >
- <X className="w-4 h-4" />
+ <X className="w-4 h-4" strokeWidth={1.75} />
  </button>
  )}
  </div>
@@ -326,13 +328,13 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
 
  {/* Search */}
  <div className="relative">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-800 dark:text-zinc-600" />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-800 dark:text-zinc-600" strokeWidth={1.75} />
  <input
  type="text"
  placeholder="Search nodes..."
  value={search}
  onChange={(e) => setSearch(e.target.value)}
- className="w-full h-9 pl-10 pr-3 rounded-xl bg-white dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.06] text-sm text-slate-700 dark:text-zinc-300 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-gray-300 dark:focus:border-white/20 focus:bg-white dark:focus:bg-white/[0.05] transition-all"
+ className="w-full h-9 pl-10 pr-3 rounded-xl bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 text-slate-700 dark:text-zinc-300 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-gray-300 dark:focus:border-white/20 focus:bg-white dark:focus:bg-white/[0.05] transition-all"
  />
  </div>
 
@@ -375,10 +377,10 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  {filteredNodes.length === 0 ? (
  <div className="flex flex-col items-center justify-center py-16 px-6">
  <div className="w-12 h-12 rounded-2xl bg-white dark:bg-white/5 border border-blue-100 dark:border-white/10 flex items-center justify-center mb-3">
- <Search className="w-5 h-5 text-slate-800 dark:text-zinc-700" />
+ <Search className="w-5 h-5 text-slate-800 dark:text-zinc-700" strokeWidth={1.75} />
  </div>
- <p className="text-sm text-slate-700 dark:text-zinc-500 text-center">No nodes found</p>
- <p className="text-xs text-slate-800 dark:text-zinc-600 text-center mt-1">Try a different search term</p>
+ <p className="text-xs dark:text-zinc-500 text-center">No nodes found</p>
+ <p className="dark:text-zinc-600 text-center mt-1">Try a different search term</p>
  </div>
  ) : activeCategory ? (
  // Single category view
@@ -390,6 +392,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  node={node}
  index={idx}
  onDragStart={handleDragStart}
+ onClick={onNodeClick ? () => onNodeClick(node.type) : undefined}
  onHover={setHoveredNode}
  isHovered={hoveredNode === node.type}
  />
@@ -430,6 +433,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  node={node}
  index={idx}
  onDragStart={handleDragStart}
+ onClick={onNodeClick ? () => onNodeClick(node.type) : undefined}
  onHover={setHoveredNode}
  isHovered={hoveredNode === node.type}
  />
@@ -443,10 +447,10 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  </div>
 
  {/* Footer - Glass highlight */}
- <div className="px-4 py-2.5 border-t border-gray-100 dark:border-white/[0.06] bg-white dark:bg-white/[0.03]">
- <div className="flex items-center justify-between">
+ <div className="px-4 py-2.5 border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03]">
+ <div className="text-[10px] flex items-center justify-between">
  <p className="text-[10px] text-slate-700 dark:text-zinc-600 flex items-center gap-1.5">
- <GripVertical className="w-3 h-3" />
+ <GripVertical className="w-3.5 h-3.5" strokeWidth={1.75} />
  Drag to canvas
  </p>
  <span className="text-[10px] text-slate-700 dark:text-zinc-600">{filteredNodes.length} nodes</span>
@@ -462,7 +466,7 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  animate={{ opacity: 1, x: 0, scale: 1 }}
  exit={{ opacity: 0, x: -10, scale: 0.95 }}
  transition={{ type: "spring", damping: 25, stiffness: 400 }}
- className="absolute left-[calc(100%+8px)] top-4 w-80 max-h-[calc(100vh-160px)] bg-white dark:bg-zinc-900/95 border border-blue-100 dark:border-white/[0.1] rounded-2xl shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/50 overflow-y-auto z-50 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-white/10 scrollbar-track-transparent"
+ className="absolute left-[calc(100%+8px)] top-4 w-80 max-h-[calc(100vh-160px)] bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 rounded-2xl shadow-gray-300/50 dark:shadow-black/50 overflow-y-auto z-50 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-white/10 scrollbar-track-transparent"
  >
  <NodeInfoCard node={hoveredNodeData} />
  </motion.div>
@@ -492,12 +496,12 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  top: popupPosition.top,
  left: popupPosition.left,
  }}
- className="w-64 bg-[#161616] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 z-[9999] overflow-hidden "
+ className="shadow-2xl w-64 bg-[#161616] border border-white/[0.08] rounded-xl shadow-black/60 z-[9999] overflow-hidden"
  >
  {/* Header */}
- <div className="px-3 py-2.5 border-b border-white/[0.06] bg-white /[0.02] flex items-center gap-2.5">
- <div className="w-6 h-6 rounded-lg bg-white /[0.06] border border-white/[0.08] flex items-center justify-center">
- <Palette className="w-3.5 h-3.5 text-white/70" />
+ <div className="px-3 py-2.5 border-white/[0.06] bg-gray-50 dark:bg-white/[0.03] flex items-center gap-2.5">
+ <div className="w-6 h-6 rounded-lg bg-gray-100 dark:bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+ <Palette className="w-3.5 h-3.5 text-white/70" strokeWidth={1.75} />
  </div>
  <div>
  <h4 className="text-xs font-medium text-white/90">Color Guide</h4>
@@ -506,19 +510,19 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  </div>
 
  {/* Node Categories */}
- <div className="p-3 border-b border-white/[0.06]">
+ <div className="text-[10px] p-3 border-white/[0.06]">
  <p className="text-[10px] text-white/40 mb-2.5">Node Categories</p>
  <div className="space-y-1.5">
  {[
- { icon: Brain, label: "LLM / Vision", desc: "AI text & vision", color: "#3b82f6" },
+ { icon: MessageSquareText, label: "LLM / Vision", desc: "Text & vision models", color: "#3b82f6" },
  { icon: Image, label: "Image", desc: "Generate images", color: "#10b981" },
  { icon: Film, label: "Video", desc: "Generate videos", color: "#8b5cf6" },
- { icon: Volume2, label: "Audio", desc: "Text to speech", color: "#14b8a6" },
- { icon: Wrench, label: "Utility", desc: "Process media", color: "#f59e0b" },
+ { icon: Volume2, label: "Audio", desc: "Audio processing", color: "#14b8a6" },
+ { icon: Wrench, label: "Utility", desc: "Media utilities", color: "#f59e0b" },
  ].map((item) => (
  <div 
  key={item.label}
- className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-[#0f0f0f] hover:bg-white/60/[0.04] transition-colors cursor-default border border-white/[0.04]"
+ className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-[#0f0f0f] hover:bg-gray-100 dark:hover:bg-white/[0.06]/[0.04] transition-colors cursor-default border border-white/[0.04]"
  >
  <div 
  className="w-6 h-6 rounded-md flex items-center justify-center"
@@ -526,9 +530,9 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  >
  <item.icon className="w-3.5 h-3.5" style={{ color: item.color }} />
  </div>
- <div className="flex-1">
+ <div className="text-[11px] flex-1">
  <p className="text-[11px] font-medium text-white/80">{item.label}</p>
- <p className="text-[9px] text-white/30">{item.desc}</p>
+ <p className="text-white/30">{item.desc}</p>
  </div>
  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
  </div>
@@ -537,9 +541,9 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  </div>
 
  {/* Data Types - What connections carry */}
- <div className="p-3 border-b border-white/[0.06]">
- <p className="text-[10px] text-white/40 mb-2.5">Connection Types</p>
- <p className="text-[9px] text-white/30 mb-2">Colors show what data flows between nodes</p>
+ <div className="text-[10px] p-3 border-white/[0.06]">
+ <p className="text-[9px] text-white/40 mb-2.5">Connection Types</p>
+ <p className="text-white/30 mb-2">Colors show what data flows between nodes</p>
  <div className="space-y-1.5">
  {[
  { label: "Text", desc: "Prompts, responses", color: "#3b82f6" },
@@ -548,17 +552,17 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
  { label: "Audio", desc: "Audio files", color: "#14b8a6" },
  ].map((item) => (
  <div key={item.label} className="flex items-center gap-2 px-2 py-1 rounded bg-[#0f0f0f]">
- <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
- <span className="text-[10px] text-white/60 flex-1">{item.label}</span>
- <span className="text-[9px] text-white/30">{item.desc}</span>
+ <div className="text-[10px] w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+ <span className="text-[9px] text-white/60 flex-1">{item.label}</span>
+ <span className="text-white/30">{item.desc}</span>
  </div>
  ))}
  </div>
  </div>
 
  {/* Tip */}
- <div className="p-3 bg-white /[0.02]">
- <p className="text-[9px] text-white/40 leading-relaxed">
+ <div className="text-[9px] p-3 bg-gray-50 dark:bg-white/[0.03]">
+ <p className="text-white/40 leading-relaxed">
  <span className="text-white/50">Tip:</span> Connect matching colors for compatible data types. 
  The colored dots on inputs show what type of data they accept.
  </p>
@@ -578,14 +582,15 @@ export function NodePalette({ onDragStart, onClose }: NodePaletteProps) {
 // =============================================================================
 
 interface NodeCardProps {
- node: typeof NODE_DEFINITIONS[AINodeType];
- index: number;
- onDragStart: (event: React.DragEvent, nodeType: string) => void;
- onHover: (nodeType: AINodeType | null) => void;
- isHovered: boolean;
+  node: typeof NODE_DEFINITIONS[AINodeType];
+  index: number;
+  onDragStart: (event: React.DragEvent, nodeType: string) => void;
+  onClick?: () => void;
+  onHover: (nodeType: AINodeType | null) => void;
+  isHovered: boolean;
 }
 
-function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProps) {
+function NodeCard({ node, index, onDragStart, onClick, onHover, isHovered }: NodeCardProps) {
  const colors = categoryColors[node.category];
 
  return (
@@ -597,14 +602,16 @@ function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProp
  transition={{ delay: index * 0.02, duration: 0.2 }}
  draggable
  onDragStart={(e) => onDragStart(e, node.type)}
+ onClick={onClick}
  onMouseEnter={() => onHover(node.type)}
  onMouseLeave={() => onHover(null)}
  className={cn(
- "group relative flex items-center gap-3 p-3 rounded-xl cursor-grab active:cursor-grabbing transition-all",
+ "group relative flex items-center gap-3 p-3 rounded-xl transition-all",
+ onClick ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
  "border",
  isHovered 
- ? `bg-white dark:bg-white/[0.06] ${colors.border}` 
- : "bg-white dark:bg-white/[0.02] border-transparent hover:bg-white/70 dark:hover:bg-white/[0.04] hover:border-gray-200 dark:hover:border-white/[0.06]"
+ ? `bg-gray-50 dark:bg-white/[0.05] ${colors.border}` 
+ : "bg-white dark:bg-white/[0.02] border-transparent hover:bg-gray-50 dark:hover:bg-white/[0.05] hover:border-gray-200 dark:hover:border-white/10"
  )}
  >
  {/* Icon */}
@@ -612,7 +619,7 @@ function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProp
  className={cn(
  "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
  "border transition-all",
- isHovered ? `${colors.bg} ${colors.border}` : "bg-white dark:bg-white/[0.04] border-blue-100 dark:border-white/[0.06]"
+ isHovered ? `${colors.bg} ${colors.border}` : "bg-white dark:bg-white/[0.04] border-gray-200 dark:border-white/10"
  )}
  style={{ color: isHovered ? colors.solid : undefined }}
  >
@@ -642,7 +649,7 @@ function NodeCard({ node, index, onDragStart, onHover, isHovered }: NodeCardProp
  style={{ color: isHovered ? colors.solid : "#71717a" }}
  title={nodePricingInfo[node.type]?.priceLabel}
  >
- <Zap className="w-3 h-3" />
+ <Zap className="w-3.5 h-3.5" strokeWidth={1.75} />
  <span>{formatCredits(node.estimatedCost)}</span>
  </div>
  )}
@@ -667,7 +674,7 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  <div>
  {/* Header with gradient */}
  <div 
- className="p-4 border-b border-gray-100 dark:border-white/[0.04]"
+ className="p-4 border-gray-200 dark:border-white/10"
  style={{ 
  background: `linear-gradient(135deg, ${colors.solid}15 0%, transparent 50%)` 
  }}
@@ -681,7 +688,7 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  {categoryIcons[node.category]}
  </div>
  <div>
- <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{node.label}</h3>
+ <h3 className="font-semibold dark:text-white text-sm">{node.label}</h3>
  <p className="text-[11px] text-slate-700 dark:text-zinc-500">{node.provider}</p>
  </div>
  </div>
@@ -696,18 +703,18 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  </div>
 
  {/* Pricing Section */}
- <div className="p-4 border-b border-gray-100 dark:border-white/[0.04]">
+ <div className="p-4 border-gray-200 dark:border-white/10">
  <div className="flex items-start gap-3">
  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-gradient-to-br dark:from-amber-500/20 dark:to-orange-500/10 border border-amber-200 dark:border-amber-500/20 flex items-center justify-center flex-shrink-0">
- <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+ <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.75} />
  </div>
  <div className="flex-1 min-w-0">
- <div className="flex items-baseline gap-2 mb-0.5">
- <span className="text-lg font-bold text-slate-900 dark:text-white">
+ <div className="text-lg flex items-baseline gap-2 mb-0.5">
+ <span className="font-bold text-slate-900 dark:text-white">
  {nodePricingInfo[node.type]?.priceLabel || "Free"}
  </span>
  {node.estimatedCost > 0 && (
- <span className="text-xs text-slate-700 dark:text-zinc-500">
+ <span className="text-[11px] text-slate-700 dark:text-zinc-500">
  ≈ {formatCredits(node.estimatedCost)} credits
  </span>
  )}
@@ -725,7 +732,7 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  {node.estimatedTime && (
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-lg bg-white dark:bg-white/[0.04] flex items-center justify-center">
- <Clock className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" />
+ <Clock className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" strokeWidth={1.75} />
  </div>
  <div>
  <p className="text-[11px] text-slate-700 dark:text-zinc-500">Time</p>
@@ -738,11 +745,11 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  {node.aspectRatios && node.aspectRatios.length > 0 && (
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-lg bg-white dark:bg-white/[0.04] flex items-center justify-center">
- <Monitor className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" />
+ <Monitor className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" strokeWidth={1.75} />
  </div>
  <div>
- <p className="text-[11px] text-slate-700 dark:text-zinc-500">Aspect</p>
- <p className="text-xs font-medium text-slate-900 dark:text-white">{node.aspectRatios.slice(0, 3).join(", ")}</p>
+ <p className="text-xs text-slate-700 dark:text-zinc-500">Aspect</p>
+ <p className="font-medium text-slate-900 dark:text-white">{node.aspectRatios.slice(0, 3).join(", ")}</p>
  </div>
  </div>
  )}
@@ -751,11 +758,11 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  {node.resolutions && node.resolutions.length > 0 && (
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 rounded-lg bg-white dark:bg-white/[0.04] flex items-center justify-center">
- <Layers className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" />
+ <Layers className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" strokeWidth={1.75} />
  </div>
  <div>
- <p className="text-[11px] text-slate-700 dark:text-zinc-500">Resolution</p>
- <p className="text-xs font-medium text-slate-900 dark:text-white">{node.resolutions.join(", ")}</p>
+ <p className="text-xs text-slate-700 dark:text-zinc-500">Resolution</p>
+ <p className="font-medium text-slate-900 dark:text-white">{node.resolutions.join(", ")}</p>
  </div>
  </div>
  )}
@@ -764,11 +771,11 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  {node.models && node.models.length > 0 && (
  <div className="flex items-center gap-2 col-span-2">
  <div className="w-7 h-7 rounded-lg bg-white dark:bg-white/[0.04] flex items-center justify-center">
- <Brain className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" />
+ <MessageSquareText className="w-3.5 h-3.5 text-slate-700 dark:text-zinc-500" strokeWidth={1.75} />
  </div>
  <div>
- <p className="text-[11px] text-slate-700 dark:text-zinc-500">Models</p>
- <p className="text-xs font-medium text-slate-900 dark:text-white">{node.models.join(", ")}</p>
+ <p className="text-xs text-slate-700 dark:text-zinc-500">Models</p>
+ <p className="font-medium text-slate-900 dark:text-white">{node.models.join(", ")}</p>
  </div>
  </div>
  )}
@@ -776,13 +783,13 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
 
  {/* Features */}
  {node.features && node.features.length > 0 && (
- <div className="px-4 pb-4">
- <p className="text-[10px] text-slate-700 dark:text-zinc-500 uppercase tracking-wider mb-2">Features</p>
+ <div className="text-[10px] px-4 pb-4">
+ <p className="text-slate-700 dark:text-zinc-500 uppercase tracking-wider mb-2">Features</p>
  <div className="flex flex-wrap gap-1.5">
  {node.features.map((feature) => (
  <span 
  key={feature}
- className="px-2 py-1 rounded-md text-[10px] font-medium bg-white dark:bg-white/[0.04] text-slate-700 dark:text-zinc-400 border border-blue-100 dark:border-white/[0.04]"
+ className="px-2 py-1 rounded-md font-medium bg-white dark:bg-white/[0.04] text-slate-700 dark:text-zinc-400 border border-gray-200 dark:border-white/10"
  >
  {feature}
  </span>
@@ -792,10 +799,10 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  )}
 
  {/* Inputs/Outputs */}
- <div className="px-4 pb-3 pt-2 border-t border-gray-100 dark:border-white/[0.04]">
+ <div className="px-4 pb-3 pt-2 border-gray-200 dark:border-white/10">
  <div className="flex items-center gap-4">
  <div>
- <p className="text-[10px] text-slate-700 dark:text-zinc-500 mb-1">Inputs</p>
+ <p className="text-slate-700 dark:text-zinc-500 mb-1">Inputs</p>
  <div className="flex gap-1">
  {node.inputs.map((input, i) => {
  const typeColor = dataTypeColors[input.type];
@@ -815,7 +822,7 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
  </div>
  <div className="flex-1 h-px bg-gray-200 dark:bg-white/[0.06]" />
  <div>
- <p className="text-[10px] text-slate-700 dark:text-zinc-500 mb-1">Output</p>
+ <p className="text-slate-700 dark:text-zinc-500 mb-1">Output</p>
  <div className="flex gap-1">
  {node.outputs.map((output, i) => {
  const typeColor = dataTypeColors[output.type];
@@ -835,8 +842,8 @@ function NodeInfoCard({ node }: NodeInfoCardProps) {
 
  {/* Estimation Note */}
  {node.estimatedCost > 0 && (
- <div className="px-4 pb-4">
- <p className="text-[10px] text-slate-800 dark:text-zinc-600 leading-relaxed italic">
+ <div className="text-[10px] px-4 pb-4">
+ <p className="text-slate-800 dark:text-zinc-600 leading-relaxed italic">
  * Costs are estimates and may vary based on input parameters. 
  Actual credits will be deducted after execution.
  </p>

@@ -1459,13 +1459,13 @@ function FlowCanvasInner({
  />
  <Controls
  showInteractive={false}
- className="!bg-[#f8f9fb] dark:!bg-zinc-900/80 !backdrop-blur-none dark:! !border-0 !rounded-xl !shadow-md dark:!shadow-2xl !p-1 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:hover:!bg-white dark:[&>button]:hover:!bg-white "
+ className="!bg-[#f8f9fb] dark:!bg-zinc-900/80 ! dark:! !border-0 !rounded-xl !shadow-md dark:!shadow-2xl !p-1 [&>button]:!border-0 [&>button]:!bg-transparent [&>button]:hover:!bg-white dark:[&>button]:hover:!bg-white"
  />
  <MiniMap
  nodeStrokeWidth={3}
  pannable
  zoomable
- className="!bg-white dark:!bg-zinc-900/80 !backdrop-blur-none dark:! !border-blue-100 dark:!border-white/5 !rounded-xl !shadow-md dark:!shadow-2xl"
+ className="!bg-white dark:!bg-zinc-900/80 ! dark:! !border-blue-100 dark:!border-white/5 !rounded-xl !shadow-md dark:!shadow-2xl"
  maskColor="rgba(59, 130, 246, 0.1)"
  nodeColor="#9CA3AF"
  />
@@ -1506,16 +1506,16 @@ function FlowCanvasInner({
  top: ghostPosition.y - 50, // Center the 100px height ghost
  }}
  >
- <div className="w-[200px] h-[100px] rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 backdrop-blur-sm border border-amber-500/30 border-dashed opacity-70 shadow-lg shadow-amber-500/10">
+ <div className="w-[200px] h-[100px] rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-dashed opacity-70 shadow-amber-500/10">
  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/5 to-transparent" />
- <div className="p-3 text-xs text-amber-400/60 italic">Click to place note...</div>
+ <div className="text-xs p-3 text-amber-400/60 italic">Click to place note...</div>
  </div>
  </div>
  )}
 
  {/* Placement mode cursor indicator */}
  {placingComment && (
- <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 text-xs font-medium z-50 animate-pulse">
+ <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-amber-500/20 border border-amber-500/30 rounded-full text-xs font-medium z-50 animate-pulse">
  Click anywhere to place comment • Press ESC to cancel
  </div>
  )}

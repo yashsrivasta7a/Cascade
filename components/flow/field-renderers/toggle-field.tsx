@@ -24,7 +24,7 @@ function ToggleFieldComponent({
  className={cn(
  "nodrag nowheel flex items-center justify-between gap-3 p-2.5 rounded-lg cursor-pointer",
  "bg-white dark:bg-white/[0.02] border border-gray-400 dark:border-white/10",
- "hover:bg-white/70 dark:hover:bg-white/[0.04] transition-colors",
+ "hover:bg-gray-100 dark:hover:bg-white/[0.04] transition-colors",
  disabled && "cursor-not-allowed opacity-60",
  className
  )}
@@ -54,7 +54,7 @@ function ToggleFieldComponent({
  "w-9 h-5 rounded-full transition-colors",
  "bg-gray-300 dark:bg-zinc-700",
  "peer-checked:bg-blue-500 dark:peer-checked:bg-blue-500",
- "peer-focus:ring-2 peer-focus:ring-blue-500/20"
+ "peer-focus:ring-blue-500/20"
  )}
  />
  <div

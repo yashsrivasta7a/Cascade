@@ -353,7 +353,7 @@ function BaseInputNodeComponent({
  onDragLeave={() => setIsDragOver(false)}
  onClick={() => !value && !isUploading && fileInputRef.current?.click()}
  className={cn(
- "nodrag nowheel relative rounded-lg border-2 border-dashed transition-all",
+ "border-2 nodrag nowheel relative rounded-lg border-dashed transition-all",
  isDragOver
  ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
  : value
@@ -419,7 +419,7 @@ function BaseInputNodeComponent({
  }}
  />
  </div>
- <div className="flex justify-between text-[8px] text-slate-700 dark:text-zinc-500 font-mono mt-0.5">
+ <div className="text-[8px] flex justify-between text-slate-700 dark:text-zinc-500 font-mono mt-0.5">
  <span>{formatTime(audioCurrentTime)}</span>
  <span>{formatTime(audioDuration)}</span>
  </div>

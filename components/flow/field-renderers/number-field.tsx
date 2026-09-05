@@ -51,7 +51,7 @@ function NumberFieldComponent({
  <div className={className}>
  {/* Label */}
  {config.label && (
- <label className="block text-[10px] text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+ <label className="text-[10px] block text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
  {config.label}
  {config.required && <span className="text-red-500 ml-0.5">*</span>}
  </label>
@@ -68,7 +68,7 @@ function NumberFieldComponent({
  disabled={disabled}
  className={cn(
  "nodrag nowheel w-full h-8 px-3 rounded-lg border text-xs",
- "bg-white dark:bg-zinc-900/60 border-gray-400 dark:border-white/10",
+ "bg-white dark:bg-white/[0.03] border-gray-400 dark:border-white/10",
  "text-slate-900 dark:text-zinc-100",
  "placeholder-gray-400 dark:placeholder-zinc-600",
  "focus:outline-none focus:border-blue-400 dark:focus:border-white/20",
@@ -79,7 +79,7 @@ function NumberFieldComponent({
 
  {/* Description */}
  {config.description && (
- <p className="mt-1 text-[9px] text-slate-800 dark:text-zinc-600">
+ <p className="text-[9px] mt-1 text-slate-800 dark:text-zinc-600">
  {config.description}
  </p>
  )}
@@ -173,7 +173,7 @@ function SliderFieldComponent({
  {/* Thumb indicator */}
  <div
  className={cn(
- "absolute w-4 h-4 bg-blue-500 rounded-full shadow-md shadow-blue-500/30 border-2 border-white dark:border-blue-400",
+ "shadow-md border-2 absolute w-4 h-4 bg-blue-500 rounded-full shadow-blue-500/30 border-white dark:border-blue-400",
  "pointer-events-none transition-all"
  )}
  style={{ left: `calc(${percentage}% - 8px)` }}
@@ -188,7 +188,7 @@ function SliderFieldComponent({
 
  {/* Description */}
  {config.description && (
- <p className="mt-1 text-[9px] text-slate-800 dark:text-zinc-600">
+ <p className="text-[9px] mt-1 text-slate-800 dark:text-zinc-600">
  {config.description}
  </p>
  )}

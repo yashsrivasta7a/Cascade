@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -14,8 +14,6 @@ import {
  CreditCard,
  Settings2,
  Plus,
- ExternalLink,
- FileText,
  ChevronLeft,
 } from "lucide-react";
 
@@ -28,12 +26,41 @@ const navItems = [
  { label: "Activity", href: "/executions", icon: ActivityIcon },
 ];
 
+// Settings is pinned to the footer card, so it is deliberately absent here.
 const bottomItems = [
  { label: "Billing", href: "/billing", icon: CreditCard },
- { label: "Settings", href: "/settings", icon: Settings2 },
 ];
 
-const DOCS_URL = "/docs";
+const SIDEBAR_STORAGE_KEY = "flowsmith:sidebar-collapsed";
+
+// Minimal external store over localStorage so the sidebar state survives
+// navigation and stays in sync across every mounted Sidebar.
+const sidebarListeners = new Set<() => void>();
+
+function getSidebarPref(): boolean {
+ try {
+ const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+ return saved === null ? true : saved === "true";
+ } catch {
+ return true;
+ }
+}
+
+function setSidebarPref(next: boolean) {
+ try {
+ window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+ } catch {
+ // Private mode / blocked storage - the notify below still updates the UI.
+ }
+ sidebarListeners.forEach((fn) => fn());
+}
+
+function subscribeToSidebarPref(onChange: () => void) {
+ sidebarListeners.add(onChange);
+ return () => {
+ sidebarListeners.delete(onChange);
+ };
+}
 
 // =============================================================================
 // COMPONENT
@@ -41,25 +68,39 @@ const DOCS_URL = "/docs";
 
 export function Sidebar() {
  const pathname = usePathname();
- const [isCollapsed, setIsCollapsed] = useState(false);
+ // Collapsed by default: the dashboard content is the point, not the nav.
+ // useSyncExternalStore returns the server snapshot (collapsed) during SSR and
+ // hydration, then the stored client value - so a remembered "expanded" state
+ // applies without a hydration mismatch.
+ const isCollapsed = useSyncExternalStore(
+ subscribeToSidebarPref,
+ getSidebarPref,
+ () => true,
+ );
+
+ const isSettingsActive = pathname.startsWith("/settings");
+
+ const toggleCollapsed = useCallback(() => {
+ setSidebarPref(!getSidebarPref());
+ }, []);
 
  return (
  <aside
  className={cn(
  "h-screen flex flex-col bg-[#e5eefb] dark:bg-[#09090b] border-r border-blue-100 dark:border-zinc-800/60 text-sm font-sans relative overflow-hidden transition-all duration-300 ease-in-out shrink-0",
- isCollapsed ? "w-[80px] xl:w-[260px]" : "w-[260px]"
+ isCollapsed ? "w-16 sm:w-[80px]" : "w-[240px] sm:w-[260px]"
  )}
  >
  {/* Decorative background glow */}
  <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-500/10 dark:from-blue-500/10 to-transparent pointer-events-none" />
 
  {/* Header */}
- <div className={cn("h-20 flex items-center relative z-10", isCollapsed ? "justify-center px-0 xl:justify-start xl:px-6" : "px-6")}>
+ <div className={cn("h-20 flex items-center relative z-10", isCollapsed ? "justify-center px-0" : "px-6")}>
  <Link href="/workflows" className="flex items-center gap-3 shrink-0 outline-none">
  <Logo className="w-8 h-8 text-slate-900 dark:text-zinc-100" />
  <span className={cn(
  "font-display font-bold text-[29px] text-slate-900 dark:text-zinc-100 uppercase tracking-[0.14em]",
- isCollapsed ? "hidden xl:block" : "block"
+ isCollapsed ? "hidden" : "block"
  )}>
  Cascade
  </span>
@@ -68,12 +109,12 @@ export function Sidebar() {
 
 
  {/* Navigation */}
- <div className={cn("flex-1 space-y-8 overflow-y-auto relative z-10 pb-4 custom-scrollbar", isCollapsed ? "px-3 xl:px-4" : "px-4")}>
+ <div className={cn("flex-1 space-y-8 overflow-y-auto relative z-10 pb-4 custom-scrollbar", isCollapsed ? "px-3" : "px-4")}>
  <div>
- <div className={cn("px-3 text-[13px] font-bold text-slate-600 dark:text-zinc-500 mb-1 tracking-wider uppercase truncate", isCollapsed ? "hidden xl:block" : "block")}>
+ <div className={cn("px-3 text-[13px] font-bold text-slate-600 dark:text-zinc-500 mb-1 tracking-wider uppercase truncate", isCollapsed ? "hidden" : "block")}>
  Overview
  </div>
- <div className={cn("w-full border-t border-zinc-200 dark:border-zinc-800/60 my-2 xl:hidden", isCollapsed ? "block" : "hidden")} />
+ <div className={cn("w-full border-t border-zinc-200 dark:border-zinc-800/60 my-2", isCollapsed ? "block" : "hidden")} />
 
  <nav className="space-y-1.5">
  {navItems.map((item) => {
@@ -94,7 +135,7 @@ export function Sidebar() {
  <div
  className={cn(
  "relative flex items-center gap-2 py-3 rounded-lg text-[15px] transition-colors duration-200",
- isCollapsed ? "justify-center px-0 xl:justify-start xl:px-3" : "px-3",
+ isCollapsed ? "justify-center px-0" : "px-3",
  isActive
  ? "text-slate-900 dark:text-zinc-100 font-semibold"
  : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/40"
@@ -112,7 +153,7 @@ export function Sidebar() {
  >
  <Icon className="w-5 h-5" />
  </motion.div>
- <span className={cn("truncate", isCollapsed ? "hidden xl:inline" : "inline")}>{item.label}</span>
+ <span className={cn("truncate", isCollapsed ? "hidden" : "inline")}>{item.label}</span>
  </div>
  </div>
  </Link>
@@ -122,10 +163,10 @@ export function Sidebar() {
  </div>
 
  <div>
- <div className={cn("px-3 text-[13px] font-bold text-slate-600 dark:text-zinc-500 mb-1 tracking-wider uppercase truncate", isCollapsed ? "hidden xl:block" : "block")}>
+ <div className={cn("px-3 text-[13px] font-bold text-slate-600 dark:text-zinc-500 mb-1 tracking-wider uppercase truncate", isCollapsed ? "hidden" : "block")}>
  Account
  </div>
- <div className={cn("w-full border-t border-zinc-200 dark:border-zinc-800/60 my-2 xl:hidden", isCollapsed ? "block" : "hidden")} />
+ <div className={cn("w-full border-t border-zinc-200 dark:border-zinc-800/60 my-2", isCollapsed ? "block" : "hidden")} />
 
  <nav className="space-y-1.5">
  {bottomItems.map((item) => {
@@ -146,7 +187,7 @@ export function Sidebar() {
  <div
  className={cn(
  "relative flex items-center gap-2 py-3 rounded-lg text-[15px] transition-colors duration-200",
- isCollapsed ? "justify-center px-0 xl:justify-start xl:px-3" : "px-3",
+ isCollapsed ? "justify-center px-0" : "px-3",
  isActive
  ? "text-slate-900 dark:text-zinc-100 font-semibold"
  : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/40"
@@ -164,7 +205,7 @@ export function Sidebar() {
  >
  <Icon className="w-5 h-5" />
  </motion.div>
- <span className={cn("truncate", isCollapsed ? "hidden xl:inline" : "inline")}>{item.label}</span>
+ <span className={cn("truncate", isCollapsed ? "hidden" : "inline")}>{item.label}</span>
  </div>
  </div>
  </Link>
@@ -174,19 +215,19 @@ export function Sidebar() {
  </div>
  </div>
 
- {/* Footer / Docs */}
- <div className={cn("relative z-10 border-t border-zinc-200 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 space-y-2", isCollapsed ? "p-3 xl:p-4" : "p-4")}>
- {/* Collapse toggle. Sits on the same 9x9 icon rail as the docs card and
- every nav row below it, so the control never moves between states -
- only the chevron turns. Collapsing is a sub-xl affordance: at xl the
- sidebar is always 260px, so the button has nothing to do. */}
+ {/* Footer */}
+ <div className={cn("relative z-10 border-t border-zinc-200 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 space-y-2", isCollapsed ? "p-3" : "p-4")}>
+ {/* Collapse toggle. Sits on the same 9x9 icon rail as the settings card and
+ every nav row above it, so the control never moves between states -
+ only the chevron turns. Applies at every width; the choice is stored
+ under SIDEBAR_STORAGE_KEY so it survives navigation. */}
  <button
  type="button"
- onClick={() => setIsCollapsed(!isCollapsed)}
+ onClick={toggleCollapsed}
  aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
  aria-expanded={!isCollapsed}
  className={cn(
- "group w-full flex items-center rounded-lg text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/40 transition-colors xl:hidden",
+ "group w-full flex items-center rounded-lg text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/40 transition-colors",
  isCollapsed ? "justify-center p-2" : "gap-3 px-3 py-2"
  )}
  >
@@ -196,30 +237,32 @@ export function Sidebar() {
  <span className={cn("font-medium text-[15px] truncate", isCollapsed ? "hidden" : "inline")}>Collapse</span>
  </button>
 
- <a
- href={DOCS_URL}
- target="_blank"
- rel="noopener noreferrer"
- className="block outline-none"
- >
+ <Link href="/settings" className="block outline-none">
  <motion.div
  whileHover={{ y: -2 }}
  whileTap={{ scale: 0.98 }}
  className={cn(
- "group flex items-center rounded-lg text-slate-700 dark:text-zinc-400 bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 hover:border-blue-500/30 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300",
- isCollapsed ? "justify-center p-2 xl:justify-start xl:p-3 xl:gap-3" : "gap-3 px-3 py-3"
+ "group flex items-center rounded-lg transition-all duration-300 border",
+ isSettingsActive
+ ? "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-900 dark:text-white"
+ : "bg-white dark:bg-zinc-900 border-zinc-200/80 dark:border-zinc-800 text-slate-700 dark:text-zinc-400 hover:border-blue-500/30 hover:shadow-md hover:text-blue-600 dark:hover:text-blue-400",
+ isCollapsed ? "justify-center p-2" : "gap-3 px-3 py-3"
  )}
  >
- <div className="w-9 h-9 rounded-md bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-500/20 transition-colors shrink-0">
- <FileText className="w-5 h-5" />
+ <div className={cn(
+ "w-9 h-9 rounded-md flex items-center justify-center transition-colors shrink-0",
+ isSettingsActive
+ ? "bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400"
+ : "bg-zinc-100 dark:bg-zinc-800 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/20"
+ )}>
+ <Settings2 className="w-5 h-5" />
  </div>
 
- <div className={cn("items-center flex-1", isCollapsed ? "hidden xl:flex" : "flex")}>
- <span className="font-semibold text-[15px] truncate">API Docs</span>
- <ExternalLink className="w-[18px] h-[18px] ml-auto opacity-50 group-hover:opacity-100 transition-opacity shrink-0" />
+ <div className={cn("items-center flex-1", isCollapsed ? "hidden" : "flex")}>
+ <span className="font-semibold text-[15px] truncate">Settings</span>
  </div>
  </motion.div>
- </a>
+ </Link>
  </div>
  </aside>
  );

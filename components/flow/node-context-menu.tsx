@@ -131,16 +131,16 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
  top: contextMenuPosition.y,
  }}
  >
- <div className="bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/10 rounded-xl overflow-hidden min-w-[180px] shadow-2xl shadow-black/10 dark:shadow-black/50">
+ <div className="shadow-2xl bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/10 rounded-xl overflow-hidden min-w-[180px] shadow-black/10 dark:shadow-black/50">
  {/* Header */}
- <div className="px-3 py-2 border-b border-gray-100 dark:border-white/10 flex items-center gap-2 bg-white dark:bg-white/5">
+ <div className="px-3 py-2 border-gray-100 dark:border-white/10 flex items-center gap-2 bg-white dark:bg-white/5">
  <span className="text-slate-700 dark:text-zinc-400">{categoryIcons[nodeDef.category]}</span>
  <span className="text-xs font-medium text-slate-900 dark:text-zinc-200 truncate flex-1">
  {nodeDef.label}
  </span>
  <button
  onClick={closeMenu}
- className="p-1 rounded text-slate-800 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
+ className="p-1 rounded text-slate-800 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
  >
  <X className="w-3 h-3" />
  </button>
@@ -150,7 +150,7 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
  <div className="p-1.5">
  <button
  onClick={handleDuplicate}
- className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
+ className="text-xs w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
  >
  <Copy className="w-3.5 h-3.5 text-slate-800 dark:text-zinc-500" />
  Duplicate
@@ -159,7 +159,7 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
  {connectedEdgesCount > 0 && (
  <button
  onClick={handleDisconnect}
- className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+ className="text-xs w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
  >
  <Unlink className="w-3.5 h-3.5 text-amber-500" />
  Disconnect All ({connectedEdgesCount})
@@ -170,7 +170,7 @@ export function NodeContextMenu({ onOpenSettings }: NodeContextMenuProps) {
 
  <button
  onClick={handleDelete}
- className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+ className="text-xs w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
  >
  <Trash2 className="w-3.5 h-3.5" />
  Delete Node

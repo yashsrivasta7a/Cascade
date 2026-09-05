@@ -511,27 +511,31 @@ export const useFlowStore = create<FlowState>()(
         const oldData = node.data as Record<string, unknown>;
         let newData = { ...oldData, ...data };
 
-        // Auto-clear result when input media changes OR is removed
+        // Auto-clear result when input media changes OR is removed.
+        // Only applies to user edits: a write that carries its own `result`/`status`
+        // is the execution pipeline reporting an output, and must never self-clear.
+        const isExecutionWrite = "result" in data || "status" in data;
+
         const mediaInputFields = ["inputImage", "inputVideo", "inputAudio", "inputVideo1", "inputVideo2", "inputFrame", "referenceImages", "video", "audio", "image", "video1", "video2"];
-        const mediaInputChanged = mediaInputFields.some(field => {
-          // Check if this field is being updated
+        // Compare by asset URL so re-writing the same media (propagation replaying an
+        // identical value, or an object vs string form of it) does not count as a change.
+        const assetKey = (value: unknown): string => {
+          if (value === null || value === undefined || value === "") return "";
+          if (typeof value === "string") return value;
+          if (Array.isArray(value)) return value.map(assetKey).join("|");
+          if (typeof value === "object" && "url" in (value as object)) {
+            return String((value as { url?: unknown }).url ?? "");
+          }
+          return JSON.stringify(value);
+        };
+
+        const mediaInputChanged = !isExecutionWrite && mediaInputFields.some(field => {
           if (!(field in data)) return false;
-          const newValue = data[field];
-          const oldValue = oldData[field];
-          // Changed if: value is different (including being cleared/removed)
-          return newValue !== oldValue;
+          return assetKey(data[field]) !== assetKey(oldData[field]);
         });
-        
-        // Also check if any media input is being explicitly removed (set to null, undefined, or empty string)
-        const mediaInputRemoved = mediaInputFields.some(field => {
-          if (!(field in data)) return false;
-          const newValue = data[field];
-          // Considered "removed" if set to null, undefined, or empty string
-          return newValue === null || newValue === undefined || newValue === "";
-        });
-        
-        if ((mediaInputChanged || mediaInputRemoved) && oldData.result !== undefined) {
-          // Clear the result when input media changes or is removed
+
+        if (mediaInputChanged && oldData.result !== undefined) {
+          // Input media genuinely changed - the old result is stale
           newData = { ...newData, result: undefined, status: undefined, error: undefined };
         }
 

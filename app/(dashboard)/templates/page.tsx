@@ -105,7 +105,7 @@ export default function TemplatesPage() {
  </button>
  </div>
 
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  {featuredTemplates.map((template, i) => (
  <motion.div key={template.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
  <div className="relative p-0 bg-zinc-900/50 border border-zinc-800/60 rounded-xl overflow-hidden group hover:border-zinc-700/60 transition-colors">
@@ -148,7 +148,7 @@ export default function TemplatesPage() {
  {/* Filters */}
  <div className="flex items-center justify-between mb-6">
  <div className="flex items-center gap-3">
- <div className="relative">
+ <div className="relative flex-1 min-w-0 sm:flex-none">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700" />
  <input
  placeholder="Search..."
@@ -176,7 +176,7 @@ export default function TemplatesPage() {
  </div>
 
  {/* Grid */}
- <div className="grid grid-cols-3 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
  {filteredTemplates.map((template, i) => (
  <motion.div key={template.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
  <div className="p-4 bg-zinc-900/50 border border-zinc-800/60 rounded-xl hover:border-zinc-700/60 transition-colors group h-full flex flex-col">

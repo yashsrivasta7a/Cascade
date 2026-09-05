@@ -178,7 +178,7 @@ export async function runWorkflow(
   
   // Execute a single node
   // I/O node types that are passthrough (don't need execution)
-  const IO_NODE_TYPES = ["input", "output", "comment"];
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "comment"];
   
   const executeNode = async (node: Node): Promise<void> => {
     const type = node.type as AINodeType;
@@ -198,23 +198,19 @@ export async function runWorkflow(
     if (IO_NODE_TYPES.includes(type)) {
       console.log(`[RunWorkflow] I/O node ${node.id} (${type}) - passthrough handling`);
       console.log(`[RunWorkflow] I/O node data:`, JSON.stringify(data).slice(0, 500));
-      
       // Input nodes: use their result/value as output
-      if (type === "input") {
+      if (type === "image-input" || type === "video-input" || type === "audio-input") {
         // Try multiple possible property names for the uploaded file
         const result = data.result || data.value || data.url || data.file;
-        const mediaType = data.mediaType as string | undefined;
+        const mediaType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
         console.log(`[RunWorkflow] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined', `mediaType: ${mediaType}`);
         
-        if (result && typeof result === "string" && result.length > 0 && mediaType) {
-          const outputType = mediaType;
-          const passOutput: AnyOut = outputType === "image" 
+        if (result && typeof result === "string" && result.length > 0) {
+          const passOutput: AnyOut = mediaType === "image" 
             ? { type: "image", image: { url: result } }
-            : outputType === "video"
+            : mediaType === "video"
             ? { type: "video", video: { url: result } }
-            : outputType === "audio"
-            ? { type: "audio", audio: { url: result } }
-            : { type: "text", text: result };
+            : { type: "audio", audio: { url: result } };
           
           outputs.set(node.id, passOutput);
           completed.add(node.id);
@@ -227,37 +223,14 @@ export async function runWorkflow(
           const dataKeys = Object.keys(data);
           console.error(`[RunWorkflow] Input node ${node.id} has no file. Data keys:`, dataKeys);
           callbacks.onNodeStatus?.(node.id, "failed", { 
-            error: `No file uploaded to input node${mediaType ? ` (${mediaType})` : ''}`,
-            details: mediaType ? `Please upload a ${mediaType} file to the input node before running the workflow` : `Please select an input type and upload a file`
+            error: `No file uploaded to input node (${mediaType})`,
+            details: `Please upload a ${mediaType} file to the input node before running the workflow`
           });
           failed.add(node.id);
           return;
         }
       }
-      
-      // Output node: get value from connected upstream node
-      if (type === "output") {
-        // Find incoming edge and get the output from the source node
-        const incomingEdge = edges.find(e => e.target === node.id);
-        if (incomingEdge) {
-          const sourceOutput = outputs.get(incomingEdge.source);
-          if (sourceOutput) {
-            outputs.set(node.id, sourceOutput);
-            completed.add(node.id);
-            const resultText = sourceOutput.type === "text" ? sourceOutput.text 
-              : sourceOutput.type === "image" ? sourceOutput.image.url
-              : sourceOutput.type === "video" ? sourceOutput.video.url
-              : sourceOutput.audio.url;
-            callbacks.onNodeResult?.(node.id, resultText, sourceOutput);
-            callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
-            return;
-          }
-        }
-        // No input connected or source didn't produce output
-        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
-        completed.add(node.id);
-        return;
-      }
+
       
       // Comment node: just mark as completed
       if (type === "comment") {
@@ -634,19 +607,18 @@ export async function runNodeWithDependencies(
         
         // Determine output type based on node type
         let outputEntry: AnyOut;
-        const upstreamMediaType = data.mediaType as string | undefined;
-        if (nodeType === "seedream" || nodeType === "seedvr" || nodeType === "crop-image" || (nodeType === "input" && upstreamMediaType === "image")) {
+        if (nodeType === "seedream" || nodeType === "seedvr" || nodeType === "crop-image" || nodeType === "image-input") {
           outputEntry = { type: "image", image: { url: result } };
-        } else if (nodeType === "seedance" || nodeType === "lipsync" || nodeType === "merge-videos" || nodeType === "merge-audio-video" || (nodeType === "input" && upstreamMediaType === "video")) {
+        } else if (nodeType === "seedance" || nodeType === "lipsync" || nodeType === "merge-videos" || nodeType === "merge-audio-video" || nodeType === "video-input") {
           outputEntry = { type: "video", video: { url: result } };
-        } else if (nodeType === "elevenlabs" || nodeType === "extract-audio" || (nodeType === "input" && upstreamMediaType === "audio")) {
+        } else if (nodeType === "elevenlabs" || nodeType === "extract-audio" || nodeType === "audio-input") {
           outputEntry = { type: "audio", audio: { url: result } };
         } else {
           outputEntry = { type: "text", text: result };
         }
         
         prePopulatedOutputs.set(upstreamNode.id, outputEntry);
-        console.log(`[runNodeWithDependencies] Pre-populated output from ${upstreamNode.id} (${nodeType}): ${result.slice(0, 50)}...`);
+        console.log(`[runWorkflowWithDependencies] Pre-populated output from ${upstreamNode.id} (${nodeType}): ${result.slice(0, 50)}...`);
       }
     }
 
@@ -790,7 +762,7 @@ async function runWorkflowSubset(
   };
   
   // I/O node types that are passthrough (don't need execution)
-  const IO_NODE_TYPES = ["input", "output", "comment"];
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "comment"];
   
   const executeNode = async (node: Node): Promise<void> => {
     const type = node.type as AINodeType;
@@ -809,67 +781,35 @@ async function runWorkflowSubset(
     // ==========================================================================
     if (IO_NODE_TYPES.includes(type)) {
       console.log(`[runWorkflowSubset] I/O node ${node.id} (${type}) - passthrough handling`);
-      console.log(`[runWorkflowSubset] I/O node data:`, JSON.stringify(data).slice(0, 500));
       
       // Input nodes: use their result/value as output
-      if (type === "input") {
-        // Try multiple possible property names for the uploaded file
+      if (type === "image-input" || type === "video-input" || type === "audio-input") {
         const result = data.result || data.value || data.url || data.file;
-        const mediaType = data.mediaType as string | undefined;
-        console.log(`[runWorkflowSubset] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined', `mediaType: ${mediaType}`);
+        const mediaType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
         
-        if (result && typeof result === "string" && result.length > 0 && mediaType) {
-          const outputType = mediaType;
-          const passOutput: AnyOut = outputType === "image" 
+        if (result && typeof result === "string" && result.length > 0) {
+          const passOutput: AnyOut = mediaType === "image" 
             ? { type: "image", image: { url: result } }
-            : outputType === "video"
+            : mediaType === "video"
             ? { type: "video", video: { url: result } }
-            : outputType === "audio"
-            ? { type: "audio", audio: { url: result } }
-            : { type: "text", text: result };
+            : { type: "audio", audio: { url: result } };
           
           outputs.set(node.id, passOutput);
           completed.add(node.id);
           callbacks.onNodeResult?.(node.id, result, passOutput);
           callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
-          console.log(`[runWorkflowSubset] Input node ${node.id} completed with result`);
           return;
         } else {
-          // No input file uploaded - provide more helpful error
-          const dataKeys = Object.keys(data);
-          console.error(`[runWorkflowSubset] Input node ${node.id} has no file. Data keys:`, dataKeys);
           callbacks.onNodeStatus?.(node.id, "failed", { 
-            error: `No file uploaded to input node${mediaType ? ` (${mediaType})` : ''}`,
-            details: mediaType ? `Please upload a ${mediaType} file to the input node before running the workflow` : `Please select an input type and upload a file`
+            error: `No file uploaded to input node (${mediaType})`,
+            details: `Please upload a ${mediaType} file to the input node before running the workflow`
           });
           failed.add(node.id);
           return;
         }
       }
       
-      // Output node: get value from connected upstream node
-      if (type === "output") {
-        // Find incoming edge and get the output from the source node
-        const incomingEdge = edges.find(e => e.target === node.id);
-        if (incomingEdge) {
-          const sourceOutput = outputs.get(incomingEdge.source);
-          if (sourceOutput) {
-            outputs.set(node.id, sourceOutput);
-            completed.add(node.id);
-            const resultText = sourceOutput.type === "text" ? sourceOutput.text 
-              : sourceOutput.type === "image" ? sourceOutput.image.url
-              : sourceOutput.type === "video" ? sourceOutput.video.url
-              : sourceOutput.audio.url;
-            callbacks.onNodeResult?.(node.id, resultText, sourceOutput);
-            callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
-            return;
-          }
-        }
-        // No input connected or source didn't produce output
-        callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
-        completed.add(node.id);
-        return;
-      }
+
       
       // Comment node: just mark as completed
       if (type === "comment") {
@@ -1151,28 +1091,25 @@ export async function runSingleNode(
   // ==========================================================================
   // I/O NODE HANDLING - These are passthrough nodes
   // ==========================================================================
-  const IO_NODE_TYPES = ["input", "output", "comment"];
+  const IO_NODE_TYPES = ["image-input", "video-input", "audio-input", "comment"];
   
   if (IO_NODE_TYPES.includes(type)) {
     console.log(`[runSingleNode] I/O node ${node.id} (${type}) - passthrough handling`);
     console.log(`[runSingleNode] I/O node data:`, JSON.stringify(data).slice(0, 500));
     
     // Input nodes: use their result/value as output
-    if (type === "input") {
+    if (type === "image-input" || type === "video-input" || type === "audio-input") {
       // Try multiple possible property names for the uploaded file
       const result = (data.result || data.value || data.url || data.file) as string | undefined;
-      const mediaType = data.mediaType as string | undefined;
+      const mediaType = type === "image-input" ? "image" : type === "video-input" ? "video" : "audio";
       console.log(`[runSingleNode] Input node ${node.id} result:`, result ? `${String(result).slice(0, 100)}...` : 'undefined', `mediaType: ${mediaType}`);
       
-      if (result && typeof result === "string" && result.length > 0 && mediaType) {
-        const outputType = mediaType;
-        const passOutput: AnyOut = outputType === "image" 
+      if (result && typeof result === "string" && result.length > 0) {
+        const passOutput: AnyOut = mediaType === "image" 
           ? { type: "image", image: { url: result } }
-          : outputType === "video"
+          : mediaType === "video"
           ? { type: "video", video: { url: result } }
-          : outputType === "audio"
-          ? { type: "audio", audio: { url: result } }
-          : { type: "text", text: result };
+          : { type: "audio", audio: { url: result } };
         
         callbacks.onNodeResult?.(node.id, result, passOutput);
         callbacks.onNodeStatus?.(node.id, "completed", { progress: 100 });
@@ -1183,8 +1120,8 @@ export async function runSingleNode(
         const dataKeys = Object.keys(data);
         console.error(`[runSingleNode] Input node ${node.id} has no file. Data keys:`, dataKeys);
         callbacks.onNodeStatus?.(node.id, "failed", { 
-          error: `No file uploaded to input node${mediaType ? ` (${mediaType})` : ''}`,
-          details: mediaType ? `Please upload a ${mediaType} file to the input node before running the workflow` : `Please select an input type and upload a file`
+          error: `No file uploaded to input node (${mediaType})`,
+          details: `Please upload a ${mediaType} file to the input node before running the workflow`
         });
         return;
       }

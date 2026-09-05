@@ -87,7 +87,7 @@ export function NodeTypeModal({
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
- className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+ className="absolute inset-0 bg-black/60"
  onClick={handleClose}
  />
 
@@ -99,14 +99,14 @@ export function NodeTypeModal({
  transition={{ type: "spring", damping: 25, stiffness: 400 }}
  className="relative w-full max-w-[380px] mx-4"
  >
- <div className="bg-[#09090b]/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/5">
+ <div className="ring-1 bg-[#09090b]/90 border border-white/10 rounded-2xl shadow-2xl overflow-hidden ring-white/5">
  {/* Header */}
- <div className="px-4 pt-4 pb-3 border-b border-white/5 bg-white /[0.02]">
+ <div className="px-4 pt-4 pb-3 border-white/5 bg-gray-50 dark:bg-white/[0.03]">
  <div className="flex items-center justify-between mb-4">
  <span className="text-xs font-medium text-slate-600 uppercase tracking-widest">Add Node</span>
  <button
  onClick={handleClose}
- className="p-1.5 rounded-lg text-slate-700 hover:text-white hover:bg-white/60 transition-colors"
+ className="p-1.5 rounded-lg text-slate-700 hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
  >
  <X className="w-4 h-4" />
  </button>
@@ -121,7 +121,7 @@ export function NodeTypeModal({
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  autoFocus
- className="w-full h-10 pl-10 pr-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-white/20 focus:bg-black/60 transition-all shadow-inner"
+ className="text-sm w-full h-10 pl-10 pr-3 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-white/20 focus:bg-black/60 transition-all shadow-inner"
  />
  </div>
  </div>
@@ -144,7 +144,7 @@ export function NodeTypeModal({
  onClick={() => handleSelect(node.type)}
  className={cn(
  "w-full flex items-center gap-3 px-3 py-3 rounded-xl",
- "hover:bg-white/60/[0.04] transition-all text-left group border border-transparent hover:border-white/5"
+ "hover:bg-gray-100 dark:hover:bg-white/[0.06]/[0.04] transition-all text-left group border border-transparent hover:border-white/5"
  )}
  >
  {/* Icon */}
@@ -164,7 +164,7 @@ export function NodeTypeModal({
  {node.label}
  </span>
  {node.estimatedCost > 0 && (
- <div className="flex items-center gap-1 text-[10px] text-slate-700 font-mono bg-white /[0.02] px-1.5 py-0.5 rounded border border-white/5">
+ <div className="text-[10px] flex items-center gap-1 text-slate-700 font-mono bg-gray-50 dark:bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/5">
  <Zap className="w-2.5 h-2.5" />
  {formatCredits(node.estimatedCost)}
  </div>
@@ -181,7 +181,7 @@ export function NodeTypeModal({
  </div>
 
  {/* Footer */}
- <div className="px-4 py-2.5 border-t border-white/5 bg-white /[0.02] backdrop-blur-sm flex justify-between items-center">
+ <div className="px-4 py-2.5 border-white/5 bg-gray-50 dark:bg-white/[0.03] flex justify-between items-center">
  <span className="text-[10px] text-slate-700 uppercase tracking-wider font-medium">
  {filteredNodes.length} Available
  </span>

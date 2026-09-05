@@ -32,7 +32,7 @@ function TextFieldComponent({
  "focus:outline-none transition-colors",
  isConnected
  ? "bg-violet-50 dark:bg-violet-500/5 border-violet-300 dark:border-violet-500/20"
- : "bg-white dark:bg-zinc-900/60 border-gray-400 dark:border-white/10 focus:border-blue-500 dark:focus:border-white/20",
+ : "bg-white dark:bg-white/[0.03] border-gray-400 dark:border-white/10 focus:border-blue-500 dark:focus:border-white/20",
  disabled && "cursor-not-allowed opacity-60",
  className
  );
@@ -49,7 +49,7 @@ function TextFieldComponent({
 
  {/* Label */}
  {config.label && (
- <label className="block text-[10px] text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+ <label className="text-[10px] block text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
  {config.label}
  {config.required && <span className="text-red-500 ml-0.5">*</span>}
  </label>
@@ -81,14 +81,14 @@ function TextFieldComponent({
 
  {/* Character count for textarea */}
  {isTextarea && config.maxLength && (
- <div className="absolute bottom-2 right-2 text-[9px] text-slate-800 dark:text-zinc-600">
+ <div className="text-[9px] absolute bottom-2 right-2 text-slate-800 dark:text-zinc-600">
  {value.length}/{config.maxLength}
  </div>
  )}
 
  {/* Description */}
  {config.description && (
- <p className="mt-1 text-[9px] text-slate-800 dark:text-zinc-600">
+ <p className="text-[9px] mt-1 text-slate-800 dark:text-zinc-600">
  {config.description}
  </p>
  )}

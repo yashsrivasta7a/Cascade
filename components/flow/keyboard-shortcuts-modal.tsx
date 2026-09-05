@@ -68,7 +68,7 @@ const SHORTCUTS: ShortcutGroup[] = [
 
 function Kbd({ children }: { children: React.ReactNode }) {
  return (
- <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 text-[11px] font-medium bg-white dark:bg-white/[0.08] text-slate-800 dark:text-zinc-300 border border-blue-100 dark:border-white/[0.1] rounded-md shadow-sm backdrop-blur-sm">
+ <kbd className="text-[11px] inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 font-medium bg-white dark:bg-white/[0.08] text-slate-800 dark:text-zinc-300 border border-gray-200 dark:border-white/10 rounded-md shadow-sm">
  {children}
  </kbd>
  );
@@ -106,14 +106,14 @@ function KeyboardShortcutsModalComponent({ isOpen, onClose }: KeyboardShortcutsM
  <div className="absolute inset-0 bg-white 0/10 dark:bg-white/[0.02] rounded-2xl blur-3xl opacity-60" />
  
  {/* Main container - Glass effect */}
- <div className="relative bg-white dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.08] rounded-2xl shadow-2xl shadow-gray-400/30 dark:shadow-black/50 overflow-hidden">
+ <div className="shadow-2xl relative bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-2xl shadow-gray-400/30 dark:shadow-black/50 overflow-hidden">
  {/* Glass inner highlight */}
  <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-gray-100/50 dark:from-white/[0.05] to-transparent pointer-events-none" />
  
  {/* Header */}
- <div className="relative flex items-center justify-between px-6 py-4 border-b border-blue-100 dark:border-white/[0.06]">
+ <div className="relative flex items-center justify-between px-6 py-4 border-gray-200 dark:border-white/10">
  <div className="flex items-center gap-3">
- <div className="p-2 rounded-xl bg-blue-500/10 backdrop-blur-sm border border-blue-500/20">
+ <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
  <Keyboard className="w-5 h-5 text-blue-500" />
  </div>
  <h2 className="text-lg font-semibold text-slate-800 dark:text-white/90">
@@ -163,8 +163,8 @@ function KeyboardShortcutsModalComponent({ isOpen, onClose }: KeyboardShortcutsM
  </div>
 
  {/* Footer tip */}
- <div className="mt-6 pt-4 border-t border-blue-100 dark:border-white/[0.06]">
- <p className="text-xs text-slate-700 dark:text-zinc-500 text-center">
+ <div className="mt-6 pt-4 border-gray-200 dark:border-white/10">
+ <p className="text-xs dark:text-zinc-500 text-center">
  Press <Kbd>S</Kbd> to toggle this dialog
  </p>
  </div>

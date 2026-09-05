@@ -29,7 +29,7 @@ function SelectFieldComponent({
  <div className={className}>
  {/* Label */}
  {config.label && (
- <label className="block text-[10px] text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+ <label className="text-[10px] block text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
  {config.label}
  {config.required && <span className="text-red-500 ml-0.5">*</span>}
  </label>
@@ -68,7 +68,7 @@ function SelectFieldComponent({
 
  {/* Description */}
  {config.description && (
- <p className="mt-1 text-[9px] text-slate-800 dark:text-zinc-600">
+ <p className="text-[9px] mt-1 text-slate-800 dark:text-zinc-600">
  {config.description}
  </p>
  )}

@@ -37,7 +37,7 @@ export default function BillingPage() {
  return (
  <div className="h-full flex flex-col bg-white dark:bg-[#09090b] relative overflow-hidden">
  {/* Header */}
- <div className="relative z-10 shrink-0 px-8 py-5 flex items-center justify-between border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
+ <div className="relative z-10 shrink-0 px-4 sm:px-8 py-4 sm:py-5 flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
  <h1 className="text-[17px] font-semibold text-slate-900 dark:text-zinc-100 tracking-tight">Billing & Usage</h1>
  <div className="flex items-center gap-4">
  <UserMenu />

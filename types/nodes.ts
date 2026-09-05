@@ -375,19 +375,6 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     color: "zinc",
   },
   // I/O Nodes
-  "input": {
-    type: "input",
-    category: "io",
-    label: "Input",
-    description: "Add input (text, image, video, or audio) to use in your workflow",
-    provider: "local",
-    action: "Input",
-    inputs: [],
-    outputs: [{ type: "any", label: "Output" }],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "zinc",
-  },
   "image-input": {
     type: "image-input",
     category: "io",
@@ -426,19 +413,6 @@ export const NODE_DEFINITIONS: Record<AINodeType, NodeDefinition> = {
     estimatedCost: 0,
     isUtility: true,
     color: "teal",
-  },
-  "output": {
-    type: "output",
-    category: "io",
-    label: "Output",
-    description: "Display and download workflow output",
-    provider: "local",
-    action: "Output",
-    inputs: [{ type: "any", label: "Input" }],
-    outputs: [],
-    estimatedCost: 0,
-    isUtility: true,
-    color: "zinc",
   },
 };
 
@@ -669,12 +643,6 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     mediaInputs: [],
   },
   // I/O Nodes
-  "input": {
-    primaryOutputType: "any",
-    primaryOutputId: "output",
-    settings: [],
-    mediaInputs: [],
-  },
   "image-input": {
     primaryOutputType: "image",
     primaryOutputId: "output",
@@ -692,12 +660,6 @@ export const NODE_CONTRACTS: Record<AINodeType, NodeContract> = {
     primaryOutputId: "output",
     settings: [],
     mediaInputs: [],
-  },
-  "output": {
-    primaryOutputType: "any",
-    primaryOutputId: "",
-    settings: [],
-    mediaInputs: [{ id: "input", type: "any", label: "Input" }],
   },
 };
 

@@ -62,7 +62,7 @@ export default function DashboardPage() {
  {/* Content Skeleton */}
  <div className="flex-1 overflow-auto p-6 space-y-6">
  {/* Stats Grid Skeleton */}
- <div className="grid grid-cols-4 gap-4">
+ <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
  {[0, 1, 2, 3].map((i) => (
  <div
  key={i}
@@ -90,7 +90,7 @@ export default function DashboardPage() {
  </div>
 
  {/* Main Content Grid Skeleton */}
- <div className="grid grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
  {/* Recent Activity Skeleton */}
  <div className="col-span-2">
  <div className="bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl overflow-hidden">
@@ -222,7 +222,7 @@ export default function DashboardPage() {
  {/* Content */}
  <div className="flex-1 overflow-auto p-6 space-y-6">
  {/* Stats Grid */}
- <div className="grid grid-cols-4 gap-4">
+ <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
  {statConfig.map((config, i) => {
  const stat = stats?.[config.key];
  const colorClasses = {
@@ -292,7 +292,7 @@ export default function DashboardPage() {
  </div>
 
  {/* Main Content Grid */}
- <div className="grid grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
  {/* Recent Activity */}
  <motion.div
  initial={{ opacity: 0, y: 20 }}

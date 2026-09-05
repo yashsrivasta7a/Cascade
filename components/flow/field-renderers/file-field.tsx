@@ -42,13 +42,15 @@ function CropPreview({
  const img = imgRef.current;
  if (!container || !img || !img.naturalWidth || !img.naturalHeight) return;
 
- const containerRect = container.getBoundingClientRect();
- const imgRect = img.getBoundingClientRect();
+ // Use offsetWidth/offsetHeight instead of getBoundingClientRect 
+ // because getBoundingClientRect is affected by React Flow's zoom transform,
+ // which would cause double-scaling when we apply the values back to CSS.
+ const imgWidth = img.offsetWidth;
+ const imgHeight = img.offsetHeight;
 
  // Calculate the actual rendered image size with object-contain
- // The image element might be larger than the visible image due to aspect ratio
  const naturalAspect = img.naturalWidth / img.naturalHeight;
- const elementAspect = imgRect.width / imgRect.height;
+ const elementAspect = imgWidth / imgHeight;
  
  let renderedWidth: number;
  let renderedHeight: number;
@@ -57,20 +59,20 @@ function CropPreview({
  
  if (naturalAspect > elementAspect) {
  // Image is wider than element - constrained by width, letterboxed vertically
- renderedWidth = imgRect.width;
- renderedHeight = imgRect.width / naturalAspect;
- offsetY = (imgRect.height - renderedHeight) / 2;
+ renderedWidth = imgWidth;
+ renderedHeight = imgWidth / naturalAspect;
+ offsetY = (imgHeight - renderedHeight) / 2;
  } else {
  // Image is taller than element - constrained by height, pillarboxed horizontally
- renderedHeight = imgRect.height;
- renderedWidth = imgRect.height * naturalAspect;
- offsetX = (imgRect.width - renderedWidth) / 2;
+ renderedHeight = imgHeight;
+ renderedWidth = imgHeight * naturalAspect;
+ offsetX = (imgWidth - renderedWidth) / 2;
  }
 
  // Calculate the actual rendered position of the image within the container
  setImageBounds({
- left: imgRect.left - containerRect.left + offsetX,
- top: imgRect.top - containerRect.top + offsetY,
+ left: offsetX,
+ top: offsetY,
  width: renderedWidth,
  height: renderedHeight,
  });
@@ -162,7 +164,7 @@ function CropPreview({
  />
  {/* Crop box border - this is what you'll GET */}
  <div 
- className="absolute border-2 border-amber-400 pointer-events-none"
+ className="border-2 absolute border-amber-400 pointer-events-none"
  style={{
  left: imageBounds.left + (x / 100) * imageBounds.width,
  top: imageBounds.top + (y / 100) * imageBounds.height,
@@ -171,14 +173,14 @@ function CropPreview({
  }}
  >
  {/* Corner markers */}
- <div className="absolute -left-0.5 -top-0.5 w-2.5 h-2.5 border-l-2 border-t-2 border-amber-400" />
- <div className="absolute -right-0.5 -top-0.5 w-2.5 h-2.5 border-r-2 border-t-2 border-amber-400" />
- <div className="absolute -left-0.5 -bottom-0.5 w-2.5 h-2.5 border-l-2 border-b-2 border-amber-400" />
- <div className="absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 border-r-2 border-b-2 border-amber-400" />
+ <div className="border-t-2 border-l-2 border-b-2 absolute -left-0.5 -top-0.5 w-2.5 h-2.5 border-amber-400" />
+ <div className="border-t-2 border-r-2 border-b-2 absolute -right-0.5 -top-0.5 w-2.5 h-2.5 border-amber-400" />
+ <div className="border-l-2 absolute -left-0.5 -bottom-0.5 w-2.5 h-2.5 border-amber-400" />
+ <div className="border-r-2 absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 border-amber-400" />
  </div>
  {/* Crop dimensions label - positioned at bottom of crop box */}
  <div 
- className="absolute text-[8px] font-mono text-white bg-amber-500/90 px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap shadow-sm"
+ className="text-[8px] absolute font-mono text-white bg-amber-500/90 px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap shadow-sm"
  style={{
  left: imageBounds.left + (x / 100) * imageBounds.width + ((w / 100) * imageBounds.width) / 2,
  top: imageBounds.top + ((y + h) / 100) * imageBounds.height - 2,
@@ -527,7 +529,7 @@ function FileFieldComponent({
  <div className={className}>
  {/* Label */}
  {config.label && (
- <label className="block text-[10px] text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+ <label className="block text-slate-800 dark:text-zinc-500 mb-1" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
  {config.label}
  {config.required && <span className="text-red-500 ml-0.5">*</span>}
  </label>
@@ -557,7 +559,7 @@ function FileFieldComponent({
  onDragLeave={() => setIsDragOver(false)}
  onClick={() => !displayValue && !disabled && fileInputRef.current?.click()}
  className={cn(
- "nodrag nowheel relative rounded-lg border-2 border-dashed transition-all",
+ "border-2 nodrag nowheel relative rounded-lg border-dashed transition-all",
  isDragOver
  ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
  : hasConnectedPreview
@@ -580,7 +582,7 @@ function FileFieldComponent({
  )}
  
  {isUploading ? (
- <div className="flex flex-col items-center justify-center py-4 text-blue-500 dark:text-blue-400">
+ <div className="text-[10px] flex flex-col items-center justify-center py-4 text-blue-500 dark:text-blue-400">
  <Loader2 className="w-5 h-5 mb-1 animate-spin" />
  <span className="text-[10px]">Uploading...</span>
  </div>
@@ -634,7 +636,7 @@ function FileFieldComponent({
  style={{ width: `${audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0}%` }}
  />
  </div>
- <div className="flex justify-between text-[8px] text-slate-700 dark:text-zinc-500 font-mono mt-0.5">
+ <div className="text-[8px] flex justify-between text-slate-700 dark:text-zinc-500 font-mono mt-0.5">
  <span>{formatTime(audioCurrentTime)}</span>
  <span>{formatTime(audioDuration)}</span>
  </div>
@@ -662,9 +664,9 @@ function FileFieldComponent({
  )}
  {/* Non-preview file display (not audio) */}
  {!config.preview && fileType !== "audio" && (
- <div className="flex items-center gap-2 p-2">
+ <div className="text-[10px] flex items-center gap-2 p-2">
  <FileIcon className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
- <span className="text-[10px] text-slate-800 dark:text-zinc-400 truncate flex-1">
+ <span className="text-slate-800 dark:text-zinc-400 truncate flex-1">
  File selected
  </span>
  </div>
@@ -699,7 +701,7 @@ function FileFieldComponent({
 
  {/* Description */}
  {config.description && (
- <p className="mt-1 text-[9px] text-slate-800 dark:text-zinc-600">
+ <p className="text-[9px] mt-1 text-slate-800 dark:text-zinc-600">
  {config.description}
  </p>
  )}

@@ -15,10 +15,8 @@ import {
  LayoutGrid,
  Square,
  FolderOpen,
- Coins,
  Undo2,
  Redo2,
- MessageSquare,
  RotateCcw,
  Keyboard,
  ChevronLeft,
@@ -46,7 +44,9 @@ import { showInsufficientCredits, showDuplicateNameWarning } from "@/lib/toast";
 
 // Fields that contain media URLs that should be persisted
 const MEDIA_FIELDS = [
- "result", "outputVideo", "outputAudio", "outputImage",
+ // "value" is the upload/preview field on input nodes - it must be uploaded and
+ // kept alongside "result", otherwise input previews vanish on reload.
+ "result", "value", "outputVideo", "outputAudio", "outputImage",
  "croppedImage", "mergedVideo", "extractedAudio",
  "generatedImage", "generatedVideo", "generatedAudio",
  "inputVideo1", "inputVideo2", "inputImage", "inputAudio",
@@ -193,7 +193,7 @@ function WorkflowEditorContent() {
  const router = useRouter();
  const workflowId = params?.id ?? "unknown";
  const focusParam = searchParams?.get("focus");
- const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, addNode, isAnyNodeUploading } = useFlowStore();
+ const { loadFlow, setNodes, nodes, edges, setEdges, viewport, isWorkflowRunning, setWorkflowRunning, setWorkflowId, focusNode, focusNodeId, selectedNode, undo, redo, canUndo, canRedo, isAnyNodeUploading } = useFlowStore();
  
  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
  const [paletteOpen, setPaletteOpen] = useState(true);
@@ -204,7 +204,6 @@ function WorkflowEditorContent() {
  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
  const [isFinalizing, setIsFinalizing] = useState(false);
- const [placingComment, setPlacingComment] = useState(false);
  const [selectionMode, setSelectionMode] = useState<"pan" | "select">("pan");
  const [shortcutsOpen, setShortcutsOpen] = useState(false);
  
@@ -1099,10 +1098,13 @@ function WorkflowEditorContent() {
 
  setWorkflowRunning(true);
 
- // Save workflow first if not saved, and get the workflow ID
- let effectiveWorkflowId = dbWorkflowId;
- if (!dbWorkflowId) {
- const savedId = await handleSave();
+ // Always save before running: this uploads any base64 media to the CDN and
+ // persists the current graph, so the executor receives real URLs rather than
+ // inline data. Skipping it for already-saved workflows left fresh uploads
+ // unpersisted and the run would fail to resolve them.
+ const effectiveWorkflowId = await handleSave();
+ {
+ const savedId = effectiveWorkflowId;
  if (!savedId) {
  // Save failed, abort run
  setWorkflowRunning(false);
@@ -1120,12 +1122,12 @@ function WorkflowEditorContent() {
  setActivityOpen(true);
  return;
  }
- effectiveWorkflowId = savedId;
  }
 
- // Reset statuses (only for connected nodes that will run)
- setNodes(
- nodes.map((n) => ({
+ // Reset statuses. Read fresh from the store: handleSave() replaces base64 media
+ // with CDN URLs via setNodes, and the `nodes` closure here still holds the
+ // pre-upload values. Sending those would ship stale/oversized data to the executor.
+ const freshNodes = useFlowStore.getState().nodes.map((n) => ({
  ...n,
  data: {
  ...(n.data as Record<string, unknown>),
@@ -1133,12 +1135,12 @@ function WorkflowEditorContent() {
  progress: 0,
  error: undefined,
  },
- }))
- );
+ }));
+ setNodes(freshNodes);
 
  // Use Trigger.dev Realtime (V2) - direct WebSocket to Trigger.dev
  await runWorkflowRealtimeV2(
- nodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
+ freshNodes as Parameters<typeof runWorkflowRealtimeV2>[0], 
  edges as Parameters<typeof runWorkflowRealtimeV2>[1],
  effectiveWorkflowId ?? undefined
  );
@@ -1155,32 +1157,6 @@ function WorkflowEditorContent() {
  amber: "from-amber-600 via-amber-500 to-amber-600",
  zinc: "from-zinc-600 via-zinc-500 to-zinc-600",
  }[activeColor] ?? "from-blue-600 via-blue-500 to-blue-600";
-
- // Add a comment node at a specific position (called from FlowCanvas when clicking in placement mode)
- const handlePlaceComment = useCallback((position: { x: number; y: number }) => {
- const newNodeId = `comment-${Date.now()}`;
- // Random color index from 0-15 (16 color options)
- const randomColorIndex = Math.floor(Math.random() * 16);
- const newNode: Node = {
- id: newNodeId,
- type: "comment",
- position,
- data: {
- label: "Comment",
- text: "",
- width: 200,
- height: 100,
- colorIndex: randomColorIndex,
- },
- };
- addNode(newNode);
- setPlacingComment(false);
- }, [addNode]);
-
- // Toggle comment placement mode
- const handleToggleCommentMode = useCallback(() => {
- setPlacingComment((prev) => !prev);
- }, []);
 
  // Auto-arrange nodes in a left-to-right tree layout
  const handleAutoLayout = useCallback(() => {
@@ -1239,9 +1215,6 @@ function WorkflowEditorContent() {
  <FlowCanvas 
  className="h-full w-full" 
  storageKey={`workflow:${workflowId}`} 
- placingComment={placingComment}
- onPlaceComment={handlePlaceComment}
- onCancelPlacement={() => setPlacingComment(false)}
  selectionMode={selectionMode}
  onSelectionModeChange={setSelectionMode}
  />
@@ -1268,37 +1241,43 @@ function WorkflowEditorContent() {
  )}
  </AnimatePresence>
 
- {/* Node Palette Sidebar */}
- {paletteOpen && (
- <div className="fixed left-3 top-16 bottom-3 z-40">
- <NodePalette onClose={() => setPaletteOpen(false)} />
- </div>
- )}
+        {/* Node Palette Sidebar */}
+        {paletteOpen && (
+          <div className="fixed left-3 top-16 bottom-3 z-40">
+            <NodePalette 
+              onClose={() => setPaletteOpen(false)} 
+              onNodeClick={(type) => {
+                handleAddNode(type as AINodeType);
+                if (window.innerWidth < 640) setPaletteOpen(false);
+              }}
+            />
+          </div>
+        )}
 
- {/* Top Left: Studio Menu + Workflow Name */}
- <div className="fixed top-3 left-3 z-50 flex items-center gap-3">
+  {/* Top Left: Studio Menu + Workflow Name */}
+  <div className="fixed top-3 left-3 right-3 sm:right-auto z-50 flex items-center gap-1.5 sm:gap-3 pr-[10.5rem] sm:pr-0 pointer-events-none [&>*]:pointer-events-auto">
  {/* Back to Workflows Button */}
  <button
  onClick={() => setWorkflowSidebarOpen(true)}
- className="group flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 dark:bg-blue-500/10 hover:bg-blue-500/20 dark:hover:bg-blue-500/20 border border-blue-300 dark:border-blue-500/30 hover:border-blue-400 dark:hover:border-blue-500/50 rounded-xl transition-all shadow-lg shadow-blue-500/10 dark:shadow-blue-500/5"
+ className="group shrink-0 flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-500/10 dark:bg-blue-500/10 hover:bg-blue-500/20 dark:hover:bg-blue-500/20 border border-blue-300 dark:border-blue-500/30 hover:border-blue-400 dark:hover:border-blue-500/50 rounded-xl transition-all shadow-lg shadow-blue-500/10 dark:shadow-blue-500/5"
  >
  <ChevronLeft className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors" />
- <span className="text-sm font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">Workflows</span>
+ <span className="hidden sm:inline text-sm font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">Workflows</span>
  </button>
 
  {/* Workflow Name Input */}
  <div className={cn(
- "flex items-center bg-white dark:bg-zinc-950/90 border rounded-xl px-3 py-1.5 shadow-lg shadow-gray-200/50 dark:shadow-black/20 group transition-colors",
+ "flex min-w-0 flex-1 sm:flex-none items-center bg-white dark:bg-[#141414] border rounded-xl px-3 py-1.5 shadow-lg shadow-gray-200/50 dark:shadow-black/20 group transition-colors",
  isNameTaken 
  ? "border-red-400 dark:border-red-500/50 focus-within:border-red-500 dark:focus-within:border-red-500" 
- : "border-blue-100 dark:border-zinc-800 focus-within:border-gray-300 dark:focus-within:border-zinc-700"
+ : "border-gray-200 dark:border-white/10 focus-within:border-gray-300 dark:focus-within:border-zinc-700"
  )}>
  <input
  type="text"
  value={workflowName}
  onChange={(e) => setWorkflowName(e.target.value)}
  className={cn(
- "w-48 text-sm font-medium bg-transparent border-none focus:outline-none placeholder-gray-400 dark:placeholder-zinc-600",
+ "w-full sm:w-48 min-w-0 text-sm font-medium bg-transparent border-none focus:outline-none placeholder-gray-400 dark:placeholder-zinc-600",
  isNameTaken ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-zinc-200"
  )}
  placeholder="Workflow Name"
@@ -1319,10 +1298,10 @@ function WorkflowEditorContent() {
  {/* Credit Balance Display - Click to open Credits Panel */}
  <button
  onClick={() => setCreditsOpen((v) => !v)}
- className={`flex items-center gap-2 bg-white dark:bg-zinc-950/90 border rounded-xl px-3 py-1.5 transition-colors group shadow-lg shadow-gray-200/50 dark:shadow-black/20 ${
+ className={`flex items-center gap-2 bg-white dark:bg-[#141414] border rounded-xl px-3 py-1.5 transition-colors group shadow-lg shadow-gray-300/40 dark:shadow-black/50 ${
  creditsOpen
  ? "border-amber-400 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-500/10"
- : "border-blue-100 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700 hover:bg-gray-50/90 dark:hover:bg-zinc-900/90"
+ : "border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-50 dark:hover:bg-white/[0.04]"
  }`}
  >
  <div className={`w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-inner ${
@@ -1336,7 +1315,7 @@ function WorkflowEditorContent() {
  }`}>
  {creditsData?.formatted ?? "..."}
  </span>
- <span className="text-[10px] text-slate-700 dark:text-zinc-500 leading-none">credits</span>
+ <span className="hidden sm:block text-[10px] text-slate-700 dark:text-zinc-500 leading-none">credits</span>
  </div>
  </button>
  </div>
@@ -1356,13 +1335,7 @@ function WorkflowEditorContent() {
  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
  className="relative group"
  >
- {/* Subtle glow effect */}
- <div className="absolute inset-0 bg-white dark:bg-white/[0.03] rounded-2xl blur-2xl opacity-60 group-hover:opacity-80 transition-opacity" />
- 
- {/* Main bar - Glass effect */}
- <div className="relative flex items-center gap-0.5 bg-white dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.08] rounded-2xl px-1.5 py-1.5 shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/40">
- {/* Glass inner highlight */}
- <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-gray-100/50 dark:from-white/[0.05] to-transparent pointer-events-none" />
+  <div className="relative flex items-center gap-0.5 bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 rounded-xl px-1.5 py-1.5 shadow-lg shadow-gray-300/40 dark:shadow-black/50 max-w-[calc(100vw-24px)] overflow-x-auto scrollbar-none">
  
  {/* ═══ GROUP 1: Canvas Tools ═══ */}
  
@@ -1376,16 +1349,16 @@ function WorkflowEditorContent() {
  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
  paletteOpen 
  ? "text-blue-600 dark:text-blue-400" 
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  }`}
  >
  <Layers className="w-4 h-4 relative z-10" />
  {paletteOpen && (
  <>
- <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+ 
  <motion.div
  layoutId="activeIndicator"
- className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+ className="absolute inset-0 bg-blue-500/15 rounded-xl border border-blue-500/30"
  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
  />
  </>
@@ -1398,69 +1371,26 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Nodes</span>
  <Kbd>N</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
  </div>
 
- {/* Add Comment */}
- <div className="relative">
- <motion.button
- onClick={handleToggleCommentMode}
- onMouseEnter={() => setHoveredAction("comment")}
- onMouseLeave={() => setHoveredAction(null)}
- whileTap={{ scale: 0.95 }}
- className={`relative p-2.5 rounded-xl transition-all duration-200 ${
- placingComment 
- ? "text-amber-600 dark:text-amber-400" 
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
- }`}
- >
- <MessageSquare className="w-4 h-4 relative z-10" />
- {placingComment && (
- <>
- <div className="absolute inset-0 bg-amber-500/20 rounded-xl blur-md" />
- <motion.div
- layoutId="activeIndicatorComment"
- className="absolute inset-0 bg-gradient-to-br from-amber-500/30 to-amber-600/20 rounded-xl border border-amber-500/30"
- transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
- />
- </>
- )}
- </motion.button>
- 
- <AnimatePresence>
- {hoveredAction === "comment" && (
- <motion.div
- initial={{ opacity: 0, y: 8 }}
- animate={{ opacity: 1, y: 0 }}
- exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
- >
- <span className="text-xs text-slate-700 dark:text-zinc-300">
- {placingComment ? "Click canvas to place" : "Add Comment"}
- </span>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
- </motion.div>
- )}
- </AnimatePresence>
- </div>
-
- {/* Keyboard Shortcuts */}
- <div className="relative">
+        {/* Keyboard Shortcuts */}
+        <div className="relative hidden sm:block">
  <motion.button
  onClick={() => setShortcutsOpen(true)}
  onMouseEnter={() => setHoveredAction("shortcuts")}
  onMouseLeave={() => setHoveredAction(null)}
  whileTap={{ scale: 0.95 }}
- className="p-2.5 rounded-xl text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5 transition-all duration-200"
+ className="p-2.5 rounded-xl text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] dark:hover:bg-white/5 transition-all duration-200"
  >
  <Keyboard className="w-4 h-4" />
  </motion.button>
@@ -1471,13 +1401,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Shortcuts</span>
  <Kbd>S</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1499,8 +1429,8 @@ function WorkflowEditorContent() {
  activityOpen 
  ? "text-blue-400" 
  : workflowErrors.length > 0
- ? "text-blue-400 hover:bg-white/60"
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ ? "text-blue-400 hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+ : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  }`}
  >
  <Activity className="w-4 h-4 relative z-10" />
@@ -1511,10 +1441,10 @@ function WorkflowEditorContent() {
  )}
  {activityOpen && (
  <>
- <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+ 
  <motion.div
  layoutId="activeIndicator2"
- className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+ className="absolute inset-0 bg-blue-500/15 rounded-xl border border-blue-500/30"
  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
  />
  </>
@@ -1527,13 +1457,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Timeline</span>
  <Kbd>H</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1549,16 +1479,16 @@ function WorkflowEditorContent() {
  className={`relative p-2.5 rounded-xl transition-all duration-200 ${
  assetManagerOpen 
  ? "text-purple-400" 
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  }`}
  >
  <FolderOpen className="w-4 h-4 relative z-10" />
  {assetManagerOpen && (
  <>
- <div className="absolute inset-0 bg-purple-500/20 rounded-xl blur-md" />
+ 
  <motion.div
  layoutId="activeIndicator3"
- className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-purple-600/20 rounded-xl border border-purple-500/30"
+ className="absolute inset-0 bg-purple-500/15 rounded-xl border border-purple-500/30"
  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
  />
  </>
@@ -1571,57 +1501,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Assets</span>
  <Kbd>A</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
- </motion.div>
- )}
- </AnimatePresence>
- </div>
-
- {/* Credits toggle */}
- <div className="relative">
- <motion.button
- onClick={() => setCreditsOpen((v) => !v)}
- onMouseEnter={() => setHoveredAction("credits")}
- onMouseLeave={() => setHoveredAction(null)}
- whileTap={{ scale: 0.95 }}
- className={`relative p-2.5 rounded-xl transition-all duration-200 ${
- creditsOpen 
- ? "text-amber-400" 
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
- }`}
- >
- <Coins className="w-4 h-4 relative z-10" />
- {creditsOpen && (
- <>
- <div className="absolute inset-0 bg-amber-500/20 rounded-xl blur-md" />
- <motion.div
- layoutId="activeIndicator4"
- className="absolute inset-0 bg-gradient-to-br from-amber-500/30 to-amber-600/20 rounded-xl border border-amber-500/30"
- transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
- />
- </>
- )}
- </motion.button>
- 
- <AnimatePresence>
- {hoveredAction === "credits" && (
- <motion.div
- initial={{ opacity: 0, y: 8 }}
- animate={{ opacity: 1, y: 0 }}
- exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
- >
- <div className="flex items-center gap-2">
- <span className="text-xs text-slate-700 dark:text-zinc-300">Credits</span>
- <Kbd>C</Kbd>
- </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1650,13 +1536,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Auto-Arrange</span>
  <Kbd>G</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1680,10 +1566,10 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <span className="text-xs text-slate-700 dark:text-zinc-300">Clear All</span>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1704,7 +1590,7 @@ function WorkflowEditorContent() {
  whileTap={{ scale: canUndo() ? 0.95 : 1 }}
  className={`p-2.5 rounded-xl transition-all duration-200 ${
  canUndo()
- ? "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ ? "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  : "text-slate-700 cursor-not-allowed"
  }`}
  >
@@ -1717,13 +1603,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Undo</span>
  <Kbd>Ctrl+Z</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1739,7 +1625,7 @@ function WorkflowEditorContent() {
  whileTap={{ scale: canRedo() ? 0.95 : 1 }}
  className={`p-2.5 rounded-xl transition-all duration-200 ${
  canRedo()
- ? "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ ? "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  : "text-slate-700 cursor-not-allowed"
  }`}
  >
@@ -1752,13 +1638,13 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">Redo</span>
  <Kbd>Ctrl+Y</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1777,7 +1663,7 @@ function WorkflowEditorContent() {
  onMouseLeave={() => setHoveredAction(null)}
  disabled={saveStatus === "saving"}
  whileTap={{ scale: 0.95 }}
- className="p-2.5 rounded-xl text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5 transition-all duration-200 disabled:opacity-50"
+ className="p-2.5 rounded-xl text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] dark:hover:bg-white/5 transition-all duration-200 disabled:opacity-50"
  >
  {saveStatus === "saving" ? (
  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
@@ -1794,7 +1680,7 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">
@@ -1804,7 +1690,7 @@ function WorkflowEditorContent() {
  <span className="text-xs text-slate-800 dark:text-zinc-600">+</span>
  <Kbd>S</Kbd>
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1864,7 +1750,7 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <div className="flex items-center gap-2">
  <span className="text-xs text-slate-700 dark:text-zinc-300">
@@ -1872,7 +1758,7 @@ function WorkflowEditorContent() {
  </span>
  {!isUploading && <Kbd>{isFinalizing ? "..." : isRunning ? "Esc" : "R"}</Kbd>}
  </div>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -1965,7 +1851,7 @@ function WorkflowEditorContent() {
  <div className="absolute inset-0 bg-white dark:bg-white/[0.03] rounded-2xl blur-2xl opacity-60 group-hover:opacity-80 transition-opacity" />
  
  {/* Main container - Glass effect matching bottom bar */}
- <div className="relative flex items-center gap-0.5 bg-white dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.08] rounded-2xl px-1.5 py-1.5 shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/40">
+ <div className="relative flex items-center gap-0.5 bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-2xl px-1.5 py-1.5 shadow-xl shadow-gray-300/50 dark:shadow-2xl dark:shadow-black/40">
  {/* Glass inner highlight */}
  <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-gray-100/50 dark:from-white/[0.05] to-transparent pointer-events-none" />
  
@@ -1979,16 +1865,16 @@ function WorkflowEditorContent() {
  "relative p-2.5 rounded-xl transition-all duration-200",
  selectionMode === "pan"
  ? "text-blue-600 dark:text-blue-400"
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  )}
  >
  <MousePointer2 className="w-4 h-4 relative z-10" />
  {selectionMode === "pan" && (
  <>
- <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+ 
  <motion.div
  layoutId="panSelectIndicator"
- className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+ className="absolute inset-0 bg-blue-500/15 rounded-xl border border-blue-500/30"
  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
  />
  </>
@@ -2001,10 +1887,10 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <span className="text-xs text-slate-700 dark:text-zinc-300">Pan Mode</span>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>
@@ -2020,16 +1906,16 @@ function WorkflowEditorContent() {
  "relative p-2.5 rounded-xl transition-all duration-200",
  selectionMode === "select"
  ? "text-blue-600 dark:text-blue-400"
- : "text-slate-700 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-white/5"
+ : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06]"
  )}
  >
  <BoxSelect className="w-4 h-4 relative z-10" />
  {selectionMode === "select" && (
  <>
- <div className="absolute inset-0 bg-blue-500/20 rounded-xl blur-md" />
+ 
  <motion.div
  layoutId="panSelectIndicator"
- className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-blue-600/20 rounded-xl border border-blue-500/30"
+ className="absolute inset-0 bg-blue-500/15 rounded-xl border border-blue-500/30"
  transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
  />
  </>
@@ -2042,10 +1928,10 @@ function WorkflowEditorContent() {
  initial={{ opacity: 0, y: 8 }}
  animate={{ opacity: 1, y: 0 }}
  exit={{ opacity: 0, y: 4 }}
- className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-zinc-900 rounded-lg border border-blue-100 dark:border-zinc-700 whitespace-nowrap shadow-lg"
+ className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-white/10 whitespace-nowrap shadow-lg"
  >
  <span className="text-xs text-slate-700 dark:text-zinc-300">Select Mode</span>
- <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-zinc-900 rotate-45 border-r border-b border-blue-100 dark:border-zinc-700" />
+ <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-white dark:bg-[#1e1e1e] rotate-45 border-r border-b border-gray-200 dark:border-white/10" />
  </motion.div>
  )}
  </AnimatePresence>

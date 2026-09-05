@@ -149,7 +149,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  exit={{ opacity: 0 }}
  transition={{ duration: 0.2 }}
  onClick={onClose}
- className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+ className="fixed inset-0 bg-black/50 z-50"
  />
 
  {/* Sidebar */}
@@ -163,21 +163,18 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  ease: [0.32, 0.72, 0, 1]
  }}
  style={{ willChange: "transform" }}
- className="fixed left-0 top-0 bottom-0 w-[340px] z-50 flex flex-col"
+ className="fixed left-0 top-0 bottom-0 w-[min(340px,85vw)] z-50 flex flex-col"
  >
- {/* Glass container */}
- <div className="relative h-full flex flex-col bg-white dark:bg-white/[0.03] border-r border-blue-100 dark:border-white/[0.08] shadow-2xl shadow-gray-400/30 dark:shadow-black/50">
- {/* Glass inner highlight */}
- <div className="absolute inset-0 bg-gradient-to-b from-gray-100/30 dark:from-white/[0.03] to-transparent pointer-events-none" />
+ <div className="relative h-full flex flex-col bg-white dark:bg-[#141414] border-gray-200 dark:border-white/10 shadow-gray-400/30 dark:shadow-black/50">
  
  {/* Header */}
- <div className="relative p-4 border-b border-blue-100 dark:border-white/[0.06]">
+ <div className="relative p-4 border-gray-200 dark:border-white/10">
  <div className="flex items-center justify-between mb-6">
  <div className="flex items-center gap-3">
  {/* Logo */}
  <Logo className="w-10 h-10 text-slate-900 dark:text-white" />
  <div>
- <h2 className="font-display text-base text-slate-900 dark:text-white uppercase tracking-[0.14em]">Cascade</h2>
+ <h2 className="text-base font-display text-slate-900 dark:text-white uppercase tracking-[0.14em]">Cascade</h2>
  <p className="text-[10px] text-slate-700 dark:text-zinc-500 font-medium">Studio</p>
  </div>
  </div>
@@ -185,7 +182,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  onClick={onClose}
  className="p-2 rounded-xl text-slate-800 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100/80 dark:hover:bg-white/[0.05] transition-all"
  >
- <X className="w-4 h-4" />
+ <X className="w-4 h-4" strokeWidth={1.75} />
  </button>
  </div>
 
@@ -196,8 +193,8 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  onClick={onClose}
  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-800 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100/60 dark:hover:bg-white/[0.05] transition-all group"
  >
- <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-white/[0.05] group-hover:bg-gray-200/80 dark:group-hover:bg-white/60/[0.08] transition-colors">
- <Home className="w-4 h-4 text-slate-700 dark:text-zinc-500 group-hover:text-slate-900 dark:group-hover:text-slate-700 transition-colors" />
+ <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-white/[0.05] group-hover:bg-gray-200/80 dark:group-hover:bg-gray-100 dark:hover:bg-white/[0.06]/[0.08] transition-colors">
+ <Home className="w-4 h-4 text-slate-700 dark:text-zinc-500 group-hover:text-slate-900 dark:group-hover:text-slate-700 transition-colors" strokeWidth={1.75} />
  </div>
  <span className="text-sm font-medium">Workflows</span>
  </Link>
@@ -208,11 +205,11 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-800 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-gray-100/60 dark:hover:bg-white/[0.05] transition-all group"
  >
  <div className="p-1.5 rounded-lg bg-blue-100/80 dark:bg-blue-500/10 group-hover:bg-blue-200/80 dark:group-hover:bg-blue-500/20 transition-colors">
- <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+ <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.75} />
  </div>
  <span className="text-sm font-medium">New Project</span>
  <div className="ml-auto">
- <div className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-blue-100/80 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-500/20">
+ <div className="text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-blue-100/80 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-500/20">
  NEW
  </div>
  </div>
@@ -223,16 +220,16 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  {/* Search */}
  <div className="relative px-4 py-3">
  <div className="relative group">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-800 dark:text-zinc-500 group-focus-within:text-slate-800 dark:group-focus-within:text-slate-600 transition-colors" />
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-800 dark:text-zinc-500 group-focus-within:text-slate-800 dark:group-focus-within:text-slate-600 transition-colors" strokeWidth={1.75} />
  <input
  type="text"
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
  placeholder="Search projects..."
- className="w-full pl-9 pr-3 py-2.5 bg-gray-100/60 dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.06] rounded-xl text-sm text-slate-700 dark:text-zinc-200 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-gray-300/80 dark:focus:border-white/[0.12] focus:bg-white/80 dark:focus:bg-white/[0.05] transition-all backdrop-blur-sm"
+ className="w-full pl-9 pr-3 py-2.5 bg-gray-100/60 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-xl text-slate-700 dark:text-zinc-200 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-gray-300/80 dark:focus:border-white/[0.12] focus:bg-white/80 dark:focus:bg-white/[0.05] transition-all"
  />
  <div className="absolute right-3 top-1/2 -translate-y-1/2">
- <Command className="w-3 h-3 text-slate-600 dark:text-zinc-700" />
+ <Command className="text-sm w-3 h-3 text-slate-600 dark:text-zinc-700" strokeWidth={1.75} />
  </div>
  </div>
  </div>
@@ -246,24 +243,24 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  <div className="relative flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-white/10 scrollbar-track-transparent">
  {isLoading ? (
  <div className="flex items-center justify-center py-12">
- <Loader2 className="w-5 h-5 text-slate-800 dark:text-zinc-600 animate-spin" />
+ <Loader2 className="w-5 h-5 text-slate-800 dark:text-zinc-600 animate-spin" strokeWidth={1.75} />
  </div>
  ) : hasError ? (
  <div className="flex flex-col items-center justify-center py-12 text-center px-4">
- <div className="w-10 h-10 rounded-xl bg-red-100/80 dark:bg-red-500/10 border border-red-200/80 dark:border-red-500/20 flex items-center justify-center mb-3 backdrop-blur-sm">
- <X className="w-5 h-5 text-red-500 dark:text-red-400" />
+ <div className="w-10 h-10 rounded-xl bg-red-100/80 dark:bg-red-500/10 border border-red-200/80 dark:border-red-500/20 flex items-center justify-center mb-3">
+ <X className="w-5 h-5 text-red-500 dark:text-red-400" strokeWidth={1.75} />
  </div>
- <p className="text-sm text-red-600 dark:text-red-400">Failed to load projects</p>
+ <p className="text-red-600 dark:text-red-400">Failed to load projects</p>
  </div>
  ) : filteredWorkflows.length === 0 ? (
- <div className="flex flex-col items-center justify-center py-12 text-center">
- <div className="w-10 h-10 rounded-xl bg-gray-100/80 dark:bg-white/[0.03] border border-blue-100 dark:border-white/[0.06] flex items-center justify-center mb-3 backdrop-blur-sm">
- <FileText className="w-5 h-5 text-slate-800 dark:text-zinc-600" />
+ <div className="text-sm flex flex-col items-center justify-center py-12 text-center">
+ <div className="w-10 h-10 rounded-xl bg-gray-100/80 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 flex items-center justify-center mb-3">
+ <FileText className="w-5 h-5 text-slate-800 dark:text-zinc-600" strokeWidth={1.75} />
  </div>
- <p className="text-sm text-slate-700 dark:text-zinc-500">No projects found</p>
+ <p className="text-slate-700 dark:text-zinc-500">No projects found</p>
  </div>
  ) : (
- <div className="space-y-1">
+ <div className="text-sm space-y-1">
  {filteredWorkflows.map((workflow) => {
  const isActive = workflow.id === currentWorkflowId;
  const isEditing = editingId === workflow.id;
@@ -275,7 +272,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  className={cn(
  "group relative rounded-xl transition-all duration-150",
  isActive
- ? "bg-blue-50/80 dark:bg-blue-500/[0.08] border border-blue-200/80 dark:border-blue-500/30 backdrop-blur-sm"
+ ? "bg-blue-50/80 dark:bg-blue-500/[0.08] border border-blue-200/80 dark:border-blue-500/30"
  : "hover:bg-gray-100/60 dark:hover:bg-white/[0.04] border border-transparent hover:border-gray-200/60 dark:hover:border-white/[0.08]"
  )}
  >
@@ -290,29 +287,29 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  if (e.key === "Enter") handleSaveRename();
  if (e.key === "Escape") setEditingId(null);
  }}
- className="flex-1 px-2 py-1.5 text-sm bg-white dark:bg-black/30 border border-blue-100 dark:border-white/[0.1] rounded-lg text-slate-700 dark:text-zinc-100 focus:outline-none focus:border-blue-500/50 backdrop-blur-sm"
+ className="flex-1 px-2 py-1.5 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg text-slate-700 dark:text-zinc-100 focus:outline-none focus:border-blue-500/50"
  />
  <button
  onClick={handleSaveRename}
  className="p-1.5 rounded-lg bg-blue-100/80 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200/80 dark:hover:bg-blue-500/30 transition-colors"
  >
- <Check className="w-3.5 h-3.5" />
+ <Check className="w-3.5 h-3.5" strokeWidth={1.75} />
  </button>
  </div>
  ) : isDeleting ? (
- <div className="px-3 py-3 bg-red-50/80 dark:bg-red-500/[0.05] rounded-xl border border-red-200/80 dark:border-red-500/10 backdrop-blur-sm">
+ <div className="px-3 py-3 bg-red-50/80 dark:bg-red-500/[0.05] rounded-xl border border-red-200/80 dark:border-red-500/10">
  <p className="text-[11px] font-medium text-red-600 dark:text-red-400 mb-2">Delete this project?</p>
  <div className="flex items-center gap-2">
  <button
  onClick={() => handleDelete(workflow.id)}
  disabled={deleteMutation.isPending}
- className="flex-1 px-2 py-1.5 text-xs font-medium bg-red-100/80 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200/80 dark:hover:bg-red-500/20 transition-colors"
+ className="text-xs flex-1 px-2 py-1.5 font-medium bg-red-100/80 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200/80 dark:hover:bg-red-500/20 transition-colors"
  >
  {deleteMutation.isPending ? "Deleting..." : "Confirm"}
  </button>
  <button
  onClick={() => setDeleteConfirm(null)}
- className="flex-1 px-2 py-1.5 text-xs font-medium bg-gray-100/80 dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-400 rounded-lg hover:bg-gray-200/80 dark:hover:bg-zinc-700/80 transition-colors"
+ className="text-xs flex-1 px-2 py-1.5 font-medium bg-gray-100/80 dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-400 rounded-lg hover:bg-gray-200/80 dark:hover:bg-zinc-700/80 transition-colors"
  >
  Cancel
  </button>
@@ -331,7 +328,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  "mt-0.5 p-1.5 rounded-lg transition-colors",
  isActive ? "bg-blue-100/80 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400" : "bg-gray-100/80 dark:bg-white/[0.03] text-slate-700 dark:text-zinc-600 group-hover:text-slate-900 dark:group-hover:text-slate-700"
  )}>
- <LayoutGrid className="w-4 h-4" />
+ <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />
  </div>
  <div className="flex-1 min-w-0">
  <div className="flex items-center justify-between mb-0.5">
@@ -342,14 +339,14 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  {workflow.name}
  </p>
  </div>
- <div className="flex items-center gap-2 text-[10px] text-slate-700 dark:text-zinc-500">
+ <div className="text-[10px] flex items-center gap-2 text-slate-700 dark:text-zinc-500">
  <span>v{workflow.version}</span>
  <span className="w-0.5 h-0.5 rounded-full bg-gray-300 dark:bg-zinc-700" />
  <span>{new Date(workflow.updatedAt).toLocaleDateString()}</span>
  </div>
  </div>
  {isActive && (
- <ChevronRight className="w-4 h-4 text-slate-800 dark:text-zinc-600 self-center" />
+ <ChevronRight className="w-4 h-4 text-slate-800 dark:text-zinc-600 self-center" strokeWidth={1.75} />
  )}
  </button>
 
@@ -367,7 +364,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  : "text-slate-800 dark:text-zinc-600 opacity-0 group-hover:opacity-100 hover:bg-gray-100/80 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-slate-700"
  )}
  >
- <MoreHorizontal className="w-4 h-4" />
+ <MoreHorizontal className="w-4 h-4" strokeWidth={1.75} />
  </button>
 
  {/* Dropdown Menu */}
@@ -378,13 +375,13 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  animate={{ opacity: 1, scale: 1, y: 0 }}
  exit={{ opacity: 0, scale: 0.95, y: -5 }}
  onClick={(e) => e.stopPropagation()}
- className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-white/[0.05] border border-blue-100 dark:border-white/[0.1] rounded-xl overflow-hidden z-20 shadow-xl shadow-gray-300/30 dark:shadow-black/40"
+ className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-white/[0.05] border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden z-20 shadow-gray-300/30 dark:shadow-black/40"
  >
  <button
  onClick={() => handleStartRename(workflow.id, workflow.name)}
- className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-slate-700 dark:text-zinc-300 hover:bg-gray-100/80 dark:hover:bg-white/[0.05] transition-colors"
+ className="text-xs w-full flex items-center gap-2 px-3 py-2.5 font-medium text-slate-700 dark:text-zinc-300 hover:bg-gray-100/80 dark:hover:bg-white/[0.05] transition-colors"
  >
- <Pencil className="w-3.5 h-3.5" />
+ <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
  Rename
  </button>
  <button
@@ -392,9 +389,9 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  setDeleteConfirm(workflow.id);
  setMenuOpen(null);
  }}
- className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-500/10 transition-colors"
+ className="text-xs w-full flex items-center gap-2 px-3 py-2.5 font-medium text-red-500 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-500/10 transition-colors"
  >
- <Trash2 className="w-3.5 h-3.5" />
+ <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
  Delete
  </button>
  </motion.div>
@@ -411,7 +408,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  </div>
 
  {/* User Footer */}
- <div ref={userMenuRef} className="relative p-4 border-t border-blue-100 dark:border-white/[0.06]">
+ <div ref={userMenuRef} className="relative p-4 border-gray-200 dark:border-white/10">
  {/* User Menu Dropdown */}
  <AnimatePresence>
  {userMenuOpen && (
@@ -420,34 +417,34 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 10, scale: 0.95 }}
  transition={{ duration: 0.15 }}
- className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-zinc-900/95 rounded-xl border border-blue-100 dark:border-white/[0.1] shadow-xl shadow-black/10 dark:shadow-black/30 overflow-hidden"
+ className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-white/10 shadow-black/10 dark:shadow-black/30 overflow-hidden"
  >
  <div className="p-1">
  <Link
  href="/settings/profile"
  onClick={() => { setUserMenuOpen(false); onClose(); }}
- className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/[0.06] transition-colors"
+ className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
  >
- <UserCircle className="w-4 h-4 text-slate-700 dark:text-zinc-400" />
+ <UserCircle className="w-4 h-4 text-slate-700 dark:text-zinc-400" strokeWidth={1.75} />
  <span className="text-sm font-medium">Profile</span>
  </Link>
  <Link
  href="/settings"
  onClick={() => { setUserMenuOpen(false); onClose(); }}
- className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/[0.06] transition-colors"
+ className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
  >
- <Settings className="w-4 h-4 text-slate-700 dark:text-zinc-400" />
+ <Settings className="w-4 h-4 text-slate-700 dark:text-zinc-400" strokeWidth={1.75} />
  <span className="text-sm font-medium">Settings</span>
  </Link>
  <Link
  href="/billing"
  onClick={() => { setUserMenuOpen(false); onClose(); }}
- className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-white/70 dark:hover:bg-white/[0.06] transition-colors"
+ className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-700 dark:text-zinc-300 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
  >
- <CreditCard className="w-4 h-4 text-slate-700 dark:text-zinc-400" />
+ <CreditCard className="w-4 h-4 text-slate-700 dark:text-zinc-400" strokeWidth={1.75} />
  <span className="text-sm font-medium">Billing</span>
  </Link>
- <div className="my-1 border-t border-blue-100 dark:border-white/[0.06]" />
+ <div className="my-1 border-gray-200 dark:border-white/10" />
  <button
  onClick={() => {
  setUserMenuOpen(false);
@@ -455,7 +452,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  }}
  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
  >
- <LogOut className="w-4 h-4" />
+ <LogOut className="w-4 h-4" strokeWidth={1.75} />
  <span className="text-sm font-medium">Log out</span>
  </button>
  </div>
@@ -473,15 +470,15 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  <img 
  src={user.imageUrl} 
  alt={user.fullName || "User"} 
- className="w-9 h-9 rounded-xl object-cover border border-blue-100 dark:border-white/[0.1]"
+ className="w-9 h-9 rounded-xl object-cover border border-gray-200 dark:border-white/10"
  />
  ) : (
  <div className="w-9 h-9 rounded-xl bg-blue-100/80 dark:bg-blue-500/20 flex items-center justify-center border border-blue-200/80 dark:border-blue-500/30">
- <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+ <User className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.75} />
  </div>
  )}
  <div className="flex-1 min-w-0 text-left">
- <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+ <p className="font-medium text-slate-900 dark:text-white truncate">
  {user?.fullName || user?.firstName || "User"}
  </p>
  <p className="text-[10px] text-slate-700 dark:text-zinc-500 truncate">
@@ -491,7 +488,7 @@ export function WorkflowSidebar({ isOpen, onClose, currentWorkflowId }: Workflow
  <ChevronUp className={cn(
  "w-4 h-4 text-slate-800 dark:text-zinc-500 transition-transform",
  userMenuOpen ? "rotate-0" : "rotate-180"
- )} />
+ )} strokeWidth={1.75} />
  </button>
  </div>
  </div>

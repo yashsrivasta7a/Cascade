@@ -181,8 +181,8 @@ function FieldWithHandle({
  )}
  style={{ 
  left: -35,
- top: 10,
- transform: "translateX(-50%)",
+ top: "50%",
+ transform: "translate(-50%, -50%)",
  }}
  data-handletype={handleType}
  >
@@ -815,7 +815,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
  description: "Node configuration not found",
  }}
  >
- <div className="text-red-500 text-xs p-2">
+ <div className="text-xs p-2">
  Node type "{nodeType}" not found in config.
  </div>
  </BaseNode>
@@ -939,7 +939,8 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
  {/* Basic Fields with inline handles */}
  {basicFields.map((field) => {
  // Build crop overlay for crop-image node's image field
- const cropOverlay = nodeType === "crop-image" && field.id === "image" && data.image
+ const hasImage = data.image || getConnectedOutput("image");
+ const cropOverlay = nodeType === "crop-image" && field.id === "image" && hasImage
  ? {
  xPercent: typeof data.xPercent === "number" ? data.xPercent : 0,
  yPercent: typeof data.yPercent === "number" ? data.yPercent : 0,
@@ -977,7 +978,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
  {/* Toggle button */}
  <button
  onClick={() => setShowAdvanced(!showAdvanced)}
- className="nodrag nowheel text-[10px] text-slate-700 hover:text-slate-700 flex items-center gap-1 transition-colors"
+ className="text-[10px] nodrag nowheel text-slate-700 hover:text-slate-700 flex items-center gap-1 transition-colors"
  >
  {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
  {showAdvanced ? "Hide advanced" : `Show advanced (${advancedFields.length})`}
@@ -985,7 +986,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
 
  {/* Advanced fields - handles always rendered, content animated */}
  <div className={cn(
- "pt-3 border-t border-blue-100 dark:border-white/5 space-y-3",
+ "pt-3 border-blue-100 dark:border-white/5 space-y-3",
  !showAdvanced && "hidden"
  )}>
  {advancedFields.map((field) => (
@@ -1046,7 +1047,7 @@ function GenericNodeComponent(props: NodeProps<GenericNodeData>) {
  {/* Show tooltip when compatible and dragging */}
  {isCompatible && (
  <div 
- className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/20 text-[9px] text-slate-700 dark:text-white/90 whitespace-nowrap shadow-lg"
+ className="text-[9px] absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/20 text-slate-700 dark:text-white/90 whitespace-nowrap shadow-lg"
  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
  >
  {field.label}

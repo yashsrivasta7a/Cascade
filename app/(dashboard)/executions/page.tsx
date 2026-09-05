@@ -151,7 +151,7 @@ export default function ActivityPage() {
  return (
  <div className="h-full flex flex-col bg-white dark:bg-[#09090b] relative overflow-hidden">
  {/* Top Bar */}
- <div className="relative z-10 shrink-0 px-8 py-6 flex items-center justify-between border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
+ <div className="relative z-10 shrink-0 px-4 sm:px-8 py-4 sm:py-6 flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-[#09090b]/80 ">
  <div className="flex items-center gap-3">
  <h1 className="text-2xl font-semibold text-slate-900 dark:text-zinc-100 tracking-tight">Executions</h1>
  <span className="px-2.5 py-1 rounded-md bg-white dark:bg-zinc-800 text-sm font-medium text-slate-800 dark:text-zinc-400 border border-blue-100 dark:border-zinc-700/50">
@@ -185,9 +185,9 @@ export default function ActivityPage() {
 
  {/* Tabs & Stats Bar */}
  <div className="relative z-10 shrink-0 border-b border-blue-100 dark:border-zinc-800/60 bg-white dark:bg-black/10 ">
- <div className="px-8 flex items-center justify-between">
+ <div className="px-4 sm:px-8 flex flex-wrap items-center justify-between gap-3">
  {/* Tabs */}
- <div className="flex gap-8">
+ <div className="flex flex-wrap gap-4 sm:gap-8">
  {(["runs", "errors"] as const).map((tab) => (
  <button
  key={tab}
@@ -215,7 +215,7 @@ export default function ActivityPage() {
  </div>
 
  {/* Quick Stats */}
- <div className="flex items-center gap-8 py-3">
+ <div className="flex flex-wrap items-center gap-4 sm:gap-8 py-3">
  <div className="flex items-center gap-2.5">
  <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
  <span className="text-sm text-slate-700 dark:text-zinc-400">Success</span>
@@ -246,8 +246,8 @@ export default function ActivityPage() {
  exit={{ opacity: 0 }}
  className="h-full flex flex-col"
  >
- <div className="shrink-0 px-8 py-4 flex items-center justify-between border-b border-blue-100 dark:border-zinc-800/40">
- <div className="relative">
+ <div className="shrink-0 px-4 sm:px-8 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 dark:border-zinc-800/40">
+ <div className="relative flex-1 min-w-0 sm:flex-none">
  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-800 dark:text-zinc-500" />
  <input
  value={searchQuery}
@@ -615,7 +615,7 @@ function ErrorsPanel() {
  return (
  <div className="p-6 space-y-6">
  {/* Stats skeleton */}
- <div className="grid grid-cols-3 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
  {[0, 1, 2].map((i) => (
  <div key={i} className="p-4 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
  <div className="flex items-center gap-2 mb-2">
@@ -650,7 +650,7 @@ function ErrorsPanel() {
  return (
  <div className="p-6">
  {/* Error Stats */}
- <div className="grid grid-cols-3 gap-4 mb-8">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
  <div className="p-5 bg-white dark:bg-zinc-900/50 border border-blue-100 dark:border-zinc-800/60 rounded-xl transition-colors">
  <div className="flex items-center gap-2 mb-2">
  <AlertCircle className="w-4 h-4 text-slate-700 dark:text-zinc-500" />
@@ -755,7 +755,7 @@ function HealthPanel() {
  {/* Overview Stats skeleton */}
  <div>
  <div className="h-3 w-20 bg-gray-200 dark:bg-zinc-800 rounded animate-pulse mb-4" />
- <div className="grid grid-cols-4 gap-4">
+ <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
  {[0, 1, 2, 3].map((i) => (
  <div key={i} className="p-5 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
  <div className="flex items-center gap-2 mb-3">
@@ -803,7 +803,7 @@ function HealthPanel() {
  {/* Overview Stats */}
  <div>
  <h3 className="text-xs font-medium text-slate-700 uppercase tracking-wider mb-4">Overview</h3>
- <div className="grid grid-cols-4 gap-4">
+ <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
  <div className="p-5 bg-white dark:bg-zinc-900/50 border border-blue-100 dark:border-zinc-800/60 rounded-xl transition-colors">
  <div className="flex items-center gap-2 mb-3">
  <Coins className="w-4 h-4 text-amber-500" />
@@ -882,7 +882,7 @@ function HealthPanel() {
  {/* Credit Usage */}
  <div>
  <h3 className="text-xs font-medium text-slate-700 uppercase tracking-wider mb-4">Credit Usage</h3>
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  <div className="p-5 bg-zinc-900/50 border border-zinc-800/60 rounded-xl">
  <div className="flex items-center justify-between mb-1">
  <span className="text-xs text-slate-700">Today</span>

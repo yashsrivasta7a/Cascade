@@ -29,7 +29,6 @@ import {
  Loader2,
  Code,
  Clock,
- ExternalLink,
 } from "lucide-react";
 import { Button, Badge, Input, DotPattern, PageBackground } from "@/components/ui";
 import { UserMenu } from "@/components/layout";
@@ -266,7 +265,7 @@ function SettingsContent() {
  return (
  <>
  {/* Header */}
- <div className="shrink-0 h-14 px-6 flex items-center justify-between border-b border-[#6b6b6b] dark:border-zinc-800/60">
+ <div className="shrink-0 min-h-14 px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 border-b border-[#6b6b6b] dark:border-zinc-800/60">
  <div className="flex items-center gap-3">
  <div className="w-8 h-8 rounded-lg bg-violet-200 dark:bg-zinc-800/50 flex items-center justify-center">
  <Settings className="w-4 h-4 text-violet-600 dark:text-zinc-400" />
@@ -279,12 +278,12 @@ function SettingsContent() {
  <UserMenu />
  </div>
 
- <div className="flex-1 overflow-auto p-6">
+ <div className="flex-1 overflow-auto p-4 sm:p-6">
  <div className="max-w-5xl mx-auto">
- <div className="flex gap-6">
+ <div className="flex flex-col md:flex-row gap-6">
  {/* Sidebar */}
- <motion.nav initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="w-52 shrink-0">
- <div className="p-2 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl">
+ <motion.nav initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="w-full md:w-52 shrink-0">
+ <div className="p-2 bg-white dark:bg-zinc-900/50 border border-[#6b6b6b] dark:border-zinc-800/60 rounded-xl flex md:block overflow-x-auto scrollbar-none">
  {tabs.map((tab) => {
  const isActive = activeTab === tab.id;
  return (
@@ -292,7 +291,7 @@ function SettingsContent() {
  key={tab.id}
  onClick={() => setActiveTab(tab.id as SettingsTab)}
  className={cn(
- "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
+ "w-full shrink-0 md:shrink flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all whitespace-nowrap",
  isActive 
  ? "bg-white dark:bg-zinc-800 text-slate-900 dark:text-white" 
  : "text-slate-700 dark:text-zinc-500 hover:text-slate-900 dark:hover:text-slate-700 hover:bg-white/60 dark:hover:bg-zinc-800/50"
@@ -388,7 +387,7 @@ function SettingsContent() {
  </div>
  </div>
 
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  <div>
  <label className="text-xs font-medium text-slate-700 dark:text-zinc-400 mb-2 block">First Name</label>
  <Input defaultValue={user?.firstName || ""} placeholder="First name" />
@@ -488,7 +487,7 @@ function SettingsContent() {
  </div>
  <div>
  <label className="text-xs font-medium text-slate-700 dark:text-zinc-400 mb-2 block">Expiration</label>
- <div className="grid grid-cols-4 gap-2">
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
  {[
  { value: "never", label: "Never" },
  { value: "30d", label: "30 days" },
@@ -628,23 +627,6 @@ function SettingsContent() {
  ))
  )}
 
- {/* API Documentation Link */}
- <div className="p-4 bg-white dark:bg-zinc-800/50 border border-[#6b6b6b] dark:border-zinc-700/50 rounded-xl">
- <div className="flex items-center justify-between">
- <div>
- <p className="text-sm text-slate-900 dark:text-white">Need help with the API?</p>
- <p className="text-xs text-slate-700 dark:text-zinc-500">Check out our API documentation for examples and guides.</p>
- </div>
- <Button 
- variant="outline" 
- size="sm"
- rightIcon={<ExternalLink className="w-3 h-3" />}
- onClick={() => window.open("/docs", "_blank")}
- >
- View Docs
- </Button>
- </div>
- </div>
  </div>
  )}
 
@@ -804,7 +786,7 @@ function SettingsContent() {
  <p className="text-sm text-slate-700 dark:text-zinc-400 mb-4">
  Choose how Cascade looks for you. Select a theme or sync with your system settings.
  </p>
- <div className="grid grid-cols-3 gap-4">
+ <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
  {[
  { id: "light", name: "Light", icon: Sun, preview: "bg-white border-blue-100" },
  { id: "dark", name: "Dark", icon: Moon, preview: "bg-zinc-900 border-zinc-700" },

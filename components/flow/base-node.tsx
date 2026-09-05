@@ -371,12 +371,12 @@ function BaseNodeComponent({
  onChange={(e) => setEditedName(e.target.value)}
  onBlur={handleNameSubmit}
  onKeyDown={handleNameKeyDown}
- className="nodrag nowheel bg-transparent border-b border-gray-400 dark:border-zinc-600 text-slate-800 dark:text-white/90 text-[13px] tracking-wide focus:outline-none focus:border-gray-500 dark:focus:border-zinc-400 w-full max-w-[200px]"
+ className="nodrag nowheel bg-transparent border-gray-400 dark:border-zinc-600 dark:text-white/90 text-[13px] tracking-wide focus:outline-none focus:border-gray-500 dark:focus:border-zinc-400 w-full max-w-[200px]"
  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
  />
  ) : (
  <h3 
- className="text-slate-800 dark:text-white/80 text-[13px] tracking-wide truncate cursor-text hover:text-slate-900 dark:hover:text-white transition-colors"
+ className="dark:text-white/80 text-[13px] tracking-wide truncate cursor-text hover:text-slate-900 dark:hover:text-white transition-colors"
  onClick={() => setIsEditingName(true)}
  title="Click to rename"
  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
@@ -405,7 +405,7 @@ function BaseNodeComponent({
  <Info className="w-3.5 h-3.5" />
  </div>
  {/* Custom tooltip - rectangle aligned to right */}
- <div className="absolute bottom-full right-0 mb-2 px-4 py-2.5 rounded-lg bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/10 text-xs text-slate-700 dark:text-zinc-200 w-[280px] opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity duration-150 shadow-xl shadow-black/10 dark:shadow-black/50 z-50 leading-relaxed">
+ <div className="text-xs shadow-xl absolute bottom-full right-0 mb-2 px-4 py-2.5 rounded-lg bg-white dark:bg-[#1a1a1a] border border-blue-100 dark:border-white/10 text-slate-700 dark:text-zinc-200 w-[280px] opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity duration-150 shadow-black/10 dark:shadow-black/50 z-50 leading-relaxed">
  {data.description || "Node information"}
  </div>
  </div>
@@ -438,7 +438,7 @@ function BaseNodeComponent({
  {/* Error Display */}
  {hasError && (
  <div className="px-4 pb-3">
- <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-2.5">
+ <div className="text-xs flex items-start gap-2 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-2.5">
  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
  <span className="break-words leading-relaxed">{(data as any).error}</span>
  </div>
@@ -449,7 +449,7 @@ function BaseNodeComponent({
  <div 
  className={cn(
  "px-4 py-2 flex items-center justify-between",
- "border-t border-blue-100 dark:border-zinc-800/30"
+ "border-gray-200 dark:border-white/10/30"
  )}
  >
  <div className="flex items-center gap-2">
